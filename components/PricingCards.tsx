@@ -105,22 +105,42 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
     }
   }, [searchParams, router]);
 
-  async function handleUpgrade(planId: string) {
-    if (planId === "free" || planId === currentPlan) return;
+  async function handlePlanChange(planId: string) {
+    if (planId === currentPlan) return;
+    const currentRank = PLAN_RANK[currentPlan] ?? 0;
+    const targetRank = PLAN_RANK[planId] ?? 0;
+    const isUpgrade = targetRank > currentRank;
+
     setLoading(planId);
     setError("");
     try {
-      const res = await fetch("/api/mollie/create-subscription", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.checkoutUrl) {
-        setError(data.error ?? "Er ging iets fout. Probeer het opnieuw.");
-        return;
+      if (isUpgrade && planId !== "free") {
+        // Upgrade: go through Mollie checkout for new iDEAL first payment
+        const res = await fetch("/api/mollie/create-subscription", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ planId }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.checkoutUrl) {
+          setError(data.error ?? "Er ging iets fout. Probeer het opnieuw.");
+          return;
+        }
+        router.push(data.checkoutUrl);
+      } else {
+        // Downgrade or cancel to free: no checkout needed
+        const res = await fetch("/api/mollie/switch-plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ planId }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error ?? "Er ging iets fout. Probeer het opnieuw.");
+          return;
+        }
+        router.refresh();
       }
-      router.push(data.checkoutUrl);
     } catch {
       setError("Er ging iets fout. Controleer je internetverbinding.");
     } finally {
@@ -130,9 +150,10 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
 
   function getCtaLabel(plan: Plan): string {
     if (loading === plan.id) return "Bezig…";
-    const isCurrent = plan.id === currentPlan;
-    if (isCurrent) return "Huidig plan";
-    if (plan.id === "free") return "Huidig plan";
+    if (plan.id === currentPlan) return "Huidig plan";
+    if (plan.id === "free") {
+      return currentPlan === "free" ? "Huidig plan" : "Downgraden naar gratis";
+    }
     const currentRank = PLAN_RANK[currentPlan] ?? 0;
     const targetRank = PLAN_RANK[plan.id] ?? 0;
     if (targetRank > currentRank) return "Upgraden →";
@@ -141,15 +162,18 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
 
   function isDisabled(plan: Plan): boolean {
     if (plan.id === currentPlan) return true;
-    if (plan.id === "free") return true;
+    if (plan.id === "free" && currentPlan === "free") return true;
     if (loading !== null) return true;
     return false;
   }
 
   function getButtonStyle(plan: Plan): string {
-    const isCurrent = plan.id === currentPlan;
-    if (isCurrent || plan.id === "free") {
+    if (plan.id === currentPlan) {
       return "bg-white/5 text-slate-600 cursor-default border border-white/[0.05]";
+    }
+    if (plan.id === "free") {
+      if (currentPlan === "free") return "bg-white/5 text-slate-600 cursor-default border border-white/[0.05]";
+      return "bg-white/5 hover:bg-white/10 text-slate-400 border border-white/10 hover:border-white/20";
     }
     const currentRank = PLAN_RANK[currentPlan] ?? 0;
     const targetRank = PLAN_RANK[plan.id] ?? 0;
@@ -228,7 +252,7 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
 
               {/* CTA */}
               <button
-                onClick={() => handleUpgrade(plan.id)}
+                onClick={() => handlePlanChange(plan.id)}
                 disabled={isDisabled(plan)}
                 className={`w-full py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 ${getButtonStyle(plan)}`}
               >
