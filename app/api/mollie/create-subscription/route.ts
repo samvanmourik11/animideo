@@ -36,12 +36,23 @@ export async function POST(req: NextRequest) {
 
   let customerId = profile?.mollie_customer_id;
 
-  // Cancel existing subscription if upgrading/switching plan
-  if (profile?.mollie_subscription_id && customerId) {
-    await fetch(`${MOLLIE_BASE}/customers/${customerId}/subscriptions/${profile.mollie_subscription_id}`, {
-      method: "DELETE",
+  // Cancel ALL active subscriptions for this customer before creating a new one
+  if (customerId) {
+    const subsRes = await fetch(`${MOLLIE_BASE}/customers/${customerId}/subscriptions?limit=50`, {
       headers: { "Authorization": `Bearer ${apiKey}` },
     });
+    if (subsRes.ok) {
+      const subsData = await subsRes.json();
+      const activeSubs = (subsData._embedded?.subscriptions ?? []).filter(
+        (s: { status: string; id: string }) => s.status === "active" || s.status === "pending"
+      );
+      await Promise.all(activeSubs.map((s: { id: string }) =>
+        fetch(`${MOLLIE_BASE}/customers/${customerId}/subscriptions/${s.id}`, {
+          method: "DELETE",
+          headers: { "Authorization": `Bearer ${apiKey}` },
+        })
+      ));
+    }
     await supabase
       .from("profiles")
       .update({ mollie_subscription_id: null })
