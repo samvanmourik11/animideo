@@ -6,7 +6,11 @@
       "Bash(git --version)",
       "Bash(npm run:*)",
       "Bash(ls:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)",
+      "Bash(grep -n \"credits\" /Users/samvanmourik/animatie-saas/animideo/supabase/migrations/*.sql)"
     ]
   }
 }
