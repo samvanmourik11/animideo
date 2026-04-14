@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 interface Plan {
   id: string;
   name: string;
-  price: string | null;
+  price: string;
+  period?: string;
   credits: string;
   badge?: string;
   features: string[];
@@ -26,7 +27,6 @@ const PLANS: Plan[] = [
       "Afbeelding genereren (1 credit)",
       "Video beweging (5 credits)",
       "Watermark op exports",
-      "Standaard kwaliteit",
     ],
     cta: "Huidig plan",
     highlight: false,
@@ -35,6 +35,7 @@ const PLANS: Plan[] = [
     id: "starter",
     name: "Starter",
     price: "€49",
+    period: "/maand",
     credits: "500 credits/maand",
     badge: "MEEST GEKOZEN",
     features: [
@@ -53,6 +54,7 @@ const PLANS: Plan[] = [
     id: "pro",
     name: "Pro",
     price: "€99",
+    period: "/maand",
     credits: "1.500 credits/maand",
     features: [
       "1.500 credits per maand",
@@ -60,7 +62,6 @@ const PLANS: Plan[] = [
       "Afbeelding genereren (1 credit)",
       "Video beweging (5 credits)",
       "Geen watermark",
-      "Prioriteit rendering",
       "HD exports",
       "Prioriteit support",
     ],
@@ -71,6 +72,7 @@ const PLANS: Plan[] = [
     id: "agency",
     name: "Agency",
     price: "€249",
+    period: "/maand",
     credits: "5.000 credits/maand",
     features: [
       "5.000 credits per maand",
@@ -78,7 +80,6 @@ const PLANS: Plan[] = [
       "Afbeelding genereren (1 credit)",
       "Video beweging (5 credits)",
       "Geen watermark",
-      "Prioriteit rendering",
       "4K exports",
       "Dedicated support",
       "Meerdere teamleden",
@@ -119,77 +120,74 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
   return (
     <div>
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 text-center">
+        <div className="mb-6 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-2xl px-4 py-3 text-center">
           {error}
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {PLANS.map((plan) => {
           const isCurrent = plan.id === currentPlan;
           return (
             <div
               key={plan.id}
-              className={`relative flex flex-col rounded-2xl border-2 p-6 transition-shadow ${
+              className={`relative flex flex-col rounded-2xl border p-6 transition-all duration-200 ${
                 plan.highlight
-                  ? "border-blue-500 shadow-lg shadow-blue-100"
-                  : "border-gray-200"
+                  ? "bg-gradient-to-b from-blue-600/10 to-blue-500/5 border-blue-500/40 shadow-[0_0_40px_rgba(59,130,246,0.15)]"
+                  : "bg-[#0c1428] border-white/[0.07] hover:border-white/15"
               }`}
             >
+              {/* Badge */}
               {plan.badge && (
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                  <span className="bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  <span className="bg-gradient-to-r from-blue-600 to-blue-500 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-[0_0_12px_rgba(59,130,246,0.5)]">
                     {plan.badge}
                   </span>
                 </div>
               )}
 
+              {/* Current plan indicator */}
               {isCurrent && (
                 <div className="absolute -top-3 right-4">
-                  <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                  <span className="bg-green-500/20 border border-green-500/30 text-green-400 text-[10px] font-bold px-3 py-1 rounded-full">
                     Huidig plan
                   </span>
                 </div>
               )}
 
-              <div className="mb-6">
-                <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
-                <div className="mt-2 flex items-baseline gap-1">
-                  <span className="text-3xl font-extrabold text-gray-900">{plan.price}</span>
-                  {plan.price !== "€0" && (
-                    <span className="text-sm text-gray-500">/maand</span>
-                  )}
+              {/* Price */}
+              <div className="mb-5">
+                <h3 className="text-base font-bold text-white mb-2">{plan.name}</h3>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-extrabold text-white">{plan.price}</span>
+                  {plan.period && <span className="text-slate-500 text-sm">{plan.period}</span>}
                 </div>
-                <p className="mt-1 text-sm font-medium text-blue-600">{plan.credits}</p>
+                <p className="mt-1 text-xs font-semibold text-blue-400">{plan.credits}</p>
               </div>
 
-              <ul className="flex-1 space-y-2.5 mb-6">
+              {/* Features */}
+              <ul className="flex-1 space-y-2 mb-6">
                 {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-sm text-gray-600">
-                    <span className="text-green-500 mt-0.5 shrink-0">✓</span>
+                  <li key={f} className="flex items-start gap-2 text-sm text-slate-400">
+                    <span className="text-blue-400 mt-0.5 shrink-0">✓</span>
                     {f}
                   </li>
                 ))}
               </ul>
 
+              {/* CTA */}
               <button
                 onClick={() => handleUpgrade(plan.id)}
                 disabled={isCurrent || loading === plan.id || plan.id === "free"}
-                className={`w-full py-2.5 px-4 rounded-xl text-sm font-semibold transition-colors ${
-                  isCurrent
-                    ? "bg-gray-100 text-gray-400 cursor-default"
-                    : plan.id === "free"
-                    ? "bg-gray-100 text-gray-400 cursor-default"
+                className={`w-full py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                  isCurrent || plan.id === "free"
+                    ? "bg-white/5 text-slate-600 cursor-default border border-white/[0.05]"
                     : plan.highlight
-                    ? "bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
-                    : "bg-gray-900 hover:bg-gray-700 text-white disabled:opacity-60"
+                    ? "bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] disabled:opacity-60"
+                    : "bg-white/10 hover:bg-white/15 text-white border border-white/10 hover:border-white/20 disabled:opacity-60"
                 }`}
               >
-                {loading === plan.id
-                  ? "Bezig..."
-                  : isCurrent
-                  ? "Huidig plan"
-                  : plan.cta}
+                {loading === plan.id ? "Bezig…" : isCurrent ? "Huidig plan" : plan.cta}
               </button>
             </div>
           );
@@ -197,18 +195,19 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
       </div>
 
       {/* Credits explanation */}
-      <div className="mt-10 bg-gray-50 border border-gray-200 rounded-2xl p-6">
-        <h3 className="font-semibold text-gray-900 mb-3">Hoe werken credits?</h3>
+      <div className="mt-10 bg-[#0c1428] border border-white/[0.07] rounded-2xl p-6">
+        <h3 className="font-semibold text-white mb-4">Hoe werken credits?</h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { action: "Script genereren", cost: "1 credit" },
-            { action: "Afbeelding genereren", cost: "1 credit" },
-            { action: "Video beweging (Runway)", cost: "5 credits" },
-            { action: "HD export", cost: "2 credits" },
+            { action: "Script genereren", cost: "1 credit", icon: "📝" },
+            { action: "Afbeelding genereren", cost: "1 credit", icon: "🎨" },
+            { action: "Video beweging (Runway)", cost: "5 credits", icon: "🎬" },
+            { action: "HD export", cost: "2 credits", icon: "💾" },
           ].map((item) => (
-            <div key={item.action} className="text-center">
-              <p className="text-sm font-semibold text-gray-900">{item.cost}</p>
-              <p className="text-xs text-gray-500 mt-0.5">{item.action}</p>
+            <div key={item.action} className="text-center bg-white/[0.03] rounded-xl p-4">
+              <div className="text-2xl mb-2">{item.icon}</div>
+              <p className="text-sm font-bold text-white">{item.cost}</p>
+              <p className="text-xs text-slate-500 mt-1">{item.action}</p>
             </div>
           ))}
         </div>

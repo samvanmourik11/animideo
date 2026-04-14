@@ -84,9 +84,9 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
       )}
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
-        <h2 className="text-2xl font-semibold text-[#1e3a5f]">Project Setup</h2>
-        <p className="text-gray-500 mt-1 text-sm">
-          Fill in the details below. GPT-4 will generate a structured scene-by-scene script.
+        <h2 className="text-2xl font-bold text-white">Project instellen</h2>
+        <p className="text-slate-500 mt-1 text-sm">
+          Vul de details in. GPT-4 genereert automatisch een scene-voor-scene script.
         </p>
       </div>
 
@@ -163,7 +163,7 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
       </div>
 
       {error && (
-        <p className="mt-4 text-sm text-red-600">{error}</p>
+        <p className="mt-4 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{error}</p>
       )}
 
       <div className="mt-8">

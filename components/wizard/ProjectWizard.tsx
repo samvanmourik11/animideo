@@ -61,8 +61,8 @@ export default function ProjectWizard({ initialProject, plan }: { initialProject
 
   return (
     <div>
-      <div className="mb-3">
-        <h1 className="text-xl font-semibold text-gray-900 truncate">{project.title}</h1>
+      <div className="mb-4">
+        <h1 className="text-xl font-bold text-white truncate">{project.title}</h1>
       </div>
 
       <Stepper steps={STEPS} current={step} onSelect={setStep} maxReached={maxReached} />

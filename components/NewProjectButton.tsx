@@ -26,14 +26,14 @@ export default function NewProjectButton({ userId }: { userId: string }) {
     if (!error && data) {
       router.push(`/project/${data.id}`);
     } else {
-      alert("Could not create project: " + error?.message);
+      alert("Kon project niet aanmaken: " + error?.message);
       setLoading(false);
     }
   }
 
   return (
-    <button onClick={create} disabled={loading} className="btn-primary">
-      {loading ? "Creating…" : "+ New Project"}
+    <button onClick={create} disabled={loading} className="btn-primary text-sm">
+      {loading ? "Aanmaken…" : "+ Nieuw project"}
     </button>
   );
 }

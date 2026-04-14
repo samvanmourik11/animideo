@@ -18,7 +18,7 @@ export default async function AppLayout({
   const profile = await getProfile(user.id);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#060d1f]">
       <NavBar
         email={user.email ?? ""}
         credits={profile.credits}

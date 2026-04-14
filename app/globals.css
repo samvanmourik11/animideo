@@ -4,24 +4,62 @@
 
 @layer base {
   body {
-    @apply bg-white text-gray-900 antialiased;
+    @apply bg-[#060d1f] text-white antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(59,130,246,0.12) 0%, transparent 70%);
+  }
+
+  /* Dark native select */
+  select option {
+    @apply bg-[#0c1428] text-white;
   }
 }
 
 @layer components {
+  /* ── Buttons ─────────────────────────────────────────── */
   .btn-primary {
-    @apply bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply relative inline-flex items-center justify-center
+           bg-gradient-to-r from-blue-600 to-blue-500
+           hover:from-blue-500 hover:to-blue-400
+           text-white font-semibold py-2.5 px-5 rounded-xl
+           shadow-[0_0_20px_rgba(59,130,246,0.35)]
+           hover:shadow-[0_0_30px_rgba(59,130,246,0.55)]
+           transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none;
   }
+
   .btn-secondary {
-    @apply bg-white hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg border border-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center
+           bg-white/5 hover:bg-white/10
+           text-slate-300 hover:text-white
+           font-medium py-2.5 px-5 rounded-xl
+           border border-white/10 hover:border-white/20
+           transition-all duration-200
+           disabled:opacity-50 disabled:cursor-not-allowed;
   }
+
+  /* ── Form elements ───────────────────────────────────── */
   .input {
-    @apply w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-400;
+    @apply w-full bg-[#060d1f] border border-white/10
+           rounded-xl px-4 py-2.5 text-sm text-white
+           focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40
+           placeholder-slate-600
+           transition-all duration-200;
   }
+
   .label {
-    @apply block text-sm font-medium text-gray-700 mb-1;
+    @apply block text-sm font-medium text-slate-400 mb-1.5;
   }
+
+  /* ── Cards ───────────────────────────────────────────── */
   .card {
-    @apply bg-white border border-gray-200 rounded-xl p-6;
+    @apply bg-[#0c1428] border border-white/[0.07]
+           rounded-2xl p-6
+           shadow-[0_4px_24px_rgba(0,0,0,0.4)];
+  }
+
+  .card-hover {
+    @apply card hover:border-blue-500/30 hover:shadow-[0_4px_32px_rgba(59,130,246,0.12)]
+           transition-all duration-200;
   }
 }

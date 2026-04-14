@@ -17,17 +17,22 @@ export default function Stepper({ steps, current, onSelect, maxReached }: Steppe
             key={label}
             onClick={() => reachable && onSelect(i)}
             disabled={!reachable}
-            className={`flex items-center gap-2 py-2 px-3 text-sm font-medium transition-colors whitespace-nowrap
-              ${active ? "text-[#3b82f6]" : done ? "text-gray-500 hover:text-[#3b82f6]" : "text-gray-300 cursor-default"}
+            className={`flex items-center gap-2 py-2 px-3 text-sm font-medium transition-all duration-200 whitespace-nowrap
+              ${active
+                ? "text-blue-400"
+                : done
+                ? "text-slate-400 hover:text-blue-400"
+                : "text-slate-600 cursor-default"
+              }
             `}
           >
             <span
-              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 flex-shrink-0
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-all duration-200
                 ${active
-                  ? "border-[#3b82f6] text-[#3b82f6] bg-white"
+                  ? "bg-blue-500/20 border-2 border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.4)]"
                   : done
-                  ? "border-[#1e3a5f] bg-[#1e3a5f] text-white"
-                  : "border-gray-200 text-gray-300"
+                  ? "bg-blue-600 border-2 border-blue-600 text-white"
+                  : "border-2 border-white/10 text-slate-600"
                 }
               `}
             >
@@ -35,7 +40,7 @@ export default function Stepper({ steps, current, onSelect, maxReached }: Steppe
             </span>
             <span className="hidden sm:inline">{label}</span>
             {i < steps.length - 1 && (
-              <span className="ml-2 text-gray-200 select-none">›</span>
+              <span className="ml-2 text-slate-700 select-none">›</span>
             )}
           </button>
         );
