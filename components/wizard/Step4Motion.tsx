@@ -1,0 +1,336 @@
+"use client";
+
+import { useState, useRef, useEffect } from "react";
+import { Project, Scene } from "@/lib/types";
+
+interface Props {
+  project: Project;
+  onUpdate: (updates: Partial<Project>) => void;
+  onNext: () => void;
+  onBack: () => void;
+}
+
+export default function Step4Motion({ project, onUpdate, onNext, onBack }: Props) {
+  const [scenes, setScenes] = useState<Scene[]>(project.scenes ?? []);
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    const firstPending = (project.scenes ?? []).findIndex((s) => !s.video_url);
+    return firstPending === -1 ? 0 : firstPending;
+  });
+  const [generating, setGenerating] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [promptDraft, setPromptDraft] = useState("");
+  const [error, setError] = useState("");
+  const [statusMsg, setStatusMsg] = useState("");
+  const [cacheBust, setCacheBust] = useState<Record<string, number>>({});
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const scene = scenes[currentIndex];
+  const totalScenes = scenes.length;
+  const doneCount = scenes.filter((s) => s.video_url).length;
+  const allDone = doneCount === totalScenes;
+
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
+
+  async function generateMotion(motionPrompt: string) {
+    const imageUrl = scene.image_url;
+    if (!imageUrl) {
+      setError("This scene has no accepted image yet. Go back to Step 3 — Images and accept one first.");
+      return;
+    }
+    setGenerating(true);
+    setError("");
+    setStatusMsg("Submitting to Runway Gen-3…");
+
+    try {
+      const res = await fetch("/api/generate-motion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl,   // the accepted DALL-E image URL from Step 3
+          motionPrompt,
+          format: project.format,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to submit motion task");
+
+      const { taskId } = data;
+      setStatusMsg("Generating video (this takes 1-3 minutes)…");
+
+      // Poll for status
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch(
+            `/api/runway-status?taskId=${taskId}&projectId=${project.id}&sceneId=${scene.id}`
+          );
+          const statusData = await statusRes.json();
+
+          if (statusData.status === "SUCCEEDED") {
+            clearInterval(pollIntervalRef.current!);
+            pollIntervalRef.current = null;
+            setStatusMsg("");
+            const updatedScenes = scenes.map((s, i) =>
+              i === currentIndex
+                ? { ...s, video_url: statusData.videoUrl, motion_prompt: motionPrompt }
+                : s
+            );
+            setScenes(updatedScenes);
+            setCacheBust(prev => ({ ...prev, [scene.id]: Date.now() }));
+            setEditingPrompt(false);
+            setGenerating(false);
+          } else if (statusData.status === "FAILED") {
+            clearInterval(pollIntervalRef.current!);
+            pollIntervalRef.current = null;
+            throw new Error(statusData.error ?? "Runway generation failed");
+          }
+          // PENDING or RUNNING — keep polling
+        } catch (pollErr: unknown) {
+          clearInterval(pollIntervalRef.current!);
+          pollIntervalRef.current = null;
+          setError(pollErr instanceof Error ? pollErr.message : "Polling error");
+          setGenerating(false);
+          setStatusMsg("");
+        }
+      }, 6000);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+      setGenerating(false);
+      setStatusMsg("");
+    }
+  }
+
+  async function deleteVideo() {
+    const updatedScenes = scenes.map((s, i) =>
+      i === currentIndex ? { ...s, video_url: null } : s
+    );
+    setScenes(updatedScenes);
+    setCacheBust(prev => { const next = { ...prev }; delete next[scene.id]; return next; });
+    await fetch("/api/save-project", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id, scenes: updatedScenes }),
+    });
+    onUpdate({ scenes: updatedScenes });
+  }
+
+  async function acceptScene() {
+    const updatedScenes = [...scenes];
+    await fetch("/api/save-project", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id, scenes: updatedScenes }),
+    });
+    onUpdate({ scenes: updatedScenes });
+    if (currentIndex < totalScenes - 1) {
+      setCurrentIndex(currentIndex + 1);
+    }
+  }
+
+  async function handleContinue() {
+    await fetch("/api/save-project", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id, scenes, status: "MotionReady" }),
+    });
+    onUpdate({ scenes, status: "MotionReady" });
+    onNext();
+  }
+
+  if (!scene) return null;
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <div className="mb-6">
+        <h2 className="text-2xl font-semibold text-[#1e3a5f]">Motion Review</h2>
+        <p className="text-gray-500 text-sm mt-1">
+          Generate a 5-second video clip for each scene using Runway Gen-3.
+        </p>
+      </div>
+
+      {/* Progress bar */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
+          <span>Scene {currentIndex + 1} of {totalScenes}</span>
+          <span>{doneCount} of {totalScenes} approved</span>
+        </div>
+        <div className="w-full bg-gray-100 rounded-full h-2">
+          <div
+            className="bg-[#3b82f6] h-2 rounded-full transition-all"
+            style={{ width: `${(doneCount / totalScenes) * 100}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Scene navigation pills */}
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {scenes.map((s, i) => (
+          <button
+            key={s.id}
+            onClick={() => !generating && setCurrentIndex(i)}
+            disabled={generating}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors
+              ${i === currentIndex
+                ? "bg-[#1e3a5f] text-white"
+                : s.video_url
+                ? "bg-green-100 text-green-700"
+                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+              }`}
+          >
+            #{s.number} {s.video_url ? "✓" : ""}
+          </button>
+        ))}
+      </div>
+
+      <div className="card space-y-4">
+        {/* Motion prompt */}
+        <div>
+          <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Motion Instruction</span>
+          {editingPrompt ? (
+            <div className="mt-2 space-y-2">
+              <textarea
+                className="input resize-none text-sm"
+                rows={3}
+                value={promptDraft}
+                onChange={(e) => setPromptDraft(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <button
+                  className="btn-primary text-sm"
+                  onClick={() => generateMotion(promptDraft)}
+                  disabled={generating}
+                >
+                  {generating ? "Generating…" : "Regenerate with New Prompt"}
+                </button>
+                <button className="btn-secondary text-sm" onClick={() => setEditingPrompt(false)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-1 text-sm text-gray-700 leading-relaxed">{scene.motion_prompt}</p>
+          )}
+        </div>
+
+        {/* Source image — this is the accepted DALL-E image sent to Runway */}
+        <div>
+          <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
+            Source Image (from Step 3)
+          </span>
+          {scene.image_url ? (
+            <div className="mt-2 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 aspect-video w-full relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={scene.image_url}
+                alt={`Scene ${scene.number} source`}
+                crossOrigin="anonymous"
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className="mt-2 rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-700">
+              No image found for this scene. Go back to{" "}
+              <strong>Step 3 — Images</strong> and accept an image first.
+            </div>
+          )}
+        </div>
+
+        {/* Video area */}
+        <div className="rounded-xl overflow-hidden bg-gray-900 border border-gray-200 aspect-video flex items-center justify-center relative">
+          {scene.video_url ? (
+            <video
+              key={`${scene.video_url}-${cacheBust[scene.id] ?? 0}`}
+              src={cacheBust[scene.id] ? `${scene.video_url}?cb=${cacheBust[scene.id]}` : scene.video_url}
+              controls
+              loop
+              className="w-full h-full object-contain"
+            />
+          ) : (
+            <div className="text-center text-gray-400">
+              {generating ? (
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-10 h-10 border-4 border-[#3b82f6] border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-gray-300">{statusMsg}</p>
+                </div>
+              ) : (
+                <p className="text-sm">No video clip yet</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <p className="text-sm text-red-700">{error}</p>
+            <button
+              onClick={() => generateMotion(scene.motion_prompt)}
+              className="mt-2 btn-primary text-sm"
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex flex-wrap gap-2 pt-2">
+          {!scene.video_url && !generating && !editingPrompt && (
+            <button onClick={() => generateMotion(scene.motion_prompt)} className="btn-primary">
+              Generate Video Clip
+            </button>
+          )}
+          {scene.video_url && !editingPrompt && (
+            <>
+              <button
+                onClick={() => generateMotion(scene.motion_prompt)}
+                disabled={generating}
+                className="btn-secondary text-sm"
+              >
+                {generating ? "Generating…" : "Regenerate"}
+              </button>
+              <button
+                onClick={deleteVideo}
+                disabled={generating}
+                className="text-sm px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
+                title="Delete video clip and start fresh"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete
+              </button>
+              <button
+                onClick={() => {
+                  setPromptDraft(scene.motion_prompt);
+                  setEditingPrompt(true);
+                }}
+                disabled={generating}
+                className="btn-secondary text-sm"
+              >
+                Edit Motion Prompt + Regenerate
+              </button>
+              <button
+                onClick={acceptScene}
+                disabled={generating}
+                className="btn-primary text-sm"
+              >
+                {currentIndex < totalScenes - 1 ? "Accept → Next Scene" : "Accept"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mt-6">
+        <button onClick={onBack} className="btn-secondary">← Back</button>
+        {allDone && (
+          <button onClick={handleContinue} className="btn-primary px-8 py-3">
+            Continue to Voice-over →
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}

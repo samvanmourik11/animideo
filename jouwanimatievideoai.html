@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JouwAnimatieVideo A.I. — Professionele A.I. Animatievideo's</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-main:    #0a0f1e;
+      --bg-section: #0d1530;
+      --blue:       #3b82f6;
+      --blue-hover: #2563eb;
+      --blue-dark:  #1e3a5f;
+      --white:      #ffffff;
+      --muted:      #94a3b8;
+      --border:     rgba(255,255,255,0.08);
+      --card-bg:    rgba(255,255,255,0.04);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-main);
+      color: var(--white);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── Geometric background decoration ── */
+    .geo-bg {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .geo-bg span {
+      position: absolute;
+      border: 1px solid rgba(59,130,246,0.07);
+      transform: rotate(45deg);
+      border-radius: 4px;
+    }
+    .geo-bg span:nth-child(1)  { width: 200px; height: 200px; top: 8%;  left: 5%;   opacity:.5; }
+    .geo-bg span:nth-child(2)  { width: 140px; height: 140px; top: 25%; right: 8%;  opacity:.4; }
+    .geo-bg span:nth-child(3)  { width: 90px;  height: 90px;  top: 60%; left: 12%;  opacity:.3; }
+    .geo-bg span:nth-child(4)  { width: 250px; height: 250px; bottom: 10%; right: 5%; opacity:.25; }
+    .geo-bg span:nth-child(5)  { width: 60px;  height: 60px;  top: 45%; left: 50%;  opacity:.3; }
+    .geo-bg span:nth-child(6)  { width: 180px; height: 180px; top: 75%; left: 35%;  opacity:.15; }
+
+    /* ── Layout helpers ── */
+    .container {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    section { position: relative; z-index: 1; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 0.875rem;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      border: none;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: var(--blue);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--blue-hover); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(59,130,246,0.35); }
+
+    .btn-outline {
+      background: transparent;
+      color: #fff;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+    .btn-outline:hover { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.05); }
+
+    .btn-lg { padding: 18px 36px; font-size: 1rem; }
+    .btn-sm { padding: 10px 20px; font-size: 0.8rem; }
+
+    /* ══════════════════════════════════════
+       NAVIGATION
+    ══════════════════════════════════════ */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10,15,30,0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 68px;
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: #fff;
+      font-weight: 800;
+      font-size: 1.05rem;
+      letter-spacing: -0.01em;
+    }
+    .nav-logo .play-icon {
+      width: 34px;
+      height: 34px;
+      background: linear-gradient(135deg, var(--blue), #6366f1);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .nav-logo .play-icon svg { width: 14px; height: 14px; fill: #fff; margin-left: 2px; }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: #fff; }
+
+    .nav-cta { margin-left: 8px; }
+
+    .nav-hamburger {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      cursor: pointer;
+      padding: 4px;
+    }
+    .nav-hamburger span {
+      display: block;
+      width: 22px;
+      height: 2px;
+      background: #fff;
+      border-radius: 2px;
+      transition: all 0.3s;
+    }
+
+    /* ══════════════════════════════════════
+       HERO
+    ══════════════════════════════════════ */
+    #hero {
+      padding: 100px 0 80px;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(59,130,246,0.12) 0%, transparent 70%);
+    }
+    .hero-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: center;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(59,130,246,0.12);
+      border: 1px solid rgba(59,130,246,0.3);
+      color: var(--blue);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      padding: 6px 14px;
+      border-radius: 50px;
+      margin-bottom: 24px;
+    }
+    .hero-badge .dot {
+      width: 6px;
+      height: 6px;
+      background: var(--blue);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.85); }
+    }
+    .hero-title {
+      font-size: clamp(2rem, 4vw, 3.25rem);
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      margin-bottom: 20px;
+    }
+    .hero-title .accent { color: var(--blue); }
+    .hero-sub {
+      font-size: 1.05rem;
+      color: var(--muted);
+      line-height: 1.7;
+      margin-bottom: 36px;
+      max-width: 480px;
+    }
+    .hero-btns {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    /* ── Wizard mockup ── */
+    .wizard-mockup {
+      background: #0d1530;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(59,130,246,0.1);
+      position: relative;
+    }
+    .wizard-mockup::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(59,130,246,0.2), transparent 60%);
+      pointer-events: none;
+    }
+    .mockup-topbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .mockup-dot.r { background: #ff5f57; }
+    .mockup-dot.y { background: #febc2e; }
+    .mockup-dot.g { background: #28c840; }
+    .mockup-title-bar {
+      flex: 1;
+      background: rgba(255,255,255,0.06);
+      border-radius: 6px;
+      height: 22px;
+      margin-left: 8px;
+    }
+    .mockup-steps {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .mockup-step {
+      flex: 1;
+      height: 6px;
+      border-radius: 3px;
+      background: rgba(255,255,255,0.1);
+    }
+    .mockup-step.active { background: var(--blue); }
+    .mockup-step.done   { background: rgba(59,130,246,0.4); }
+
+    .mockup-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 10px;
+    }
+    .mockup-label {
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .mockup-field {
+      background: rgba(255,255,255,0.07);
+      border-radius: 8px;
+      height: 32px;
+      margin-bottom: 8px;
+    }
+    .mockup-field.tall { height: 52px; }
+    .mockup-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .mockup-chip {
+      background: rgba(59,130,246,0.15);
+      border: 1px solid rgba(59,130,246,0.3);
+      border-radius: 50px;
+      padding: 3px 10px;
+      font-size: 0.6rem;
+      color: #93c5fd;
+    }
+    .mockup-chip.sel {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: #fff;
+    }
+    .mockup-btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .mockup-btn {
+      flex: 1;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--blue);
+    }
+    .mockup-btn.ghost {
+      background: rgba(255,255,255,0.06);
+    }
+
+    /* image grid in mockup */
+    .mockup-img-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .mockup-img-thumb {
+      aspect-ratio: 16/9;
+      background: rgba(255,255,255,0.08);
+      border-radius: 6px;
+      position: relative;
+      overflow: hidden;
+    }
+    .mockup-img-thumb::after {
+      content: '▶';
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255,255,255,0.3);
+      font-size: 10px;
+    }
+    .mockup-img-thumb:nth-child(1) { background: linear-gradient(135deg, #1e3a5f, #0d1530); }
+    .mockup-img-thumb:nth-child(2) { background: linear-gradient(135deg, #1e3550, #1a2f50); }
+    .mockup-img-thumb:nth-child(3) { background: linear-gradient(135deg, #162540, #0f1e40); }
+
+    /* ══════════════════════════════════════
+       SOCIAL PROOF BAR
+    ══════════════════════════════════════ */
+    #social-proof {
+      padding: 28px 0;
+      background: var(--bg-section);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .proof-inner {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .proof-label {
+      font-size: 0.85rem;
+      color: var(--muted);
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .proof-divider {
+      width: 1px;
+      height: 20px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .proof-cats {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .proof-cat {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 500;
+      padding: 4px 12px;
+      border: 1px solid var(--border);
+      border-radius: 50px;
+      transition: all 0.2s;
+    }
+    .proof-cat:hover { color: #fff; border-color: rgba(255,255,255,0.2); }
+
+    /* ══════════════════════════════════════
+       HOE HET WERKT
+    ══════════════════════════════════════ */
+    #hoe-het-werkt {
+      padding: 100px 0;
+    }
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: var(--blue);
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .section-title {
+      font-size: clamp(1.75rem, 3vw, 2.75rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      margin-bottom: 14px;
+    }
+    .section-sub {
+      color: var(--muted);
+      font-size: 1rem;
+      max-width: 540px;
+      line-height: 1.7;
+    }
+    .section-head { margin-bottom: 60px; }
+
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .step-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .step-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--blue), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .step-card:hover { border-color: rgba(59,130,246,0.3); transform: translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+    .step-card:hover::before { opacity: 1; }
+
+    .step-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .step-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      background: rgba(59,130,246,0.12);
+      border: 1px solid rgba(59,130,246,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+    }
+    .step-num {
+      font-size: 2rem;
+      font-weight: 900;
+      color: rgba(59,130,246,0.15);
+      line-height: 1;
+    }
+    .step-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .step-desc {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ══════════════════════════════════════
+       PRIJZEN
+    ══════════════════════════════════════ */
+    #prijzen {
+      padding: 100px 0;
+      background: var(--bg-section);
+    }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .pricing-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px 24px;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.3s, transform 0.3s;
+      position: relative;
+    }
+    .pricing-card:hover { border-color: rgba(59,130,246,0.3); transform: translateY(-4px); }
+    .pricing-card.featured {
+      border-color: var(--blue);
+      background: rgba(59,130,246,0.06);
+    }
+    .pricing-card.featured:hover { transform: translateY(-4px); }
+
+    .pricing-badge {
+      position: absolute;
+      top: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--blue);
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      padding: 4px 14px;
+      border-radius: 50px;
+      white-space: nowrap;
+    }
+    .pricing-plan {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+    .pricing-price {
+      font-size: 2.5rem;
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .pricing-price span { font-size: 1rem; font-weight: 500; color: var(--muted); vertical-align: super; font-size: 0.9rem; }
+    .pricing-per {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 24px;
+    }
+    .pricing-divider {
+      height: 1px;
+      background: var(--border);
+      margin-bottom: 20px;
+    }
+    .pricing-features {
+      list-style: none;
+      flex: 1;
+      margin-bottom: 28px;
+    }
+    .pricing-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.875rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    .pricing-features li::before {
+      content: '✓';
+      color: var(--blue);
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .credits-note {
+      background: rgba(59,130,246,0.06);
+      border: 1px solid rgba(59,130,246,0.15);
+      border-radius: 12px;
+      padding: 16px 20px;
+      font-size: 0.82rem;
+      color: var(--muted);
+      text-align: center;
+    }
+    .credits-note strong { color: #93c5fd; }
+
+    /* ══════════════════════════════════════
+       FAQ
+    ══════════════════════════════════════ */
+    #faq {
+      padding: 100px 0;
+    }
+    .faq-list {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .faq-item {
+      border-bottom: 1px solid var(--border);
+    }
+    .faq-question {
+      width: 100%;
+      background: none;
+      border: none;
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      text-align: left;
+      padding: 22px 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      transition: color 0.2s;
+    }
+    .faq-question:hover { color: #93c5fd; }
+    .faq-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.3s;
+      font-size: 1rem;
+      color: var(--muted);
+    }
+    .faq-item.open .faq-icon {
+      background: rgba(59,130,246,0.15);
+      border-color: rgba(59,130,246,0.3);
+      color: var(--blue);
+      transform: rotate(45deg);
+    }
+    .faq-answer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1);
+    }
+    .faq-answer-inner {
+      padding: 0 0 22px;
+      font-size: 0.925rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ══════════════════════════════════════
+       CTA BANNER
+    ══════════════════════════════════════ */
+    #cta {
+      padding: 100px 0;
+      background: linear-gradient(135deg, #0d1530 0%, #0a1628 50%, #0d1530 100%);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    #cta::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 80% at 50% 50%, rgba(59,130,246,0.1) 0%, transparent 70%);
+    }
+    .cta-title {
+      font-size: clamp(1.75rem, 3.5vw, 3rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      margin-bottom: 16px;
+    }
+    .cta-sub {
+      font-size: 1.05rem;
+      color: var(--muted);
+      margin-bottom: 40px;
+    }
+
+    /* ══════════════════════════════════════
+       FOOTER
+    ══════════════════════════════════════ */
+    footer {
+      padding: 48px 0;
+      background: var(--bg-main);
+      border-top: 1px solid var(--border);
+    }
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+    .footer-left { display: flex; flex-direction: column; gap: 6px; }
+    .footer-tagline { font-size: 0.8rem; color: var(--muted); }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+    .footer-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: #fff; }
+    .footer-copy {
+      font-size: 0.78rem;
+      color: rgba(148,163,184,0.5);
+      margin-top: 24px;
+      text-align: center;
+    }
+
+    /* ══════════════════════════════════════
+       RESPONSIVE
+    ══════════════════════════════════════ */
+    @media (max-width: 900px) {
+      .hero-inner { grid-template-columns: 1fr; gap: 48px; }
+      .steps-grid  { grid-template-columns: 1fr 1fr; }
+      .pricing-grid { grid-template-columns: 1fr 1fr; }
+      .nav-links, .nav-cta { display: none; }
+      .nav-hamburger { display: flex; }
+      .nav-links.open {
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        top: 68px; left: 0; right: 0;
+        background: rgba(10,15,30,0.97);
+        backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--border);
+        padding: 20px 24px 28px;
+        gap: 18px;
+        z-index: 99;
+      }
+      .nav-links.open + .nav-cta { display: none; }
+    }
+    @media (max-width: 600px) {
+      .steps-grid   { grid-template-columns: 1fr; }
+      .pricing-grid { grid-template-columns: 1fr; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+      .proof-cats   { gap: 10px; }
+      #hero { padding: 60px 0 60px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Background geometric shapes -->
+<div class="geo-bg" aria-hidden="true">
+  <span></span><span></span><span></span>
+  <span></span><span></span><span></span>
+</div>
+
+<!-- ══════════════════════════════════════
+     NAVIGATION
+══════════════════════════════════════ -->
+<nav>
+  <div class="container">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <div class="play-icon">
+          <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 2.5l10 5.5-10 5.5V2.5z"/>
+          </svg>
+        </div>
+        JouwAnimatieVideo A.I.
+      </a>
+
+      <ul class="nav-links" id="nav-links">
+        <li><a href="#hoe-het-werkt">Hoe Het Werkt</a></li>
+        <li><a href="#prijzen">Prijzen</a></li>
+        <li><a href="#faq">FAQ</a></li>
+        <li><a href="#">Over Ons</a></li>
+      </ul>
+
+      <a href="/jouwanimatievideoai/signup" class="btn btn-primary btn-sm nav-cta">GRATIS STARTEN →</a>
+
+      <div class="nav-hamburger" id="hamburger" role="button" aria-label="Menu openen" tabindex="0">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════
+     HERO
+══════════════════════════════════════ -->
+<section id="hero">
+  <div class="container">
+    <div class="hero-inner">
+      <!-- Left: copy -->
+      <div>
+        <div class="hero-badge">
+          <span class="dot"></span>
+          AI VIDEO GENERATOR
+        </div>
+
+        <h1 class="hero-title">
+          Maak professionele<br>
+          <span class="accent">animatievideo's</span><br>
+          met A.I. — in 30 minuten
+        </h1>
+
+        <p class="hero-sub">
+          Geen ontwerpervaring nodig. Typ je idee, kies je stijl, en onze A.I. genereert automatisch script, beelden, beweging en geluid. Jij exporteert een kant-en-klare MP4.
+        </p>
+
+        <div class="hero-btns">
+          <a href="/jouwanimatievideoai/signup" class="btn btn-primary btn-lg">GRATIS BEGINNEN →</a>
+          <a href="#hoe-het-werkt" class="btn btn-outline btn-lg">BEKIJK VOORBEELD</a>
+        </div>
+      </div>
+
+      <!-- Right: wizard UI mockup -->
+      <div>
+        <div class="wizard-mockup">
+          <div class="mockup-topbar">
+            <div class="mockup-dot r"></div>
+            <div class="mockup-dot y"></div>
+            <div class="mockup-dot g"></div>
+            <div class="mockup-title-bar"></div>
+          </div>
+
+          <!-- Step progress -->
+          <div class="mockup-steps">
+            <div class="mockup-step done"></div>
+            <div class="mockup-step done"></div>
+            <div class="mockup-step active"></div>
+            <div class="mockup-step"></div>
+            <div class="mockup-step"></div>
+            <div class="mockup-step"></div>
+          </div>
+
+          <!-- Card: Stap 3 — Beelden -->
+          <div class="mockup-card">
+            <div class="mockup-label">Stap 3 — Beelden genereren</div>
+            <div class="mockup-img-grid">
+              <div class="mockup-img-thumb"></div>
+              <div class="mockup-img-thumb"></div>
+              <div class="mockup-img-thumb"></div>
+            </div>
+          </div>
+
+          <!-- Card: Stijl -->
+          <div class="mockup-card">
+            <div class="mockup-label">Animatiestijl</div>
+            <div class="mockup-chips">
+              <div class="mockup-chip sel">Cinematic</div>
+              <div class="mockup-chip">Cartoon</div>
+              <div class="mockup-chip">Minimalist</div>
+              <div class="mockup-chip">Corporate</div>
+            </div>
+          </div>
+
+          <div class="mockup-btn-row">
+            <div class="mockup-btn ghost"></div>
+            <div class="mockup-btn"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     SOCIAL PROOF
+══════════════════════════════════════ -->
+<section id="social-proof">
+  <div class="container">
+    <div class="proof-inner">
+      <span class="proof-label">Vertrouwd door <strong style="color:#fff">500+ bedrijven</strong></span>
+      <div class="proof-divider"></div>
+      <div class="proof-cats">
+        <span class="proof-cat">Marketingbureaus</span>
+        <span class="proof-cat">Coaches</span>
+        <span class="proof-cat">Retailers</span>
+        <span class="proof-cat">Makelaars</span>
+        <span class="proof-cat">Restaurants</span>
+        <span class="proof-cat">Trainers</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     HOE HET WERKT
+══════════════════════════════════════ -->
+<section id="hoe-het-werkt">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-label">Werkwijze</div>
+      <h2 class="section-title">Van idee naar video in 6 stappen</h2>
+      <p class="section-sub">Ons A.I.-platform begeleidt je stap voor stap — van concept tot kant-en-klare exporteerbare video.</p>
+    </div>
+
+    <div class="steps-grid">
+
+      <div class="step-card">
+        <div class="step-top">
+          <div class="step-icon">💡</div>
+          <div class="step-num">01</div>
+        </div>
+        <div class="step-title">Vul je idee in</div>
+        <div class="step-desc">Omschrijf je videoconcept: titel, doel, doelgroep en gewenste stijl. Onze A.I. begrijpt de context.</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-top">
+          <div class="step-icon">✍️</div>
+          <div class="step-num">02</div>
+        </div>
+        <div class="step-title">A.I. schrijft het script</div>
+        <div class="step-desc">GPT-4 genereert een volledig script per scene, inclusief voice-over tekst en beschrijving van elk beeld.</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-top">
+          <div class="step-icon">🎨</div>
+          <div class="step-num">03</div>
+        </div>
+        <div class="step-title">Beelden worden gegenereerd</div>
+        <div class="step-desc">DALL-E 3 maakt elk beeld volledig op maat, afgestemd op de stijl en het verhaal van jouw video.</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-top">
+          <div class="step-icon">🎬</div>
+          <div class="step-num">04</div>
+        </div>
+        <div class="step-title">Beweging toegevoegd</div>
+        <div class="step-desc">Runway A.I. brengt elk stilstaand beeld tot leven met vloeiende camera- en objectbewegingen.</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-top">
+          <div class="step-icon">🎙️</div>
+          <div class="step-num">05</div>
+        </div>
+        <div class="step-title">Voice-over inladen</div>
+        <div class="step-desc">Upload je eigen audiobestand of genereer een professionele stem via ElevenLabs — in jouw taal.</div>
+      </div>
+
+      <div class="step-card">
+        <div class="step-top">
+          <div class="step-icon">📤</div>
+          <div class="step-num">06</div>
+        </div>
+        <div class="step-title">Exporteer je MP4</div>
+        <div class="step-desc">Eén klik op exporteren. Je ontvangt een professionele 1080p MP4-video, klaar voor gebruik op elk platform.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     PRIJZEN
+══════════════════════════════════════ -->
+<section id="prijzen">
+  <div class="container">
+    <div class="section-head">
+      <div class="section-label">Tarieven</div>
+      <h2 class="section-title">Kies jouw plan</h2>
+      <p class="section-sub">Geen verborgen kosten. Maandelijks opzegbaar.</p>
+    </div>
+
+    <div class="pricing-grid">
+
+      <!-- FREE -->
+      <div class="pricing-card">
+        <div class="pricing-plan">Free</div>
+        <div class="pricing-price">€0</div>
+        <div class="pricing-per">voor altijd gratis</div>
+        <div class="pricing-divider"></div>
+        <ul class="pricing-features">
+          <li>30 credits per maand</li>
+          <li>Watermark op video</li>
+          <li>1 project tegelijk</li>
+        </ul>
+        <a href="/jouwanimatievideoai/signup" class="btn btn-outline" style="text-align:center;justify-content:center;">GRATIS STARTEN</a>
+      </div>
+
+      <!-- STARTER -->
+      <div class="pricing-card featured">
+        <div class="pricing-badge">MEEST GEKOZEN</div>
+        <div class="pricing-plan">Starter</div>
+        <div class="pricing-price"><span>€</span>49</div>
+        <div class="pricing-per">per maand</div>
+        <div class="pricing-divider"></div>
+        <ul class="pricing-features">
+          <li>500 credits per maand</li>
+          <li>Geen watermark</li>
+          <li>Onbeperkte projecten</li>
+          <li>1080p export</li>
+        </ul>
+        <a href="/jouwanimatievideoai/signup" class="btn btn-primary" style="text-align:center;justify-content:center;">START NU →</a>
+      </div>
+
+      <!-- PRO -->
+      <div class="pricing-card">
+        <div class="pricing-plan">Pro</div>
+        <div class="pricing-price"><span>€</span>99</div>
+        <div class="pricing-per">per maand</div>
+        <div class="pricing-divider"></div>
+        <ul class="pricing-features">
+          <li>1500 credits per maand</li>
+          <li>Alles van Starter</li>
+          <li>Prioriteit rendering</li>
+        </ul>
+        <a href="/jouwanimatievideoai/signup" class="btn btn-outline" style="text-align:center;justify-content:center;">START NU →</a>
+      </div>
+
+      <!-- AGENCY -->
+      <div class="pricing-card">
+        <div class="pricing-plan">Agency</div>
+        <div class="pricing-price"><span>€</span>249</div>
+        <div class="pricing-per">per maand</div>
+        <div class="pricing-divider"></div>
+        <ul class="pricing-features">
+          <li>5000 credits per maand</li>
+          <li>5 gebruikers</li>
+          <li>White-label (geen branding)</li>
+        </ul>
+        <a href="/jouwanimatievideoai/signup" class="btn btn-outline" style="text-align:center;justify-content:center;">CONTACT OPNEMEN</a>
+      </div>
+
+    </div>
+
+    <div class="credits-note">
+      <strong>Wat zijn credits?</strong>&nbsp;&nbsp;
+      Script genereren = <strong>1 credit</strong> &nbsp;·&nbsp;
+      Beeld genereren = <strong>1 credit</strong> &nbsp;·&nbsp;
+      Video clip via Runway = <strong>5 credits</strong>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     FAQ
+══════════════════════════════════════ -->
+<section id="faq">
+  <div class="container">
+    <div class="section-head" style="text-align:center;">
+      <div class="section-label" style="text-align:center;">Support</div>
+      <h2 class="section-title">Veelgestelde vragen</h2>
+    </div>
+
+    <div class="faq-list">
+
+      <div class="faq-item">
+        <button class="faq-question" aria-expanded="false">
+          Heb ik technische kennis nodig?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer" role="region">
+          <div class="faq-answer-inner">
+            Nee, de tool is ontworpen voor iedereen zonder technische achtergrond. Het stappenplan begeleidt je van begin tot eind — geen code, geen design software.
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question" aria-expanded="false">
+          Wat kan ik doen met de gratis versie?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer" role="region">
+          <div class="faq-answer-inner">
+            Je kunt 1 volledige video maken per maand met een watermark. Perfect om de tool uit te proberen en te ervaren hoe het werkt voordat je upgradet.
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question" aria-expanded="false">
+          Hoe werken credits?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer" role="region">
+          <div class="faq-answer-inner">
+            Elke actie kost credits. Script genereren = 1 credit, beeld genereren = 1 credit per afbeelding, video clip via Runway = 5 credits per clip. Credits worden maandelijks vernieuwd.
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question" aria-expanded="false">
+          Kan ik mijn abonnement opzeggen?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer" role="region">
+          <div class="faq-answer-inner">
+            Ja, maandelijks opzegbaar zonder extra kosten of opzegtermijn. Je behoudt toegang tot het einde van de betaalde periode.
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question" aria-expanded="false">
+          Welke bestandsformaten kan ik exporteren?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer" role="region">
+          <div class="faq-answer-inner">
+            Je exporteert altijd een MP4-bestand in 1080p kwaliteit. Dit formaat is direct klaar voor gebruik op YouTube, LinkedIn, Instagram, websites en presentaties.
+          </div>
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <button class="faq-question" aria-expanded="false">
+          Zijn de gegenereerde video's van mij?
+          <span class="faq-icon">+</span>
+        </button>
+        <div class="faq-answer" role="region">
+          <div class="faq-answer-inner">
+            Ja, jij bent volledig eigenaar van alle video's die je maakt met onze tool. Je mag ze commercieel gebruiken, publiceren en verkopen.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     CTA BANNER
+══════════════════════════════════════ -->
+<section id="cta">
+  <div class="container" style="position:relative;z-index:1;text-align:center;">
+    <div class="section-label" style="text-align:center;margin-bottom:20px;">Aan de slag</div>
+    <h2 class="cta-title">Klaar om jouw eerste<br><span style="color:var(--blue)">A.I. video</span> te maken?</h2>
+    <p class="cta-sub">Gratis beginnen. Geen creditcard nodig.</p>
+    <a href="/jouwanimatievideoai/signup" class="btn btn-primary btn-lg" style="font-size:1.05rem;padding:20px 44px;">
+      START GRATIS →
+    </a>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     FOOTER
+══════════════════════════════════════ -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <a href="#" class="nav-logo" style="font-size:0.95rem;">
+          <div class="play-icon">
+            <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 2.5l10 5.5-10 5.5V2.5z"/>
+            </svg>
+          </div>
+          JouwAnimatieVideo A.I.
+        </a>
+        <span class="footer-tagline">Professionele video's, gemaakt door A.I.</span>
+      </div>
+
+      <ul class="footer-links">
+        <li><a href="#">Privacy</a></li>
+        <li><a href="#">Voorwaarden</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+    </div>
+
+    <p class="footer-copy">© 2025 JouwAnimatieVideo A.I. — onderdeel van JouwAnimatieVideo.nl</p>
+  </div>
+</footer>
+
+<!-- ══════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════ -->
+<script>
+  // ── Mobile nav ──────────────────────────────────────────────────────────────
+  const hamburger = document.getElementById('hamburger');
+  const navLinks  = document.getElementById('nav-links');
+
+  hamburger.addEventListener('click', () => {
+    navLinks.classList.toggle('open');
+  });
+  hamburger.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navLinks.classList.toggle('open'); }
+  });
+
+  // Close mobile nav on link click
+  navLinks.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => navLinks.classList.remove('open'));
+  });
+
+  // ── FAQ accordion ────────────────────────────────────────────────────────────
+  document.querySelectorAll('.faq-item').forEach(item => {
+    const btn    = item.querySelector('.faq-question');
+    const answer = item.querySelector('.faq-answer');
+
+    btn.addEventListener('click', () => {
+      const isOpen = item.classList.contains('open');
+
+      // Close all
+      document.querySelectorAll('.faq-item.open').forEach(openItem => {
+        openItem.classList.remove('open');
+        openItem.querySelector('.faq-answer').style.maxHeight = '0';
+        openItem.querySelector('.faq-question').setAttribute('aria-expanded', 'false');
+      });
+
+      // Open clicked (if it was closed)
+      if (!isOpen) {
+        item.classList.add('open');
+        answer.style.maxHeight = answer.scrollHeight + 'px';
+        btn.setAttribute('aria-expanded', 'true');
+      }
+    });
+  });
+</script>
+
+</body>
+</html>
