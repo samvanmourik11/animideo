@@ -63,11 +63,12 @@ export async function POST(req: NextRequest) {
 
   // If switching to free, just cancel and downgrade
   if (planId === "free") {
+    // Keep remaining credits — they were earned, just stop renewing
     await supabase.from("profiles").update({
       plan: "free",
       subscription_status: "canceled",
       mollie_subscription_id: null,
-      credits_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      credits_reset_date: null,
     }).eq("id", user.id);
 
     return NextResponse.json({ success: true });
@@ -113,21 +114,13 @@ export async function POST(req: NextRequest) {
     subscriptionId = sub.id;
   }
 
-  const credits = PLAN_CREDITS[planId] ?? 100;
-
+  // Keep existing credits on downgrade — only update plan and subscription info
   await supabase.from("profiles").update({
     plan: planId,
-    credits,
     subscription_status: "active",
     mollie_subscription_id: subscriptionId,
     credits_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   }).eq("id", user.id);
-
-  await supabase.from("credit_transactions").insert({
-    user_id: user.id,
-    amount: credits,
-    reason: `Plan gewijzigd naar: ${planId}`,
-  });
 
   return NextResponse.json({ success: true });
 }
