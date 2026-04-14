@@ -30,11 +30,23 @@ export async function POST(req: NextRequest) {
   // Ensure customer exists
   const { data: profile } = await supabase
     .from("profiles")
-    .select("mollie_customer_id")
+    .select("mollie_customer_id, mollie_subscription_id")
     .eq("id", user.id)
     .single();
 
   let customerId = profile?.mollie_customer_id;
+
+  // Cancel existing subscription if upgrading/switching plan
+  if (profile?.mollie_subscription_id && customerId) {
+    await fetch(`${MOLLIE_BASE}/customers/${customerId}/subscriptions/${profile.mollie_subscription_id}`, {
+      method: "DELETE",
+      headers: { "Authorization": `Bearer ${apiKey}` },
+    });
+    await supabase
+      .from("profiles")
+      .update({ mollie_subscription_id: null })
+      .eq("id", user.id);
+  }
 
   async function createMollieCustomer() {
     const custRes = await fetch(`${MOLLIE_BASE}/customers`, {
