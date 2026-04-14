@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Project, VisualStyle } from "@/lib/types";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export default function Step1Setup({ project, onUpdate, onNext }: Props) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [creditModal, setCreditModal] = useState<{ credits: number; required: number } | null>(null);
@@ -65,6 +67,7 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
       }
       if (!res.ok) throw new Error(data.error ?? "Script genereren mislukt");
       onUpdate({ scenes: data.scenes, status: "ScriptReady" });
+      router.refresh(); // update credits in navbar
       onNext();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Project, Scene } from "@/lib/types";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 
@@ -9,9 +10,11 @@ interface Props {
   onUpdate: (updates: Partial<Project>) => void;
   onNext: () => void;
   onBack: () => void;
+  plan?: string;
 }
 
-export default function Step4Motion({ project, onUpdate, onNext, onBack }: Props) {
+export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = "free" }: Props) {
+  const router = useRouter();
   const [scenes, setScenes] = useState<Scene[]>(project.scenes ?? []);
   const [currentIndex, setCurrentIndex] = useState(() => {
     const firstPending = (project.scenes ?? []).findIndex((s) => !s.video_url);
@@ -88,6 +91,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack }: Props
             );
             setScenes(updatedScenes);
             setCacheBust(prev => ({ ...prev, [scene.id]: Date.now() }));
+            router.refresh(); // update credits in navbar
             setEditingPrompt(false);
             setGenerating(false);
           } else if (statusData.status === "FAILED") {
@@ -161,21 +165,21 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack }: Props
       )}
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-[#1e3a5f]">Motion Review</h2>
-        <p className="text-gray-500 text-sm mt-1">
-          Generate a 5-second video clip for each scene using Runway Gen-3.
+        <h2 className="text-2xl font-bold text-white">Motion Review</h2>
+        <p className="text-slate-500 text-sm mt-1">
+          Genereer een 5-seconden videoclip per scene met Runway Gen-3.
         </p>
       </div>
 
       {/* Progress bar */}
       <div className="mb-6">
-        <div className="flex items-center justify-between text-sm text-gray-500 mb-2">
-          <span>Scene {currentIndex + 1} of {totalScenes}</span>
-          <span>{doneCount} of {totalScenes} approved</span>
+        <div className="flex items-center justify-between text-sm text-slate-400 mb-2">
+          <span>Scene {currentIndex + 1} van {totalScenes}</span>
+          <span>{doneCount} van {totalScenes} goedgekeurd</span>
         </div>
-        <div className="w-full bg-gray-100 rounded-full h-2">
+        <div className="w-full bg-white/10 rounded-full h-1.5">
           <div
-            className="bg-[#3b82f6] h-2 rounded-full transition-all"
+            className="bg-blue-500 h-1.5 rounded-full transition-all shadow-[0_0_8px_rgba(59,130,246,0.6)]"
             style={{ width: `${(doneCount / totalScenes) * 100}%` }}
           />
         </div>
@@ -188,12 +192,12 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack }: Props
             key={s.id}
             onClick={() => !generating && setCurrentIndex(i)}
             disabled={generating}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all
               ${i === currentIndex
-                ? "bg-[#1e3a5f] text-white"
+                ? "bg-blue-500/20 text-blue-400 border border-blue-500/40"
                 : s.video_url
-                ? "bg-green-100 text-green-700"
-                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                ? "bg-green-500/15 text-green-400 border border-green-500/20"
+                : "bg-white/5 text-slate-500 border border-white/10 hover:bg-white/10"
               }`}
           >
             #{s.number} {s.video_url ? "✓" : ""}
@@ -204,7 +208,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack }: Props
       <div className="card space-y-4">
         {/* Motion prompt */}
         <div>
-          <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">Motion Instruction</span>
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Motion instructie</span>
           {editingPrompt ? (
             <div className="mt-2 space-y-2">
               <textarea
@@ -227,65 +231,75 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack }: Props
               </div>
             </div>
           ) : (
-            <p className="mt-1 text-sm text-gray-700 leading-relaxed">{scene.motion_prompt}</p>
+            <p className="mt-1 text-sm text-slate-300 leading-relaxed">{scene.motion_prompt}</p>
           )}
         </div>
 
-        {/* Source image — this is the accepted DALL-E image sent to Runway */}
+        {/* Source image */}
         <div>
-          <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-            Source Image (from Step 3)
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            Bronafbeelding (uit Stap 3)
           </span>
           {scene.image_url ? (
-            <div className="mt-2 rounded-xl overflow-hidden bg-gray-100 border border-gray-200 aspect-video w-full relative">
+            <div className="mt-2 rounded-xl overflow-hidden bg-[#060d1f] border border-white/10 aspect-video w-full relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={scene.image_url}
-                alt={`Scene ${scene.number} source`}
+                alt={`Scene ${scene.number} bron`}
                 crossOrigin="anonymous"
                 className="w-full h-full object-cover"
               />
             </div>
           ) : (
-            <div className="mt-2 rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-700">
-              No image found for this scene. Go back to{" "}
-              <strong>Step 3 — Images</strong> and accept an image first.
+            <div className="mt-2 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4 text-sm text-amber-400">
+              Geen afbeelding gevonden. Ga terug naar <strong>Stap 3 — Afbeeldingen</strong> en accepteer er eerst één.
             </div>
           )}
         </div>
 
         {/* Video area */}
-        <div className="rounded-xl overflow-hidden bg-gray-900 border border-gray-200 aspect-video flex items-center justify-center relative">
+        <div className="rounded-xl overflow-hidden bg-[#060d1f] border border-white/10 aspect-video flex items-center justify-center relative">
           {scene.video_url ? (
-            <video
-              key={`${scene.video_url}-${cacheBust[scene.id] ?? 0}`}
-              src={cacheBust[scene.id] ? `${scene.video_url}?cb=${cacheBust[scene.id]}` : scene.video_url}
-              controls
-              loop
-              className="w-full h-full object-contain"
-            />
+            <div className="relative w-full h-full">
+              <video
+                key={`${scene.video_url}-${cacheBust[scene.id] ?? 0}`}
+                src={cacheBust[scene.id] ? `${scene.video_url}?cb=${cacheBust[scene.id]}` : scene.video_url}
+                controls
+                loop
+                controlsList="nodownload"
+                className="w-full h-full object-contain"
+              />
+              {/* Watermark overlay for free plan */}
+              {plan === "free" && (
+                <div className="absolute bottom-3 right-3 pointer-events-none">
+                  <span className="text-white/50 text-xs font-medium bg-black/40 px-2 py-0.5 rounded backdrop-blur-sm">
+                    JouwAnimatieVideo A.I.
+                  </span>
+                </div>
+              )}
+            </div>
           ) : (
-            <div className="text-center text-gray-400">
+            <div className="text-center text-slate-500">
               {generating ? (
                 <div className="flex flex-col items-center gap-3">
-                  <div className="w-10 h-10 border-4 border-[#3b82f6] border-t-transparent rounded-full animate-spin" />
-                  <p className="text-sm text-gray-300">{statusMsg}</p>
+                  <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <p className="text-sm text-slate-300">{statusMsg}</p>
                 </div>
               ) : (
-                <p className="text-sm">No video clip yet</p>
+                <p className="text-sm">Nog geen videoclip</p>
               )}
             </div>
           )}
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-            <p className="text-sm text-red-700">{error}</p>
+          <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
+            <p className="text-sm text-red-400">{error}</p>
             <button
               onClick={() => generateMotion(scene.motion_prompt)}
               className="mt-2 btn-primary text-sm"
             >
-              Try Again
+              Opnieuw proberen
             </button>
           </div>
         )}
@@ -309,8 +323,8 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack }: Props
               <button
                 onClick={deleteVideo}
                 disabled={generating}
-                className="text-sm px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center gap-1"
-                title="Delete video clip and start fresh"
+                className="text-sm px-3 py-1.5 rounded-xl border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex items-center gap-1"
+                title="Videoclip verwijderen"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

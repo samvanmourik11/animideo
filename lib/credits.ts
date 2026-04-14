@@ -8,7 +8,7 @@ export const CREDIT_COSTS = {
 } as const;
 
 export const PLAN_CREDITS: Record<string, number> = {
-  free: 30,
+  free: 100,
   starter: 500,
   pro: 1500,
   agency: 5000,
@@ -41,11 +41,11 @@ export async function getProfile(userId: string): Promise<Profile> {
   // Profile doesn't exist yet — create it
   const { data: created } = await supabase
     .from("profiles")
-    .insert({ id: userId, credits: 30, plan: "free" })
+    .insert({ id: userId, credits: 100, plan: "free" })
     .select()
     .single();
 
-  return (created ?? { id: userId, credits: 30, plan: "free", email: null,
+  return (created ?? { id: userId, credits: 100, plan: "free", email: null,
     mollie_customer_id: null, mollie_subscription_id: null,
     subscription_status: "active", credits_reset_date: null,
     created_at: new Date().toISOString() }) as Profile;

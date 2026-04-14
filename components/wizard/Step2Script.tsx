@@ -73,92 +73,92 @@ export default function Step2Script({ project, onUpdate, onNext, onBack }: Props
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-2xl font-semibold text-[#1e3a5f]">Script Editor</h2>
-          <p className="text-gray-500 text-sm mt-1">
-            {scenes.length} scenes · {totalDuration}s total — edit any cell, reorder, add or delete rows.
+          <h2 className="text-2xl font-bold text-white">Script Editor</h2>
+          <p className="text-slate-500 text-sm mt-1">
+            {scenes.length} scenes · {totalDuration}s totaal — bewerk, herorden, voeg toe of verwijder.
           </p>
         </div>
         <button onClick={addScene} className="btn-secondary text-sm">
-          + Add Scene
+          + Scene toevoegen
         </button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-gray-200">
+      <div className="overflow-x-auto rounded-2xl border border-white/[0.07]">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="text-left px-3 py-3 font-medium text-gray-600 w-28">Scene / Sec</th>
-              <th className="text-left px-3 py-3 font-medium text-gray-600">Voice-over Text</th>
-              <th className="text-left px-3 py-3 font-medium text-gray-600">Image Prompt</th>
-              <th className="text-left px-3 py-3 font-medium text-gray-600">Motion Instruction</th>
-              <th className="px-3 py-3 w-20"></th>
+            <tr className="bg-white/[0.03] border-b border-white/[0.07]">
+              <th className="text-left px-4 py-3 font-medium text-slate-400 w-28">Scene / Sec</th>
+              <th className="text-left px-4 py-3 font-medium text-slate-400">Voice-over tekst</th>
+              <th className="text-left px-4 py-3 font-medium text-slate-400">Afbeelding prompt</th>
+              <th className="text-left px-4 py-3 font-medium text-slate-400">Motion instructie</th>
+              <th className="px-3 py-3 w-12"></th>
             </tr>
           </thead>
           <tbody>
             {scenes.map((scene, i) => (
-              <tr key={scene.id} className="border-b border-gray-100 hover:bg-gray-50/50">
-                <td className="px-3 py-2 align-top">
-                  <div className="flex flex-col gap-1">
-                    <span className="font-semibold text-[#1e3a5f]">#{scene.number}</span>
+              <tr key={scene.id} className="border-b border-white/[0.05] hover:bg-white/[0.02] transition-colors">
+                <td className="px-4 py-3 align-top">
+                  <div className="flex flex-col gap-1.5">
+                    <span className="font-bold text-blue-400 text-xs">#{scene.number}</span>
                     <div className="flex items-center gap-1">
                       <input
                         type="number"
                         min={1}
                         max={30}
-                        className="w-14 border border-gray-200 rounded px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-14 bg-[#060d1f] border border-white/10 rounded-lg px-2 py-1 text-sm text-white text-center focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                         value={scene.duration}
                         onChange={(e) => updateScene(i, "duration", parseInt(e.target.value) || 5)}
                       />
-                      <span className="text-gray-400 text-xs">sec</span>
+                      <span className="text-slate-500 text-xs">sec</span>
                     </div>
-                    <div className="flex gap-0.5 mt-1">
+                    <div className="flex gap-1 mt-0.5">
                       <button
                         onClick={() => moveScene(i, -1)}
                         disabled={i === 0}
-                        className="text-gray-400 hover:text-gray-600 disabled:opacity-30 p-0.5"
-                        title="Move up"
+                        className="text-slate-600 hover:text-slate-300 disabled:opacity-20 p-0.5 transition-colors"
+                        title="Omhoog"
                       >↑</button>
                       <button
                         onClick={() => moveScene(i, 1)}
                         disabled={i === scenes.length - 1}
-                        className="text-gray-400 hover:text-gray-600 disabled:opacity-30 p-0.5"
-                        title="Move down"
+                        className="text-slate-600 hover:text-slate-300 disabled:opacity-20 p-0.5 transition-colors"
+                        title="Omlaag"
                       >↓</button>
                     </div>
                   </div>
                 </td>
-                <td className="px-3 py-2 align-top">
+                <td className="px-3 py-3 align-top">
                   <textarea
-                    className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full bg-[#060d1f] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
                     rows={4}
-                    placeholder="Narrator text…"
+                    placeholder="Narrator tekst…"
                     value={scene.voiceover_text}
                     onChange={(e) => updateScene(i, "voiceover_text", e.target.value)}
                   />
                 </td>
-                <td className="px-3 py-2 align-top">
+                <td className="px-3 py-3 align-top">
                   <textarea
-                    className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full bg-[#060d1f] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
                     rows={4}
-                    placeholder="Describe the static image…"
+                    placeholder="Beschrijf de afbeelding…"
                     value={scene.image_prompt}
                     onChange={(e) => updateScene(i, "image_prompt", e.target.value)}
                   />
                 </td>
-                <td className="px-3 py-2 align-top">
+                <td className="px-3 py-3 align-top">
                   <textarea
-                    className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="w-full bg-[#060d1f] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
                     rows={4}
-                    placeholder="How the image should move…"
+                    placeholder="Hoe beweegt de afbeelding…"
                     value={scene.motion_prompt}
                     onChange={(e) => updateScene(i, "motion_prompt", e.target.value)}
                   />
                 </td>
-                <td className="px-3 py-2 align-top text-center">
+                <td className="px-3 py-3 align-top text-center">
                   <button
                     onClick={() => deleteScene(i)}
-                    className="text-red-400 hover:text-red-600 text-lg leading-none"
-                    title="Delete scene"
+                    className="text-slate-600 hover:text-red-400 text-xl leading-none transition-colors"
+                    title="Scene verwijderen"
                   >
                     ×
                   </button>
@@ -171,14 +171,14 @@ export default function Step2Script({ project, onUpdate, onNext, onBack }: Props
 
       <div className="flex items-center justify-between mt-6">
         <button onClick={onBack} className="btn-secondary">
-          ← Back
+          ← Terug
         </button>
         <button
           onClick={handleContinue}
           disabled={saving || scenes.length === 0}
           className="btn-primary px-8 py-3"
         >
-          {saving ? "Saving…" : "Generate All Images →"}
+          {saving ? "Opslaan…" : "Genereer alle afbeeldingen →"}
         </button>
       </div>
     </div>

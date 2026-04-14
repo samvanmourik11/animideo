@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Project, Scene } from "@/lib/types";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
@@ -18,6 +19,7 @@ export default function Step3Images({ project, onUpdate, onNext, onBack }: Props
     const firstPending = (project.scenes ?? []).findIndex((s) => !s.image_url);
     return firstPending === -1 ? 0 : firstPending;
   });
+  const router = useRouter();
   const [generating, setGenerating] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState(false);
   const [promptDraft, setPromptDraft] = useState("");
@@ -62,6 +64,7 @@ export default function Step3Images({ project, onUpdate, onNext, onBack }: Props
       setScenes(updatedScenes);
       setCacheBust(prev => ({ ...prev, [scene.id]: Date.now() }));
       setEditingPrompt(false);
+      router.refresh(); // update credits in navbar
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {

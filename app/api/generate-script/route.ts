@@ -60,6 +60,14 @@ Rules:
 - Total duration should add up to 30-60 seconds
 - Write voiceover_text in ${language}
 
+MANDATORY STRUCTURE — your video MUST follow this arc:
+1. OPENING scene: a strong hook that immediately grabs attention — bold visual, surprising perspective, or dynamic motion
+2. MIDDLE scenes: build the story, explain the product/service/message with concrete visuals
+3. CLOSING scene (ALWAYS the last scene): a professional branded outro with:
+   - voiceover_text: a clear, compelling call-to-action (e.g. "Visit our website today", "Start your free trial", "Contact us now")
+   - image_prompt: clean branded visual — a product logo area, sleek dark background with the company name "${title}" prominently centered, professional typography, subtle light rays or particles, NO actual text rendered (describe it as a clean minimalist brand card)
+   - motion_prompt: slow elegant zoom out revealing the full brand visual, subtle particle drift or light bloom effect
+
 Respond with only the JSON array, starting with [ and ending with ].`;
 
   const completion = await openai.chat.completions.create({
