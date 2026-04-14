@@ -73,7 +73,7 @@ Respond with only the JSON array, starting with [ and ending with ].`;
   const completion = await openai.chat.completions.create({
     model: "gpt-4o",
     messages: [{ role: "user", content: prompt }],
-    max_tokens: 2000,
+    max_tokens: 4000,
     temperature: 0.7,
   });
 
