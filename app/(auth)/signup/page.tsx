@@ -9,6 +9,7 @@ export default function SignupPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
@@ -18,11 +19,12 @@ export default function SignupPage() {
     setError("");
     setLoading(true);
 
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
     const supabase = createClient();
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL ?? location.origin}/dashboard` },
+      options: { emailRedirectTo: `${appUrl}/dashboard` },
     });
 
     if (error) {
@@ -55,7 +57,6 @@ export default function SignupPage() {
     <div className="min-h-screen flex items-center justify-center px-4"
       style={{ backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(59,130,246,0.18) 0%, transparent 70%)" }}>
       <div className="w-full max-w-sm">
-        {/* Logo */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent mb-1">
             Animideo
@@ -78,15 +79,25 @@ export default function SignupPage() {
             </div>
             <div>
               <label className="label">Wachtwoord</label>
-              <input
-                type="password"
-                className="input"
-                placeholder="Min. 8 tekens"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                minLength={8}
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  className="input pr-11"
+                  placeholder="Min. 8 tekens"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  minLength={8}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors text-sm"
+                  tabIndex={-1}
+                >
+                  {showPassword ? "Verberg" : "Toon"}
+                </button>
+              </div>
             </div>
 
             {error && (
