@@ -36,34 +36,38 @@ export async function POST(req: NextRequest) {
 
   let customerId = profile?.mollie_customer_id;
 
-  if (!customerId) {
+  async function createMollieCustomer() {
     const custRes = await fetch(`${MOLLIE_BASE}/customers`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
+        "Authorization": `Bearer ${apiKey!}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        name: user.email,
-        email: user.email,
-        metadata: { userId: user.id },
+        name: user!.email,
+        email: user!.email,
+        metadata: { userId: user!.id },
       }),
     });
-    if (!custRes.ok) {
-      return NextResponse.json({ error: "Kon Mollie klant niet aanmaken" }, { status: 500 });
-    }
+    if (!custRes.ok) return null;
     const customer = await custRes.json();
-    customerId = customer.id;
     await supabase
       .from("profiles")
-      .update({ mollie_customer_id: customerId })
-      .eq("id", user.id);
+      .update({ mollie_customer_id: customer.id })
+      .eq("id", user!.id);
+    return customer.id as string;
+  }
+
+  if (!customerId) {
+    const newId = await createMollieCustomer();
+    if (!newId) return NextResponse.json({ error: "Kon Mollie klant niet aanmaken" }, { status: 500 });
+    customerId = newId;
   }
 
   const plan = PLANS[planId];
 
   // Create first payment (sequenceType: first) — this sets up the mandate
-  const paymentRes = await fetch(`${MOLLIE_BASE}/payments`, {
+  let paymentRes = await fetch(`${MOLLIE_BASE}/payments`, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
@@ -79,6 +83,29 @@ export async function POST(req: NextRequest) {
       metadata: { userId: user.id, planId, interval: "1 month" },
     }),
   });
+
+  // If customer exists in wrong mode, create a fresh one and retry
+  if (!paymentRes.ok) {
+    const errBody = await paymentRes.json().catch(() => ({}));
+    if (errBody?.detail?.includes("wrong mode")) {
+      const newId = await createMollieCustomer();
+      if (!newId) return NextResponse.json({ error: "Kon Mollie klant niet aanmaken" }, { status: 500 });
+      customerId = newId;
+      paymentRes = await fetch(`${MOLLIE_BASE}/payments`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: { currency: "EUR", value: plan.amount },
+          description: plan.description,
+          sequenceType: "first",
+          customerId,
+          redirectUrl: `${appUrl}/dashboard?upgraded=true`,
+          webhookUrl: `${appUrl}/api/mollie/webhook`,
+          metadata: { userId: user.id, planId, interval: "1 month" },
+        }),
+      });
+    }
+  }
 
   if (!paymentRes.ok) {
     const err = await paymentRes.text();
