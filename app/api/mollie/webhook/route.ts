@@ -56,25 +56,42 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceClient();
 
   // ── Successful first payment: create subscription + update profile ────────
-  if (status === "paid" && sequenceType === "first" && mandateId) {
+  if (status === "paid" && sequenceType === "first") {
+    // mandateId may not be directly on the payment for SEPA — fetch from customer mandates
+    let resolvedMandateId = mandateId as string | null;
+    if (!resolvedMandateId && customerId) {
+      const mandatesRes = await fetch(`${MOLLIE_BASE}/customers/${customerId}/mandates`, {
+        headers: { "Authorization": `Bearer ${apiKey}` },
+      });
+      if (mandatesRes.ok) {
+        const mandatesData = await mandatesRes.json();
+        const validMandate = (mandatesData._embedded?.mandates ?? []).find(
+          (m: { status: string; id: string }) => m.status === "valid"
+        );
+        resolvedMandateId = validMandate?.id ?? null;
+      }
+    }
+
     const credits = PLAN_CREDITS[planId] ?? 30;
 
     // Create recurring subscription
+    const subBody: Record<string, unknown> = {
+      amount: { currency: "EUR", value: PLAN_AMOUNT[planId] },
+      times: null, // unlimited
+      interval: "1 month",
+      description: PLAN_DESCRIPTION[planId],
+      webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/mollie/webhook`,
+      metadata: { userId, planId },
+    };
+    if (resolvedMandateId) subBody.mandateId = resolvedMandateId;
+
     const subRes = await fetch(`${MOLLIE_BASE}/customers/${customerId}/subscriptions`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        amount: { currency: "EUR", value: PLAN_AMOUNT[planId] },
-        times: null, // unlimited
-        interval: "1 month",
-        description: PLAN_DESCRIPTION[planId],
-        mandateId,
-        webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/mollie/webhook`,
-        metadata: { userId, planId },
-      }),
+      body: JSON.stringify(subBody),
     });
 
     let subscriptionId: string | null = null;
