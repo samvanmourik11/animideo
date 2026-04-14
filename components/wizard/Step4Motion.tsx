@@ -271,9 +271,9 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
               />
               {/* Watermark overlay for free plan */}
               {plan === "free" && (
-                <div className="absolute bottom-3 right-3 pointer-events-none">
-                  <span className="text-white/50 text-xs font-medium bg-black/40 px-2 py-0.5 rounded backdrop-blur-sm">
-                    JouwAnimatieVideo A.I.
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <span className="text-white/40 text-sm font-semibold bg-black/30 px-3 py-1 rounded backdrop-blur-sm">
+                    jouwanimatievideo.nl
                   </span>
                 </div>
               )}

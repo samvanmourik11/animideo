@@ -942,11 +942,6 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
         trimmedNames.push(dstName);
       }
 
-      // ── Write concat list with trimmed clips ─────────────────────────
-      const concatContent = trimmedNames.map(n => `file '${n}'`).join("\n");
-      await ffmpeg.writeFile("concat.txt", new TextEncoder().encode(concatContent));
-      writtenFiles.push("concat.txt");
-
       // ── Fetch voiceover ──────────────────────────────────────────────
       let hasVoice = false;
       if (project.voice_audio_url) {
@@ -975,62 +970,115 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
 
       setExportPct(50);
 
+      // ── Determine if any non-cut transitions are used ────────────────
+      const xfadeMap: Record<string, string> = {
+        "fade":        "fadeblack",
+        "dissolve":    "dissolve",
+        "slide-left":  "slideleft",
+        "slide-right": "slideright",
+        "zoom-in":     "zoomin",
+      };
+      const hasNonCutTransition = videoScenes.length > 1 &&
+        videoScenes.slice(0, -1).some(s => (s.transition_out ?? "cut") !== "cut");
+
       // ── Build ffmpeg command ─────────────────────────────────────────
-      // Trimmed clips are already 1920×1080 h264, so use -c:v copy in concat.
-      // Audio: mix bgmusic (40%) + voiceover (100%) when both present.
       let cmd: string[];
 
-      if (hasBgMusic && hasVoice) {
-        // Both: mix with filter_complex
-        cmd = [
-          "-f", "concat", "-safe", "0", "-i", "concat.txt",
-          "-i", "bgmusic.mp3",
-          "-i", "voiceover.mp3",
-          "-filter_complex",
-          "[1:a]volume=0.4[bg];[2:a]volume=1.0[vo];[bg][vo]amix=inputs=2:duration=longest[aout]",
-          "-map", "0:v",
-          "-map", "[aout]",
-          "-c:v", "copy",
-          "-c:a", "aac",
-          "-movflags", "+faststart",
-          "-t", String(totalExpectedDuration),
-          "output.mp4",
-        ];
-      } else if (hasBgMusic) {
-        // Only background music
-        cmd = [
-          "-f", "concat", "-safe", "0", "-i", "concat.txt",
-          "-i", "bgmusic.mp3",
-          "-map", "0:v",
-          "-map", "1:a",
-          "-c:v", "copy",
-          "-c:a", "aac",
-          "-movflags", "+faststart",
-          "-t", String(totalExpectedDuration),
-          "output.mp4",
-        ];
-      } else if (hasVoice) {
-        // Only voiceover
-        cmd = [
-          "-f", "concat", "-safe", "0", "-i", "concat.txt",
-          "-i", "voiceover.mp3",
-          "-map", "0:v",
-          "-map", "1:a",
-          "-c:v", "copy",
-          "-c:a", "aac",
-          "-movflags", "+faststart",
-          "-t", String(totalExpectedDuration),
-          "output.mp4",
-        ];
+      if (hasNonCutTransition) {
+        // ── xfade path: chain transitions between clips ──────────────
+        // All trimmed clips are inputs; chain xfade filters for non-cut transitions.
+        const videoInputs: string[] = [];
+        for (const name of trimmedNames) videoInputs.push("-i", name);
+
+        // Build video filter_complex with chained xfade
+        let vFilter = "";
+        let prevLabel = "[0:v]";
+        let cumOffset = 0;
+        for (let i = 0; i < videoScenes.length - 1; i++) {
+          const trans = videoScenes[i].transition_out ?? "cut";
+          const td = trans !== "cut" ? Math.min(TRANS_DUR, videoScenes[i].duration * 0.4, videoScenes[i+1].duration * 0.4) : 0;
+          const xType = td > 0 ? (xfadeMap[trans] ?? "dissolve") : "fade";
+          const safeTd = Math.max(td, 0.001);
+          const offset = Math.max(0, cumOffset + videoScenes[i].duration - safeTd);
+          const outLabel = i === videoScenes.length - 2 ? "[vout]" : `[xv${i}]`;
+          vFilter += `${prevLabel}[${i + 1}:v]xfade=transition=${xType}:duration=${safeTd}:offset=${offset}${outLabel};`;
+          prevLabel = outLabel;
+          cumOffset += videoScenes[i].duration - safeTd;
+        }
+        vFilter = vFilter.replace(/;$/, "");
+
+        // Recalculate total duration accounting for overlaps
+        let xfadeTotalDur = 0;
+        for (let i = 0; i < videoScenes.length; i++) {
+          const trans = i < videoScenes.length - 1 ? (videoScenes[i].transition_out ?? "cut") : "cut";
+          const td = trans !== "cut" ? Math.min(TRANS_DUR, videoScenes[i].duration * 0.4) : 0;
+          xfadeTotalDur += videoScenes[i].duration - td;
+        }
+        xfadeTotalDur += Math.min(TRANS_DUR, (videoScenes.at(-1)?.duration ?? 0) * 0.4);
+
+        const n = videoScenes.length; // first audio input index
+        if (hasBgMusic && hasVoice) {
+          const af = `[${n}:a]volume=0.4[bg];[${n+1}:a]volume=1.0[vo];[bg][vo]amix=inputs=2:duration=longest[aout]`;
+          cmd = [...videoInputs, "-i", "bgmusic.mp3", "-i", "voiceover.mp3",
+            "-filter_complex", `${vFilter};${af}`,
+            "-map", "[vout]", "-map", "[aout]",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+            "-c:a", "aac", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
+        } else if (hasBgMusic) {
+          cmd = [...videoInputs, "-i", "bgmusic.mp3",
+            "-filter_complex", `${vFilter};[${n}:a]volume=0.4[aout]`,
+            "-map", "[vout]", "-map", "[aout]",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+            "-c:a", "aac", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
+        } else if (hasVoice) {
+          cmd = [...videoInputs, "-i", "voiceover.mp3",
+            "-filter_complex", vFilter,
+            "-map", "[vout]", `-map`, `${n}:a`,
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+            "-c:a", "aac", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
+        } else {
+          cmd = [...videoInputs,
+            "-filter_complex", vFilter,
+            "-map", "[vout]",
+            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+            "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
+        }
       } else {
-        // No audio
-        cmd = [
-          "-f", "concat", "-safe", "0", "-i", "concat.txt",
-          "-c:v", "copy",
-          "-movflags", "+faststart",
-          "-t", String(totalExpectedDuration),
-          "output.mp4",
-        ];
+        // ── Simple concat path (all cuts — faster, no re-encode) ─────
+        const concatContent = trimmedNames.map(n => `file '${n}'`).join("\n");
+        await ffmpeg.writeFile("concat.txt", new TextEncoder().encode(concatContent));
+        writtenFiles.push("concat.txt");
+
+        if (hasBgMusic && hasVoice) {
+          cmd = [
+            "-f", "concat", "-safe", "0", "-i", "concat.txt",
+            "-i", "bgmusic.mp3", "-i", "voiceover.mp3",
+            "-filter_complex", "[1:a]volume=0.4[bg];[2:a]volume=1.0[vo];[bg][vo]amix=inputs=2:duration=longest[aout]",
+            "-map", "0:v", "-map", "[aout]",
+            "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart",
+            "-t", String(totalExpectedDuration), "output.mp4",
+          ];
+        } else if (hasBgMusic) {
+          cmd = [
+            "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", "bgmusic.mp3",
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart",
+            "-t", String(totalExpectedDuration), "output.mp4",
+          ];
+        } else if (hasVoice) {
+          cmd = [
+            "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", "voiceover.mp3",
+            "-map", "0:v", "-map", "1:a",
+            "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart",
+            "-t", String(totalExpectedDuration), "output.mp4",
+          ];
+        } else {
+          cmd = [
+            "-f", "concat", "-safe", "0", "-i", "concat.txt",
+            "-c:v", "copy", "-movflags", "+faststart",
+            "-t", String(totalExpectedDuration), "output.mp4",
+          ];
+        }
       }
 
       await ffmpeg.exec(cmd);
@@ -1050,7 +1098,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
 
           await ffmpeg.exec([
             "-i", "output.mp4",
-            "-vf", "drawtext=fontfile=font.ttf:text='JouwAnimatieVideo A.I.':fontsize=24:fontcolor=white@0.7:x=w-tw-20:y=h-th-20",
+            "-vf", "drawtext=fontfile=font.ttf:text='jouwanimatievideo.nl':fontsize=32:fontcolor=white@0.5:x=(w-tw)/2:y=(h-th)/2",
             "-c:a", "copy",
             "-c:v", "libx264",
             "-preset", "fast",
