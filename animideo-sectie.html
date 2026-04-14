@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Animideo — AI Animatievideo's</title>
+  <style>
+    /* ── Reset & base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #060d1f; color: #e2e8f0; line-height: 1.6; }
+    a { text-decoration: none; color: inherit; }
+
+    /* ── Utilities ── */
+    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+    .text-blue { background: linear-gradient(to right, #60a5fa, #93c5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      display: inline-block;
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: #fff;
+      font-weight: 600;
+      font-size: 15px;
+      padding: 12px 28px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 0 20px rgba(59,130,246,0.35);
+      transition: opacity .2s, box-shadow .2s;
+    }
+    .btn-primary:hover { opacity: .9; box-shadow: 0 0 32px rgba(59,130,246,0.55); }
+    .btn-secondary {
+      display: inline-block;
+      color: #94a3b8;
+      font-weight: 500;
+      font-size: 15px;
+      padding: 12px 24px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.05);
+      cursor: pointer;
+      transition: background .2s, color .2s;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,.1); color: #e2e8f0; }
+
+    /* ── Nav ── */
+    .nav { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
+    .nav-logo { font-size: 22px; font-weight: 800; background: linear-gradient(to right, #60a5fa, #93c5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .nav-links { display: flex; align-items: center; gap: 12px; }
+
+    /* ── Hero ── */
+    .hero { text-align: center; padding: 80px 24px 60px; }
+    .hero-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(59,130,246,.1); border: 1px solid rgba(59,130,246,.2); border-radius: 999px; padding: 6px 16px; font-size: 13px; color: #60a5fa; font-weight: 500; margin-bottom: 24px; }
+    .hero-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #60a5fa; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
+    .hero h1 { font-size: clamp(36px, 6vw, 64px); font-weight: 800; color: #fff; line-height: 1.15; margin-bottom: 20px; }
+    .hero p { font-size: 18px; color: #94a3b8; max-width: 520px; margin: 0 auto 40px; }
+
+    /* ── Idea input bar ── */
+    .idea-box { background: #0c1428; border: 1px solid rgba(255,255,255,.1); border-radius: 20px; box-shadow: 0 0 60px rgba(59,130,246,.1); overflow: hidden; max-width: 760px; margin: 0 auto 16px; }
+    .idea-box textarea { width: 100%; background: transparent; color: #fff; font-size: 16px; font-family: inherit; padding: 20px 24px 12px; resize: none; outline: none; border: none; }
+    .idea-box textarea::placeholder { color: #475569; }
+    .idea-box-footer { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px 12px; gap: 12px; flex-wrap: wrap; }
+    .idea-examples { display: flex; gap: 8px; flex-wrap: wrap; }
+    .idea-example { font-size: 12px; color: #64748b; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); padding: 5px 12px; border-radius: 999px; cursor: pointer; transition: all .2s; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+    .idea-example:hover { color: #cbd5e1; background: rgba(255,255,255,.1); }
+    .more-examples { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; max-width: 760px; margin: 0 auto; }
+
+    /* ── How it works ── */
+    .section { padding: 80px 24px; border-top: 1px solid rgba(255,255,255,.06); }
+    .section-title { text-align: center; font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+    .section-sub { text-align: center; color: #64748b; font-size: 15px; margin-bottom: 48px; }
+    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
+    .step-card { background: #0c1428; border: 1px solid rgba(255,255,255,.07); border-radius: 20px; padding: 28px; text-align: center; }
+    .step-icon { font-size: 32px; margin-bottom: 12px; }
+    .step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(59,130,246,.15); border: 1px solid rgba(59,130,246,.25); color: #60a5fa; font-size: 11px; font-weight: 700; margin-right: 6px; }
+    .step-title { font-weight: 600; color: #fff; font-size: 15px; margin-bottom: 8px; }
+    .step-desc { color: #64748b; font-size: 14px; }
+
+    /* ── Features ── */
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+    .feature-card { background: #0c1428; border: 1px solid rgba(255,255,255,.07); border-radius: 14px; padding: 20px; }
+    .feature-icon { font-size: 22px; margin-bottom: 10px; }
+    .feature-title { font-weight: 600; color: #fff; font-size: 14px; margin-bottom: 4px; }
+    .feature-desc { color: #64748b; font-size: 13px; }
+
+    /* ── Pricing ── */
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
+    .plan-card { position: relative; display: flex; flex-direction: column; background: #0c1428; border: 1px solid rgba(255,255,255,.07); border-radius: 20px; padding: 28px; transition: border-color .2s; }
+    .plan-card:hover { border-color: rgba(255,255,255,.15); }
+    .plan-card.featured { background: linear-gradient(to bottom, rgba(37,99,235,.12), rgba(59,130,246,.06)); border-color: rgba(59,130,246,.4); box-shadow: 0 0 40px rgba(59,130,246,.15); }
+    .plan-badge { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); background: linear-gradient(to right, #2563eb, #3b82f6); color: #fff; font-size: 10px; font-weight: 700; padding: 4px 14px; border-radius: 999px; box-shadow: 0 0 12px rgba(59,130,246,.5); white-space: nowrap; }
+    .plan-name { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+    .plan-price { font-size: 36px; font-weight: 800; color: #fff; }
+    .plan-period { font-size: 14px; color: #64748b; }
+    .plan-credits { font-size: 12px; font-weight: 600; color: #60a5fa; margin: 6px 0 20px; }
+    .plan-features { flex: 1; list-style: none; margin-bottom: 24px; }
+    .plan-features li { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: #94a3b8; margin-bottom: 10px; }
+    .plan-features li::before { content: "✓"; color: #60a5fa; font-weight: 700; flex-shrink: 0; }
+    .plan-cta { display: block; text-align: center; padding: 11px; border-radius: 12px; font-weight: 600; font-size: 14px; transition: all .2s; }
+    .plan-cta.primary { background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; box-shadow: 0 0 20px rgba(59,130,246,.3); }
+    .plan-cta.primary:hover { box-shadow: 0 0 30px rgba(59,130,246,.5); opacity: .9; }
+    .plan-cta.secondary { background: rgba(255,255,255,.08); color: #e2e8f0; border: 1px solid rgba(255,255,255,.1); }
+    .plan-cta.secondary:hover { background: rgba(255,255,255,.14); }
+
+    /* ── Final CTA ── */
+    .final-cta { text-align: center; padding: 80px 24px; border-top: 1px solid rgba(255,255,255,.06); }
+    .final-cta h2 { font-size: clamp(24px, 4vw, 40px); font-weight: 800; color: #fff; margin-bottom: 16px; }
+    .final-cta p { color: #64748b; font-size: 16px; margin-bottom: 32px; }
+
+    /* ── Footer ── */
+    footer { border-top: 1px solid rgba(255,255,255,.06); padding: 28px 24px; text-align: center; color: #334155; font-size: 13px; }
+    footer a { color: #475569; margin: 0 8px; }
+    footer a:hover { color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <span class="nav-logo">Animideo</span>
+    <div class="nav-links">
+      <a href="https://animideo.vercel.app/login" class="btn-secondary" style="padding:9px 20px;font-size:14px;">Inloggen</a>
+      <a href="https://animideo.vercel.app/signup" class="btn-primary" style="padding:9px 20px;font-size:14px;">Gratis beginnen →</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="hero-badge">
+      <span class="hero-badge-dot"></span>
+      Geen video-ervaring nodig
+    </div>
+    <h1>Maak professionele<br><span class="text-blue">animatievideo's</span><br>in minuten</h1>
+    <p>Typ je idee. AI schrijft het script, genereert de beelden en monteert de video automatisch.</p>
+
+    <!-- Idea input bar -->
+    <div class="idea-box">
+      <textarea id="ideaInput" rows="3" placeholder="Beschrijf je video-idee… bijv. 'Leg uit hoe ons product werkt voor nieuwe klanten'"></textarea>
+      <div class="idea-box-footer">
+        <div class="idea-examples">
+          <span class="idea-example" onclick="setIdea(this)">Leg uit hoe ons boekhoudprogramma werkt</span>
+          <span class="idea-example" onclick="setIdea(this)">Promoot onze nieuwe sportschool in Amsterdam</span>
+        </div>
+        <button class="btn-primary" style="padding:10px 22px;font-size:14px;" onclick="submitIdea()">
+          Maak mijn video →
+        </button>
+      </div>
+    </div>
+
+    <div class="more-examples">
+      <span class="idea-example" onclick="setIdea(this)">Uitleg over hoe zonnepanelen werken</span>
+      <span class="idea-example" onclick="setIdea(this)">Introductievideo voor ons restaurant</span>
+      <span class="idea-example" onclick="setIdea(this)">Animatie voor onze nieuwe app</span>
+    </div>
+  </section>
+
+  <!-- How it works -->
+  <section class="section">
+    <div class="container">
+      <h2 class="section-title">Hoe het werkt</h2>
+      <p class="section-sub">Van idee naar video in drie stappen</p>
+      <div class="steps">
+        <div class="step-card">
+          <div class="step-icon">✍️</div>
+          <p class="step-title"><span class="step-num">1</span> Beschrijf je idee</p>
+          <p class="step-desc">Typ in één zin waar je video over moet gaan. Geen technische kennis nodig.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-icon">🤖</div>
+          <p class="step-title"><span class="step-num">2</span> AI doet de rest</p>
+          <p class="step-desc">Script, afbeeldingen en video worden automatisch gegenereerd door GPT-4 en Runway.</p>
+        </div>
+        <div class="step-card">
+          <div class="step-icon">⬇️</div>
+          <p class="step-title"><span class="step-num">3</span> Download & deel</p>
+          <p class="step-desc">Exporteer je video en deel hem direct op YouTube, Instagram of LinkedIn.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features -->
+  <section class="section">
+    <div class="container">
+      <h2 class="section-title">Alles wat je nodig hebt</h2>
+      <p class="section-sub">Eén platform voor het complete videocreatieproces</p>
+      <div class="features">
+        <div class="feature-card"><div class="feature-icon">📝</div><p class="feature-title">AI Script</p><p class="feature-desc">GPT-4 schrijft automatisch een professioneel script</p></div>
+        <div class="feature-card"><div class="feature-icon">🎨</div><p class="feature-title">AI Afbeeldingen</p><p class="feature-desc">DALL-E 3 genereert unieke visuals per scene</p></div>
+        <div class="feature-card"><div class="feature-icon">🎬</div><p class="feature-title">AI Beweging</p><p class="feature-desc">Runway geeft elke scene vloeiende videomotion</p></div>
+        <div class="feature-card"><div class="feature-icon">🎙️</div><p class="feature-title">Voice-over</p><p class="feature-desc">Realistische AI-stemmen in meerdere talen</p></div>
+        <div class="feature-card"><div class="feature-icon">✂️</div><p class="feature-title">Video Editor</p><p class="feature-desc">Timeline editor met transitions en muziek</p></div>
+        <div class="feature-card"><div class="feature-icon">💧</div><p class="feature-title">Geen watermark</p><p class="feature-desc">Professionele exports op betaalde plannen</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section class="section">
+    <div class="container">
+      <h2 class="section-title">Kies jouw plan</h2>
+      <p class="section-sub">Begin gratis. Upgrade wanneer je wilt.</p>
+      <div class="pricing-grid">
+
+        <div class="plan-card">
+          <p class="plan-name">Gratis</p>
+          <div><span class="plan-price">€0</span></div>
+          <p class="plan-credits">100 credits/maand</p>
+          <ul class="plan-features">
+            <li>Script genereren (1 credit)</li>
+            <li>Afbeeldingen genereren (1 credit)</li>
+            <li>Video beweging (5 credits)</li>
+            <li>Watermark op exports</li>
+          </ul>
+          <a href="https://animideo.vercel.app/signup" class="plan-cta secondary">Begin gratis</a>
+        </div>
+
+        <div class="plan-card">
+          <p class="plan-name">Starter</p>
+          <div><span class="plan-price">€49</span><span class="plan-period">/maand</span></div>
+          <p class="plan-credits">500 credits/maand</p>
+          <ul class="plan-features">
+            <li>500 credits per maand</li>
+            <li>Geen watermark</li>
+            <li>Prioriteit rendering</li>
+            <li>Email support</li>
+          </ul>
+          <a href="https://animideo.vercel.app/signup" class="plan-cta secondary">Probeer Starter</a>
+        </div>
+
+        <div class="plan-card featured">
+          <span class="plan-badge">MEEST GEKOZEN</span>
+          <p class="plan-name">Pro</p>
+          <div><span class="plan-price">€99</span><span class="plan-period">/maand</span></div>
+          <p class="plan-credits">1.500 credits/maand</p>
+          <ul class="plan-features">
+            <li>1.500 credits per maand</li>
+            <li>Geen watermark</li>
+            <li>HD exports</li>
+            <li>Prioriteit support</li>
+          </ul>
+          <a href="https://animideo.vercel.app/signup" class="plan-cta primary">Probeer Pro</a>
+        </div>
+
+        <div class="plan-card">
+          <p class="plan-name">Agency</p>
+          <div><span class="plan-price">€249</span><span class="plan-period">/maand</span></div>
+          <p class="plan-credits">5.000 credits/maand</p>
+          <ul class="plan-features">
+            <li>5.000 credits per maand</li>
+            <li>Geen watermark</li>
+            <li>4K exports</li>
+            <li>Dedicated support</li>
+          </ul>
+          <a href="https://animideo.vercel.app/signup" class="plan-cta secondary">Probeer Agency</a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <div class="final-cta">
+    <h2>Klaar om je eerste video te maken?</h2>
+    <p>Gratis beginnen. Geen creditcard nodig.</p>
+    <a href="https://animideo.vercel.app/signup" class="btn-primary" style="font-size:16px;padding:14px 36px;">
+      Begin gratis →
+    </a>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    © 2026 JouwAnimatieVideo &nbsp;·&nbsp;
+    <a href="https://animideo.vercel.app/login">Inloggen</a>
+    <a href="https://animideo.vercel.app/signup">Registreren</a>
+    <a href="https://animideo.vercel.app/pricing">Prijzen</a>
+  </footer>
+
+  <script>
+    function setIdea(el) {
+      document.getElementById("ideaInput").value = el.textContent.trim();
+      document.getElementById("ideaInput").focus();
+    }
+
+    function submitIdea() {
+      const idea = document.getElementById("ideaInput").value.trim();
+      if (!idea) { document.getElementById("ideaInput").focus(); return; }
+      const url = "https://animideo.vercel.app/signup?idea=" + encodeURIComponent(idea);
+      window.location.href = url;
+    }
+
+    // Also submit on Enter (not Shift+Enter)
+    document.getElementById("ideaInput").addEventListener("keydown", function(e) {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitIdea(); }
+    });
+  </script>
+
+</body>
+</html>
