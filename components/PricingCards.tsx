@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 interface Plan {
   id: string;
@@ -11,24 +11,24 @@ interface Plan {
   credits: string;
   badge?: string;
   features: string[];
-  cta: string;
   highlight: boolean;
 }
+
+const PLAN_RANK: Record<string, number> = { free: 0, starter: 1, pro: 2, agency: 3 };
 
 const PLANS: Plan[] = [
   {
     id: "free",
     name: "Gratis",
     price: "€0",
-    credits: "30 credits/maand",
+    credits: "100 credits/maand",
     features: [
-      "30 credits per maand",
+      "100 credits per maand",
       "Script genereren (1 credit)",
       "Afbeelding genereren (1 credit)",
       "Video beweging (5 credits)",
       "Watermark op exports",
     ],
-    cta: "Huidig plan",
     highlight: false,
   },
   {
@@ -37,7 +37,6 @@ const PLANS: Plan[] = [
     price: "€49",
     period: "/maand",
     credits: "500 credits/maand",
-    badge: "MEEST GEKOZEN",
     features: [
       "500 credits per maand",
       "Script genereren (1 credit)",
@@ -47,8 +46,7 @@ const PLANS: Plan[] = [
       "Prioriteit rendering",
       "Email support",
     ],
-    cta: "Upgraden →",
-    highlight: true,
+    highlight: false,
   },
   {
     id: "pro",
@@ -56,6 +54,7 @@ const PLANS: Plan[] = [
     price: "€99",
     period: "/maand",
     credits: "1.500 credits/maand",
+    badge: "MEEST GEKOZEN",
     features: [
       "1.500 credits per maand",
       "Script genereren (1 credit)",
@@ -65,8 +64,7 @@ const PLANS: Plan[] = [
       "HD exports",
       "Prioriteit support",
     ],
-    cta: "Upgraden →",
-    highlight: false,
+    highlight: true,
   },
   {
     id: "agency",
@@ -84,15 +82,28 @@ const PLANS: Plan[] = [
       "Dedicated support",
       "Meerdere teamleden",
     ],
-    cta: "Upgraden →",
     highlight: false,
   },
 ];
 
 export default function PricingCards({ currentPlan }: { currentPlan: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [upgraded, setUpgraded] = useState(false);
+
+  // Refresh credits after returning from Mollie payment
+  useEffect(() => {
+    if (searchParams.get("upgraded") === "true") {
+      setUpgraded(true);
+      const timer = setTimeout(() => {
+        router.refresh();
+        setUpgraded(false);
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams, router]);
 
   async function handleUpgrade(planId: string) {
     if (planId === "free" || planId === currentPlan) return;
@@ -117,8 +128,48 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
     }
   }
 
+  function getCtaLabel(plan: Plan): string {
+    if (loading === plan.id) return "Bezig…";
+    const isCurrent = plan.id === currentPlan;
+    if (isCurrent) return "Huidig plan";
+    if (plan.id === "free") return "Huidig plan";
+    const currentRank = PLAN_RANK[currentPlan] ?? 0;
+    const targetRank = PLAN_RANK[plan.id] ?? 0;
+    if (targetRank > currentRank) return "Upgraden →";
+    return "Downgraden →";
+  }
+
+  function isDisabled(plan: Plan): boolean {
+    if (plan.id === currentPlan) return true;
+    if (plan.id === "free") return true;
+    if (loading !== null) return true;
+    return false;
+  }
+
+  function getButtonStyle(plan: Plan): string {
+    const isCurrent = plan.id === currentPlan;
+    if (isCurrent || plan.id === "free") {
+      return "bg-white/5 text-slate-600 cursor-default border border-white/[0.05]";
+    }
+    const currentRank = PLAN_RANK[currentPlan] ?? 0;
+    const targetRank = PLAN_RANK[plan.id] ?? 0;
+    if (targetRank < currentRank) {
+      return "bg-white/5 hover:bg-white/10 text-slate-400 border border-white/10 hover:border-white/20 disabled:opacity-60";
+    }
+    if (plan.highlight) {
+      return "bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] disabled:opacity-60";
+    }
+    return "bg-white/10 hover:bg-white/15 text-white border border-white/10 hover:border-white/20 disabled:opacity-60";
+  }
+
   return (
     <div>
+      {upgraded && (
+        <div className="mb-6 bg-green-500/10 border border-green-500/20 text-green-400 text-sm rounded-2xl px-4 py-3 text-center">
+          Betaling ontvangen — je abonnement en credits worden bijgewerkt…
+        </div>
+      )}
+
       {error && (
         <div className="mb-6 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-2xl px-4 py-3 text-center">
           {error}
@@ -178,16 +229,10 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
               {/* CTA */}
               <button
                 onClick={() => handleUpgrade(plan.id)}
-                disabled={isCurrent || loading === plan.id || plan.id === "free"}
-                className={`w-full py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 ${
-                  isCurrent || plan.id === "free"
-                    ? "bg-white/5 text-slate-600 cursor-default border border-white/[0.05]"
-                    : plan.highlight
-                    ? "bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] disabled:opacity-60"
-                    : "bg-white/10 hover:bg-white/15 text-white border border-white/10 hover:border-white/20 disabled:opacity-60"
-                }`}
+                disabled={isDisabled(plan)}
+                className={`w-full py-2.5 px-4 rounded-xl text-sm font-semibold transition-all duration-200 ${getButtonStyle(plan)}`}
               >
-                {loading === plan.id ? "Bezig…" : isCurrent ? "Huidig plan" : plan.cta}
+                {getCtaLabel(plan)}
               </button>
             </div>
           );
