@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Project, Scene } from "@/lib/types";
+import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 
 interface Props {
   project: Project;
@@ -22,6 +23,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack }: Props
   const [error, setError] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
   const [cacheBust, setCacheBust] = useState<Record<string, number>>({});
+  const [creditModal, setCreditModal] = useState<{ credits: number; required: number } | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const scene = scenes[currentIndex];
@@ -56,7 +58,13 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack }: Props
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to submit motion task");
+      if (res.status === 402) {
+        setCreditModal({ credits: data.credits, required: data.required });
+        setGenerating(false);
+        setStatusMsg("");
+        return;
+      }
+      if (!res.ok) throw new Error(data.error ?? "Video beweging aanmaken mislukt");
 
       const { taskId } = data;
       setStatusMsg("Generating video (this takes 1-3 minutes)…");
@@ -143,6 +151,14 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack }: Props
   if (!scene) return null;
 
   return (
+    <>
+      {creditModal && (
+        <InsufficientCreditsModal
+          credits={creditModal.credits}
+          required={creditModal.required}
+          onClose={() => setCreditModal(null)}
+        />
+      )}
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-[#1e3a5f]">Motion Review</h2>
@@ -332,5 +348,6 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack }: Props
         )}
       </div>
     </div>
+    </>
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { Project, Scene } from "@/lib/types";
+import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 
 interface Props {
   project: Project;
@@ -22,6 +23,7 @@ export default function Step3Images({ project, onUpdate, onNext, onBack }: Props
   const [promptDraft, setPromptDraft] = useState("");
   const [error, setError] = useState("");
   const [cacheBust, setCacheBust] = useState<Record<string, number>>({});
+  const [creditModal, setCreditModal] = useState<{ credits: number; required: number } | null>(null);
 
   const scene = scenes[currentIndex];
   const totalScenes = scenes.length;
@@ -42,13 +44,17 @@ export default function Step3Images({ project, onUpdate, onNext, onBack }: Props
           visualStyle: project.visual_style,
         }),
       });
-      let data: { imageUrl?: string; error?: string } = {};
+      let data: { imageUrl?: string; error?: string; credits?: number; required?: number } = {};
       try {
         data = await res.json();
       } catch {
         throw new Error(`Server error (HTTP ${res.status}) — no details returned`);
       }
-      if (!res.ok) throw new Error(data.error ?? "Image generation failed");
+      if (res.status === 402) {
+        setCreditModal({ credits: data.credits ?? 0, required: data.required ?? 1 });
+        return;
+      }
+      if (!res.ok) throw new Error(data.error ?? "Afbeelding genereren mislukt");
 
       const updatedScenes = scenes.map((s, i) =>
         i === currentIndex ? { ...s, image_url: data.imageUrl ?? null, image_prompt: prompt } : s
@@ -108,6 +114,14 @@ export default function Step3Images({ project, onUpdate, onNext, onBack }: Props
   if (!scene) return null;
 
   return (
+    <>
+      {creditModal && (
+        <InsufficientCreditsModal
+          credits={creditModal.credits}
+          required={creditModal.required}
+          onClose={() => setCreditModal(null)}
+        />
+      )}
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-[#1e3a5f]">Image Review</h2>
@@ -280,5 +294,6 @@ export default function Step3Images({ project, onUpdate, onNext, onBack }: Props
         )}
       </div>
     </div>
+    </>
   );
 }

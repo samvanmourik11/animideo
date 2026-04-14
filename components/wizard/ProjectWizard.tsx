@@ -33,7 +33,7 @@ function statusToStep(status: Project["status"]): number {
   }
 }
 
-export default function ProjectWizard({ initialProject }: { initialProject: Project }) {
+export default function ProjectWizard({ initialProject, plan }: { initialProject: Project; plan: string }) {
   const [project, setProject] = useState<Project>({
     ...initialProject,
     scenes: initialProject.scenes ?? [],
@@ -112,6 +112,7 @@ export default function ProjectWizard({ initialProject }: { initialProject: Proj
             project={project}
             onUpdate={updateProject}
             onBack={goBack}
+            plan={plan}
           />
         )}
       </div>

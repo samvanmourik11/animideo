@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { Project } from "@/lib/types";
 import ProjectWizard from "@/components/wizard/ProjectWizard";
+import { getProfile } from "@/lib/credits";
 
 export default async function ProjectPage({
   params,
@@ -14,14 +15,17 @@ export default async function ProjectPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: project } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("id", id)
-    .eq("user_id", user!.id)
-    .single();
+  const [{ data: project }, profile] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", user!.id)
+      .single(),
+    getProfile(user!.id),
+  ]);
 
   if (!project) notFound();
 
-  return <ProjectWizard initialProject={project as Project} />;
+  return <ProjectWizard initialProject={project as Project} plan={profile.plan} />;
 }

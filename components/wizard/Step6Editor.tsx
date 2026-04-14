@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
+import Link from "next/link";
 import { Project, Scene, TransitionType } from "@/lib/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -148,25 +149,27 @@ interface Props {
   project: Project;
   onUpdate: (updates: Partial<Project>) => void;
   onBack: () => void;
+  plan?: string;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function Step6Editor({ project, onUpdate, onBack }: Props) {
+export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }: Props) {
   const [scenes, setScenes] = useState<Scene[]>(() =>
     (project.scenes ?? []).map((s) => ({ ...s, duration: Math.max(s.duration ?? 5, 1) }))
   );
-  const [selectedIdx,     setSelectedIdx]     = useState(0);
-  const [isPlaying,       setIsPlaying]       = useState(false);
-  const [displayTime,     setDisplayTime]     = useState(0);
-  const [bgMusicUrl,      setBgMusicUrl]      = useState(project.bg_music_url ?? "");
-  const [voiceVol,        setVoiceVol]        = useState(1);
-  const [musicVol,        setMusicVol]        = useState(0.5);
-  const [exporting,       setExporting]       = useState(false);
-  const [exportPct,       setExportPct]       = useState(0);
-  const [exportUrl,       setExportUrl]       = useState("");
-  const [exportError,     setExportError]     = useState("");
-  const [uploadingMusic,  setUploadingMusic]  = useState(false);
-  const [dragOverIdx,     setDragOverIdx]     = useState<number | null>(null);
+  const [selectedIdx,       setSelectedIdx]       = useState(0);
+  const [isPlaying,         setIsPlaying]         = useState(false);
+  const [displayTime,       setDisplayTime]       = useState(0);
+  const [bgMusicUrl,        setBgMusicUrl]        = useState(project.bg_music_url ?? "");
+  const [voiceVol,          setVoiceVol]          = useState(1);
+  const [musicVol,          setMusicVol]          = useState(0.5);
+  const [exporting,         setExporting]         = useState(false);
+  const [exportPct,         setExportPct]         = useState(0);
+  const [exportUrl,         setExportUrl]         = useState("");
+  const [exportError,       setExportError]       = useState("");
+  const [uploadingMusic,    setUploadingMusic]    = useState(false);
+  const [dragOverIdx,       setDragOverIdx]       = useState<number | null>(null);
+  const [showUpgradeModal,  setShowUpgradeModal]  = useState(false);
   const [trimDrag,        setTrimDrag]        = useState<{ idx: number; startX: number; startDur: number } | null>(null);
   const [transitionPopup, setTransitionPopup] = useState<{ sceneIdx: number } | null>(null);
   const [voiceOffsetSec,  setVoiceOffsetSec]  = useState(0);
@@ -1033,8 +1036,37 @@ export default function Step6Editor({ project, onUpdate, onBack }: Props) {
       await ffmpeg.exec(cmd);
       writtenFiles.push("output.mp4");
 
+      // ── Watermark for free plan ───────────────────────────────────────
+      let finalOutputFile = "output.mp4";
+      if (plan === "free") {
+        try {
+          setExportPct(88);
+          // Load a font for drawtext
+          const fontBytes = await fetchAsBytes(
+            "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSans/NotoSans-Regular.ttf"
+          );
+          await ffmpeg.writeFile("font.ttf", fontBytes);
+          writtenFiles.push("font.ttf");
+
+          await ffmpeg.exec([
+            "-i", "output.mp4",
+            "-vf", "drawtext=fontfile=font.ttf:text='JouwAnimatieVideo A.I.':fontsize=24:fontcolor=white@0.7:x=w-tw-20:y=h-th-20",
+            "-c:a", "copy",
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "watermarked.mp4",
+          ]);
+          writtenFiles.push("watermarked.mp4");
+          finalOutputFile = "watermarked.mp4";
+        } catch (wmErr) {
+          // Watermark failed — continue with unwatermarked video
+          console.warn("[Export] Watermark pass failed:", wmErr);
+        }
+        setExportPct(95);
+      }
+
       // ── Read output ──────────────────────────────────────────────────
-      const raw = await ffmpeg.readFile("output.mp4");
+      const raw = await ffmpeg.readFile(finalOutputFile);
       const blob = new Blob(
         [(raw as Uint8Array).buffer as ArrayBuffer],
         { type: "video/mp4" }
@@ -1072,6 +1104,11 @@ export default function Step6Editor({ project, onUpdate, onBack }: Props) {
       });
       onUpdate({ status: "Done" });
 
+      // Show upgrade prompt for free users after export
+      if (plan === "free") {
+        setShowUpgradeModal(true);
+      }
+
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setExportError(msg);
@@ -1087,6 +1124,36 @@ export default function Step6Editor({ project, onUpdate, onBack }: Props) {
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#0f0f0f] text-white overflow-hidden">
+
+      {/* Post-export upgrade modal for free users */}
+      {showUpgradeModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 text-gray-900">
+            <div className="text-center mb-5">
+              <div className="text-5xl mb-3">🎉</div>
+              <h2 className="text-xl font-bold mb-2">Goed bezig!</h2>
+              <p className="text-gray-500 text-sm">
+                Je video is klaar. Upgrade naar <strong>Starter</strong> om het watermark
+                te verwijderen en toegang te krijgen tot meer credits.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <Link
+                href="/pricing"
+                className="block w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-xl transition-colors"
+              >
+                Upgrade naar Starter →
+              </Link>
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                className="block w-full text-center text-gray-500 hover:text-gray-700 text-sm py-2 transition-colors"
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hidden audio elements — always in DOM, refs are always valid */}
       <audio ref={audioRef}   src={project.voice_audio_url ?? undefined} preload="auto" className="hidden" />

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { Scene } from "@/lib/types";
+import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -9,6 +10,15 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Credits check
+  const credit = await deductCredits(user.id, CREDIT_COSTS.SCRIPT_GENERATION, "Script genereren");
+  if (!credit.success) {
+    return NextResponse.json(
+      { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.SCRIPT_GENERATION },
+      { status: 402 }
+    );
+  }
 
   const { projectId, title, goal, targetAudience, language, format, visualStyle } = await req.json();
 

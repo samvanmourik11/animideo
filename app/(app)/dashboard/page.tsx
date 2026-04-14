@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Project } from "@/lib/types";
 import NewProjectButton from "@/components/NewProjectButton";
 import StatusBadge from "@/components/StatusBadge";
+import { getProfile } from "@/lib/credits";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -10,14 +11,34 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: projects } = await supabase
-    .from("projects")
-    .select("*")
-    .eq("user_id", user!.id)
-    .order("created_at", { ascending: false });
+  const [{ data: projects }, profile] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("*")
+      .eq("user_id", user!.id)
+      .order("created_at", { ascending: false }),
+    getProfile(user!.id),
+  ]);
 
   return (
     <div>
+      {/* Free plan upgrade banner */}
+      {profile.plan === "free" && (
+        <div className="mb-6 flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl px-5 py-3.5">
+          <div className="flex items-center gap-3">
+            <span className="text-xl">✨</span>
+            <p className="text-sm text-blue-800">
+              Je gebruikt de <strong>gratis versie</strong> — upgrade voor meer credits en geen watermark.
+            </p>
+          </div>
+          <Link
+            href="/pricing"
+            className="shrink-0 ml-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors"
+          >
+            Upgraden →
+          </Link>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl font-semibold text-gray-900">My Projects</h1>

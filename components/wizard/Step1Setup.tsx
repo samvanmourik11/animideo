@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Project, VisualStyle } from "@/lib/types";
+import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 
 const LANGUAGES = [
   "English", "Dutch", "Spanish", "French", "German",
@@ -21,6 +22,7 @@ interface Props {
 export default function Step1Setup({ project, onUpdate, onNext }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [creditModal, setCreditModal] = useState<{ credits: number; required: number } | null>(null);
 
   const fields = {
     title: project.title,
@@ -57,7 +59,11 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Script generation failed");
+      if (res.status === 402) {
+        setCreditModal({ credits: data.credits, required: data.required });
+        return;
+      }
+      if (!res.ok) throw new Error(data.error ?? "Script genereren mislukt");
       onUpdate({ scenes: data.scenes, status: "ScriptReady" });
       onNext();
     } catch (e: unknown) {
@@ -68,6 +74,14 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
   }
 
   return (
+    <>
+      {creditModal && (
+        <InsufficientCreditsModal
+          credits={creditModal.credits}
+          required={creditModal.required}
+          onClose={() => setCreditModal(null)}
+        />
+      )}
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
         <h2 className="text-2xl font-semibold text-[#1e3a5f]">Project Setup</h2>
@@ -162,5 +176,6 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
         </button>
       </div>
     </div>
+    </>
   );
 }

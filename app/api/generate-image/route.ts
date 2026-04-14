@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { VisualStyle } from "@/lib/types";
+import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -18,6 +19,15 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Credits check
+    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Afbeelding genereren");
+    if (!credit.success) {
+      return NextResponse.json(
+        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+        { status: 402 }
+      );
+    }
 
     const { projectId, sceneId, imagePrompt, visualStyle } = await req.json();
     const style = (visualStyle as VisualStyle) ?? "Flat Illustration";

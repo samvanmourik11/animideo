@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 const RUNWAY_BASE = "https://api.dev.runwayml.com/v1";
 const RUNWAY_VERSION = "2024-11-06";
@@ -8,6 +9,15 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Credits check
+  const credit = await deductCredits(user.id, CREDIT_COSTS.RUNWAY_GENERATION, "Video beweging genereren");
+  if (!credit.success) {
+    return NextResponse.json(
+      { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.RUNWAY_GENERATION },
+      { status: 402 }
+    );
+  }
 
   const { imageUrl, motionPrompt, format } = await req.json();
 
