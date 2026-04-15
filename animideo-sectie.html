@@ -3,298 +3,826 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Animideo — AI Animatievideo's</title>
+  <title>Animideo — AI Animatievideo's in minuten</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <style>
-    /* ── Reset & base ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #060d1f; color: #e2e8f0; line-height: 1.6; }
+
+    :root {
+      --bg:       #05091a;
+      --bg2:      #090f20;
+      --bg3:      #0d1629;
+      --border:   rgba(255,255,255,0.06);
+      --border2:  rgba(255,255,255,0.1);
+      --blue:     #2563eb;
+      --blue-lt:  #3b82f6;
+      --blue-glow:rgba(59,130,246,0.3);
+      --text:     #f8fafc;
+      --muted:    #475569;
+      --muted2:   #94a3b8;
+      --muted3:   #64748b;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
     a { text-decoration: none; color: inherit; }
 
-    /* ── Utilities ── */
-    .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
-    .text-blue { background: linear-gradient(to right, #60a5fa, #93c5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    /* ── Dot grid background ───────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+    }
 
-    /* ── Buttons ── */
-    .btn-primary {
-      display: inline-block;
-      background: linear-gradient(135deg, #2563eb, #3b82f6);
+    /* ── Nav ───────────────────────────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      height: 60px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 48px;
+      background: rgba(5,9,26,0.7);
+      backdrop-filter: blur(24px) saturate(180%);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 800; font-size: 17px; letter-spacing: -.4px; color: #fff;
+    }
+    .nav-logo-mark {
+      width: 28px; height: 28px; border-radius: 7px;
+      background: linear-gradient(135deg, #2563eb, #60a5fa);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; flex-shrink: 0;
+    }
+    .nav-links { display: flex; align-items: center; gap: 4px; }
+    .nav-link {
+      padding: 7px 14px; border-radius: 8px;
+      font-size: 14px; font-weight: 500; color: var(--muted3);
+      transition: color .15s, background .15s;
+    }
+    .nav-link:hover { color: var(--text); background: rgba(255,255,255,.05); }
+    .nav-sep { width: 1px; height: 18px; background: var(--border); margin: 0 6px; }
+    .nav-btn-ghost {
+      padding: 7px 16px; border-radius: 8px;
+      font-size: 14px; font-weight: 600; color: var(--muted2);
+      transition: color .15s;
+    }
+    .nav-btn-ghost:hover { color: var(--text); }
+    .nav-btn-primary {
+      padding: 7px 18px; border-radius: 9px;
+      font-size: 14px; font-weight: 700;
+      background: linear-gradient(135deg, var(--blue) 0%, #4f8ef7 100%);
       color: #fff;
-      font-weight: 600;
-      font-size: 15px;
-      padding: 12px 28px;
-      border-radius: 12px;
-      border: none;
-      cursor: pointer;
-      box-shadow: 0 0 20px rgba(59,130,246,0.35);
-      transition: opacity .2s, box-shadow .2s;
+      box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 0 20px rgba(59,130,246,.2);
+      transition: opacity .15s, box-shadow .15s;
     }
-    .btn-primary:hover { opacity: .9; box-shadow: 0 0 32px rgba(59,130,246,0.55); }
-    .btn-secondary {
-      display: inline-block;
-      color: #94a3b8;
-      font-weight: 500;
-      font-size: 15px;
-      padding: 12px 24px;
-      border-radius: 12px;
-      border: 1px solid rgba(255,255,255,.1);
-      background: rgba(255,255,255,.05);
-      cursor: pointer;
-      transition: background .2s, color .2s;
+    .nav-btn-primary:hover { opacity: .9; box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 0 32px rgba(59,130,246,.4); }
+
+    /* ── Hero ─────────────────────────────────────────────────────── */
+    .hero {
+      position: relative; z-index: 1;
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 130px 24px 100px;
+      overflow: hidden;
     }
-    .btn-secondary:hover { background: rgba(255,255,255,.1); color: #e2e8f0; }
+    /* Animated background orbs */
+    .hero-orb {
+      position: absolute; border-radius: 50%;
+      filter: blur(80px); pointer-events: none;
+      animation: orb-drift 12s ease-in-out infinite;
+    }
+    .hero-orb-1 {
+      width: 700px; height: 500px;
+      top: -10%; left: 50%; transform: translateX(-50%);
+      background: radial-gradient(ellipse, rgba(37,99,235,.22) 0%, transparent 70%);
+      animation-delay: 0s;
+    }
+    .hero-orb-2 {
+      width: 400px; height: 400px;
+      top: 30%; left: 15%;
+      background: radial-gradient(ellipse, rgba(99,102,241,.12) 0%, transparent 70%);
+      animation-delay: -4s;
+    }
+    .hero-orb-3 {
+      width: 350px; height: 350px;
+      top: 40%; right: 10%;
+      background: radial-gradient(ellipse, rgba(56,189,248,.1) 0%, transparent 70%);
+      animation-delay: -8s;
+    }
+    @keyframes orb-drift {
+      0%,100% { transform: translateY(0) scale(1); }
+      50%      { transform: translateY(-24px) scale(1.04); }
+    }
+    .hero-orb-1 { animation: orb-drift-center 12s ease-in-out infinite; }
+    @keyframes orb-drift-center {
+      0%,100% { transform: translateX(-50%) translateY(0); }
+      50%      { transform: translateX(-50%) translateY(-20px); }
+    }
 
-    /* ── Nav ── */
-    .nav { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; max-width: 1100px; margin: 0 auto; }
-    .nav-logo { font-size: 22px; font-weight: 800; background: linear-gradient(to right, #60a5fa, #93c5fd); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-    .nav-links { display: flex; align-items: center; gap: 12px; }
+    .hero-badge {
+      position: relative;
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 16px 6px 12px;
+      background: rgba(37,99,235,.1);
+      border: 1px solid rgba(37,99,235,.22);
+      border-radius: 999px;
+      font-size: 13px; font-weight: 500; color: #93c5fd;
+      margin-bottom: 36px;
+    }
+    .hero-badge-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #60a5fa;
+      box-shadow: 0 0 10px #60a5fa;
+      animation: blink 2.4s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1;box-shadow:0 0 10px #60a5fa} 50%{opacity:.3;box-shadow:none} }
 
-    /* ── Hero ── */
-    .hero { text-align: center; padding: 80px 24px 60px; }
-    .hero-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(59,130,246,.1); border: 1px solid rgba(59,130,246,.2); border-radius: 999px; padding: 6px 16px; font-size: 13px; color: #60a5fa; font-weight: 500; margin-bottom: 24px; }
-    .hero-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #60a5fa; animation: pulse 2s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.4;} }
-    .hero h1 { font-size: clamp(36px, 6vw, 64px); font-weight: 800; color: #fff; line-height: 1.15; margin-bottom: 20px; }
-    .hero p { font-size: 18px; color: #94a3b8; max-width: 520px; margin: 0 auto 40px; }
+    .hero h1 {
+      font-size: clamp(46px, 8.5vw, 88px);
+      font-weight: 900;
+      color: #fff;
+      line-height: 1.04;
+      letter-spacing: -3px;
+      margin-bottom: 24px;
+      position: relative;
+    }
+    .hero h1 .gradient-text {
+      background: linear-gradient(120deg, #60a5fa 10%, #a78bfa 50%, #38bdf8 90%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: 18px; font-weight: 400;
+      color: var(--muted2); max-width: 440px;
+      margin: 0 auto 52px; position: relative;
+      line-height: 1.65;
+    }
 
-    /* ── Idea input bar ── */
-    .idea-box { background: #0c1428; border: 1px solid rgba(255,255,255,.1); border-radius: 20px; box-shadow: 0 0 60px rgba(59,130,246,.1); overflow: hidden; max-width: 760px; margin: 0 auto 16px; }
-    .idea-box textarea { width: 100%; background: transparent; color: #fff; font-size: 16px; font-family: inherit; padding: 20px 24px 12px; resize: none; outline: none; border: none; }
-    .idea-box textarea::placeholder { color: #475569; }
-    .idea-box-footer { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px 12px; gap: 12px; flex-wrap: wrap; }
-    .idea-examples { display: flex; gap: 8px; flex-wrap: wrap; }
-    .idea-example { font-size: 12px; color: #64748b; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); padding: 5px 12px; border-radius: 999px; cursor: pointer; transition: all .2s; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
-    .idea-example:hover { color: #cbd5e1; background: rgba(255,255,255,.1); }
-    .more-examples { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; max-width: 760px; margin: 0 auto; }
+    /* ── Idea input ──────────────────────────────────────────────── */
+    .idea-wrap { width: 100%; max-width: 660px; position: relative; }
+    .idea-box {
+      background: var(--bg3);
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.03);
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .idea-box:focus-within {
+      border-color: rgba(59,130,246,.35);
+      box-shadow: 0 32px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(59,130,246,.15), 0 0 50px rgba(59,130,246,.1);
+    }
+    .idea-box textarea {
+      width: 100%; background: transparent;
+      color: var(--text); font-family: inherit;
+      font-size: 15px; font-weight: 400;
+      padding: 20px 22px 12px;
+      resize: none; outline: none; border: none;
+      line-height: 1.65;
+    }
+    .idea-box textarea::placeholder { color: #334155; }
+    .idea-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px 14px; gap: 12px;
+      border-top: 1px solid rgba(255,255,255,.04);
+    }
+    .idea-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+    .idea-chip {
+      font-size: 12px; color: var(--muted);
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.07);
+      padding: 4px 12px; border-radius: 999px;
+      cursor: pointer; transition: all .15s; white-space: nowrap;
+    }
+    .idea-chip:hover { color: var(--muted2); background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.12); }
+    .idea-submit {
+      flex-shrink: 0;
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 20px; border-radius: 12px; border: none;
+      background: linear-gradient(135deg, var(--blue), #4f8ef7);
+      color: #fff; font-family: inherit; font-size: 14px; font-weight: 700;
+      cursor: pointer; white-space: nowrap;
+      box-shadow: 0 0 20px rgba(59,130,246,.25);
+      transition: opacity .15s, box-shadow .15s;
+    }
+    .idea-submit:hover { opacity: .9; box-shadow: 0 0 32px rgba(59,130,246,.5); }
+    .idea-submit:disabled { opacity: .35; cursor: default; }
+    .idea-hint { margin-top: 14px; font-size: 13px; color: var(--muted); }
 
-    /* ── How it works ── */
-    .section { padding: 80px 24px; border-top: 1px solid rgba(255,255,255,.06); }
-    .section-title { text-align: center; font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; }
-    .section-sub { text-align: center; color: #64748b; font-size: 15px; margin-bottom: 48px; }
-    .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; }
-    .step-card { background: #0c1428; border: 1px solid rgba(255,255,255,.07); border-radius: 20px; padding: 28px; text-align: center; }
-    .step-icon { font-size: 32px; margin-bottom: 12px; }
-    .step-num { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: rgba(59,130,246,.15); border: 1px solid rgba(59,130,246,.25); color: #60a5fa; font-size: 11px; font-weight: 700; margin-right: 6px; }
-    .step-title { font-weight: 600; color: #fff; font-size: 15px; margin-bottom: 8px; }
-    .step-desc { color: #64748b; font-size: 14px; }
+    /* ── Stats strip ─────────────────────────────────────────────── */
+    .stats-strip {
+      position: relative; z-index: 1;
+      display: flex; align-items: center; justify-content: center; gap: 0;
+      padding: 40px 24px;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .stat { text-align: center; padding: 0 40px; }
+    .stat-num { font-size: 30px; font-weight: 800; color: #fff; letter-spacing: -1px; line-height: 1; }
+    .stat-label { font-size: 12px; color: var(--muted); margin-top: 5px; font-weight: 500; }
+    .stat-sep { width: 1px; height: 44px; background: var(--border); flex-shrink: 0; }
 
-    /* ── Features ── */
-    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
-    .feature-card { background: #0c1428; border: 1px solid rgba(255,255,255,.07); border-radius: 14px; padding: 20px; }
-    .feature-icon { font-size: 22px; margin-bottom: 10px; }
-    .feature-title { font-weight: 600; color: #fff; font-size: 14px; margin-bottom: 4px; }
-    .feature-desc { color: #64748b; font-size: 13px; }
+    /* ── Sections ────────────────────────────────────────────────── */
+    section { position: relative; z-index: 1; padding: 100px 24px; }
+    .section-eyebrow {
+      text-align: center;
+      font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
+      text-transform: uppercase; color: var(--blue-lt);
+      margin-bottom: 14px;
+    }
+    h2 {
+      text-align: center;
+      font-size: clamp(30px, 4.5vw, 48px);
+      font-weight: 900; color: #fff; letter-spacing: -1.5px;
+      margin-bottom: 12px; line-height: 1.1;
+    }
+    .section-lead {
+      text-align: center; font-size: 16px; color: var(--muted2);
+      margin-bottom: 60px; font-weight: 400;
+    }
+    .container { max-width: 1000px; margin: 0 auto; }
 
-    /* ── Pricing ── */
-    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; }
-    .plan-card { position: relative; display: flex; flex-direction: column; background: #0c1428; border: 1px solid rgba(255,255,255,.07); border-radius: 20px; padding: 28px; transition: border-color .2s; }
-    .plan-card:hover { border-color: rgba(255,255,255,.15); }
-    .plan-card.featured { background: linear-gradient(to bottom, rgba(37,99,235,.12), rgba(59,130,246,.06)); border-color: rgba(59,130,246,.4); box-shadow: 0 0 40px rgba(59,130,246,.15); }
-    .plan-badge { position: absolute; top: -13px; left: 50%; transform: translateX(-50%); background: linear-gradient(to right, #2563eb, #3b82f6); color: #fff; font-size: 10px; font-weight: 700; padding: 4px 14px; border-radius: 999px; box-shadow: 0 0 12px rgba(59,130,246,.5); white-space: nowrap; }
-    .plan-name { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 4px; }
-    .plan-price { font-size: 36px; font-weight: 800; color: #fff; }
-    .plan-period { font-size: 14px; color: #64748b; }
-    .plan-credits { font-size: 12px; font-weight: 600; color: #60a5fa; margin: 6px 0 20px; }
-    .plan-features { flex: 1; list-style: none; margin-bottom: 24px; }
-    .plan-features li { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; color: #94a3b8; margin-bottom: 10px; }
-    .plan-features li::before { content: "✓"; color: #60a5fa; font-weight: 700; flex-shrink: 0; }
-    .plan-cta { display: block; text-align: center; padding: 11px; border-radius: 12px; font-weight: 600; font-size: 14px; transition: all .2s; }
-    .plan-cta.primary { background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; box-shadow: 0 0 20px rgba(59,130,246,.3); }
-    .plan-cta.primary:hover { box-shadow: 0 0 30px rgba(59,130,246,.5); opacity: .9; }
-    .plan-cta.secondary { background: rgba(255,255,255,.08); color: #e2e8f0; border: 1px solid rgba(255,255,255,.1); }
-    .plan-cta.secondary:hover { background: rgba(255,255,255,.14); }
+    /* ── App mockup ──────────────────────────────────────────────── */
+    .mockup-shell {
+      border-radius: 18px; overflow: hidden;
+      border: 1px solid rgba(255,255,255,.08);
+      background: var(--bg2);
+      box-shadow: 0 60px 140px rgba(0,0,0,.7), 0 0 0 1px rgba(59,130,246,.06), 0 0 60px rgba(59,130,246,.06);
+    }
+    .mockup-titlebar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 13px 18px;
+      background: var(--bg3);
+      border-bottom: 1px solid var(--border);
+    }
+    .tb-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .tb-url {
+      flex: 1; text-align: center;
+      font-size: 12px; color: var(--muted3);
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      border-radius: 6px; padding: 3px 12px;
+      margin: 0 50px;
+    }
+    .mockup-tabs {
+      display: flex; gap: 4px; padding: 0 18px;
+    }
+    .tab-pill {
+      padding: 5px 16px; border-radius: 999px;
+      font-size: 12px; font-weight: 600;
+      cursor: default;
+    }
+    .tab-pill.done   { background: rgba(34,197,94,.1);  color: #4ade80; border: 1px solid rgba(34,197,94,.2);  }
+    .tab-pill.active { background: rgba(59,130,246,.15); color: #60a5fa; border: 1px solid rgba(59,130,246,.3); }
+    .tab-pill.idle   { background: rgba(255,255,255,.04); color: var(--muted); border: 1px solid var(--border); }
+    .mockup-body { display: grid; grid-template-columns: 1fr 1fr; min-height: 280px; }
+    .mockup-left { padding: 22px; border-right: 1px solid var(--border); }
+    .mockup-section-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+    .scene-card {
+      display: flex; gap: 12px; align-items: flex-start;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 10px; padding: 12px; margin-bottom: 8px;
+      transition: border-color .2s;
+    }
+    .scene-card:hover { border-color: rgba(255,255,255,.1); }
+    .scene-n {
+      width: 22px; height: 22px; border-radius: 5px; flex-shrink: 0;
+      background: rgba(37,99,235,.2); color: #60a5fa;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; margin-top: 1px;
+    }
+    .scene-text { font-size: 12px; color: var(--muted2); line-height: 1.5; }
+    .scene-dur  { font-size: 11px; color: var(--muted); margin-top: 3px; }
+    .mockup-right { padding: 22px; }
+    .video-mock {
+      aspect-ratio: 16/9;
+      background: linear-gradient(140deg, #0d1f40 0%, #1b3a6b 50%, #0d1f40 100%);
+      border-radius: 10px; border: 1px solid rgba(59,130,246,.18);
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden; margin-bottom: 12px;
+    }
+    .video-mock-gradient {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 30% 40%, rgba(37,99,235,.45) 0%, transparent 55%),
+                  radial-gradient(ellipse at 75% 65%, rgba(99,102,241,.3) 0%, transparent 55%);
+    }
+    .play-btn {
+      position: relative; z-index: 1;
+      width: 48px; height: 48px; border-radius: 50%;
+      background: rgba(255,255,255,.14);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,.22);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .play-icon { width: 0; height: 0; border-style: solid; border-width: 8px 0 8px 16px; border-color: transparent transparent transparent #fff; margin-left: 2px; }
+    .ai-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: rgba(34,197,94,.08); border: 1px solid rgba(34,197,94,.2);
+      color: #4ade80; font-size: 12px; font-weight: 600;
+      padding: 4px 12px; border-radius: 999px;
+    }
+    .ai-badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; }
 
-    /* ── Final CTA ── */
-    .final-cta { text-align: center; padding: 80px 24px; border-top: 1px solid rgba(255,255,255,.06); }
-    .final-cta h2 { font-size: clamp(24px, 4vw, 40px); font-weight: 800; color: #fff; margin-bottom: 16px; }
-    .final-cta p { color: #64748b; font-size: 16px; margin-bottom: 32px; }
+    /* ── Steps (how it works) ────────────────────────────────────── */
+    .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .step {
+      position: relative;
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 18px; padding: 30px;
+      transition: border-color .2s, transform .25s;
+    }
+    .step:hover { border-color: rgba(59,130,246,.2); transform: translateY(-3px); }
+    .step-num {
+      width: 34px; height: 34px; border-radius: 9px;
+      background: rgba(37,99,235,.12); border: 1px solid rgba(37,99,235,.2);
+      color: #60a5fa; font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 18px;
+    }
+    .step h3 { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+    .step p  { font-size: 14px; color: var(--muted2); line-height: 1.7; }
 
-    /* ── Footer ── */
-    footer { border-top: 1px solid rgba(255,255,255,.06); padding: 28px 24px; text-align: center; color: #334155; font-size: 13px; }
-    footer a { color: #475569; margin: 0 8px; }
-    footer a:hover { color: #94a3b8; }
+    /* ── Feature grid ────────────────────────────────────────────── */
+    .features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .feat {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 16px; padding: 26px;
+      transition: border-color .2s, transform .25s;
+    }
+    .feat:hover { border-color: rgba(59,130,246,.2); transform: translateY(-2px); }
+    .feat-icon {
+      width: 42px; height: 42px; border-radius: 11px;
+      background: rgba(37,99,235,.1); border: 1px solid rgba(37,99,235,.18);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; margin-bottom: 14px;
+    }
+    .feat h3 { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    .feat p  { font-size: 13px; color: var(--muted); line-height: 1.68; }
+
+    /* ── Pricing ─────────────────────────────────────────────────── */
+    .plans { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; align-items: start; }
+    .plan {
+      position: relative; display: flex; flex-direction: column;
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 18px; padding: 28px;
+      transition: border-color .2s, transform .2s;
+    }
+    .plan:hover { transform: translateY(-2px); }
+    .plan.featured {
+      background: linear-gradient(160deg, rgba(37,99,235,.1) 0%, rgba(99,102,241,.05) 100%);
+      border-color: rgba(59,130,246,.3);
+      box-shadow: 0 0 60px rgba(59,130,246,.1);
+    }
+    .plan-badge {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(135deg, #2563eb, #818cf8);
+      color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .5px;
+      padding: 4px 16px; border-radius: 999px;
+      box-shadow: 0 0 16px rgba(59,130,246,.5);
+      white-space: nowrap;
+    }
+    .plan-name  { font-size: 13px; font-weight: 600; color: var(--muted2); margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
+    .plan-price-row { display: flex; align-items: baseline; gap: 3px; margin-bottom: 4px; }
+    .plan-price { font-size: 40px; font-weight: 900; color: #fff; letter-spacing: -2px; line-height: 1; }
+    .plan-period{ font-size: 14px; color: var(--muted3); font-weight: 500; }
+    .plan-credits { font-size: 13px; font-weight: 600; color: var(--blue-lt); margin-bottom: 22px; }
+    .plan-hr    { height: 1px; background: var(--border); margin-bottom: 18px; }
+    .plan-feats { flex: 1; list-style: none; margin-bottom: 24px; }
+    .plan-feats li {
+      display: flex; align-items: flex-start; gap: 9px;
+      font-size: 13px; color: var(--muted2); padding: 5px 0; line-height: 1.5;
+    }
+    .check { flex-shrink: 0; color: var(--blue-lt); margin-top: 1px; }
+    .plan-btn {
+      display: block; text-align: center;
+      padding: 11px 16px; border-radius: 11px;
+      font-size: 14px; font-weight: 700; transition: all .15s;
+    }
+    .plan-btn.primary {
+      background: linear-gradient(135deg, var(--blue), #4f8ef7);
+      color: #fff; box-shadow: 0 0 20px rgba(59,130,246,.25);
+    }
+    .plan-btn.primary:hover { opacity: .9; box-shadow: 0 0 32px rgba(59,130,246,.5); }
+    .plan-btn.ghost {
+      background: rgba(255,255,255,.05); color: var(--muted2);
+      border: 1px solid var(--border);
+    }
+    .plan-btn.ghost:hover { background: rgba(255,255,255,.08); color: var(--text); border-color: rgba(255,255,255,.1); }
+
+    /* ── CTA block ───────────────────────────────────────────────── */
+    .cta-section {
+      position: relative; z-index: 1;
+      text-align: center; padding: 120px 24px;
+      overflow: hidden;
+    }
+    .cta-orb {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px; height: 400px; border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(37,99,235,.16) 0%, transparent 70%);
+      filter: blur(50px); pointer-events: none;
+    }
+    .cta-section h2 {
+      font-size: clamp(36px, 6vw, 60px); font-weight: 900;
+      letter-spacing: -2px; margin-bottom: 16px; position: relative;
+    }
+    .cta-section p {
+      font-size: 17px; color: var(--muted2); margin-bottom: 40px;
+      max-width: 420px; margin-left: auto; margin-right: auto; position: relative;
+    }
+    .cta-btns { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; position: relative; }
+    .cta-btn-primary {
+      padding: 14px 36px; border-radius: 13px;
+      font-size: 16px; font-weight: 700;
+      background: linear-gradient(135deg, var(--blue), #4f8ef7);
+      color: #fff; box-shadow: 0 0 32px rgba(59,130,246,.3);
+      transition: all .15s;
+    }
+    .cta-btn-primary:hover { opacity: .9; box-shadow: 0 0 50px rgba(59,130,246,.55); transform: translateY(-1px); }
+    .cta-btn-secondary {
+      padding: 14px 28px; border-radius: 13px;
+      font-size: 15px; font-weight: 600; color: var(--muted2);
+      border: 1px solid var(--border); background: transparent;
+      transition: all .15s;
+    }
+    .cta-btn-secondary:hover { color: var(--text); border-color: rgba(255,255,255,.15); background: rgba(255,255,255,.04); }
+
+    /* ── Footer ──────────────────────────────────────────────────── */
+    footer {
+      position: relative; z-index: 1;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;
+      padding: 36px 48px;
+      border-top: 1px solid var(--border);
+    }
+    .footer-brand { font-size: 15px; font-weight: 800; color: var(--muted3); }
+    .footer-links { display: flex; gap: 22px; flex-wrap: wrap; }
+    .footer-links a { font-size: 13px; color: var(--muted); transition: color .15s; }
+    .footer-links a:hover { color: var(--muted2); }
+    .footer-copy { font-size: 12px; color: var(--muted); }
+
+    /* ── Section dividers ────────────────────────────────────────── */
+    .divider { border: none; border-top: 1px solid var(--border); }
+
+    /* ── Responsive ──────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .plans { grid-template-columns: repeat(2, 1fr); }
+      .features { grid-template-columns: repeat(2, 1fr); }
+      .steps { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 700px) {
+      nav { padding: 0 20px; }
+      .nav-link, .nav-sep, .nav-btn-ghost { display: none; }
+      .mockup-body { grid-template-columns: 1fr; }
+      .mockup-left { border-right: none; border-bottom: 1px solid var(--border); }
+      footer { flex-direction: column; padding: 28px 20px; }
+      .stat { padding: 0 20px; }
+    }
+    @media (max-width: 560px) {
+      .plans { grid-template-columns: 1fr; }
+      .features { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
 
-  <!-- Nav -->
-  <nav class="nav">
-    <span class="nav-logo">Animideo</span>
-    <div class="nav-links">
-      <a href="https://animideo.vercel.app/login" class="btn-secondary" style="padding:9px 20px;font-size:14px;">Inloggen</a>
-      <a href="https://animideo.vercel.app/signup" class="btn-primary" style="padding:9px 20px;font-size:14px;">Gratis beginnen →</a>
-    </div>
-  </nav>
+<!-- ╔══ NAV ══════════════════════════════════════════════════════════╗ -->
+<nav>
+  <div class="nav-logo">
+    <div class="nav-logo-mark">🎬</div>
+    Animideo
+  </div>
+  <div class="nav-links">
+    <a href="#hoe-het-werkt" class="nav-link">Hoe het werkt</a>
+    <a href="#mogelijkheden" class="nav-link">Mogelijkheden</a>
+    <a href="#prijzen" class="nav-link">Prijzen</a>
+    <div class="nav-sep"></div>
+    <a href="https://animideo.vercel.app/login" class="nav-btn-ghost">Inloggen</a>
+    <a href="https://animideo.vercel.app/signup" class="nav-btn-primary">Gratis beginnen</a>
+  </div>
+</nav>
 
-  <!-- Hero -->
-  <section class="hero">
-    <div class="hero-badge">
-      <span class="hero-badge-dot"></span>
-      Geen video-ervaring nodig
-    </div>
-    <h1>Maak professionele<br><span class="text-blue">animatievideo's</span><br>in minuten</h1>
-    <p>Typ je idee. AI schrijft het script, genereert de beelden en monteert de video automatisch.</p>
+<!-- ╔══ HERO ══════════════════════════════════════════════════════════╗ -->
+<section class="hero">
+  <div class="hero-orb hero-orb-1"></div>
+  <div class="hero-orb hero-orb-2"></div>
+  <div class="hero-orb hero-orb-3"></div>
 
-    <!-- Idea input bar -->
+  <div class="hero-badge">
+    <span class="hero-badge-dot"></span>
+    GPT-4 · DALL-E 3 · ElevenLabs · Runway
+  </div>
+
+  <h1>Maak je eigen<br><span class="gradient-text">animatievideo.</span></h1>
+
+  <p class="hero-sub">
+    Typ een idee. AI schrijft het script, genereert de beelden en monteert de video — volledig automatisch.
+  </p>
+
+  <div class="idea-wrap">
     <div class="idea-box">
-      <textarea id="ideaInput" rows="3" placeholder="Beschrijf je video-idee… bijv. 'Leg uit hoe ons product werkt voor nieuwe klanten'"></textarea>
-      <div class="idea-box-footer">
-        <div class="idea-examples">
-          <span class="idea-example" onclick="setIdea(this)">Leg uit hoe ons boekhoudprogramma werkt</span>
-          <span class="idea-example" onclick="setIdea(this)">Promoot onze nieuwe sportschool in Amsterdam</span>
+      <textarea id="ideaInput" rows="3"
+        placeholder="Beschrijf je video-idee… bijv. 'Promoot onze nieuwe sportschool voor jongeren in Amsterdam'"></textarea>
+      <div class="idea-footer">
+        <div class="idea-chips">
+          <span class="idea-chip" onclick="setIdea(this)">Productuitleg voor klanten</span>
+          <span class="idea-chip" onclick="setIdea(this)">Bedrijfsintroductie</span>
+          <span class="idea-chip" onclick="setIdea(this)">Social media advertentie</span>
         </div>
-        <button class="btn-primary" style="padding:10px 22px;font-size:14px;" onclick="submitIdea()">
-          Maak mijn video →
+        <button class="idea-submit" id="submitBtn" onclick="submitIdea()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          Maak mijn video
         </button>
       </div>
     </div>
-
-    <div class="more-examples">
-      <span class="idea-example" onclick="setIdea(this)">Uitleg over hoe zonnepanelen werken</span>
-      <span class="idea-example" onclick="setIdea(this)">Introductievideo voor ons restaurant</span>
-      <span class="idea-example" onclick="setIdea(this)">Animatie voor onze nieuwe app</span>
-    </div>
-  </section>
-
-  <!-- How it works -->
-  <section class="section">
-    <div class="container">
-      <h2 class="section-title">Hoe het werkt</h2>
-      <p class="section-sub">Van idee naar video in drie stappen</p>
-      <div class="steps">
-        <div class="step-card">
-          <div class="step-icon">✍️</div>
-          <p class="step-title"><span class="step-num">1</span> Beschrijf je idee</p>
-          <p class="step-desc">Typ in één zin waar je video over moet gaan. Geen technische kennis nodig.</p>
-        </div>
-        <div class="step-card">
-          <div class="step-icon">🤖</div>
-          <p class="step-title"><span class="step-num">2</span> AI doet de rest</p>
-          <p class="step-desc">Script, afbeeldingen en video worden automatisch gegenereerd door GPT-4 en Runway.</p>
-        </div>
-        <div class="step-card">
-          <div class="step-icon">⬇️</div>
-          <p class="step-title"><span class="step-num">3</span> Download & deel</p>
-          <p class="step-desc">Exporteer je video en deel hem direct op YouTube, Instagram of LinkedIn.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Features -->
-  <section class="section">
-    <div class="container">
-      <h2 class="section-title">Alles wat je nodig hebt</h2>
-      <p class="section-sub">Eén platform voor het complete videocreatieproces</p>
-      <div class="features">
-        <div class="feature-card"><div class="feature-icon">📝</div><p class="feature-title">AI Script</p><p class="feature-desc">GPT-4 schrijft automatisch een professioneel script</p></div>
-        <div class="feature-card"><div class="feature-icon">🎨</div><p class="feature-title">AI Afbeeldingen</p><p class="feature-desc">DALL-E 3 genereert unieke visuals per scene</p></div>
-        <div class="feature-card"><div class="feature-icon">🎬</div><p class="feature-title">AI Beweging</p><p class="feature-desc">Runway geeft elke scene vloeiende videomotion</p></div>
-        <div class="feature-card"><div class="feature-icon">🎙️</div><p class="feature-title">Voice-over</p><p class="feature-desc">Realistische AI-stemmen in meerdere talen</p></div>
-        <div class="feature-card"><div class="feature-icon">✂️</div><p class="feature-title">Video Editor</p><p class="feature-desc">Timeline editor met transitions en muziek</p></div>
-        <div class="feature-card"><div class="feature-icon">💧</div><p class="feature-title">Geen watermark</p><p class="feature-desc">Professionele exports op betaalde plannen</p></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Pricing -->
-  <section class="section">
-    <div class="container">
-      <h2 class="section-title">Kies jouw plan</h2>
-      <p class="section-sub">Begin gratis. Upgrade wanneer je wilt.</p>
-      <div class="pricing-grid">
-
-        <div class="plan-card">
-          <p class="plan-name">Gratis</p>
-          <div><span class="plan-price">€0</span></div>
-          <p class="plan-credits">100 credits/maand</p>
-          <ul class="plan-features">
-            <li>Script genereren (1 credit)</li>
-            <li>Afbeeldingen genereren (1 credit)</li>
-            <li>Video beweging (5 credits)</li>
-            <li>Watermark op exports</li>
-          </ul>
-          <a href="https://animideo.vercel.app/signup" class="plan-cta secondary">Begin gratis</a>
-        </div>
-
-        <div class="plan-card">
-          <p class="plan-name">Starter</p>
-          <div><span class="plan-price">€49</span><span class="plan-period">/maand</span></div>
-          <p class="plan-credits">500 credits/maand</p>
-          <ul class="plan-features">
-            <li>500 credits per maand</li>
-            <li>Geen watermark</li>
-            <li>Prioriteit rendering</li>
-            <li>Email support</li>
-          </ul>
-          <a href="https://animideo.vercel.app/signup" class="plan-cta secondary">Probeer Starter</a>
-        </div>
-
-        <div class="plan-card featured">
-          <span class="plan-badge">MEEST GEKOZEN</span>
-          <p class="plan-name">Pro</p>
-          <div><span class="plan-price">€99</span><span class="plan-period">/maand</span></div>
-          <p class="plan-credits">1.500 credits/maand</p>
-          <ul class="plan-features">
-            <li>1.500 credits per maand</li>
-            <li>Geen watermark</li>
-            <li>HD exports</li>
-            <li>Prioriteit support</li>
-          </ul>
-          <a href="https://animideo.vercel.app/signup" class="plan-cta primary">Probeer Pro</a>
-        </div>
-
-        <div class="plan-card">
-          <p class="plan-name">Agency</p>
-          <div><span class="plan-price">€249</span><span class="plan-period">/maand</span></div>
-          <p class="plan-credits">5.000 credits/maand</p>
-          <ul class="plan-features">
-            <li>5.000 credits per maand</li>
-            <li>Geen watermark</li>
-            <li>4K exports</li>
-            <li>Dedicated support</li>
-          </ul>
-          <a href="https://animideo.vercel.app/signup" class="plan-cta secondary">Probeer Agency</a>
-        </div>
-
-      </div>
-    </div>
-  </section>
-
-  <!-- Final CTA -->
-  <div class="final-cta">
-    <h2>Klaar om je eerste video te maken?</h2>
-    <p>Gratis beginnen. Geen creditcard nodig.</p>
-    <a href="https://animideo.vercel.app/signup" class="btn-primary" style="font-size:16px;padding:14px 36px;">
-      Begin gratis →
-    </a>
+    <p class="idea-hint">Gratis beginnen · Geen creditcard nodig</p>
   </div>
+</section>
 
-  <!-- Footer -->
-  <footer>
-    © 2026 JouwAnimatieVideo &nbsp;·&nbsp;
+<!-- ╔══ STATS ═════════════════════════════════════════════════════════╗ -->
+<div class="stats-strip">
+  <div class="stat">
+    <div class="stat-num">3 min</div>
+    <div class="stat-label">Gemiddelde tijd</div>
+  </div>
+  <div class="stat-sep"></div>
+  <div class="stat">
+    <div class="stat-num">€0</div>
+    <div class="stat-label">Om te beginnen</div>
+  </div>
+  <div class="stat-sep"></div>
+  <div class="stat">
+    <div class="stat-num">6 stappen</div>
+    <div class="stat-label">Script tot export</div>
+  </div>
+  <div class="stat-sep"></div>
+  <div class="stat">
+    <div class="stat-num">NL #1</div>
+    <div class="stat-label">AI Video Platform</div>
+  </div>
+</div>
+
+<!-- ╔══ APP MOCKUP ════════════════════════════════════════════════════╗ -->
+<section style="padding: 80px 24px;">
+  <div class="container">
+    <div class="mockup-shell">
+      <div class="mockup-titlebar">
+        <div class="tb-dot" style="background:#ef4444"></div>
+        <div class="tb-dot" style="background:#f59e0b"></div>
+        <div class="tb-dot" style="background:#22c55e"></div>
+        <div class="tb-url">animideo.vercel.app/project/abc123</div>
+      </div>
+      <div style="display:flex; gap:6px; padding:12px 18px; border-bottom:1px solid var(--border); background:var(--bg3);">
+        <span class="tab-pill done">✓ Script</span>
+        <span class="tab-pill done">✓ Afbeeldingen</span>
+        <span class="tab-pill active">● Motion</span>
+        <span class="tab-pill idle">Voice-over</span>
+        <span class="tab-pill idle">Muziek</span>
+        <span class="tab-pill idle">Editor</span>
+      </div>
+      <div class="mockup-body">
+        <div class="mockup-left">
+          <div class="mockup-section-label">Gegenereerde scenes</div>
+          <div class="scene-card">
+            <div class="scene-n">1</div>
+            <div>
+              <div class="scene-text">Moderne sportschool met energieke jongeren onder felle LED-verlichting.</div>
+              <div class="scene-dur">5 seconden · Cinematic</div>
+            </div>
+          </div>
+          <div class="scene-card">
+            <div class="scene-n">2</div>
+            <div>
+              <div class="scene-text">Close-up van geavanceerde fitnessapparatuur in minimalistische omgeving.</div>
+              <div class="scene-dur">6 seconden · Flat Illustration</div>
+            </div>
+          </div>
+          <div class="scene-card">
+            <div class="scene-n">3</div>
+            <div>
+              <div class="scene-text">Groep enthousiaste sporters tijdens een groepsles met trainer.</div>
+              <div class="scene-dur">5 seconden · Cinematic</div>
+            </div>
+          </div>
+        </div>
+        <div class="mockup-right">
+          <div class="mockup-section-label">Voorbeeld scene</div>
+          <div class="video-mock">
+            <div class="video-mock-gradient"></div>
+            <div class="play-btn"><div class="play-icon"></div></div>
+          </div>
+          <div class="ai-badge">
+            <div class="ai-badge-dot"></div>
+            AI generatie voltooid
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ╔══ HOW IT WORKS ══════════════════════════════════════════════════╗ -->
+<section id="hoe-het-werkt" style="border-top:1px solid var(--border);">
+  <div class="container">
+    <div class="section-eyebrow">Werkwijze</div>
+    <h2>Van idee naar video<br>in drie stappen</h2>
+    <p class="section-lead">Geen video-ervaring nodig. Geen technische kennis vereist.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <h3>Beschrijf je idee</h3>
+        <p>Typ in één zin waar je video over moet gaan. Onze AI begrijpt de context, doelgroep en gewenste toon automatisch.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <h3>AI genereert alles</h3>
+        <p>GPT-4 schrijft het script, DALL-E 3 maakt de beelden, Runway genereert beweging en ElevenLabs spreekt de voice-over in.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <h3>Bewerk & exporteer</h3>
+        <p>Pas timing, muziek en overgangen aan in de ingebouwde editor. Exporteer in HD en deel direct op elk platform.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ╔══ FEATURES ══════════════════════════════════════════════════════╗ -->
+<section id="mogelijkheden" style="border-top:1px solid var(--border);">
+  <div class="container">
+    <div class="section-eyebrow">Mogelijkheden</div>
+    <h2>Alles in één platform</h2>
+    <p class="section-lead">Professionele videoproductie, zonder team of budget.</p>
+    <div class="features">
+      <div class="feat">
+        <div class="feat-icon">📝</div>
+        <h3>AI Scriptschrijver</h3>
+        <p>GPT-4 schrijft een professioneel script op basis van jouw idee, doelgroep en gewenste toon.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">🎨</div>
+        <h3>AI Beeldgeneratie</h3>
+        <p>DALL-E 3 genereert unieke, consistente visuals voor elke scene van je video.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">🎬</div>
+        <h3>AI Videomotion</h3>
+        <p>Runway Gen-3 brengt stilstaande beelden tot leven met vloeiende animatie.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">🎙️</div>
+        <h3>AI Voice-over</h3>
+        <p>Realistische stemmen in het Nederlands en tientallen andere talen via ElevenLabs.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">✂️</div>
+        <h3>Video Editor</h3>
+        <p>Ingebouwde timeline editor met overgangen, achtergrondmuziek en clip-timing.</p>
+      </div>
+      <div class="feat">
+        <div class="feat-icon">⬇️</div>
+        <h3>HD Export</h3>
+        <p>Download in hoge kwaliteit, klaar voor YouTube, Instagram of LinkedIn.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ╔══ PRICING ═══════════════════════════════════════════════════════╗ -->
+<section id="prijzen" style="border-top:1px solid var(--border);">
+  <div class="container">
+    <div class="section-eyebrow">Tarieven</div>
+    <h2>Transparante prijzen</h2>
+    <p class="section-lead">Begin gratis. Betaal alleen voor wat je gebruikt.</p>
+    <div class="plans">
+
+      <!-- Free -->
+      <div class="plan">
+        <div class="plan-name">Gratis</div>
+        <div class="plan-price-row"><span class="plan-price">€0</span></div>
+        <div class="plan-credits">100 credits / maand</div>
+        <div class="plan-hr"></div>
+        <ul class="plan-feats">
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Script genereren</li>
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Afbeeldingen genereren</li>
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Video beweging</li>
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Watermark op exports</li>
+        </ul>
+        <a href="https://animideo.vercel.app/signup" class="plan-btn ghost">Begin gratis</a>
+      </div>
+
+      <!-- Starter -->
+      <div class="plan">
+        <div class="plan-name">Starter</div>
+        <div class="plan-price-row"><span class="plan-price">€49</span><span class="plan-period">/mnd</span></div>
+        <div class="plan-credits">500 credits / maand</div>
+        <div class="plan-hr"></div>
+        <ul class="plan-feats">
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>500 credits per maand</li>
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Geen watermark</li>
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Prioriteit rendering</li>
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>E-mail support</li>
+        </ul>
+        <a href="https://animideo.vercel.app/signup" class="plan-btn ghost">Aan de slag</a>
+      </div>
+
+      <!-- Pro (featured) -->
+      <div class="plan featured">
+        <span class="plan-badge">MEEST GEKOZEN</span>
+        <div class="plan-name">Pro</div>
+        <div class="plan-price-row"><span class="plan-price">€99</span><span class="plan-period">/mnd</span></div>
+        <div class="plan-credits">1.500 credits / maand</div>
+        <div class="plan-hr"></div>
+        <ul class="plan-feats">
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>1.500 credits per maand</li>
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Geen watermark</li>
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>HD exports</li>
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Prioriteit support</li>
+        </ul>
+        <a href="https://animideo.vercel.app/signup" class="plan-btn primary">Probeer Pro →</a>
+      </div>
+
+      <!-- Agency -->
+      <div class="plan">
+        <div class="plan-name">Agency</div>
+        <div class="plan-price-row"><span class="plan-price">€249</span><span class="plan-period">/mnd</span></div>
+        <div class="plan-credits">5.000 credits / maand</div>
+        <div class="plan-hr"></div>
+        <ul class="plan-feats">
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>5.000 credits per maand</li>
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Geen watermark</li>
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>4K exports</li>
+          <li><svg class="check" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>Dedicated support</li>
+        </ul>
+        <a href="https://animideo.vercel.app/signup" class="plan-btn ghost">Neem contact op</a>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ╔══ FINAL CTA ═════════════════════════════════════════════════════╗ -->
+<div class="cta-section" style="border-top:1px solid var(--border);">
+  <div class="cta-orb"></div>
+  <h2>Klaar om je eerste<br>video te maken?</h2>
+  <p>Gratis beginnen. Geen creditcard nodig.<br>Je eerste video in minder dan 5 minuten.</p>
+  <div class="cta-btns">
+    <a href="https://animideo.vercel.app/signup" class="cta-btn-primary">Begin gratis →</a>
+    <a href="https://animideo.vercel.app/login" class="cta-btn-secondary">Inloggen</a>
+  </div>
+</div>
+
+<!-- ╔══ FOOTER ════════════════════════════════════════════════════════╗ -->
+<footer>
+  <div class="footer-brand">Animideo</div>
+  <div class="footer-links">
+    <a href="#hoe-het-werkt">Hoe het werkt</a>
+    <a href="#mogelijkheden">Mogelijkheden</a>
+    <a href="#prijzen">Prijzen</a>
     <a href="https://animideo.vercel.app/login">Inloggen</a>
     <a href="https://animideo.vercel.app/signup">Registreren</a>
-    <a href="https://animideo.vercel.app/pricing">Prijzen</a>
-  </footer>
+  </div>
+  <div class="footer-copy">© 2025 jouwanimatievideo.nl</div>
+</footer>
 
-  <script>
-    function setIdea(el) {
-      document.getElementById("ideaInput").value = el.textContent.trim();
-      document.getElementById("ideaInput").focus();
-    }
+<script>
+  function setIdea(el) {
+    const ta = document.getElementById("ideaInput");
+    ta.value = el.textContent.trim();
+    ta.focus();
+    ta.setSelectionRange(ta.value.length, ta.value.length);
+  }
 
-    function submitIdea() {
-      const idea = document.getElementById("ideaInput").value.trim();
-      if (!idea) { document.getElementById("ideaInput").focus(); return; }
-      const url = "https://animideo.vercel.app/signup?idea=" + encodeURIComponent(idea);
-      window.location.href = url;
-    }
+  function submitIdea() {
+    const idea = document.getElementById("ideaInput").value.trim();
+    if (!idea) { document.getElementById("ideaInput").focus(); return; }
+    const btn = document.getElementById("submitBtn");
+    btn.disabled = true;
+    btn.innerHTML = '<svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="animation:spin .8s linear infinite"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> Bezig…';
+    window.location.href = "https://animideo.vercel.app/try?idea=" + encodeURIComponent(idea);
+  }
 
-    // Also submit on Enter (not Shift+Enter)
-    document.getElementById("ideaInput").addEventListener("keydown", function(e) {
-      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitIdea(); }
-    });
-  </script>
-
+  document.getElementById("ideaInput").addEventListener("keydown", function(e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitIdea(); }
+  });
+</script>
+<style>
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
 </body>
 </html>
