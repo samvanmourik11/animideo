@@ -873,9 +873,11 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
 
     try {
       if (typeof SharedArrayBuffer === "undefined") {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         throw new Error(
-          "SharedArrayBuffer is not available. Check that the server sends " +
-          "Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy: credentialless."
+          isIOS
+            ? "Exporteren werkt nog niet in Safari op iPhone/iPad. Gebruik Chrome op je computer om de video te exporteren."
+            : "Export niet mogelijk in deze browser. Probeer Chrome of Firefox op je computer."
         );
       }
 
