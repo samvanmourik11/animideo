@@ -45,8 +45,59 @@ export async function POST(req: NextRequest) {
   const payment = await paymentRes.json();
   const { status, metadata, sequenceType, mandateId, customerId } = payment;
 
-  const userId = metadata?.userId as string | undefined;
-  const planId = metadata?.planId as string | undefined;
+  const userId          = metadata?.userId          as string | undefined;
+  const planId          = metadata?.planId          as string | undefined;
+  const isGuest         = metadata?.isGuest         as boolean | undefined;
+  const guestCheckoutId = metadata?.guestCheckoutId as string | undefined;
+
+  // ── Guest checkout (no account yet) ──────────────────────────────────────
+  if (isGuest && guestCheckoutId && planId) {
+    if (status === "paid" && sequenceType === "first") {
+      // Resolve mandate
+      let resolvedMandateId: string | null = mandateId as string | null;
+      if (!resolvedMandateId && customerId) {
+        const mandatesRes = await fetch(`${MOLLIE_BASE}/customers/${customerId}/mandates`, {
+          headers: { "Authorization": `Bearer ${apiKey}` },
+        });
+        if (mandatesRes.ok) {
+          const mandatesData = await mandatesRes.json();
+          const validMandate = (mandatesData._embedded?.mandates ?? []).find(
+            (m: { status: string }) => m.status === "valid"
+          );
+          resolvedMandateId = validMandate?.id ?? null;
+        }
+      }
+
+      // Create recurring subscription
+      const subBody: Record<string, unknown> = {
+        amount: { currency: "EUR", value: PLAN_AMOUNT[planId] },
+        times: null,
+        interval: "1 month",
+        description: PLAN_DESCRIPTION[planId],
+        webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/mollie/webhook`,
+        metadata: { planId, guestCheckoutId, isGuest: true },
+      };
+      if (resolvedMandateId) subBody.mandateId = resolvedMandateId;
+
+      let subscriptionId: string | null = null;
+      const subRes = await fetch(`${MOLLIE_BASE}/customers/${customerId}/subscriptions`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(subBody),
+      });
+      if (subRes.ok) {
+        const sub = await subRes.json();
+        subscriptionId = sub.id;
+      }
+
+      // Mark checkout as paid + store subscription
+      await supabase
+        .from("pending_checkouts")
+        .update({ status: "paid", mollie_subscription_id: subscriptionId })
+        .eq("id", guestCheckoutId);
+    }
+    return NextResponse.json({ received: true });
+  }
 
   if (!userId || !planId) {
     // Could be a test ping from Mollie — just return 200

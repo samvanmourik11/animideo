@@ -5,6 +5,7 @@ import NewProjectButton from "@/components/NewProjectButton";
 import StatusBadge from "@/components/StatusBadge";
 import { getProfile } from "@/lib/credits";
 import PendingIdeaHandler from "@/components/PendingIdeaHandler";
+import PendingCheckoutHandler from "@/components/PendingCheckoutHandler";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -24,6 +25,7 @@ export default async function DashboardPage() {
   return (
     <div>
       <PendingIdeaHandler userId={user!.id} />
+      <PendingCheckoutHandler userId={user!.id} userEmail={user!.email ?? ""} />
       {/* Free plan upgrade banner */}
       {profile.plan === "free" && (
         <div className="mb-6 flex items-center justify-between bg-gradient-to-r from-blue-600/10 to-blue-500/5 border border-blue-500/20 rounded-2xl px-5 py-4">
