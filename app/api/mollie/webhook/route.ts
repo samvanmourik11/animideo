@@ -50,6 +50,8 @@ export async function POST(req: NextRequest) {
   const isGuest         = metadata?.isGuest         as boolean | undefined;
   const guestCheckoutId = metadata?.guestCheckoutId as string | undefined;
 
+  const supabase = createServiceClient();
+
   // ── Guest checkout (no account yet) ──────────────────────────────────────
   if (isGuest && guestCheckoutId && planId) {
     if (status === "paid" && sequenceType === "first") {
@@ -103,8 +105,6 @@ export async function POST(req: NextRequest) {
     // Could be a test ping from Mollie — just return 200
     return NextResponse.json({ received: true });
   }
-
-  const supabase = createServiceClient();
 
   // ── Successful first payment: create subscription + update profile ────────
   if (status === "paid" && sequenceType === "first") {
