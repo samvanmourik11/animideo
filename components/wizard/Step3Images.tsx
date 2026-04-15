@@ -11,9 +11,10 @@ interface Props {
   onUpdate: (updates: Partial<Project>) => void;
   onNext: () => void;
   onBack: () => void;
+  plan?: string;
 }
 
-export default function Step3Images({ project, onUpdate, onNext, onBack }: Props) {
+export default function Step3Images({ project, onUpdate, onNext, onBack, plan = "free" }: Props) {
   const [scenes, setScenes] = useState<Scene[]>(project.scenes ?? []);
   const [currentIndex, setCurrentIndex] = useState(() => {
     const firstPending = (project.scenes ?? []).findIndex((s) => !s.image_url);
@@ -201,13 +202,22 @@ export default function Step3Images({ project, onUpdate, onNext, onBack }: Props
         {/* Image area */}
         <div className="rounded-xl overflow-hidden bg-gray-50 border border-gray-100 aspect-video flex items-center justify-center relative">
           {scene.image_url ? (
-            <Image
-              src={cacheBust[scene.id] ? `${scene.image_url}?cb=${cacheBust[scene.id]}` : scene.image_url}
-              alt={`Scene ${scene.number}`}
-              fill
-              className="object-cover"
-              unoptimized
-            />
+            <>
+              <Image
+                src={cacheBust[scene.id] ? `${scene.image_url}?cb=${cacheBust[scene.id]}` : scene.image_url}
+                alt={`Scene ${scene.number}`}
+                fill
+                className="object-cover"
+                unoptimized
+              />
+              {plan === "free" && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <span className="text-white/50 text-sm font-semibold bg-black/30 px-3 py-1 rounded backdrop-blur-sm">
+                    jouwanimatievideo.nl
+                  </span>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center text-gray-400">
               {generating ? (

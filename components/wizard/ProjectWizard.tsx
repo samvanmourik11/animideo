@@ -89,6 +89,7 @@ export default function ProjectWizard({ initialProject, plan }: { initialProject
             onUpdate={updateProject}
             onNext={goNext}
             onBack={goBack}
+            plan={plan}
           />
         )}
         {step === 3 && (

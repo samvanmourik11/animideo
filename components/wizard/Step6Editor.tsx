@@ -1086,30 +1086,47 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
       await ffmpeg.exec(cmd);
       writtenFiles.push("output.mp4");
 
-      // ── Watermark for free plan ───────────────────────────────────────
+      // ── Watermark for free plan (Canvas PNG overlay — no CDN deps) ──────
       let finalOutputFile = "output.mp4";
       if (plan === "free") {
+        setExportPct(88);
         try {
-          setExportPct(88);
-          // Load a font for drawtext
-          const fontBytes = await fetchAsBytes(
-            "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@main/hinted/ttf/NotoSans/NotoSans-Regular.ttf"
+          // Generate watermark PNG using browser Canvas API
+          const wmCanvas = document.createElement("canvas");
+          wmCanvas.width = 480; wmCanvas.height = 56;
+          const ctx = wmCanvas.getContext("2d")!;
+          ctx.fillStyle = "rgba(0,0,0,0.35)";
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(0, 0, wmCanvas.width, wmCanvas.height, 10);
+          } else {
+            ctx.rect(0, 0, wmCanvas.width, wmCanvas.height);
+          }
+          ctx.fill();
+          ctx.fillStyle = "rgba(255,255,255,0.55)";
+          ctx.font = "bold 26px Arial, Helvetica, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("jouwanimatievideo.nl", wmCanvas.width / 2, wmCanvas.height / 2);
+
+          const wmBlob = await new Promise<Blob>((resolve) =>
+            wmCanvas.toBlob((b) => resolve(b!), "image/png")
           );
-          await ffmpeg.writeFile("font.ttf", fontBytes);
-          writtenFiles.push("font.ttf");
+          const wmBytes = new Uint8Array(await wmBlob.arrayBuffer());
+          await ffmpeg.writeFile("watermark.png", wmBytes);
+          writtenFiles.push("watermark.png");
 
           await ffmpeg.exec([
             "-i", "output.mp4",
-            "-vf", "drawtext=fontfile=font.ttf:text='jouwanimatievideo.nl':fontsize=32:fontcolor=white@0.5:x=(w-tw)/2:y=(h-th)/2",
+            "-i", "watermark.png",
+            "-filter_complex", "[0:v][1:v]overlay=(W-w)/2:(H-h)/2",
             "-c:a", "copy",
-            "-c:v", "libx264",
-            "-preset", "fast",
+            "-c:v", "libx264", "-preset", "fast",
             "watermarked.mp4",
           ]);
           writtenFiles.push("watermarked.mp4");
           finalOutputFile = "watermarked.mp4";
         } catch (wmErr) {
-          // Watermark failed — continue with unwatermarked video
           console.warn("[Export] Watermark pass failed:", wmErr);
         }
         setExportPct(95);
@@ -1304,6 +1321,15 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                   <span className="text-gray-700 text-sm" style={{ position: "absolute", zIndex: 0 }}>
                     No preview available
                   </span>
+                )}
+
+                {/* Watermark overlay for free plan */}
+                {plan === "free" && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 10 }}>
+                    <span className="text-white/50 text-sm font-semibold bg-black/30 px-3 py-1 rounded backdrop-blur-sm">
+                      jouwanimatievideo.nl
+                    </span>
+                  </div>
                 )}
 
                 {/*
