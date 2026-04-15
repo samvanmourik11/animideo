@@ -51,13 +51,14 @@
       height: 60px;
       display: flex; align-items: center; justify-content: space-between;
       padding: 0 48px;
-      background: rgba(5,9,26,0.7);
+      background: rgba(5,9,26,0.85);
       backdrop-filter: blur(24px) saturate(180%);
       border-bottom: 1px solid var(--border);
     }
     .nav-logo {
       display: flex; align-items: center; gap: 9px;
       font-weight: 700; font-size: 16px; letter-spacing: -.1px; color: #e2e8f0;
+      z-index: 101;
     }
     .nav-links { display: flex; align-items: center; gap: 4px; }
     .nav-link {
@@ -82,6 +83,51 @@
       transition: opacity .15s, box-shadow .15s;
     }
     .nav-btn-primary:hover { opacity: .9; box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 0 32px rgba(59,130,246,.4); }
+
+    /* ── Hamburger ─────────────────────────────────────────────────── */
+    .nav-hamburger {
+      display: none;
+      flex-direction: column; justify-content: center; gap: 5px;
+      width: 36px; height: 36px; padding: 6px;
+      background: none; border: none; cursor: pointer; z-index: 101;
+    }
+    .nav-hamburger span {
+      display: block; width: 22px; height: 2px;
+      background: var(--muted2); border-radius: 2px;
+      transition: all .25s;
+    }
+    .nav-hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .nav-hamburger.open span:nth-child(2) { opacity: 0; }
+    .nav-hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+    /* ── Mobile menu overlay ───────────────────────────────────────── */
+    .nav-mobile-menu {
+      display: none;
+      position: fixed; top: 60px; left: 0; right: 0; bottom: 0;
+      background: rgba(5,9,26,0.98);
+      backdrop-filter: blur(20px);
+      z-index: 99;
+      flex-direction: column;
+      padding: 32px 24px;
+      gap: 8px;
+      overflow-y: auto;
+    }
+    .nav-mobile-menu.open { display: flex; }
+    .nav-mobile-link {
+      display: block; padding: 14px 16px;
+      font-size: 17px; font-weight: 500; color: var(--muted2);
+      border-radius: 12px; transition: all .15s;
+      border: 1px solid transparent;
+    }
+    .nav-mobile-link:hover { color: var(--text); background: rgba(255,255,255,.04); border-color: var(--border); }
+    .nav-mobile-sep { height: 1px; background: var(--border); margin: 8px 0; }
+    .nav-mobile-cta {
+      display: block; padding: 15px 20px; margin-top: 8px;
+      font-size: 16px; font-weight: 700; text-align: center; color: #fff;
+      background: linear-gradient(135deg, var(--blue), #4f8ef7);
+      border-radius: 14px;
+      box-shadow: 0 0 24px rgba(59,130,246,.3);
+    }
 
     /* ── Hero ─────────────────────────────────────────────────────── */
     .hero {
@@ -480,8 +526,8 @@
     @media (max-width: 700px) {
       /* Nav */
       nav { padding: 0 16px; }
-      .nav-link, .nav-sep, .nav-btn-ghost { display: none; }
-      .nav-btn-primary { padding: 6px 14px; font-size: 13px; }
+      .nav-links { display: none; }
+      .nav-hamburger { display: flex; }
 
       /* Hero */
       .hero { padding: 80px 16px 48px; }
@@ -551,6 +597,7 @@
     </svg>
     JouwAnimatieVideo
   </div>
+  <!-- Desktop links -->
   <div class="nav-links">
     <a href="jouwanimatievideo-zakelijk.html" class="nav-link" style="color:var(--muted3)">Zakelijk</a>
     <div class="nav-sep"></div>
@@ -561,7 +608,23 @@
     <a href="https://animideo.vercel.app/login" class="nav-btn-ghost">Inloggen</a>
     <a href="https://animideo.vercel.app/signup" class="nav-btn-primary">Gratis beginnen</a>
   </div>
+  <!-- Hamburger (mobile only) -->
+  <button class="nav-hamburger" id="navHamburger" aria-label="Menu openen" onclick="toggleMenu()">
+    <span></span><span></span><span></span>
+  </button>
 </nav>
+
+<!-- Mobile menu -->
+<div class="nav-mobile-menu" id="navMobileMenu">
+  <a href="jouwanimatievideo-zakelijk.html" class="nav-mobile-link" onclick="closeMenu()">Zakelijk</a>
+  <div class="nav-mobile-sep"></div>
+  <a href="#hoe-het-werkt" class="nav-mobile-link" onclick="closeMenu()">Hoe het werkt</a>
+  <a href="#mogelijkheden" class="nav-mobile-link" onclick="closeMenu()">Mogelijkheden</a>
+  <a href="#prijzen" class="nav-mobile-link" onclick="closeMenu()">Prijzen</a>
+  <div class="nav-mobile-sep"></div>
+  <a href="https://animideo.vercel.app/login" class="nav-mobile-link" onclick="closeMenu()">Inloggen</a>
+  <a href="https://animideo.vercel.app/signup" class="nav-mobile-cta" onclick="closeMenu()">Gratis beginnen →</a>
+</div>
 
 <!-- ╔══ HERO ══════════════════════════════════════════════════════════╗ -->
 <section class="hero">
@@ -849,6 +912,19 @@
 </footer>
 
 <script>
+  function toggleMenu() {
+    const btn  = document.getElementById("navHamburger");
+    const menu = document.getElementById("navMobileMenu");
+    const open = menu.classList.toggle("open");
+    btn.classList.toggle("open", open);
+    document.body.style.overflow = open ? "hidden" : "";
+  }
+  function closeMenu() {
+    document.getElementById("navHamburger").classList.remove("open");
+    document.getElementById("navMobileMenu").classList.remove("open");
+    document.body.style.overflow = "";
+  }
+
   function setIdea(el) {
     const ta = document.getElementById("ideaInput");
     ta.value = el.textContent.trim();

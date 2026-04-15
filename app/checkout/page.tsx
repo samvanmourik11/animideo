@@ -41,7 +41,7 @@ function CheckoutForm() {
   }
 
   return (
-    <div className="min-h-screen bg-[#060d1f] flex items-center justify-center px-4"
+    <div className="min-h-screen bg-[#060d1f] flex items-start sm:items-center justify-center px-4 py-8"
       style={{ backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(59,130,246,0.15) 0%, transparent 70%)" }}>
       <div className="w-full max-w-md">
         {/* Back */}
