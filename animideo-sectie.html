@@ -56,14 +56,8 @@
       border-bottom: 1px solid var(--border);
     }
     .nav-logo {
-      display: flex; align-items: center; gap: 10px;
-      font-weight: 800; font-size: 17px; letter-spacing: -.4px; color: #fff;
-    }
-    .nav-logo-mark {
-      width: 28px; height: 28px; border-radius: 7px;
-      background: linear-gradient(135deg, #2563eb, #60a5fa);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 13px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 9px;
+      font-weight: 700; font-size: 16px; letter-spacing: -.1px; color: #e2e8f0;
     }
     .nav-links { display: flex; align-items: center; gap: 4px; }
     .nav-link {
@@ -92,11 +86,10 @@
     /* ── Hero ─────────────────────────────────────────────────────── */
     .hero {
       position: relative; z-index: 1;
-      min-height: 100vh;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       text-align: center;
-      padding: 130px 24px 100px;
+      padding: 100px 24px 60px;
       overflow: hidden;
     }
     /* Animated background orbs */
@@ -237,7 +230,7 @@
     .stat-sep { width: 1px; height: 44px; background: var(--border); flex-shrink: 0; }
 
     /* ── Sections ────────────────────────────────────────────────── */
-    section { position: relative; z-index: 1; padding: 100px 24px; }
+    section { position: relative; z-index: 1; padding: 72px 24px; }
     .section-eyebrow {
       text-align: center;
       font-size: 11px; font-weight: 700; letter-spacing: 2.5px;
@@ -426,7 +419,7 @@
     /* ── CTA block ───────────────────────────────────────────────── */
     .cta-section {
       position: relative; z-index: 1;
-      text-align: center; padding: 120px 24px;
+      text-align: center; padding: 80px 24px;
       overflow: hidden;
     }
     .cta-orb {
@@ -479,21 +472,71 @@
 
     /* ── Responsive ──────────────────────────────────────────────── */
     @media (max-width: 900px) {
-      .plans { grid-template-columns: repeat(2, 1fr); }
-      .features { grid-template-columns: repeat(2, 1fr); }
-      .steps { grid-template-columns: 1fr; }
+      .plans   { grid-template-columns: repeat(2, 1fr); }
+      .features{ grid-template-columns: repeat(2, 1fr); }
+      .steps   { grid-template-columns: 1fr; }
     }
+
     @media (max-width: 700px) {
-      nav { padding: 0 20px; }
+      /* Nav */
+      nav { padding: 0 16px; }
       .nav-link, .nav-sep, .nav-btn-ghost { display: none; }
-      .mockup-body { grid-template-columns: 1fr; }
-      .mockup-left { border-right: none; border-bottom: 1px solid var(--border); }
-      footer { flex-direction: column; padding: 28px 20px; }
-      .stat { padding: 0 20px; }
-    }
-    @media (max-width: 560px) {
-      .plans { grid-template-columns: 1fr; }
+      .nav-btn-primary { padding: 6px 14px; font-size: 13px; }
+
+      /* Hero */
+      .hero { padding: 80px 16px 48px; }
+      .hero-badge { font-size: 11px; padding: 5px 12px; margin-bottom: 24px; }
+      .hero h1 { font-size: 38px; letter-spacing: -1.5px; margin-bottom: 16px; }
+      .hero-sub { font-size: 15px; margin-bottom: 32px; }
+
+      /* Idea box */
+      .idea-box textarea { font-size: 14px; padding: 16px 16px 10px; }
+      .idea-footer { flex-direction: column; align-items: stretch; gap: 10px; padding: 10px 12px 12px; }
+      .idea-chips { order: 2; }
+      .idea-submit { order: 1; width: 100%; justify-content: center; padding: 12px; font-size: 15px; }
+
+      /* Stats */
+      .stats-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 0; padding: 28px 16px; }
+      .stat-sep { display: none; }
+      .stat { padding: 14px 0; border-bottom: 1px solid var(--border); }
+      .stat:nth-child(odd) { border-right: 1px solid var(--border); }
+      .stat-num { font-size: 24px; }
+
+      /* Sections */
+      section, .cta-section { padding: 52px 16px !important; }
+      h2 { font-size: 28px; letter-spacing: -1px; }
+      .section-lead { font-size: 14px; margin-bottom: 36px; }
+
+      /* Mockup — hide on mobile, too complex */
+      .mockup-shell { display: none; }
+
+      /* Steps */
+      .step { padding: 22px; }
+      .step h3 { font-size: 15px; }
+      .step p  { font-size: 13px; }
+
+      /* Features */
       .features { grid-template-columns: 1fr; }
+      .feat { padding: 20px; }
+
+      /* Plans */
+      .plans { grid-template-columns: 1fr; }
+      .plan { padding: 24px; }
+      .plan-price { font-size: 34px; }
+
+      /* CTA */
+      .cta-btn-primary, .cta-btn-secondary { width: 100%; text-align: center; padding: 14px 20px; }
+      .cta-btns { flex-direction: column; align-items: stretch; max-width: 320px; margin: 0 auto; }
+      .cta-section h2 { font-size: 30px; }
+
+      /* Footer */
+      footer { flex-direction: column; padding: 28px 16px; gap: 16px; }
+      .footer-links { flex-wrap: wrap; gap: 14px; }
+    }
+
+    @media (max-width: 400px) {
+      .hero h1 { font-size: 32px; }
+      .hero-badge { display: none; }
     }
   </style>
 </head>
@@ -502,10 +545,15 @@
 <!-- ╔══ NAV ══════════════════════════════════════════════════════════╗ -->
 <nav>
   <div class="nav-logo">
-    <div class="nav-logo-mark">🎬</div>
-    Animideo
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+      <circle cx="14" cy="14" r="13" stroke="#3b82f6" stroke-width="2"/>
+      <polygon points="11,9 21,14 11,19" fill="#3b82f6"/>
+    </svg>
+    JouwAnimatieVideo
   </div>
   <div class="nav-links">
+    <a href="jouwanimatievideo-zakelijk.html" class="nav-link" style="color:var(--muted3)">Zakelijk</a>
+    <div class="nav-sep"></div>
     <a href="#hoe-het-werkt" class="nav-link">Hoe het werkt</a>
     <a href="#mogelijkheden" class="nav-link">Mogelijkheden</a>
     <a href="#prijzen" class="nav-link">Prijzen</a>
@@ -578,7 +626,7 @@
 </div>
 
 <!-- ╔══ APP MOCKUP ════════════════════════════════════════════════════╗ -->
-<section style="padding: 80px 24px;">
+<section style="padding: 48px 24px;">
   <div class="container">
     <div class="mockup-shell">
       <div class="mockup-titlebar">
@@ -637,7 +685,7 @@
 </section>
 
 <!-- ╔══ HOW IT WORKS ══════════════════════════════════════════════════╗ -->
-<section id="hoe-het-werkt" style="border-top:1px solid var(--border);">
+<section id="hoe-het-werkt" style="border-top:1px solid var(--border);padding:64px 24px;">
   <div class="container">
     <div class="section-eyebrow">Werkwijze</div>
     <h2>Van idee naar video<br>in drie stappen</h2>
@@ -663,7 +711,7 @@
 </section>
 
 <!-- ╔══ FEATURES ══════════════════════════════════════════════════════╗ -->
-<section id="mogelijkheden" style="border-top:1px solid var(--border);">
+<section id="mogelijkheden" style="border-top:1px solid var(--border);padding:64px 24px;">
   <div class="container">
     <div class="section-eyebrow">Mogelijkheden</div>
     <h2>Alles in één platform</h2>
@@ -704,7 +752,7 @@
 </section>
 
 <!-- ╔══ PRICING ═══════════════════════════════════════════════════════╗ -->
-<section id="prijzen" style="border-top:1px solid var(--border);">
+<section id="prijzen" style="border-top:1px solid var(--border);padding:64px 24px;">
   <div class="container">
     <div class="section-eyebrow">Tarieven</div>
     <h2>Transparante prijzen</h2>

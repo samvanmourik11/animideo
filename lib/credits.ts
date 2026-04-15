@@ -1,5 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 
+/** Accounts that never consume credits — for internal testing & demos. */
+const UNLIMITED_ACCOUNTS = new Set([
+  "sam@jouwanimatievideo.nl",
+  "alyssa@jouwanimatievideo.nl",
+]);
+
 export const CREDIT_COSTS = {
   SCRIPT_GENERATION: 1,
   IMAGE_GENERATION: 1,
@@ -69,6 +75,12 @@ export async function deductCredits(
   const supabase = await createClient();
 
   const profile = await getProfile(userId);
+
+  // Unlimited accounts: skip deduction entirely
+  if (profile.email && UNLIMITED_ACCOUNTS.has(profile.email)) {
+    return { success: true, credits: profile.credits };
+  }
+
   if (profile.credits < amount) {
     return { success: false, credits: profile.credits };
   }
