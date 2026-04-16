@@ -3,41 +3,36 @@
 import { useState } from "react";
 import { Project } from "@/lib/types";
 import Stepper from "./Stepper";
-import Step1Setup from "./Step1Setup";
-import Step2Script from "./Step2Script";
-import Step3Images from "./Step3Images";
+import StepFreeImages from "./StepFreeImages";
 import Step4Motion from "./Step4Motion";
 import Step5Voiceover from "./Step5Voiceover";
 import Step6Editor from "./Step6Editor";
 
-const STEPS = [
-  "Setup",
-  "Script",
-  "Images",
-  "Motion",
-  "Voice-over",
-  "Editor",
-];
+const STEPS = ["Afbeeldingen", "Beweging", "Voice-over", "Editor"];
 
 function statusToStep(status: Project["status"]): number {
   switch (status) {
     case "Draft":        return 0;
-    case "ScriptReady":  return 1;
-    case "ImagesReady":  return 2;
-    case "MotionReady":  return 3;
-    case "VoiceReady":   return 4;
+    case "ImagesReady":  return 1;
+    case "MotionReady":  return 2;
+    case "VoiceReady":   return 3;
     case "Rendering":
     case "Done":
-    case "Error":        return 5;
+    case "Error":        return 3;
     default:             return 0;
   }
 }
 
-export default function ProjectWizard({ initialProject, plan }: { initialProject: Project; plan: string }) {
+export default function FreeProjectWizard({
+  initialProject,
+  plan,
+}: {
+  initialProject: Project;
+  plan: string;
+}) {
   const [project, setProject] = useState<Project>({
     ...initialProject,
     scenes: initialProject.scenes ?? [],
-    visual_style: initialProject.visual_style ?? "Cinematic",
     bg_music_url: initialProject.bg_music_url ?? null,
   });
   const [step, setStep] = useState(() => statusToStep(initialProject.status));
@@ -69,30 +64,13 @@ export default function ProjectWizard({ initialProject, plan }: { initialProject
 
       <div className="mt-6">
         {step === 0 && (
-          <Step1Setup
+          <StepFreeImages
             project={project}
             onUpdate={updateProject}
             onNext={goNext}
           />
         )}
         {step === 1 && (
-          <Step2Script
-            project={project}
-            onUpdate={updateProject}
-            onNext={goNext}
-            onBack={goBack}
-          />
-        )}
-        {step === 2 && (
-          <Step3Images
-            project={project}
-            onUpdate={updateProject}
-            onNext={goNext}
-            onBack={goBack}
-            plan={plan}
-          />
-        )}
-        {step === 3 && (
           <Step4Motion
             project={project}
             onUpdate={updateProject}
@@ -101,7 +79,7 @@ export default function ProjectWizard({ initialProject, plan }: { initialProject
             plan={plan}
           />
         )}
-        {step === 4 && (
+        {step === 2 && (
           <Step5Voiceover
             project={project}
             onUpdate={updateProject}
@@ -109,7 +87,7 @@ export default function ProjectWizard({ initialProject, plan }: { initialProject
             onBack={goBack}
           />
         )}
-        {step === 5 && (
+        {step === 3 && (
           <Step6Editor
             project={project}
             onUpdate={updateProject}

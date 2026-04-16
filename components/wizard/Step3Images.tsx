@@ -45,6 +45,7 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
           sceneId: scene.id,
           imagePrompt: prompt,
           visualStyle: project.visual_style,
+          brandKitId: project.brand_kit_id ?? null,
         }),
       });
       let data: { imageUrl?: string; error?: string; credits?: number; required?: number } = {};
@@ -223,7 +224,7 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
               {generating ? (
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-10 h-10 border-4 border-[#3b82f6] border-t-transparent rounded-full animate-spin" />
-                  <p className="text-sm">Generating image with DALL-E 3…</p>
+                  <p className="text-sm">Generating image with Flux Pro…</p>
                 </div>
               ) : (
                 <p className="text-sm">No image yet</p>

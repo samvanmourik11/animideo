@@ -38,10 +38,15 @@ export default function NavBar({ email, credits, plan, creditsResetDate }: NavBa
   return (
     <header className="border-b border-white/[0.07] bg-[#060d1f]/90 backdrop-blur-md sticky top-0 z-40">
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-        {/* Logo */}
-        <Link href="/dashboard" className="font-bold text-lg bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent">
-          Animideo
-        </Link>
+        {/* Logo + nav */}
+        <div className="flex items-center gap-6">
+          <Link href="/dashboard" className="font-bold text-lg bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent">
+            Animideo
+          </Link>
+          <Link href="/brand" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
+            Huisstijlen
+          </Link>
+        </div>
 
         <div className="flex items-center gap-3">
           {/* Credits badge */}

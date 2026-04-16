@@ -48,7 +48,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
     }
     setGenerating(true);
     setError("");
-    setStatusMsg("Submitting to Runway Gen-3…");
+    setStatusMsg("Indienen bij Kling 2.0…");
 
     try {
       const res = await fetch("/api/generate-motion", {
@@ -97,7 +97,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
           } else if (statusData.status === "FAILED") {
             clearInterval(pollIntervalRef.current!);
             pollIntervalRef.current = null;
-            throw new Error(statusData.error ?? "Runway generation failed");
+            throw new Error(statusData.error ?? "Kling generatie mislukt");
           }
           // PENDING or RUNNING — keep polling
         } catch (pollErr: unknown) {
@@ -167,7 +167,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-white">Motion Review</h2>
         <p className="text-slate-500 text-sm mt-1">
-          Genereer een 5-seconden videoclip per scene met Runway Gen-3.
+          Genereer een 5-seconden videoclip per scene met Kling 2.0.
         </p>
       </div>
 

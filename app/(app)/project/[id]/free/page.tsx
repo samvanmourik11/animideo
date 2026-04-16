@@ -1,10 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import { Project } from "@/lib/types";
-import ProjectWizard from "@/components/wizard/ProjectWizard";
+import FreeProjectWizard from "@/components/wizard/FreeProjectWizard";
 import { getProfile } from "@/lib/credits";
 
-export default async function ProjectPage({
+export default async function FreeProjectPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -27,10 +27,12 @@ export default async function ProjectPage({
 
   if (!project) notFound();
 
-  // Free-mode projecten horen op de /free pagina
-  if (project.mode === "free") {
-    redirect(`/project/${id}/free`);
+  // Wizard-projecten horen niet op de free-pagina
+  if (project.mode === "wizard") {
+    redirect(`/project/${id}`);
   }
 
-  return <ProjectWizard initialProject={project as Project} plan={profile.plan} />;
+  return (
+    <FreeProjectWizard initialProject={project as Project} plan={profile.plan} />
+  );
 }

@@ -32,7 +32,7 @@ export default function PendingIdeaHandler({ userId }: { userId: string }) {
             target_audience: parsed.target_audience || "",
             language: parsed.language || "Dutch",
             format: parsed.format || "16:9",
-            visual_style: parsed.visual_style || "Flat Illustration",
+            visual_style: parsed.visual_style || "Cinematic",
           }),
         });
 

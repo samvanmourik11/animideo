@@ -1,3 +1,41 @@
+export type ProjectMode = "wizard" | "free";
+
+export interface BrandColors {
+  primary?: string;
+  secondary?: string;
+  accent?: string;
+  background?: string;
+}
+
+export interface BrandFonts {
+  primary?: string;
+  secondary?: string;
+}
+
+export interface BrandReferenceImage {
+  url: string;
+  description: string;
+}
+
+export interface BrandKit {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  tone_of_voice: string | null;
+  brand_values: string[];
+  colors: BrandColors;
+  fonts: BrandFonts;
+  environment: string | null;
+  do_nots: string | null;
+  default_language: string;
+  default_format: string;
+  logo_url: string | null;
+  reference_images: BrandReferenceImage[];
+  created_at: string;
+  updated_at: string;
+}
+
 export type ProjectStatus =
   | "Draft"
   | "ScriptReady"
@@ -9,11 +47,14 @@ export type ProjectStatus =
   | "Error";
 
 export type VisualStyle =
-  | "Flat Illustration"
-  | "3D Render"
+  | "Cinematic"
   | "Realistic"
   | "Whiteboard"
-  | "Cinematic";
+  | "2D Cartoon"
+  | "2D SaaS"
+  | "Motion Graphic"
+  | "3D Pixar"
+  | "3D Animatie";
 
 export type TransitionType =
   | "cut"
@@ -53,6 +94,8 @@ export interface Project {
   voice_audio_url: string | null;
   bg_music_url: string | null;
   video_url: string | null;
+  mode: ProjectMode;
+  brand_kit_id: string | null;
   status: ProjectStatus;
   created_at: string;
   updated_at: string;

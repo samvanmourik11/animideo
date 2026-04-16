@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import RunwayML from "@runwayml/sdk";
 import { createClient } from "@/lib/supabase/server";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
-const RUNWAY_BASE = "https://api.dev.runwayml.com/v1";
-const RUNWAY_VERSION = "2024-11-06";
+const runway = new RunwayML({ apiKey: process.env.RUNWAY_API_KEY });
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -23,27 +23,19 @@ export async function POST(req: NextRequest) {
 
   const ratio = format === "9:16" ? "768:1280" : "1280:768";
 
-  const res = await fetch(`${RUNWAY_BASE}/image_to_video`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.RUNWAY_API_KEY}`,
-      "X-Runway-Version": RUNWAY_VERSION,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+  try {
+    const task = await runway.imageToVideo.create({
       model: "gen3a_turbo",
       promptImage: imageUrl,
-      promptText: motionPrompt,
+      promptText: motionPrompt || "Smooth cinematic camera movement",
       duration: 5,
       ratio,
-    }),
-  });
+    });
 
-  if (!res.ok) {
-    const err = await res.text();
-    return NextResponse.json({ error: `Runway API error: ${err}` }, { status: res.status });
+    return NextResponse.json({ taskId: task.id });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[generate-motion] Fout:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
-
-  const { id: taskId } = await res.json();
-  return NextResponse.json({ taskId });
 }

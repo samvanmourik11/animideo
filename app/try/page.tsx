@@ -10,7 +10,7 @@ const LANGUAGES = [
 ];
 
 const VISUAL_STYLES = [
-  "Flat Illustration", "3D Render", "Realistic", "Whiteboard", "Cinematic",
+  "Cinematic", "Realistic", "Whiteboard", "2D Cartoon", "2D SaaS", "Motion Graphic", "3D Pixar", "3D Animatie",
 ];
 
 const STEPS = ["Project instellen", "Script", "Afbeeldingen", "Motion", "Voice-over", "Muziek", "Editor"];
@@ -80,7 +80,7 @@ function TryPage() {
   const [targetAudience, setTargetAudience] = useState("");
   const [language, setLanguage] = useState("Dutch");
   const [format, setFormat] = useState("16:9");
-  const [visualStyle, setVisualStyle] = useState("Flat Illustration");
+  const [visualStyle, setVisualStyle] = useState("Cinematic");
   const [showModal, setShowModal] = useState(false);
   const [error, setError] = useState("");
 

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       target_audience: target_audience || null,
       language: language || "Dutch",
       format: format || "16:9",
-      visual_style: visual_style || "Flat Illustration",
+      visual_style: visual_style || "Cinematic",
       status: "Draft",
     })
     .select()
