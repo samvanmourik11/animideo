@@ -592,6 +592,12 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     rafTickRef.current = requestAnimationFrame(tick);
   }
 
+  // ── Initial opacity via ref (never via JSX to avoid re-render overwrite) ──
+  useEffect(() => {
+    if (videoARef.current) videoARef.current.style.opacity = "0";
+    if (videoBRef.current) videoBRef.current.style.opacity = "0";
+  }, []);
+
   // ── Cleanup ───────────────────────────────────────────────────────────────
   useEffect(() => () => {
     if (rafTickRef.current) cancelAnimationFrame(rafTickRef.current);
@@ -1355,7 +1361,6 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                     height: "100%",
                     objectFit: "contain",
                     zIndex: 2,
-                    opacity: 0,
                     pointerEvents: "none",
                   }}
                 />
@@ -1371,7 +1376,6 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                     height: "100%",
                     objectFit: "contain",
                     zIndex: 1,
-                    opacity: 0,
                     pointerEvents: "none",
                   }}
                 />
