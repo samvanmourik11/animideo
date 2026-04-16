@@ -15,6 +15,10 @@ export interface PhotoScene {
   motionPrompt: string;
   analyzing: boolean;
   error: string;
+  // Transform results (lifted here so they survive step navigation)
+  transformedImageUrl: string | null;
+  transforming: boolean;
+  transformError: string;
 }
 
 interface Props {
@@ -55,6 +59,9 @@ export default function PhotoStep2Upload({ project, photoScenes, onScenesChange,
         motionPrompt: "",
         analyzing: true,
         error: "",
+        transformedImageUrl: null,
+        transforming: false,
+        transformError: "",
       };
       onScenesChange([...photoScenes, newScene]);
 

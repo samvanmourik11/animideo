@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Project } from "@/lib/types";
+import { Project, Scene } from "@/lib/types";
 import Stepper from "@/components/wizard/Stepper";
 import PhotoStep1Setup from "./PhotoStep1Setup";
 import PhotoStep2Upload, { PhotoScene } from "./PhotoStep2Upload";
@@ -15,7 +15,7 @@ const STEPS = ["Setup", "Foto's", "Transformeer", "Motion", "Voice-over", "Edito
 function statusToStep(status: Project["status"]): number {
   switch (status) {
     case "Draft":       return 0;
-    case "ImagesReady": return 3; // Start direct bij Motion
+    case "ImagesReady": return 3;
     case "MotionReady": return 4;
     case "VoiceReady":  return 5;
     case "Rendering":
@@ -32,7 +32,7 @@ export default function PhotoWizard({ initialProject, plan }: { initialProject: 
     visual_style: initialProject.visual_style ?? "2D Cartoon",
     bg_music_url: initialProject.bg_music_url ?? null,
   });
-  const [step, setStep]           = useState(() => statusToStep(initialProject.status));
+  const [step, setStep]             = useState(() => statusToStep(initialProject.status));
   const [maxReached, setMaxReached] = useState(() => statusToStep(initialProject.status));
   const [photoScenes, setPhotoScenes] = useState<PhotoScene[]>([]);
 
@@ -50,6 +50,12 @@ export default function PhotoWizard({ initialProject, plan }: { initialProject: 
 
   function goBack() {
     setStep((s) => Math.max(s - 1, 0));
+  }
+
+  function handleTransformNext(scenes: Scene[]) {
+    // Sla scenes op in project state zodat Motion ze heeft
+    updateProject({ scenes, status: "ImagesReady" });
+    goNext();
   }
 
   return (
@@ -77,11 +83,8 @@ export default function PhotoWizard({ initialProject, plan }: { initialProject: 
           <PhotoStep3Transform
             project={project}
             photoScenes={photoScenes}
-            onNext={() => {
-              // Project is nu opgeslagen met scenes + status ImagesReady
-              updateProject({ status: "ImagesReady" });
-              goNext();
-            }}
+            onScenesChange={setPhotoScenes}
+            onNext={handleTransformNext}
             onBack={goBack}
           />
         )}
