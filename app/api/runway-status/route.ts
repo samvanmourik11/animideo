@@ -20,7 +20,11 @@ export async function GET(req: NextRequest) {
     const task = await runway.tasks.retrieve(taskId);
 
     if (task.status === "FAILED" || task.status === "CANCELLED") {
-      return NextResponse.json({ status: "FAILED", error: "Runway generatie mislukt" });
+      const reason = (task as { failure?: string; failureCode?: string }).failure
+        ?? (task as { failure?: string; failureCode?: string }).failureCode
+        ?? task.status;
+      console.error("[runway-status] Task failed:", JSON.stringify(task));
+      return NextResponse.json({ status: "FAILED", error: `Runway: ${reason}` });
     }
 
     if (task.status !== "SUCCEEDED") {

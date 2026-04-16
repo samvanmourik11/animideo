@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ taskId: task.id });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[generate-motion] Fout:", message);
+    console.error("[generate-motion] Volledige fout:", JSON.stringify(err));
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
