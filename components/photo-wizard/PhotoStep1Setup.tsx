@@ -29,11 +29,18 @@ const IMAGE_MODELS: { value: ImageModel; label: string; badge: string; badgeColo
     description: "Maximale beeldkwaliteit, meer detail",
   },
   {
+    value: "controlnet",
+    label: "ControlNet",
+    badge: "Compositie",
+    badgeColor: "bg-orange-500/15 text-orange-400",
+    description: "Bewaart compositie exact via edge detection",
+  },
+  {
     value: "dall-e-3",
     label: "DALL·E 3",
-    badge: "OpenAI",
+    badge: "Tekst→Beeld",
     badgeColor: "bg-blue-500/15 text-blue-400",
-    description: "Uitstekende promptopvolging, consistente stijl",
+    description: "Geen foto-referentie, puur op prompt",
   },
 ];
 

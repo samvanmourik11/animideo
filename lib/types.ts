@@ -1,5 +1,5 @@
 export type ProjectMode = "wizard" | "free" | "photo";
-export type ImageModel = "flux-schnell" | "flux-pro" | "dall-e-3";
+export type ImageModel = "flux-schnell" | "flux-pro" | "dall-e-3" | "controlnet";
 
 export interface BrandColors {
   primary?: string;

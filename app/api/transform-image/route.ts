@@ -84,6 +84,18 @@ export async function POST(req: NextRequest) {
       });
       tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
       if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van Flux Pro" }, { status: 500 });
+    } else if (model === "controlnet") {
+      // Flux Pro Canny ControlNet — bewaart structuur/compositie via edge detection
+      const result = await fal.subscribe("fal-ai/flux-pro/v1/canny", {
+        input: {
+          control_image_url: sourceImageUrl,
+          prompt:            fullPrompt.slice(0, 2000),
+          num_images:        1,
+          output_format:     "jpeg",
+        },
+      });
+      tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
+      if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van ControlNet" }, { status: 500 });
     } else {
       // Flux Schnell image-to-image (standaard)
       const result = await fal.subscribe("fal-ai/flux/dev/image-to-image", {
