@@ -1,5 +1,6 @@
 export type ProjectMode = "wizard" | "free" | "photo";
 export type ImageModel = "flux-schnell" | "flux-pro" | "dall-e-3" | "controlnet" | "recraft";
+export type VideoModel = "kling-pro" | "kling-standard" | "runway";
 
 export interface BrandColors {
   primary?: string;

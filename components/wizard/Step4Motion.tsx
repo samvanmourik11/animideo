@@ -2,9 +2,33 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Project, Scene } from "@/lib/types";
+import { Project, Scene, VideoModel } from "@/lib/types";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 import { createClient } from "@/lib/supabase/client";
+
+const VIDEO_MODELS: { value: VideoModel; label: string; badge: string; badgeColor: string; description: string }[] = [
+  {
+    value:       "kling-pro",
+    label:       "Kling 1.6 Pro",
+    badge:       "Beste kwaliteit",
+    badgeColor:  "bg-purple-500/15 text-purple-400",
+    description: "Vloeiende beweging, hoogste detail — ~45s",
+  },
+  {
+    value:       "kling-standard",
+    label:       "Kling 1.6 Standard",
+    badge:       "Snel & goed",
+    badgeColor:  "bg-emerald-500/15 text-emerald-400",
+    description: "Goede kwaliteit, sneller klaar — ~25s",
+  },
+  {
+    value:       "runway",
+    label:       "Runway Gen-3 Turbo",
+    badge:       "Snel",
+    badgeColor:  "bg-slate-500/15 text-slate-400",
+    description: "Snelste optie, minder vloeiend — ~15s",
+  },
+];
 
 interface Props {
   project: Project;
@@ -21,6 +45,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
     const firstPending = (project.scenes ?? []).findIndex((s) => !s.video_url);
     return firstPending === -1 ? 0 : firstPending;
   });
+  const [videoModel, setVideoModel] = useState<VideoModel>("kling-pro");
   const [generating, setGenerating] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState(false);
   const [promptDraft, setPromptDraft] = useState("");
@@ -65,7 +90,8 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
         body: JSON.stringify({
           imageUrl,
           motionPrompt,
-          format: project.format,
+          format:     project.format,
+          videoModel,
         }),
       });
       const data = await res.json();
@@ -77,14 +103,14 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
       }
       if (!res.ok) throw new Error(data.error ?? "Video beweging aanmaken mislukt");
 
-      const { taskId } = data;
-      setStatusMsg("Generating video (this takes 1-3 minutes)…");
+      const { taskId, videoModel: usedModel } = data;
+      setStatusMsg("Video genereren, even geduld…");
 
       // Poll for status
       pollIntervalRef.current = setInterval(async () => {
         try {
           const statusRes = await fetch(
-            `/api/runway-status?taskId=${taskId}&projectId=${project.id}&sceneId=${scene.id}`
+            `/api/runway-status?taskId=${taskId}&projectId=${project.id}&sceneId=${scene.id}&videoModel=${usedModel ?? videoModel}`
           );
           const statusData = await statusRes.json();
 
@@ -175,8 +201,33 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-white">Motion Review</h2>
         <p className="text-slate-500 text-sm mt-1">
-          Genereer een 5-seconden videoclip per scene met Kling 2.0.
+          Genereer een 5-seconden videoclip per scene.
         </p>
+      </div>
+
+      {/* Video model selector */}
+      <div className="mb-6">
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Video model</p>
+        <div className="grid grid-cols-3 gap-3">
+          {VIDEO_MODELS.map((m) => (
+            <button
+              key={m.value}
+              onClick={() => !generating && setVideoModel(m.value)}
+              disabled={generating}
+              className={`text-left p-3 rounded-xl border transition-all ${
+                videoModel === m.value
+                  ? "border-blue-500 bg-blue-500/10"
+                  : "border-white/10 hover:border-white/20"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-semibold text-white">{m.label}</p>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${m.badgeColor}`}>{m.badge}</span>
+              </div>
+              <p className="text-xs text-slate-500">{m.description}</p>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Progress bar */}
