@@ -7,7 +7,7 @@ import PhotoStep1Setup from "./PhotoStep1Setup";
 import PhotoStep2Upload, { PhotoScene } from "./PhotoStep2Upload";
 import PhotoStep3Transform from "./PhotoStep3Transform";
 import Step4Motion from "@/components/wizard/Step4Motion";
-import Step5Voiceover from "@/components/wizard/Step5Voiceover";
+import PhotoStep5Audio from "./PhotoStep5Audio";
 import Step6Editor from "@/components/wizard/Step6Editor";
 
 const STEPS = ["Setup", "Foto's", "Transformeer", "Motion", "Voice-over", "Editor"];
@@ -98,7 +98,7 @@ export default function PhotoWizard({ initialProject, plan }: { initialProject: 
           />
         )}
         {step === 4 && (
-          <Step5Voiceover
+          <PhotoStep5Audio
             project={project}
             onUpdate={updateProject}
             onNext={goNext}

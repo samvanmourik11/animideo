@@ -183,16 +183,6 @@ export default function PhotoStep2Upload({ project, photoScenes, onScenesChange,
                   onChange={(e) => updateScene(scene.id, "transformPrompt", e.target.value)}
                 />
               </div>
-              {/* Voice-over tekst */}
-              <div>
-                <label className="label text-xs">Voice-over tekst</label>
-                <textarea
-                  rows={2}
-                  className="input text-sm resize-none"
-                  value={scene.voiceoverText}
-                  onChange={(e) => updateScene(scene.id, "voiceoverText", e.target.value)}
-                />
-              </div>
               {/* Motion prompt */}
               <div>
                 <label className="label text-xs">Bewegingsprompt (Runway)</label>

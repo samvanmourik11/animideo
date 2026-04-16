@@ -58,11 +58,10 @@ export async function POST(req: NextRequest) {
 
 First, mentally identify: What is actually happening? What is the energy/mood? Who are the people and what are they doing? What story does this image tell?
 
-Return a JSON object with exactly these three fields:
+Return a JSON object with exactly these two fields:
 
 {
   "transformPrompt": "Detailed AI image-to-image transformation prompt for ${styleDesc} style. Describe the specific subjects (people, objects, setting) in this photo and how they should look in the target style. Be specific about colors, character design, and atmosphere. Max 350 characters. No text overlays.",
-  "voiceoverText": "2-3 engaging sentences narrating this scene for a video. Be specific about what you actually see. Natural, conversational tone. Match the language of what you observe (Dutch if context suggests Dutch, otherwise English).",
   "motionPrompt": "A rich, cinematic 2-3 sentence camera movement description for a 5-second video clip. IMPORTANT: Base the motion on what is ACTUALLY HAPPENING in the scene — if people are dancing, the camera should capture the dance; if it's a team meeting, capture the interaction; if someone is performing, follow their movement. Include: (1) camera movement type that MATCHES the scene energy (handheld for action, smooth dolly for calm, drone-like rise for reveal, etc.), (2) what the camera focuses on and how it moves through the scene, (3) what emotion this motion creates. Do NOT default to generic 'pan left to right' — be creative and specific to THIS scene."
 }`,
             },
@@ -76,7 +75,6 @@ Return a JSON object with exactly these three fields:
 
     return NextResponse.json({
       transformPrompt: parsed.transformPrompt ?? "",
-      voiceoverText:   parsed.voiceoverText   ?? "",
       motionPrompt:    parsed.motionPrompt    ?? "",
     });
   } catch (err: unknown) {
