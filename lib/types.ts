@@ -1,4 +1,5 @@
 export type ProjectMode = "wizard" | "free" | "photo";
+export type ImageModel = "flux-schnell" | "flux-pro" | "dall-e-3";
 
 export interface BrandColors {
   primary?: string;
@@ -82,6 +83,7 @@ export interface Project {
   id: string;
   user_id: string;
   title: string;
+  image_model?: ImageModel | null;
   goal: string | null;
   target_audience: string | null;
   language: string;

@@ -54,6 +54,8 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
           imagePrompt: prompt,
           visualStyle: project.visual_style,
           brandKitId: project.brand_kit_id ?? null,
+          imageModel: project.image_model ?? "flux-schnell",
+          format: project.format,
         }),
       });
       let data: { imageUrl?: string; error?: string; credits?: number; required?: number } = {};

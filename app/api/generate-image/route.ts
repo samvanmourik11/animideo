@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
+import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { VisualStyle } from "@/lib/types";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { projectId, sceneId, imagePrompt, visualStyle, brandKitId } = await req.json();
+    const { projectId, sceneId, imagePrompt, visualStyle, brandKitId, imageModel, format } = await req.json();
     const style = (visualStyle as VisualStyle) ?? "Cinematic";
 
     // Brand kit context ophalen
@@ -95,17 +98,48 @@ export async function POST(req: NextRequest) {
     const { prefix, suffix } = styleModifiers[style];
     const fullPrompt = `${prefix} ${imagePrompt.slice(0, 3400)}.${brandContext} ${suffix} No text overlays, no watermarks, no logos.`;
 
-    const result = await fal.subscribe("fal-ai/flux/schnell", {
-      input: {
-        prompt: fullPrompt,
-        image_size: "landscape_16_9",
-        num_images: 1,
-        output_format: "jpeg",
-      },
-    });
+    const model = imageModel ?? "flux-schnell";
+    let tempUrl: string | undefined;
 
-    const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
-    if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van Flux" }, { status: 500 });
+    if (model === "dall-e-3") {
+      // DALL·E 3 via OpenAI
+      const size = format === "9:16" ? "1024x1792" : "1792x1024";
+      const response = await openai.images.generate({
+        model: "dall-e-3",
+        prompt: fullPrompt.slice(0, 4000),
+        n: 1,
+        size,
+        quality: "standard",
+      });
+      tempUrl = response.data?.[0]?.url ?? undefined;
+      if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van DALL·E 3" }, { status: 500 });
+    } else if (model === "flux-pro") {
+      // Flux Pro Ultra via fal.ai
+      const aspectRatio = format === "9:16" ? "9:16" : "16:9";
+      const result = await fal.subscribe("fal-ai/flux-pro/v1.1-ultra", {
+        input: {
+          prompt: fullPrompt.slice(0, 2000),
+          aspect_ratio: aspectRatio,
+          num_images: 1,
+          output_format: "jpeg",
+        },
+      });
+      tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
+      if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van Flux Pro" }, { status: 500 });
+    } else {
+      // Flux Schnell (standaard)
+      const imageSize = format === "9:16" ? "portrait_16_9" : "landscape_16_9";
+      const result = await fal.subscribe("fal-ai/flux/schnell", {
+        input: {
+          prompt: fullPrompt,
+          image_size: imageSize,
+          num_images: 1,
+          output_format: "jpeg",
+        },
+      });
+      tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
+      if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van Flux" }, { status: 500 });
+    }
 
     // Download en opslaan in Supabase (fal URLs verlopen)
     const imgResponse = await fetch(tempUrl);
