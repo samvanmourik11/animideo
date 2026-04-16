@@ -268,7 +268,8 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
       const src = isFinite(el.duration) && el.duration > 0 ? el.duration : editorDur;
       sourceDurRef.current[url] = src;
       el.playbackRate = src / editorDur;
-      el.currentTime = Math.max(0, videoTime);
+      // Use at least 0.1s to skip the black first frame in Kling/Runway MP4s
+      el.currentTime = Math.max(0.1, videoTime);
       onReady();
     };
     if (el.getAttribute("data-src") === url) {
@@ -515,7 +516,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
         active.setAttribute("data-src", firstScene.video_url);
         active.load();
       }
-      active.currentTime = 0;
+      active.currentTime = 0.1;
       active.playbackRate = 1;
       active.style.opacity = "1";
       active.style.transform = "";
@@ -613,7 +614,9 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
         if (isFinite(active.duration) && active.duration > 0)
           sourceDurRef.current[first.video_url!] = active.duration;
         active.playbackRate = rateFor(first.video_url!, first.duration);
-        active.currentTime = 0;
+        // Seek slightly past 0 to skip the black first frame common in Kling/Runway MP4s
+        active.currentTime = 0.1;
+        active.style.opacity = "1";
       };
       active.addEventListener("loadedmetadata", onMeta);
       // Preload scene 2 into standby
@@ -1352,7 +1355,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                     height: "100%",
                     objectFit: "contain",
                     zIndex: 2,
-                    opacity: scenes.some((s) => s.video_url) ? 1 : 0,
+                    opacity: 0,
                     pointerEvents: "none",
                   }}
                 />
