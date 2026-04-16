@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Project, Scene } from "@/lib/types";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
+import { createClient } from "@/lib/supabase/client";
 
 interface Props {
   project: Project;
@@ -37,9 +38,16 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
     setGenerating(true);
     setError("");
     try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? "";
+
       const res = await fetch("/api/generate-image", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           projectId: project.id,
           sceneId: scene.id,

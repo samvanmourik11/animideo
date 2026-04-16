@@ -48,7 +48,19 @@ const styleModifiers: Record<VisualStyle, { prefix: string; suffix: string }> = 
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+
+    // Probeer eerst via Authorization header (Bearer token), dan via cookie
+    const authHeader = req.headers.get("authorization");
+    let user = null;
+    if (authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.slice(7);
+      const { data } = await supabase.auth.getUser(token);
+      user = data.user;
+    } else {
+      const { data } = await supabase.auth.getUser();
+      user = data.user;
+    }
+
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     // Credits check
