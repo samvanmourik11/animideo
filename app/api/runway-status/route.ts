@@ -1,12 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import RunwayML from "@runwayml/sdk";
+import { fal } from "@fal-ai/client";
 import { createClient } from "@/lib/supabase/server";
 
-const runway = new RunwayML({ apiKey: process.env.RUNWAY_API_KEY });
+fal.config({ credentials: process.env.FAL_KEY });
+
+const KLING_MODEL = "fal-ai/kling-video/v1.6/pro/image-to-video";
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+
+  // Bearer token of cookie auth
+  const authHeader = req.headers.get("authorization");
+  let user = null;
+  if (authHeader?.startsWith("Bearer ")) {
+    const { data } = await supabase.auth.getUser(authHeader.slice(7));
+    user = data.user;
+  } else {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  }
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
@@ -17,33 +29,38 @@ export async function GET(req: NextRequest) {
   if (!taskId) return NextResponse.json({ error: "Missing taskId" }, { status: 400 });
 
   try {
-    const task = await runway.tasks.retrieve(taskId);
+    const statusResult = await fal.queue.status(KLING_MODEL, {
+      requestId: taskId,
+      logs: false,
+    }) as { status: string };
 
-    if (task.status === "FAILED" || task.status === "CANCELLED") {
-      const reason = (task as { failure?: string; failureCode?: string }).failure
-        ?? (task as { failure?: string; failureCode?: string }).failureCode
-        ?? task.status;
-      console.error("[runway-status] Task failed:", JSON.stringify(task));
-      return NextResponse.json({ status: "FAILED", error: `Runway: ${reason}` });
-    }
-
-    if (task.status !== "SUCCEEDED") {
+    if (statusResult.status === "IN_QUEUE" || statusResult.status === "IN_PROGRESS") {
       return NextResponse.json({ status: "RUNNING" });
     }
 
-    // SUCCEEDED — haal video URL op
-    const videoUrl: string | undefined = Array.isArray(task.output) ? task.output[0] : undefined;
+    if (statusResult.status !== "COMPLETED") {
+      console.error("[kling-status] Onverwachte status:", statusResult.status);
+      return NextResponse.json({ status: "FAILED", error: `Kling status: ${statusResult.status}` });
+    }
+
+    // COMPLETED — haal resultaat op
+    const result = await fal.queue.result(KLING_MODEL, { requestId: taskId });
+    const data = result.data as { video?: { url: string } };
+    const videoUrl = data.video?.url;
 
     if (!videoUrl) {
-      return NextResponse.json({ status: "FAILED", error: "Geen video URL ontvangen van Runway" });
+      return NextResponse.json({ status: "FAILED", error: "Geen video URL ontvangen van Kling" });
     }
 
     if (!projectId || !sceneId) {
       return NextResponse.json({ status: "SUCCEEDED", videoUrl });
     }
 
-    // Download en opslaan in Supabase voor permanente toegang
+    // Download en opslaan in Supabase (Kling URLs verlopen)
     const videoRes = await fetch(videoUrl);
+    if (!videoRes.ok) {
+      return NextResponse.json({ status: "SUCCEEDED", videoUrl });
+    }
     const videoBuffer = await videoRes.arrayBuffer();
     const fileName = `${user.id}/${projectId}/${sceneId}-video.mp4`;
 
@@ -60,7 +77,7 @@ export async function GET(req: NextRequest) {
 
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[runway-status] Fout:", message);
+    console.error("[kling-status] Fout:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

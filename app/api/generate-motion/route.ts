@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import RunwayML from "@runwayml/sdk";
+import { fal } from "@fal-ai/client";
 import { createClient } from "@/lib/supabase/server";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
-const runway = new RunwayML({ apiKey: process.env.RUNWAY_API_KEY });
+fal.config({ credentials: process.env.FAL_KEY });
 
-/** Haal het storage-pad op uit een Supabase public URL */
-function extractStoragePath(url: string): string | null {
-  const match = url.match(/\/object\/(?:public|sign)\/scene-assets\/(.+?)(?:\?|$)/);
-  return match ? match[1] : null;
-}
+const KLING_MODEL = "fal-ai/kling-video/v1.6/pro/image-to-video";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -36,40 +32,38 @@ export async function POST(req: NextRequest) {
   }
 
   const { imageUrl, motionPrompt, format } = await req.json();
-  const ratio = format === "9:16" ? "768:1280" : "1280:768";
+  const aspectRatio = format === "9:16" ? "9:16" : "16:9";
 
-  // Prompt trunceren tot 950 tekens (gen3a_turbo max = 1000)
-  const safePrompt = (motionPrompt || "Smooth cinematic camera movement").slice(0, 950);
-
-  // Maak een signed URL aan zodat Runway de afbeelding zeker kan ophalen
+  // Signed URL zodat Kling de afbeelding zeker kan ophalen
   let promptImage: string = imageUrl;
-  const storagePath = extractStoragePath(imageUrl);
-  if (storagePath) {
+  const storageMatch = imageUrl.match(/\/object\/(?:public|sign)\/scene-assets\/(.+?)(?:\?|$)/);
+  if (storageMatch) {
     const { data: signed } = await supabase.storage
       .from("scene-assets")
-      .createSignedUrl(storagePath, 3600); // 1 uur geldig
-    if (signed?.signedUrl) {
-      promptImage = signed.signedUrl;
-    }
+      .createSignedUrl(storageMatch[1], 3600);
+    if (signed?.signedUrl) promptImage = signed.signedUrl;
   }
 
-  console.log("[generate-motion] imageUrl:", imageUrl);
-  console.log("[generate-motion] promptImage:", promptImage.slice(0, 100));
+  const safePrompt = (motionPrompt || "Smooth cinematic camera movement").slice(0, 2500);
+
+  console.log("[generate-motion] Kling model:", KLING_MODEL);
+  console.log("[generate-motion] aspectRatio:", aspectRatio);
   console.log("[generate-motion] promptLength:", safePrompt.length);
 
   try {
-    const task = await runway.imageToVideo.create({
-      model: "gen3a_turbo",
-      promptImage,
-      promptText: safePrompt,
-      duration: 5,
-      ratio,
+    const { request_id } = await fal.queue.submit(KLING_MODEL, {
+      input: {
+        image_url:    promptImage,
+        prompt:       safePrompt,
+        duration:     "5",
+        aspect_ratio: aspectRatio,
+      },
     });
 
-    return NextResponse.json({ taskId: task.id });
+    return NextResponse.json({ taskId: request_id });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[generate-motion] Volledige fout:", JSON.stringify(err));
+    console.error("[generate-motion] Fout:", JSON.stringify(err));
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
