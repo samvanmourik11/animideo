@@ -267,6 +267,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     const apply = () => {
       const src = isFinite(el.duration) && el.duration > 0 ? el.duration : editorDur;
       sourceDurRef.current[url] = src;
+      el.muted = true;
       el.playbackRate = src / editorDur;
       // Use at least 0.1s to skip the black first frame in Kling/Runway MP4s
       el.currentTime = Math.max(0.1, videoTime);
@@ -430,7 +431,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     active.style.transform = "";
     loadClipInto(active, scene.video_url, editorDur, clipLocal * rateFor(scene.video_url, editorDur), () => {
       active.style.opacity = "1";
-      if (isPlayingRef.current) active.play().catch(() => {});
+      if (isPlayingRef.current) active.play().catch((e) => console.warn("[player] play() blocked:", e));
       else active.pause();
     });
 
@@ -572,7 +573,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
       loadClipInto(active, scene.video_url, editorDur, clipLocal * rateFor(scene.video_url, editorDur), () => {
         active.style.opacity = "1";
         active.style.transform = "";
-        if (isPlayingRef.current) active.play().catch(() => {});
+        if (isPlayingRef.current) active.play().catch((e) => console.warn("[player] play() blocked:", e));
       });
     }
 
@@ -580,22 +581,28 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     if (audioRef.current) {
       audioRef.current.currentTime = Math.max(0, t - voiceOffsetSec);
       audioRef.current.volume = voiceVol;
-      if (t >= voiceOffsetSec) audioRef.current.play().catch(() => {});
+      if (t >= voiceOffsetSec) audioRef.current.play().catch((e) => console.warn("[player] play() blocked:", e));
     }
     if (bgMusicRef.current && bgMusicUrl) {
       bgMusicRef.current.currentTime = Math.max(0, t - musicOffsetSec);
       bgMusicRef.current.volume = musicVol;
-      if (t >= musicOffsetSec) bgMusicRef.current.play().catch(() => {});
+      if (t >= musicOffsetSec) bgMusicRef.current.play().catch((e) => console.warn("[player] play() blocked:", e));
     }
 
     preloadNext(idx);
     rafTickRef.current = requestAnimationFrame(tick);
   }
 
-  // ── Initial opacity via ref (never via JSX to avoid re-render overwrite) ──
+  // ── Initial setup via ref (opacity + muted — React doesn't reliably set muted) ──
   useEffect(() => {
-    if (videoARef.current) videoARef.current.style.opacity = "0";
-    if (videoBRef.current) videoBRef.current.style.opacity = "0";
+    if (videoARef.current) {
+      videoARef.current.style.opacity = "0";
+      videoARef.current.muted = true;
+    }
+    if (videoBRef.current) {
+      videoBRef.current.style.opacity = "0";
+      videoBRef.current.muted = true;
+    }
   }, []);
 
   // ── Cleanup ───────────────────────────────────────────────────────────────
@@ -815,14 +822,15 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
       standby.style.transform = "";
       standby.style.zIndex  = "2";
       active.style.zIndex   = "1";
-      standby.play().catch(() => {});
+      standby.play().catch((e) => console.warn("[player] play() blocked:", e));
       swapAB();
       preloadNext(toIdx);
       transitionActiveRef.current = false;
       return;
     }
 
-    standby.play().catch(() => {});
+    standby.muted = true;
+    standby.play().catch((e) => console.warn("[player] play() blocked:", e));
     animCancelRef.current = false;
     animateTransition(transType, active, standby, () => {
       // Transition complete: old clip invisible, new clip fully visible
