@@ -24,9 +24,23 @@ export async function POST(req: NextRequest) {
   const ratio = format === "9:16" ? "768:1280" : "1280:768";
 
   try {
+    // Runway kan Supabase URLs niet altijd ophalen — download en stuur als base64
+    let promptImage: string = imageUrl;
+    try {
+      const imgRes = await fetch(imageUrl);
+      if (imgRes.ok) {
+        const imgBuffer = await imgRes.arrayBuffer();
+        const base64 = Buffer.from(imgBuffer).toString("base64");
+        const contentType = imgRes.headers.get("content-type") ?? "image/jpeg";
+        promptImage = `data:${contentType};base64,${base64}`;
+      }
+    } catch {
+      // Fallback: originele URL gebruiken
+    }
+
     const task = await runway.imageToVideo.create({
       model: "gen3a_turbo",
-      promptImage: imageUrl,
+      promptImage,
       promptText: motionPrompt || "Smooth cinematic camera movement",
       duration: 5,
       ratio,
