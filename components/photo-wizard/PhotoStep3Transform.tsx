@@ -20,6 +20,7 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
   const [saving, setSaving] = useState(false);
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [promptDraft, setPromptDraft] = useState("");
+  const [cacheBust, setCacheBust] = useState<Record<string, number>>({});
 
   const allDone = photoScenes.length > 0 && photoScenes.every((s) => s.transformedImageUrl);
 
@@ -78,6 +79,7 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
             : s
         )
       );
+      setCacheBust((prev) => ({ ...prev, [scene.id]: Date.now() }));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       onScenesChange((prev) =>
@@ -218,7 +220,13 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
                 <p className="text-xs text-slate-500">Getransformeerd</p>
                 <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-white/5 flex items-center justify-center">
                   {scene.transformedImageUrl ? (
-                    <Image src={scene.transformedImageUrl} alt="Getransformeerd" fill className="object-cover" />
+                    <Image
+                      src={cacheBust[scene.id] ? `${scene.transformedImageUrl}?cb=${cacheBust[scene.id]}` : scene.transformedImageUrl}
+                      alt="Getransformeerd"
+                      fill
+                      className="object-cover"
+                      unoptimized
+                    />
                   ) : scene.transforming ? (
                     <p className="text-xs text-blue-400 animate-pulse">Transformeren…</p>
                   ) : (
