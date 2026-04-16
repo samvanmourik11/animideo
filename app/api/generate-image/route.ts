@@ -7,6 +7,18 @@ import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// Recraft v3 style mapping per visual style
+const recraftStyles: Record<string, string> = {
+  "Cinematic":      "realistic_image",
+  "Realistic":      "realistic_image/natural_light",
+  "Whiteboard":     "digital_illustration/hand_drawn_outline",
+  "2D Cartoon":     "digital_illustration",
+  "2D SaaS":        "vector_illustration",
+  "Motion Graphic": "vector_illustration",
+  "3D Pixar":       "digital_illustration/handmade_3d",
+  "3D Animatie":    "realistic_image",
+};
+
 fal.config({ credentials: process.env.FAL_KEY });
 
 console.log("[generate-image] FAL_KEY aanwezig:", !!process.env.FAL_KEY);
@@ -126,6 +138,19 @@ export async function POST(req: NextRequest) {
       });
       tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
       if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van Flux Pro" }, { status: 500 });
+    } else if (model === "recraft") {
+      // Recraft v3 via fal.ai
+      const imageSize = format === "9:16" ? "portrait_16_9" : "landscape_16_9";
+      const recraftStyle = recraftStyles[style] ?? "digital_illustration";
+      const result = await fal.subscribe("fal-ai/recraft-v3", {
+        input: {
+          prompt:     fullPrompt.slice(0, 2000),
+          style:      recraftStyle,
+          image_size: imageSize,
+        },
+      });
+      tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
+      if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van Recraft" }, { status: 500 });
     } else {
       // Flux Schnell (standaard)
       const imageSize = format === "9:16" ? "portrait_16_9" : "landscape_16_9";

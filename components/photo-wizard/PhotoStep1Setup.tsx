@@ -36,6 +36,13 @@ const IMAGE_MODELS: { value: ImageModel; label: string; badge: string; badgeColo
     description: "Bewaart compositie exact via edge detection",
   },
   {
+    value: "recraft",
+    label: "Recraft v3",
+    badge: "Top",
+    badgeColor: "bg-pink-500/15 text-pink-400",
+    description: "Midjourney-niveau kwaliteit, negeert bronfoto",
+  },
+  {
     value: "dall-e-3",
     label: "DALL·E 3",
     badge: "Tekst→Beeld",

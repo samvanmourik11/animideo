@@ -263,7 +263,7 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
           {/* Beeldgeneratie model */}
           <div>
             <label className="label">Beeldgeneratie model</label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {([
                 {
                   value: "flux-schnell" as ImageModel,
@@ -278,6 +278,13 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
                   badge: "Kwaliteit",
                   badgeColor: "bg-purple-500/15 text-purple-400",
                   description: "Maximale beeldkwaliteit, meer detail",
+                },
+                {
+                  value: "recraft" as ImageModel,
+                  label: "Recraft v3",
+                  badge: "Top",
+                  badgeColor: "bg-pink-500/15 text-pink-400",
+                  description: "Midjourney-niveau kwaliteit, rijke stijlen",
                 },
                 {
                   value: "dall-e-3" as ImageModel,
