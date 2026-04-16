@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Project, Scene } from "@/lib/types";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
+import { createClient } from "@/lib/supabase/client";
 
 interface Props {
   project: Project;
@@ -51,11 +52,18 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
     setStatusMsg("Indienen bij Kling 2.0…");
 
     try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? "";
+
       const res = await fetch("/api/generate-motion", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
-          imageUrl,   // the accepted DALL-E image URL from Step 3
+          imageUrl,
           motionPrompt,
           format: project.format,
         }),
