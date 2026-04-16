@@ -18,13 +18,24 @@ interface Props {
 export default function PhotoStep3Transform({ project, photoScenes, onScenesChange, onNext, onBack }: Props) {
   const [creditModal, setCreditModal] = useState<{ credits: number; required: number } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
+  const [promptDraft, setPromptDraft] = useState("");
 
   const allDone = photoScenes.length > 0 && photoScenes.every((s) => s.transformedImageUrl);
 
-  async function transformScene(scene: PhotoScene) {
+  async function transformScene(scene: PhotoScene, customPrompt?: string) {
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token ?? "";
+
+    const prompt = customPrompt ?? scene.transformPrompt;
+
+    // Sla aangepaste prompt op in state
+    if (customPrompt && customPrompt !== scene.transformPrompt) {
+      onScenesChange((prev) =>
+        prev.map((s) => s.id === scene.id ? { ...s, transformPrompt: customPrompt } : s)
+      );
+    }
 
     // Markeer als bezig
     onScenesChange((prev) =>
@@ -40,7 +51,7 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
         },
         body: JSON.stringify({
           sourceImageUrl:  scene.sourceImageUrl,
-          transformPrompt: scene.transformPrompt,
+          transformPrompt: prompt,
           style:           project.visual_style,
           projectId:       project.id,
           sceneId:         scene.id,
@@ -81,6 +92,16 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
         await transformScene(scene);
       }
     }
+  }
+
+  function startEditPrompt(scene: PhotoScene) {
+    setPromptDraft(scene.transformPrompt);
+    setEditingPromptId(scene.id);
+  }
+
+  function cancelEditPrompt() {
+    setEditingPromptId(null);
+    setPromptDraft("");
   }
 
   async function handleNext() {
@@ -139,6 +160,47 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
         {photoScenes.map((scene) => (
           <div key={scene.id} className="card space-y-3">
             <p className="text-sm font-semibold text-white">Scene {scene.number}</p>
+
+            {/* Transform prompt */}
+            <div>
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wide">Transform prompt</span>
+              {editingPromptId === scene.id ? (
+                <div className="mt-2 space-y-2">
+                  <textarea
+                    className="input resize-none text-sm"
+                    rows={3}
+                    value={promptDraft}
+                    onChange={(e) => setPromptDraft(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      className="btn-primary text-sm"
+                      onClick={() => {
+                        cancelEditPrompt();
+                        transformScene(scene, promptDraft);
+                      }}
+                      disabled={scene.transforming}
+                    >
+                      {scene.transforming ? "Bezig…" : "Opslaan + Transformeren"}
+                    </button>
+                    <button className="btn-secondary text-sm" onClick={cancelEditPrompt}>
+                      Annuleren
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-1 flex items-start justify-between gap-2">
+                  <p className="text-sm text-slate-300 leading-relaxed">{scene.transformPrompt}</p>
+                  <button
+                    onClick={() => startEditPrompt(scene)}
+                    disabled={scene.transforming}
+                    className="shrink-0 text-xs text-slate-500 hover:text-slate-300 border border-white/10 hover:border-white/20 px-2 py-1 rounded-lg transition-colors"
+                  >
+                    Bewerken
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div className="flex gap-4 items-start">
               {/* Origineel */}

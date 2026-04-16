@@ -42,7 +42,17 @@ export async function POST(req: NextRequest) {
 
     const { sourceImageUrl, transformPrompt, style, projectId, sceneId, format, imageModel } = await req.json();
     const suffix = styleSuffix[style as VisualStyle] ?? styleSuffix["2D Cartoon"];
-    const fullPrompt = `${transformPrompt} ${suffix} No text, no watermarks, no logos.`;
+
+    // Composition rules: keep the source image as the exact reference
+    const compositionPrefix =
+      "CRITICAL: preserve the EXACT composition of the source image — " +
+      "every element stays in the same position (object top-left stays top-left), " +
+      "same number of people/objects, same poses and facial expressions, " +
+      "same camera angle and perspective, same light direction, " +
+      "same foreground/background ratio. Do NOT add, remove, or reposition any element. " +
+      "The source image is the strict reference; only the visual style changes.";
+
+    const fullPrompt = `${compositionPrefix} ${transformPrompt} ${suffix} No text, no watermarks, no logos.`;
 
     const model = imageModel ?? "flux-schnell";
     let tempUrl: string | undefined;
