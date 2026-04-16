@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Project, VisualStyle } from "@/lib/types";
+import { Project, VisualStyle, ImageModel } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 
 const ANIMATION_STYLES: { value: VisualStyle; label: string; description: string }[] = [
@@ -11,6 +11,30 @@ const ANIMATION_STYLES: { value: VisualStyle; label: string; description: string
   { value: "2D SaaS",        label: "2D SaaS",        description: "Flat design, Stripe/Linear-stijl" },
   { value: "Motion Graphic", label: "Motion Graphic", description: "Geometrische vormen, grafisch design" },
   { value: "3D Animatie",    label: "3D Animatie",    description: "Fotorealistisch 3D CGI, Unreal Engine-kwaliteit" },
+];
+
+const IMAGE_MODELS: { value: ImageModel; label: string; badge: string; badgeColor: string; description: string }[] = [
+  {
+    value: "flux-schnell",
+    label: "Flux Schnell",
+    badge: "Snel",
+    badgeColor: "bg-emerald-500/15 text-emerald-400",
+    description: "Snel & goedkoop, goed voor prototypen",
+  },
+  {
+    value: "flux-pro",
+    label: "Flux Pro Ultra",
+    badge: "Kwaliteit",
+    badgeColor: "bg-purple-500/15 text-purple-400",
+    description: "Maximale beeldkwaliteit, meer detail",
+  },
+  {
+    value: "dall-e-3",
+    label: "DALL·E 3",
+    badge: "OpenAI",
+    badgeColor: "bg-blue-500/15 text-blue-400",
+    description: "Uitstekende promptopvolging, consistente stijl",
+  },
 ];
 
 interface Props {
@@ -27,6 +51,9 @@ export default function PhotoStep1Setup({ project, onUpdate, onNext }: Props) {
       ? project.visual_style
       : "2D Cartoon"
   );
+  const [imageModel, setImageModel] = useState<ImageModel>(
+    (project.image_model as ImageModel) ?? "flux-schnell"
+  );
   const [saving, setSaving] = useState(false);
 
   async function handleNext() {
@@ -35,9 +62,9 @@ export default function PhotoStep1Setup({ project, onUpdate, onNext }: Props) {
     const supabase = createClient();
     await supabase
       .from("projects")
-      .update({ title: title.trim(), format, visual_style: style })
+      .update({ title: title.trim(), format, visual_style: style, image_model: imageModel })
       .eq("id", project.id);
-    onUpdate({ title: title.trim(), format, visual_style: style });
+    onUpdate({ title: title.trim(), format, visual_style: style, image_model: imageModel });
     setSaving(false);
     onNext();
   }
@@ -46,7 +73,7 @@ export default function PhotoStep1Setup({ project, onUpdate, onNext }: Props) {
     <div className="max-w-xl mx-auto space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-white mb-1">Project instellen</h2>
-        <p className="text-sm text-slate-500">Geef je project een naam en kies de animatiestijl.</p>
+        <p className="text-sm text-slate-500">Geef je project een naam, kies de animatiestijl en het transformatiemodel.</p>
       </div>
 
       {/* Titel */}
@@ -81,7 +108,7 @@ export default function PhotoStep1Setup({ project, onUpdate, onNext }: Props) {
         </div>
       </div>
 
-      {/* Stijl */}
+      {/* Animatiestijl */}
       <div>
         <label className="label">Animatiestijl</label>
         <div className="grid grid-cols-2 gap-3">
@@ -97,6 +124,30 @@ export default function PhotoStep1Setup({ project, onUpdate, onNext }: Props) {
             >
               <p className="font-medium">{s.label}</p>
               <p className="text-xs text-slate-500 mt-0.5">{s.description}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Transformatiemodel */}
+      <div>
+        <label className="label">Transformatiemodel</label>
+        <div className="grid grid-cols-3 gap-3">
+          {IMAGE_MODELS.map((m) => (
+            <button
+              key={m.value}
+              onClick={() => setImageModel(m.value)}
+              className={`text-left p-3 rounded-xl border transition-all ${
+                imageModel === m.value
+                  ? "border-blue-500 bg-blue-500/10"
+                  : "border-white/10 hover:border-white/20"
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-semibold text-white">{m.label}</p>
+                <span className={`text-xs px-1.5 py-0.5 rounded-full ${m.badgeColor}`}>{m.badge}</span>
+              </div>
+              <p className="text-xs text-slate-500">{m.description}</p>
             </button>
           ))}
         </div>

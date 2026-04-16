@@ -45,6 +45,7 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
           projectId:       project.id,
           sceneId:         scene.id,
           format:          project.format,
+          imageModel:      project.image_model ?? "flux-schnell",
         }),
       });
 
