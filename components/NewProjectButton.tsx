@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 export default function NewProjectButton({ userId }: { userId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState<"wizard" | "free" | null>(null);
+  const [loading, setLoading] = useState<"wizard" | "free" | "photo" | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   // Sluit dropdown bij klik buiten het component
@@ -35,6 +35,32 @@ export default function NewProjectButton({ userId }: { userId: string }) {
         visual_style: "Cinematic",
         status: "Draft",
         mode: "wizard",
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      router.push(`/project/${data.id}`);
+    } else {
+      alert("Kon project niet aanmaken: " + error?.message);
+      setLoading(null);
+    }
+  }
+
+  async function createPhoto() {
+    setLoading("photo");
+    setOpen(false);
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("projects")
+      .insert({
+        user_id:      userId,
+        title:        "Untitled Project",
+        language:     "Dutch",
+        format:       "16:9",
+        visual_style: "2D Cartoon",
+        status:       "Draft",
+        mode:         "photo",
       })
       .select()
       .single();
@@ -106,6 +132,17 @@ export default function NewProjectButton({ userId }: { userId: string }) {
             <div>
               <p className="text-sm font-medium text-white">AI Wizard</p>
               <p className="text-xs text-slate-500 mt-0.5">Script en afbeeldingen via AI</p>
+            </div>
+          </button>
+          <div className="h-px bg-white/[0.06] mx-3" />
+          <button
+            onClick={createPhoto}
+            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
+          >
+            <span className="text-lg leading-none mt-0.5">📸</span>
+            <div>
+              <p className="text-sm font-medium text-white">Animeer je foto&apos;s</p>
+              <p className="text-xs text-slate-500 mt-0.5">Echte foto&apos;s omzetten naar animatie</p>
             </div>
           </button>
           <div className="h-px bg-white/[0.06] mx-3" />

@@ -1,4 +1,4 @@
-export type ProjectMode = "wizard" | "free";
+export type ProjectMode = "wizard" | "free" | "photo";
 
 export interface BrandColors {
   primary?: string;
@@ -75,6 +75,7 @@ export interface Scene {
   video_url: string | null;
   canvas_json: string | null;
   transition_out?: TransitionType; // transition applied after this scene
+  source_image_url?: string | null; // original uploaded photo (photo mode only)
 }
 
 export interface Project {

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound, redirect } from "next/navigation";
 import { Project } from "@/lib/types";
 import ProjectWizard from "@/components/wizard/ProjectWizard";
+import PhotoWizard from "@/components/photo-wizard/PhotoWizard";
 import { getProfile } from "@/lib/credits";
 
 export default async function ProjectPage({
@@ -30,6 +31,10 @@ export default async function ProjectPage({
   // Free-mode projecten horen op de /free pagina
   if (project.mode === "free") {
     redirect(`/project/${id}/free`);
+  }
+
+  if (project.mode === "photo") {
+    return <PhotoWizard initialProject={project as Project} plan={profile.plan} />;
   }
 
   return <ProjectWizard initialProject={project as Project} plan={profile.plan} />;
