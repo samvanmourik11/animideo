@@ -1295,8 +1295,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                 className="relative bg-black rounded-xl shadow-2xl overflow-hidden flex-none"
                 style={{
                   aspectRatio: "16 / 9",
-                  width: "100%",
-                  maxWidth: 640,
+                  maxWidth: "100%",
                   maxHeight: "100%",
                 }}
               >
@@ -1353,7 +1352,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                     height: "100%",
                     objectFit: "contain",
                     zIndex: 2,
-                    opacity: 1,
+                    opacity: scenes.some((s) => s.video_url) ? 1 : 0,
                     pointerEvents: "none",
                   }}
                 />
