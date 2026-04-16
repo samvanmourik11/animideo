@@ -35,12 +35,12 @@ export async function POST(req: NextRequest) {
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
-      max_tokens: 600,
+      max_tokens: 800,
       response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
-          content: `You are a creative director analyzing photos to create animated video scenes in ${styleDesc} style. Always respond with valid JSON.`,
+          content: `You are an award-winning cinematographer and creative director. You analyze photos and craft cinematic motion prompts that perfectly match the energy, emotion, and action in the scene. Always respond with valid JSON.`,
         },
         {
           role: "user",
@@ -54,12 +54,16 @@ export async function POST(req: NextRequest) {
             },
             {
               type: "text",
-              text: `Analyze this photo (scene ${sceneNumber} of ${totalScenes}) and return a JSON object with exactly these three fields:
+              text: `Analyze this photo deeply (scene ${sceneNumber} of ${totalScenes}).
+
+First, mentally identify: What is actually happening? What is the energy/mood? Who are the people and what are they doing? What story does this image tell?
+
+Return a JSON object with exactly these three fields:
 
 {
-  "transformPrompt": "A detailed AI image transformation prompt. Start with the ${styleDesc} art style description, then describe how to redraw the specific people/objects/setting in this photo in that style. Max 350 characters. No text overlays.",
-  "voiceoverText": "2-3 engaging sentences narrating what is shown in this scene, as if presenting this to a video audience. Natural, conversational tone. Match the language of what you observe.",
-  "motionPrompt": "A specific camera movement for a 5-second video clip of this scene. E.g. 'Slow zoom in toward the center of the scene' or 'Gentle pan from left to right across the group'. One sentence."
+  "transformPrompt": "Detailed AI image-to-image transformation prompt for ${styleDesc} style. Describe the specific subjects (people, objects, setting) in this photo and how they should look in the target style. Be specific about colors, character design, and atmosphere. Max 350 characters. No text overlays.",
+  "voiceoverText": "2-3 engaging sentences narrating this scene for a video. Be specific about what you actually see. Natural, conversational tone. Match the language of what you observe (Dutch if context suggests Dutch, otherwise English).",
+  "motionPrompt": "A rich, cinematic 2-3 sentence camera movement description for a 5-second video clip. IMPORTANT: Base the motion on what is ACTUALLY HAPPENING in the scene — if people are dancing, the camera should capture the dance; if it's a team meeting, capture the interaction; if someone is performing, follow their movement. Include: (1) camera movement type that MATCHES the scene energy (handheld for action, smooth dolly for calm, drone-like rise for reveal, etc.), (2) what the camera focuses on and how it moves through the scene, (3) what emotion this motion creates. Do NOT default to generic 'pan left to right' — be creative and specific to THIS scene."
 }`,
             },
           ],
