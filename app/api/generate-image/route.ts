@@ -3,7 +3,7 @@ import { fal } from "@fal-ai/client";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { VisualStyle } from "@/lib/types";
-import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
+import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -20,8 +20,6 @@ const recraftStyles: Record<string, string> = {
 };
 
 fal.config({ credentials: process.env.FAL_KEY });
-
-console.log("[generate-image] FAL_KEY aanwezig:", !!process.env.FAL_KEY);
 
 // Style prefix goes FIRST in the prompt so Flux weighs it most heavily.
 // Each entry: [prefix for start of prompt] | [suffix for reinforcement at end]
@@ -61,32 +59,37 @@ const styleModifiers: Record<VisualStyle, { prefix: string; suffix: string }> = 
 };
 
 export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+
+  // Probeer eerst via Authorization header (Bearer token), dan via cookie
+  const authHeader = req.headers.get("authorization");
+  let user = null;
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.slice(7);
+    const { data } = await supabase.auth.getUser(token);
+    user = data.user;
+  } else {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  }
+
+  if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
+
+  // Credits check
+  const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Afbeelding genereren");
+  if (!credit.success) {
+    return NextResponse.json(
+      { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+      { status: 402 }
+    );
+  }
+
+  const userId = user.id;
+  async function refund() {
+    try { await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Refund: afbeelding genereren mislukt"); } catch {}
+  }
+
   try {
-    const supabase = await createClient();
-
-    // Probeer eerst via Authorization header (Bearer token), dan via cookie
-    const authHeader = req.headers.get("authorization");
-    let user = null;
-    if (authHeader?.startsWith("Bearer ")) {
-      const token = authHeader.slice(7);
-      const { data } = await supabase.auth.getUser(token);
-      user = data.user;
-    } else {
-      const { data } = await supabase.auth.getUser();
-      user = data.user;
-    }
-
-    if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
-
-    // Credits check
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Afbeelding genereren");
-    if (!credit.success) {
-      return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
-        { status: 402 }
-      );
-    }
-
     const { projectId, sceneId, imagePrompt, visualStyle, brandKitId, imageModel, format } = await req.json();
     const style = (visualStyle as VisualStyle) ?? "Cinematic";
 
@@ -124,7 +127,7 @@ export async function POST(req: NextRequest) {
         quality: "standard",
       });
       tempUrl = response.data?.[0]?.url ?? undefined;
-      if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van DALL·E 3" }, { status: 500 });
+      if (!tempUrl) throw new Error("Geen afbeelding ontvangen van DALL·E 3");
     } else if (model === "flux-pro") {
       // Flux Pro Ultra via fal.ai
       const aspectRatio = format === "9:16" ? "9:16" : "16:9";
@@ -137,7 +140,7 @@ export async function POST(req: NextRequest) {
         },
       });
       tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
-      if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van Flux Pro" }, { status: 500 });
+      if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Flux Pro");
     } else if (model === "recraft") {
       // Recraft v3 via fal.ai
       const imageSize = format === "9:16" ? "portrait_16_9" : "landscape_16_9";
@@ -150,7 +153,19 @@ export async function POST(req: NextRequest) {
         },
       });
       tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
-      if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van Recraft" }, { status: 500 });
+      if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Recraft");
+    } else if (model === "seedream") {
+      // Seedream 4.0 via fal.ai (ByteDance)
+      const imageSize = format === "9:16" ? "portrait_16_9" : "landscape_16_9";
+      const result = await fal.subscribe("fal-ai/bytedance/seedream/v4/text-to-image", {
+        input: {
+          prompt:     fullPrompt.slice(0, 2000),
+          image_size: imageSize,
+          num_images: 1,
+        },
+      });
+      tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
+      if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Seedream");
     } else {
       // Flux Schnell (standaard)
       const imageSize = format === "9:16" ? "portrait_16_9" : "landscape_16_9";
@@ -163,31 +178,29 @@ export async function POST(req: NextRequest) {
         },
       });
       tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
-      if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van Flux" }, { status: 500 });
+      if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Flux");
     }
 
     // Download en opslaan in Supabase (fal URLs verlopen)
     const imgResponse = await fetch(tempUrl);
-    if (!imgResponse.ok) {
-      return NextResponse.json({ error: `Afbeelding downloaden mislukt (HTTP ${imgResponse.status})` }, { status: 500 });
-    }
+    if (!imgResponse.ok) throw new Error(`Afbeelding downloaden mislukt (HTTP ${imgResponse.status})`);
+
     const imgBuffer = await imgResponse.arrayBuffer();
-    const fileName = `${user.id}/${projectId}/${sceneId}-image.jpg`;
+    const fileName = `${userId}/${projectId}/${sceneId}-image.jpg`;
 
     const { error: uploadError } = await supabase.storage
       .from("scene-assets")
       .upload(fileName, imgBuffer, { contentType: "image/jpeg", upsert: true });
 
-    if (uploadError) {
-      return NextResponse.json({ error: uploadError.message }, { status: 500 });
-    }
+    if (uploadError) throw new Error(uploadError.message);
 
     const { data: urlData } = supabase.storage.from("scene-assets").getPublicUrl(fileName);
 
     return NextResponse.json({ imageUrl: urlData.publicUrl });
   } catch (err: unknown) {
+    await refund();
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[generate-image] Volledige fout:", err);
+    console.error("[generate-image] Fout:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

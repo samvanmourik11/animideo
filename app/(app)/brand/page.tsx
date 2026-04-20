@@ -85,7 +85,7 @@ export default async function BrandPage() {
                   </div>
                 </div>
               </div>
-              <span className="text-slate-600 group-hover:text-slate-400 transition-colors flex-none ml-4">›</span>
+              <span className="text-slate-400 group-hover:text-slate-400 transition-colors flex-none ml-4">›</span>
             </Link>
           ))}
         </div>

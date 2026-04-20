@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
-import RunwayML from "@runwayml/sdk";
 import { createClient } from "@/lib/supabase/server";
+import { addCredits, CREDIT_COSTS } from "@/lib/credits";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
-const runway     = new RunwayML({ apiKey: process.env.RUNWAY_API_KEY });
-const KLING_PRO      = "fal-ai/kling-video/v1.6/pro/image-to-video";
-const KLING_STANDARD = "fal-ai/kling-video/v1.6/standard/image-to-video";
+const KLING_PRO          = "fal-ai/kling-video/v1.6/pro/image-to-video";
+const KLING_STANDARD     = "fal-ai/kling-video/v1.6/standard/image-to-video";
+const KLING_PRO_T2V      = "fal-ai/kling-video/v1.6/pro/text-to-video";
+const KLING_STANDARD_T2V = "fal-ai/kling-video/v1.6/standard/text-to-video";
+const SEEDANCE_PRO       = "fal-ai/bytedance/seedance/v1/pro/image-to-video";
+const SEEDANCE_LITE      = "fal-ai/bytedance/seedance/v1/lite/image-to-video";
+const SEEDANCE_PRO_T2V   = "fal-ai/bytedance/seedance/v1/pro/text-to-video";
+const SEEDANCE_LITE_T2V  = "fal-ai/bytedance/seedance/v1/lite/text-to-video";
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -34,41 +39,35 @@ export async function GET(req: NextRequest) {
   try {
     let videoUrl: string | undefined;
 
-    if (videoModel === "runway") {
-      // ── Runway polling ────────────────────────────────────────
-      const task = await runway.tasks.retrieve(taskId);
+    // ── Video polling (Kling + Seedance varianten) ───────────
+    const klingModel =
+      videoModel === "kling-standard"     ? KLING_STANDARD :
+      videoModel === "kling-standard-t2v" ? KLING_STANDARD_T2V :
+      videoModel === "kling-pro-t2v"      ? KLING_PRO_T2V :
+      videoModel === "seedance-pro"       ? SEEDANCE_PRO :
+      videoModel === "seedance-lite"      ? SEEDANCE_LITE :
+      videoModel === "seedance-pro-t2v"   ? SEEDANCE_PRO_T2V :
+      videoModel === "seedance-lite-t2v"  ? SEEDANCE_LITE_T2V :
+      KLING_PRO;
+    const statusResult = await fal.queue.status(klingModel, {
+      requestId: taskId,
+      logs: false,
+    }) as { status: string };
 
-      if (task.status === "FAILED" || task.status === "CANCELLED") {
-        const reason = (task as { failure?: string; failureCode?: string }).failure
-          ?? (task as { failure?: string; failureCode?: string }).failureCode
-          ?? task.status;
-        console.error("[runway-status] Runway taak mislukt:", JSON.stringify(task));
-        return NextResponse.json({ status: "FAILED", error: `Runway: ${reason}` });
-      }
-      if (task.status !== "SUCCEEDED") {
-        return NextResponse.json({ status: "RUNNING" });
-      }
-      videoUrl = Array.isArray(task.output) ? task.output[0] : undefined;
-      if (!videoUrl) return NextResponse.json({ status: "FAILED", error: "Geen video URL van Runway" });
+    if (statusResult.status === "IN_QUEUE" || statusResult.status === "IN_PROGRESS") {
+      return NextResponse.json({ status: "RUNNING" });
+    }
+    if (statusResult.status !== "COMPLETED") {
+      // Refund: video generatie is definitief mislukt
+      try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: Kling generatie mislukt"); } catch {}
+      return NextResponse.json({ status: "FAILED", error: `Kling status: ${statusResult.status}` });
+    }
 
-    } else {
-      // ── Kling polling (Pro of Standard) ──────────────────────
-      const klingModel  = videoModel === "kling-standard" ? KLING_STANDARD : KLING_PRO;
-      const statusResult = await fal.queue.status(klingModel, {
-        requestId: taskId,
-        logs: false,
-      }) as { status: string };
-
-      if (statusResult.status === "IN_QUEUE" || statusResult.status === "IN_PROGRESS") {
-        return NextResponse.json({ status: "RUNNING" });
-      }
-      if (statusResult.status !== "COMPLETED") {
-        return NextResponse.json({ status: "FAILED", error: `Kling status: ${statusResult.status}` });
-      }
-
-      const result = await fal.queue.result(klingModel, { requestId: taskId });
-      videoUrl = (result.data as { video?: { url: string } }).video?.url;
-      if (!videoUrl) return NextResponse.json({ status: "FAILED", error: "Geen video URL van Kling" });
+    const result = await fal.queue.result(klingModel, { requestId: taskId });
+    videoUrl = (result.data as { video?: { url: string } }).video?.url;
+    if (!videoUrl) {
+      try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: geen video URL"); } catch {}
+      return NextResponse.json({ status: "FAILED", error: "Geen video URL van Kling" });
     }
 
     if (!projectId || !sceneId) {

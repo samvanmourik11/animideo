@@ -115,13 +115,13 @@ export default function Step2Script({ project, onUpdate, onNext, onBack }: Props
                       <button
                         onClick={() => moveScene(i, -1)}
                         disabled={i === 0}
-                        className="text-slate-600 hover:text-slate-300 disabled:opacity-20 p-0.5 transition-colors"
+                        className="text-slate-400 hover:text-slate-300 disabled:opacity-20 p-0.5 transition-colors"
                         title="Omhoog"
                       >↑</button>
                       <button
                         onClick={() => moveScene(i, 1)}
                         disabled={i === scenes.length - 1}
-                        className="text-slate-600 hover:text-slate-300 disabled:opacity-20 p-0.5 transition-colors"
+                        className="text-slate-400 hover:text-slate-300 disabled:opacity-20 p-0.5 transition-colors"
                         title="Omlaag"
                       >↓</button>
                     </div>
@@ -129,7 +129,7 @@ export default function Step2Script({ project, onUpdate, onNext, onBack }: Props
                 </td>
                 <td className="px-3 py-3 align-top">
                   <textarea
-                    className="w-full bg-[#060d1f] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
+                    className="w-full bg-[#060d1f] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
                     rows={4}
                     placeholder="Narrator tekst…"
                     value={scene.voiceover_text}
@@ -138,7 +138,7 @@ export default function Step2Script({ project, onUpdate, onNext, onBack }: Props
                 </td>
                 <td className="px-3 py-3 align-top">
                   <textarea
-                    className="w-full bg-[#060d1f] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
+                    className="w-full bg-[#060d1f] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
                     rows={4}
                     placeholder="Beschrijf de afbeelding…"
                     value={scene.image_prompt}
@@ -147,7 +147,7 @@ export default function Step2Script({ project, onUpdate, onNext, onBack }: Props
                 </td>
                 <td className="px-3 py-3 align-top">
                   <textarea
-                    className="w-full bg-[#060d1f] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
+                    className="w-full bg-[#060d1f] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
                     rows={4}
                     placeholder="Hoe beweegt de afbeelding…"
                     value={scene.motion_prompt}
@@ -157,7 +157,7 @@ export default function Step2Script({ project, onUpdate, onNext, onBack }: Props
                 <td className="px-3 py-3 align-top text-center">
                   <button
                     onClick={() => deleteScene(i)}
-                    className="text-slate-600 hover:text-red-400 text-xl leading-none transition-colors"
+                    className="text-slate-400 hover:text-red-400 text-xl leading-none transition-colors"
                     title="Scene verwijderen"
                   >
                     ×

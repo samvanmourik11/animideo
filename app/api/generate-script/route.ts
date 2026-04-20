@@ -20,7 +20,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { projectId, title, goal, targetAudience, language, format, visualStyle, brandKitId, advanced } = await req.json();
+  const { projectId, title, goal, targetAudience, language, format, visualStyle, brandKitId, advanced, mode } = await req.json();
+  const isT2V = mode === "t2v";
 
   // Haal brand kit op als die geselecteerd is
   let brandContext = "";
@@ -63,7 +64,9 @@ export async function POST(req: NextRequest) {
 
   const VISUAL_RULES = `VISUAL RULES: No text, letters, words, signs or labels visible anywhere. No more than 2 human hands visible per person. No extra limbs, floating body parts, or distorted anatomy. Faces must be natural and symmetrical. No AI-looking artifacts. Consistent lighting throughout. Style must remain ${visualStyle} across all scenes. Colors and environment must match previous scenes for visual continuity.`;
 
-  const MOTION_RULES = `MOTION RULES: Base the movement on the emotional tone and content of the voiceover_text for this scene. Let the scene breathe — don't force drama. A calm explanation warrants slow, gentle camera movement. An exciting reveal warrants a dynamic push or zoom. Two people meeting could show them reaching toward each other. A product being used shows it in action. Avoid arbitrary movement — every motion must feel like a natural response to what the narrator is saying. A subtle parallax or drift is perfectly valid when the moment calls for it.`;
+  const MOTION_RULES = isT2V
+    ? `T2V PROMPT RULES: This prompt goes DIRECTLY to a text-to-video AI (Kling). It must describe BOTH the visual scene AND the motion in one cohesive description. Structure: [Subject + setting + lighting] + [camera movement] + [action/motion in scene]. Be cinematic and specific. Example: "A young entrepreneur sits at a minimalist desk in a sunlit office, camera slowly pushes in as she looks up from her laptop with a confident smile, papers scatter gently in a breeze". No abstract concepts — every element must be visually concrete and filmable.`
+    : `MOTION RULES: Base the movement on the emotional tone and content of the voiceover_text for this scene. Let the scene breathe — don't force drama. A calm explanation warrants slow, gentle camera movement. An exciting reveal warrants a dynamic push or zoom. Two people meeting could show them reaching toward each other. A product being used shows it in action. Avoid arbitrary movement — every motion must feel like a natural response to what the narrator is saying. A subtle parallax or drift is perfectly valid when the moment calls for it.`;
 
   const prompt = `You are an expert scriptwriter for animated explainer videos.
 

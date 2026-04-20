@@ -9,8 +9,7 @@ const UNLIMITED_ACCOUNTS = new Set([
 export const CREDIT_COSTS = {
   SCRIPT_GENERATION: 1,
   IMAGE_GENERATION: 1,
-  RUNWAY_GENERATION: 5,
-  EXPORT_HD: 2,
+  VIDEO_GENERATION: 5,
 } as const;
 
 export const PLAN_CREDITS: Record<string, number> = {
@@ -23,6 +22,7 @@ export const PLAN_CREDITS: Record<string, number> = {
 export interface Profile {
   id: string;
   email: string | null;
+  name: string | null;
   credits: number;
   plan: string;
   mollie_customer_id: string | null;
@@ -51,7 +51,7 @@ export async function getProfile(userId: string): Promise<Profile> {
     .select()
     .single();
 
-  return (created ?? { id: userId, credits: 100, plan: "free", email: null,
+  return (created ?? { id: userId, credits: 100, plan: "free", email: null, name: null,
     mollie_customer_id: null, mollie_subscription_id: null,
     subscription_status: "active", credits_reset_date: null,
     created_at: new Date().toISOString() }) as Profile;

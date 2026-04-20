@@ -2,10 +2,19 @@
 
 import { Dispatch, SetStateAction, useState } from "react";
 import Image from "next/image";
-import { Project, Scene } from "@/lib/types";
+import { Project, Scene, ImageModel } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 import { PhotoScene } from "./PhotoStep2Upload";
+
+const IMAGE_MODELS: { value: ImageModel; label: string; badge: string; badgeColor: string; description: string }[] = [
+  { value: "flux-schnell", label: "Flux Schnell", badge: "Snel",       badgeColor: "bg-emerald-500/15 text-emerald-400", description: "Snel & goedkoop" },
+  { value: "flux-pro",     label: "Flux Pro",     badge: "Kwaliteit",  badgeColor: "bg-purple-500/15 text-purple-400",   description: "Maximale kwaliteit" },
+  { value: "seedream",     label: "Seedream",     badge: "Compositie", badgeColor: "bg-cyan-500/15 text-cyan-400",       description: "Bewaart compositie, tekst-render" },
+  { value: "controlnet",   label: "ControlNet",   badge: "Edges",      badgeColor: "bg-orange-500/15 text-orange-400",   description: "Bewaart compositie via edges" },
+  { value: "recraft",      label: "Recraft v3",   badge: "Top",        badgeColor: "bg-pink-500/15 text-pink-400",       description: "Midjourney-niveau" },
+  { value: "dall-e-3",     label: "DALL·E 3",     badge: "Tekst",      badgeColor: "bg-blue-500/15 text-blue-400",       description: "Puur op prompt" },
+];
 
 interface Props {
   project: Project;
@@ -21,6 +30,16 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [promptDraft, setPromptDraft] = useState("");
   const [cacheBust, setCacheBust] = useState<Record<string, number>>({});
+  const [imageModel, setImageModel] = useState<ImageModel>((project.image_model as ImageModel) ?? "flux-schnell");
+
+  async function saveImageModel(model: ImageModel) {
+    setImageModel(model);
+    await fetch("/api/save-project", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id, image_model: model }),
+    }).catch(() => {});
+  }
 
   const allDone = photoScenes.length > 0 && photoScenes.every((s) => s.transformedImageUrl);
 
@@ -57,7 +76,7 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
           projectId:       project.id,
           sceneId:         scene.id,
           format:          project.format,
-          imageModel:      project.image_model ?? "flux-schnell",
+          imageModel,
         }),
       });
 
@@ -108,7 +127,6 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
 
   async function handleNext() {
     setSaving(true);
-    const supabase = createClient();
 
     const scenes: Scene[] = photoScenes.map((s, i) => ({
       id:               s.id,
@@ -123,10 +141,11 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
       source_image_url: s.sourceImageUrl,
     }));
 
-    await supabase
-      .from("projects")
-      .update({ scenes, status: "ImagesReady" })
-      .eq("id", project.id);
+    await fetch("/api/save-project", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id, scenes, status: "ImagesReady" }),
+    });
 
     setSaving(false);
     onNext(scenes);
@@ -157,6 +176,31 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
           >
             Alles transformeren
           </button>
+        </div>
+
+        {/* Image model selector */}
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Transformatiemodel</p>
+          <div className="grid grid-cols-3 gap-3">
+            {IMAGE_MODELS.map((m) => (
+              <button
+                key={m.value}
+                onClick={() => !photoScenes.some((s) => s.transforming) && saveImageModel(m.value)}
+                disabled={photoScenes.some((s) => s.transforming)}
+                className={`text-left p-3 rounded-xl border transition-all ${
+                  imageModel === m.value
+                    ? "border-blue-500 bg-blue-500/10"
+                    : "border-white/10 hover:border-white/20"
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm font-semibold text-white">{m.label}</p>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${m.badgeColor}`}>{m.badge}</span>
+                </div>
+                <p className="text-xs text-slate-500">{m.description}</p>
+              </button>
+            ))}
+          </div>
         </div>
 
         {photoScenes.map((scene) => (
@@ -230,7 +274,7 @@ export default function PhotoStep3Transform({ project, photoScenes, onScenesChan
                   ) : scene.transforming ? (
                     <p className="text-xs text-blue-400 animate-pulse">Transformeren…</p>
                   ) : (
-                    <p className="text-xs text-slate-600">Nog niet getransformeerd</p>
+                    <p className="text-xs text-slate-400">Nog niet getransformeerd</p>
                   )}
                 </div>
                 {scene.transformError && (

@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     .from("profiles")
     .update({
       plan: "free",
-      credits: 30,
+      credits: 100,
       subscription_status: "canceled",
       mollie_subscription_id: null,
     })

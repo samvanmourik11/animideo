@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 const MOLLIE_BASE = "https://api.mollie.com/v2";
 
 const PLAN_CREDITS: Record<string, number> = {
+  free: 100,
   starter: 500,
   pro: 1500,
   agency: 5000,
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const credits = PLAN_CREDITS[planId] ?? 30;
+    const credits = PLAN_CREDITS[planId] ?? 100;
 
     // Create recurring subscription
     const subBody: Record<string, unknown> = {
@@ -173,7 +174,7 @@ export async function POST(req: NextRequest) {
 
   // ── Successful recurring payment: renew credits ───────────────────────────
   if (status === "paid" && sequenceType === "recurring") {
-    const credits = PLAN_CREDITS[planId] ?? 30;
+    const credits = PLAN_CREDITS[planId] ?? 100;
 
     await supabase
       .from("profiles")
@@ -198,7 +199,7 @@ export async function POST(req: NextRequest) {
       .from("profiles")
       .update({
         plan: "free",
-        credits: 30,
+        credits: 100,
         subscription_status: "canceled",
         mollie_subscription_id: null,
         credits_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),

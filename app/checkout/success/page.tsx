@@ -49,7 +49,7 @@ function SuccessContent() {
           Account aanmaken →
         </Link>
 
-        <p className="text-xs text-slate-600 mt-4">
+        <p className="text-xs text-slate-400 mt-4">
           Je credits worden automatisch gekoppeld na registratie.
         </p>
       </div>

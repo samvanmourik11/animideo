@@ -96,7 +96,7 @@ function CheckoutForm() {
             </button>
           </form>
 
-          <p className="text-xs text-slate-600 text-center mt-4">
+          <p className="text-xs text-slate-400 text-center mt-4">
             Beveiligd via Mollie · SEPA / iDEAL · Maandelijks opzegbaar
           </p>
         </div>

@@ -11,6 +11,8 @@ const ANIMATION_STYLES: { value: VisualStyle; label: string; description: string
   { value: "2D SaaS",        label: "2D SaaS",        description: "Flat design, Stripe/Linear-stijl" },
   { value: "Motion Graphic", label: "Motion Graphic", description: "Geometrische vormen, grafisch design" },
   { value: "3D Animatie",    label: "3D Animatie",    description: "Fotorealistisch 3D CGI, Unreal Engine-kwaliteit" },
+  { value: "Cinematic",      label: "Cinematic",      description: "Filmstill, dramatische kleurgrading, 35mm" },
+  { value: "Realistic",      label: "Realistic",      description: "Fotorealistisch, natuurlijk daglicht, DSLR" },
 ];
 
 const IMAGE_MODELS: { value: ImageModel; label: string; badge: string; badgeColor: string; description: string }[] = [
@@ -29,11 +31,18 @@ const IMAGE_MODELS: { value: ImageModel; label: string; badge: string; badgeColo
     description: "Maximale beeldkwaliteit, meer detail",
   },
   {
+    value: "seedream",
+    label: "Seedream 4.0",
+    badge: "Compositie",
+    badgeColor: "bg-cyan-500/15 text-cyan-400",
+    description: "Bewaart compositie en kan tekst renderen",
+  },
+  {
     value: "controlnet",
     label: "ControlNet",
-    badge: "Compositie",
+    badge: "Edges",
     badgeColor: "bg-orange-500/15 text-orange-400",
-    description: "Bewaart compositie exact via edge detection",
+    description: "Bewaart compositie via edge detection",
   },
   {
     value: "recraft",
@@ -60,11 +69,7 @@ interface Props {
 export default function PhotoStep1Setup({ project, onUpdate, onNext }: Props) {
   const [title, setTitle]   = useState(project.title === "Untitled Project" ? "" : project.title);
   const [format, setFormat] = useState<"16:9" | "9:16">(project.format ?? "16:9");
-  const [style, setStyle]   = useState<VisualStyle>(
-    (project.visual_style && project.visual_style !== "Cinematic" && project.visual_style !== "Realistic")
-      ? project.visual_style
-      : "2D Cartoon"
-  );
+  const [style, setStyle]   = useState<VisualStyle>(project.visual_style ?? "2D Cartoon");
   const [imageModel, setImageModel] = useState<ImageModel>(
     (project.image_model as ImageModel) ?? "flux-schnell"
   );
@@ -73,11 +78,17 @@ export default function PhotoStep1Setup({ project, onUpdate, onNext }: Props) {
   async function handleNext() {
     if (!title.trim()) return;
     setSaving(true);
-    const supabase = createClient();
-    await supabase
-      .from("projects")
-      .update({ title: title.trim(), format, visual_style: style, image_model: imageModel })
-      .eq("id", project.id);
+    await fetch("/api/save-project", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: project.id,
+        title: title.trim(),
+        format,
+        visual_style: style,
+        image_model: imageModel,
+      }),
+    });
     onUpdate({ title: title.trim(), format, visual_style: style, image_model: imageModel });
     setSaving(false);
     onNext();

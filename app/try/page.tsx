@@ -145,20 +145,20 @@ function TryPage() {
                   key={label}
                   disabled
                   className={`flex items-center gap-2 py-2 px-3 text-sm font-medium whitespace-nowrap cursor-default
-                    ${active ? "text-blue-400" : "text-slate-600"}`}
+                    ${active ? "text-blue-400" : "text-slate-400"}`}
                 >
                   <span
                     className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0
                       ${active
                         ? "bg-blue-500/20 border-2 border-blue-500 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.4)]"
-                        : "border-2 border-white/10 text-slate-600"
+                        : "border-2 border-white/10 text-slate-400"
                       }`}
                   >
                     {i + 1}
                   </span>
                   <span className="hidden sm:inline">{label}</span>
                   {i < STEPS.length - 1 && (
-                    <span className={`ml-2 select-none ${locked ? "text-slate-800" : "text-slate-700"}`}>›</span>
+                    <span className={`ml-2 select-none ${locked ? "text-slate-800" : "text-slate-500"}`}>›</span>
                   )}
                 </button>
               );

@@ -25,10 +25,10 @@ export default async function PricingPage() {
 
       {/* Footer note */}
       <div className="mt-10 text-center space-y-2">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-slate-400">
           Alle prijzen zijn exclusief btw. Credits worden elke maand automatisch vernieuwd.
         </p>
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-slate-400">
           💡 <strong className="text-slate-400">Jaarlijks betalen?</strong> Bespaar 20% — neem contact op via{" "}
           <a href="mailto:info@jouwanimatievideo.ai" className="text-blue-400 hover:text-blue-300 transition-colors">
             info@jouwanimatievideo.ai

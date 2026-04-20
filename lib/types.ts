@@ -1,6 +1,6 @@
-export type ProjectMode = "wizard" | "free" | "photo";
-export type ImageModel = "flux-schnell" | "flux-pro" | "dall-e-3" | "controlnet" | "recraft";
-export type VideoModel = "kling-pro" | "kling-standard" | "runway";
+export type ProjectMode = "wizard" | "free" | "photo" | "t2v";
+export type ImageModel = "flux-schnell" | "flux-pro" | "dall-e-3" | "controlnet" | "recraft" | "seedream";
+export type VideoModel = "kling-pro" | "kling-standard" | "seedance-pro" | "seedance-lite";
 
 export interface BrandColors {
   primary?: string;
@@ -100,6 +100,7 @@ export interface Project {
   video_url: string | null;
   mode: ProjectMode;
   brand_kit_id: string | null;
+  video_model: string | null;
   status: ProjectStatus;
   created_at: string;
   updated_at: string;

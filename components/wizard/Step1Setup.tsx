@@ -263,7 +263,7 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
           {/* Beeldgeneratie model */}
           <div>
             <label className="label">Beeldgeneratie model</label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               {([
                 {
                   value: "flux-schnell" as ImageModel,
@@ -278,6 +278,13 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
                   badge: "Kwaliteit",
                   badgeColor: "bg-purple-500/15 text-purple-400",
                   description: "Maximale beeldkwaliteit, meer detail",
+                },
+                {
+                  value: "seedream" as ImageModel,
+                  label: "Seedream 4.0",
+                  badge: "Tekst",
+                  badgeColor: "bg-cyan-500/15 text-cyan-400",
+                  description: "Kan tekst in beeld renderen, ByteDance",
                 },
                 {
                   value: "recraft" as ImageModel,
@@ -354,7 +361,7 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
                     value={advanced.hook}
                     onChange={(e) => setAdv("hook", e.target.value)}
                   />
-                  <p className="text-xs text-slate-600 mt-1">Het eerste beeld of de eerste zin die direct aandacht trekt.</p>
+                  <p className="text-xs text-slate-400 mt-1">Het eerste beeld of de eerste zin die direct aandacht trekt.</p>
                 </div>
 
                 <div>
@@ -365,7 +372,7 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
                     value={advanced.keyMessage}
                     onChange={(e) => setAdv("keyMessage", e.target.value)}
                   />
-                  <p className="text-xs text-slate-600 mt-1">Wat moet de kijker onthouden na het zien van de video?</p>
+                  <p className="text-xs text-slate-400 mt-1">Wat moet de kijker onthouden na het zien van de video?</p>
                 </div>
 
                 <div>
@@ -376,7 +383,7 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
                     value={advanced.cta}
                     onChange={(e) => setAdv("cta", e.target.value)}
                   />
-                  <p className="text-xs text-slate-600 mt-1">Wat moet de kijker doen na de video? Wordt de laatste scene.</p>
+                  <p className="text-xs text-slate-400 mt-1">Wat moet de kijker doen na de video? Wordt de laatste scene.</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -409,7 +416,7 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
                     value={advanced.mainCharacter}
                     onChange={(e) => setAdv("mainCharacter", e.target.value)}
                   />
-                  <p className="text-xs text-slate-600 mt-1">Beschrijving van een terugkerende persoon in de video (optioneel).</p>
+                  <p className="text-xs text-slate-400 mt-1">Beschrijving van een terugkerende persoon in de video (optioneel).</p>
                 </div>
 
                 <div>
@@ -420,7 +427,7 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
                     value={advanced.environment}
                     onChange={(e) => setAdv("environment", e.target.value)}
                   />
-                  <p className="text-xs text-slate-600 mt-1">Locatie of setting die door de video heen terugkomt.</p>
+                  <p className="text-xs text-slate-400 mt-1">Locatie of setting die door de video heen terugkomt.</p>
                 </div>
 
                 <div>

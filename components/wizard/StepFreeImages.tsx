@@ -149,12 +149,14 @@ export default function StepFreeImages({ project, onUpdate, onNext }: Props) {
 
     try {
       const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sessie verlopen");
       const builtScenes: Scene[] = [];
 
       for (let i = 0; i < scenes.length; i++) {
         const s = scenes[i];
         const ext = s.file.name.split(".").pop() ?? "jpg";
-        const path = `${project.user_id}/${project.id}/${s.id}-image.${ext}`;
+        const path = `${user.id}/${project.id}/${s.id}-image.${ext}`;
 
         const { error: uploadErr } = await supabase.storage
           .from("scene-assets")
@@ -246,7 +248,7 @@ export default function StepFreeImages({ project, onUpdate, onNext }: Props) {
           <p className="text-sm font-medium text-slate-300">
             Sleep afbeeldingen hierheen of klik om te kiezen
           </p>
-          <p className="text-xs text-slate-600 mt-1">
+          <p className="text-xs text-slate-400 mt-1">
             JPG, PNG of WebP · max {MAX_SCENES} scenes ({MAX_SCENES - scenes.length} resterend)
           </p>
         </div>
@@ -260,7 +262,7 @@ export default function StepFreeImages({ project, onUpdate, onNext }: Props) {
               <span className="font-semibold text-white">{scenes.length}</span> scene{scenes.length !== 1 ? "s" : ""} ·{" "}
               <span className="font-semibold text-white">{totalDuration}s</span> totaal
             </p>
-            <p className="text-xs text-slate-600">Sleep om te herordenen</p>
+            <p className="text-xs text-slate-400">Sleep om te herordenen</p>
           </div>
 
           <div className="space-y-3 mb-6">
@@ -298,7 +300,7 @@ export default function StepFreeImages({ project, onUpdate, onNext }: Props) {
                     <div className="flex-1" />
                     <button
                       onClick={() => removeScene(i)}
-                      className="text-slate-600 hover:text-red-400 transition-colors text-lg leading-none"
+                      className="text-slate-400 hover:text-red-400 transition-colors text-lg leading-none"
                       title="Verwijderen"
                     >
                       ×
@@ -309,10 +311,10 @@ export default function StepFreeImages({ project, onUpdate, onNext }: Props) {
                   <div className="flex gap-2 items-start">
                     <textarea
                       rows={2}
-                      placeholder="Bewegingsinstructie voor Runway… (klik Analyseer)"
+                      placeholder="Bewegingsinstructie voor Kling… (klik Analyseer)"
                       value={scene.motionPrompt}
                       onChange={(e) => updateMotionPrompt(i, e.target.value)}
-                      className="flex-1 bg-[#060d1f] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
+                      className="flex-1 bg-[#060d1f] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-none"
                     />
                     <button
                       onClick={() => analyzeScene(i)}
@@ -366,7 +368,7 @@ export default function StepFreeImages({ project, onUpdate, onNext }: Props) {
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-2">
-        <p className="text-xs text-slate-600">
+        <p className="text-xs text-slate-400">
           {scenes.length === 0 ? "Upload minimaal 1 afbeelding om door te gaan." : ""}
         </p>
         <button

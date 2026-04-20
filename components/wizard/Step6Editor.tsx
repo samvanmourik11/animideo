@@ -158,6 +158,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     (project.scenes ?? []).map((s) => ({ ...s, duration: Math.max(s.duration ?? 5, 1) }))
   );
   const [selectedIdx,       setSelectedIdx]       = useState(0);
+  const [activeIdx,         setActiveIdx]         = useState(0);
   const [isPlaying,         setIsPlaying]         = useState(false);
   const [displayTime,       setDisplayTime]       = useState(0);
   const [bgMusicUrl,        setBgMusicUrl]        = useState(project.bg_music_url ?? "");
@@ -178,10 +179,8 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
   const [selectedLayer,   setSelectedLayer]   = useState<"video" | "voice" | "music" | null>("video");
 
   // ── Refs ─────────────────────────────────────────────────────────────────
-  // Two video elements — one "active" (visible), one "standby" (preloading next)
+  // Single video element — simpler, more reliable, no A/B buffer complexity
   const videoARef       = useRef<HTMLVideoElement>(null);
-  const videoBRef       = useRef<HTMLVideoElement>(null);
-  const activeIsARef    = useRef(true); // true → A is active, B is standby
   const audioRef        = useRef<HTMLAudioElement>(null);
   const bgMusicRef      = useRef<HTMLAudioElement>(null);
   const timelineRef     = useRef<HTMLDivElement>(null);
@@ -222,10 +221,8 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     [boundaries]
   );
 
-  // ── A/B video element helpers ─────────────────────────────────────────────
-  function getActive()  { return activeIsARef.current ? videoARef.current : videoBRef.current; }
-  function getStandby() { return activeIsARef.current ? videoBRef.current : videoARef.current; }
-  function swapAB()     { activeIsARef.current = !activeIsARef.current; }
+  // ── Video helpers (single element) ────────────────────────────────────────
+  function getVideo() { return videoARef.current; }
 
   /** Compute playback rate: sourceDuration / editorDuration.
    *  Source duration is cached from loadedmetadata; falls back to editorDuration → rate 1. */
@@ -235,163 +232,45 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     return src / editorDur;
   }
 
-  /** Preload next clip into the standby element without playing it. */
-  function preloadNext(currentIdx: number) {
-    const next = scenesRef.current[currentIdx + 1];
-    if (!next?.video_url) return;
-    const standby = getStandby();
-    if (!standby || standby.getAttribute("data-src") === next.video_url) return;
-    standby.src = next.video_url;
-    standby.setAttribute("data-src", next.video_url);
-    standby.muted = true;
-    standby.preload = "auto";
-    standby.load();
-    standby.style.opacity = "0";
-    const onMeta = () => {
-      standby.removeEventListener("loadedmetadata", onMeta);
-      if (isFinite(standby.duration) && standby.duration > 0)
-        sourceDurRef.current[next.video_url!] = standby.duration;
-    };
-    standby.addEventListener("loadedmetadata", onMeta);
-  }
+  /** Switch to a scene. React manages the src via activeIdx; we just seek & play. */
+  function loadScene(idx: number, localTime: number, autoplay: boolean) {
+    activeIdxRef.current = idx;
+    const needsSwitch = idx !== activeIdx;
+    if (needsSwitch) setActiveIdx(idx);
 
-  /** Load a clip into a video element and apply the correct playbackRate.
-   *  Waits for loadedmetadata if src is being changed. Returns via callback. */
-  function loadClipInto(
-    el: HTMLVideoElement,
-    url: string,
-    editorDur: number,
-    videoTime: number,
-    onReady: () => void
-  ) {
-    const apply = () => {
-      const src = isFinite(el.duration) && el.duration > 0 ? el.duration : editorDur;
-      sourceDurRef.current[url] = src;
-      el.muted = true;
-      el.playbackRate = src / editorDur;
-      // Use at least 0.1s to skip the black first frame in Kling/Runway MP4s
-      el.currentTime = Math.max(0.1, videoTime);
-      onReady();
-    };
-    if (el.getAttribute("data-src") === url) {
-      apply();
-    } else {
-      el.src = url;
-      el.setAttribute("data-src", url);
-      el.muted = true;
-      el.load();
-      const onMeta = () => {
-        el.removeEventListener("loadedmetadata", onMeta);
-        el.removeEventListener("error", onMeta);
-        apply();
-      };
-      if (el.readyState >= 1) { apply(); return; }
-      el.addEventListener("loadedmetadata", onMeta);
-      el.addEventListener("error", onMeta);
-      setTimeout(apply, 4000); // safety fallback
-    }
-  }
+    const applyToVideo = () => {
+      const video = videoARef.current;
+      const scene = scenesRef.current[idx];
+      if (!video || !scene?.video_url) return;
 
-  /** Reset video element animation styles after a transition finishes.
-   *  Does NOT clear opacity (caller must set it explicitly to avoid a flash). */
-  function resetVideoStyle(el: HTMLVideoElement | null) {
-    if (!el) return;
-    el.style.transform = "";
-    el.style.zIndex = "";
-    el.style.transition = "";
-  }
-
-  /** RAF-based animation engine for all transition types. */
-  function animateTransition(
-    type: TransitionType,
-    active: HTMLVideoElement,
-    standby: HTMLVideoElement,
-    onComplete: () => void
-  ) {
-    const TOTAL_MS = type === "dissolve" ? 800
-                   : type === "fade"    ? 700   // 350ms out + 350ms in
-                   : type === "zoom-in" ? 600
-                   : 600;                        // slide-left / slide-right
-    const start = performance.now();
-    let phase2Started = false;
-
-    // Ensure standby is invisible and behind active before animation starts
-    standby.style.opacity    = "0";
-    standby.style.transform  = "";
-    active.style.zIndex      = "1";
-    standby.style.zIndex     = "2";
-
-    // Type-specific initial positions
-    if (type === "slide-left") {
-      standby.style.transform = "translateX(100%)";
-      standby.style.opacity   = "1";
-    } else if (type === "slide-right") {
-      standby.style.transform = "translateX(-100%)";
-      standby.style.opacity   = "1";
-    } else if (type === "zoom-in") {
-      // Start at 1.08 — subtle zoom, not dramatic
-      standby.style.transform = "scale(1.08)";
-    }
-
-    const frame = (now: number) => {
-      if (animCancelRef.current) {
-        resetVideoStyle(active);
-        resetVideoStyle(standby);
-        return;
-      }
-      const elapsed  = now - start;
-      const progress = Math.min(elapsed / TOTAL_MS, 1);
-      const e        = easeCinematic(progress);
-
-      switch (type) {
-        case "dissolve":
-          active.style.opacity  = String(1 - e);
-          standby.style.opacity = String(e);
-          break;
-
-        case "fade": {
-          // Two equal phases: 350ms fade-out, 350ms fade-in
-          const half = TOTAL_MS / 2;
-          if (elapsed < half) {
-            active.style.opacity  = String(1 - easeCinematic(elapsed / half));
-            standby.style.opacity = "0";
-          } else {
-            if (!phase2Started) { phase2Started = true; active.style.opacity = "0"; }
-            standby.style.opacity = String(easeCinematic((elapsed - half) / half));
-          }
-          break;
+      const onReady = () => {
+        if (isFinite(video.duration) && video.duration > 0) {
+          sourceDurRef.current[scene.video_url!] = video.duration;
+          video.playbackRate = video.duration / scene.duration;
         }
+        video.currentTime = Math.max(0.1, localTime * (video.playbackRate || 1));
+        if (autoplay && isPlayingRef.current) {
+          video.play().catch((e) => {
+            if ((e as DOMException).name !== "AbortError")
+              console.warn("[player] play() blocked:", e);
+          });
+        }
+      };
 
-        case "slide-left":
-          active.style.transform  = `translateX(${-e * 100}%)`;
-          standby.style.transform = `translateX(${(1 - e) * 100}%)`;
-          standby.style.opacity   = "1";
-          break;
-
-        case "slide-right":
-          active.style.transform  = `translateX(${e * 100}%)`;
-          standby.style.transform = `translateX(${-(1 - e) * 100}%)`;
-          standby.style.opacity   = "1";
-          break;
-
-        case "zoom-in":
-          // ease-out feel: scale zooms from 1.08 → 1.0 as standby fades in
-          active.style.opacity    = String(1 - e);
-          standby.style.opacity   = String(e);
-          standby.style.transform = `scale(${1.08 - e * 0.08})`;
-          break;
-      }
-
-      if (progress < 1) {
-        requestAnimationFrame(frame);
+      if (isFinite(video.duration) && video.duration > 0) {
+        onReady();
       } else {
-        resetVideoStyle(active);
-        resetVideoStyle(standby);
-        standby.style.opacity = "1"; // ensure fully visible
-        onComplete();
+        const onMeta = () => {
+          video.removeEventListener("loadedmetadata", onMeta);
+          onReady();
+        };
+        video.addEventListener("loadedmetadata", onMeta);
       }
     };
-    requestAnimationFrame(frame);
+
+    // If React needs to re-render (new src), wait 2 frames; else apply immediately
+    if (needsSwitch) requestAnimationFrame(() => requestAnimationFrame(applyToVideo));
+    else applyToVideo();
   }
 
   // ── Seek ─────────────────────────────────────────────────────────────────
@@ -400,46 +279,21 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     currentTimeRef.current = clamped;
     setDisplayTime(clamped);
     if (playheadRef.current) playheadRef.current.style.left = `${clamped * PX_PER_SEC}px`;
-
-    // Cancel any in-flight transition animation
-    animCancelRef.current = true;
-    transitionActiveRef.current = false;
     lastTickTsRef.current = null;
 
-    const bs   = boundariesRef.current.length ? boundariesRef.current : boundaries;
-    const sc   = scenesRef.current.length ? scenesRef.current : scenes;
-    const idx  = (() => {
+    const bs  = boundariesRef.current.length ? boundariesRef.current : boundaries;
+    const idx = (() => {
       for (let i = bs.length - 1; i >= 0; i--) { if (clamped >= bs[i].start) return i; }
       return 0;
     })();
     activeIdxRef.current = idx;
     setSelectedIdx(idx);
 
-    const scene  = sc[idx];
-    const active  = getActive();
-    const standby = getStandby();
-
-    // Reset standby to invisible
-    if (standby) { standby.style.opacity = "0"; standby.style.transform = ""; standby.pause(); }
-
-    if (!scene?.video_url || !active) { if (active) active.style.opacity = "0"; return; }
-
-    const editorDur   = scene.duration;
-    const clipLocal   = clamped - (bs[idx]?.start ?? 0);
-
-    active.style.opacity = "1";
-    active.style.transform = "";
-    loadClipInto(active, scene.video_url, editorDur, clipLocal * rateFor(scene.video_url, editorDur), () => {
-      active.style.opacity = "1";
-      if (isPlayingRef.current) active.play().catch((e) => console.warn("[player] play() blocked:", e));
-      else active.pause();
-    });
+    const clipLocal = clamped - (bs[idx]?.start ?? 0);
+    loadScene(idx, clipLocal, isPlayingRef.current);
 
     if (audioRef.current) audioRef.current.currentTime = Math.max(0, clamped - voiceOffsetSec);
     if (bgMusicRef.current && bgMusicUrl) bgMusicRef.current.currentTime = Math.max(0, clamped - musicOffsetSec);
-
-    preloadNext(idx);
-    animCancelRef.current = false;
   }
 
   // ── RAF tick (delta-time, smooth 60 fps) ─────────────────────────────────
@@ -466,17 +320,15 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     const sc     = scenesRef.current;
     const curIdx = activeIdxRef.current;
 
-    // Check if it's time to start the next transition
-    if (!transitionActiveRef.current && curIdx < sc.length - 1) {
-      const transType: TransitionType = sc[curIdx]?.transition_out ?? "cut";
-      const transDur = transType === "cut" ? 0 : TRANS_DUR;
-      const clipEnd  = bs[curIdx]?.end ?? Infinity;
-      if (newT >= clipEnd - transDur) {
+    // Scene boundary crossed? Switch to next clip
+    if (curIdx < sc.length - 1) {
+      const clipEnd = bs[curIdx]?.end ?? Infinity;
+      if (newT >= clipEnd) {
         const nextIdx = curIdx + 1;
-        transitionActiveRef.current = true;
         activeIdxRef.current = nextIdx;
         setSelectedIdx(nextIdx);
-        executeTransition(curIdx, nextIdx);
+        const nextLocal = newT - (bs[nextIdx]?.start ?? 0);
+        loadScene(nextIdx, nextLocal, true);
       }
     }
 
@@ -494,35 +346,18 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     setIsPlaying(false);
     if (rafTickRef.current) cancelAnimationFrame(rafTickRef.current);
     lastTickTsRef.current = null;
-    animCancelRef.current = true;
-    transitionActiveRef.current = false;
 
     videoARef.current?.pause();
-    videoBRef.current?.pause();
     audioRef.current?.pause();
     bgMusicRef.current?.pause();
 
-    // Reset to start — show first frame of first clip in active element
+    // Reset to start — show first frame of first clip
     currentTimeRef.current = 0;
     setDisplayTime(0);
     if (playheadRef.current) playheadRef.current.style.left = "0px";
 
-    const firstScene = scenesRef.current[0];
-    const active     = getActive();
-    const standby    = getStandby();
-    if (standby) { standby.style.opacity = "0"; standby.style.transform = ""; }
-    if (active && firstScene?.video_url) {
-      if (active.getAttribute("data-src") !== firstScene.video_url) {
-        active.src = firstScene.video_url;
-        active.setAttribute("data-src", firstScene.video_url);
-        active.load();
-      }
-      active.currentTime = 0.1;
-      active.playbackRate = 1;
-      active.style.opacity = "1";
-      active.style.transform = "";
-    }
     activeIdxRef.current = 0;
+    loadScene(0, 0, false);
     setSelectedIdx(0);
     animCancelRef.current = false;
   }
@@ -532,8 +367,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     setIsPlaying(false);
     if (rafTickRef.current) cancelAnimationFrame(rafTickRef.current);
     lastTickTsRef.current = null;
-    getActive()?.pause();
-    getStandby()?.pause();
+    getVideo()?.pause();
     audioRef.current?.pause();
     bgMusicRef.current?.pause();
     setDisplayTime(currentTimeRef.current);
@@ -551,31 +385,15 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     isPlayingRef.current = true;
     setIsPlaying(true);
     lastTickTsRef.current = null;
-    animCancelRef.current = false;
 
-    const bs    = boundariesRef.current.length ? boundariesRef.current : boundaries;
-    const sc    = scenesRef.current.length ? scenesRef.current : scenes;
-    const t     = currentTimeRef.current;
-    const idx   = (() => { for (let i = bs.length - 1; i >= 0; i--) { if (t >= bs[i].start) return i; } return 0; })();
+    const bs  = boundariesRef.current.length ? boundariesRef.current : boundaries;
+    const t   = currentTimeRef.current;
+    const idx = (() => { for (let i = bs.length - 1; i >= 0; i--) { if (t >= bs[i].start) return i; } return 0; })();
     activeIdxRef.current = idx;
     setSelectedIdx(idx);
 
-    const scene   = sc[idx];
-    const active  = getActive();
-    const standby = getStandby();
-
-    // Reset standby
-    if (standby) { standby.style.opacity = "0"; standby.style.transform = ""; }
-
-    if (scene?.video_url && active) {
-      const editorDur = scene.duration;
-      const clipLocal = t - (bs[idx]?.start ?? 0);
-      loadClipInto(active, scene.video_url, editorDur, clipLocal * rateFor(scene.video_url, editorDur), () => {
-        active.style.opacity = "1";
-        active.style.transform = "";
-        if (isPlayingRef.current) active.play().catch((e) => console.warn("[player] play() blocked:", e));
-      });
-    }
+    const clipLocal = t - (bs[idx]?.start ?? 0);
+    loadScene(idx, clipLocal, true);
 
     // Start audio
     if (audioRef.current) {
@@ -589,21 +407,8 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
       if (t >= musicOffsetSec) bgMusicRef.current.play().catch((e) => console.warn("[player] play() blocked:", e));
     }
 
-    preloadNext(idx);
     rafTickRef.current = requestAnimationFrame(tick);
   }
-
-  // ── Initial setup via ref (opacity + muted — React doesn't reliably set muted) ──
-  useEffect(() => {
-    if (videoARef.current) {
-      videoARef.current.style.opacity = "0";
-      videoARef.current.muted = true;
-    }
-    if (videoBRef.current) {
-      videoBRef.current.style.opacity = "0";
-      videoBRef.current.muted = true;
-    }
-  }, []);
 
   // ── Cleanup ───────────────────────────────────────────────────────────────
   useEffect(() => () => {
@@ -612,31 +417,19 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     animCancelRef.current = true;
   }, []);
 
-  // ── Initial video load ────────────────────────────────────────────────────
+  // ── Initial video load — React shows the video via src prop; no imperative setup needed ──
   useEffect(() => {
-    const first = scenes.find((s) => s.video_url);
-    const active = getActive();
-    if (first?.video_url && active) {
-      active.src = first.video_url;
-      active.setAttribute("data-src", first.video_url);
-      active.muted = true;
-      active.load();
-      active.style.opacity = "1";
-      const onMeta = () => {
-        active.removeEventListener("loadedmetadata", onMeta);
-        if (isFinite(active.duration) && active.duration > 0)
-          sourceDurRef.current[first.video_url!] = active.duration;
-        active.playbackRate = rateFor(first.video_url!, first.duration);
-        // Seek slightly past 0 to skip the black first frame common in Kling/Runway MP4s
-        active.currentTime = 0.1;
-        active.style.opacity = "1";
-      };
-      active.addEventListener("loadedmetadata", onMeta);
-      // Preload scene 2 into standby
-      preloadNext(0);
-    }
+    const firstIdx = scenes.findIndex((s) => s.video_url);
+    if (firstIdx === -1) return;
+    scenesRef.current = scenes;
+    activeIdxRef.current = firstIdx;
+    if (firstIdx !== activeIdx) setActiveIdx(firstIdx);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Live volume updates — slider movements apply immediately ──────────────
+  useEffect(() => { if (audioRef.current)   audioRef.current.volume   = voiceVol; }, [voiceVol]);
+  useEffect(() => { if (bgMusicRef.current) bgMusicRef.current.volume = musicVol; }, [musicVol]);
 
   // ── Auto-save every 30s ───────────────────────────────────────────────────
   useEffect(() => {
@@ -785,66 +578,6 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     return scenes[sceneIdx]?.transition_out ?? "cut";
   }
 
-  // ── Transition engine ─────────────────────────────────────────────────────
-  // Called by tick when it detects we've entered the transition window.
-  // activeIdxRef is already set to toIdx before this is called.
-  function executeTransition(fromIdx: number, toIdx: number) {
-    const sc       = scenesRef.current;
-    const toScene  = sc[toIdx];
-    const transType: TransitionType = sc[fromIdx]?.transition_out ?? "cut";
-
-    const active  = getActive();   // old clip, currently playing
-    const standby = getStandby();  // new clip, preloaded
-
-    if (!toScene?.video_url || !active || !standby) {
-      transitionActiveRef.current = false;
-      return;
-    }
-
-    // Set up standby with correct rate and start it playing
-    const editorDur = toScene.duration;
-    const srcDur    = sourceDurRef.current[toScene.video_url] ?? editorDur;
-    standby.playbackRate = srcDur / editorDur;
-    standby.currentTime  = 0;
-
-    if (standby.getAttribute("data-src") !== toScene.video_url) {
-      standby.src = toScene.video_url;
-      standby.setAttribute("data-src", toScene.video_url);
-      standby.muted = true;
-      standby.load();
-    }
-
-    if (transType === "cut") {
-      // Instant swap
-      active.style.opacity  = "0";
-      active.pause();
-      standby.style.opacity = "1";
-      standby.style.transform = "";
-      standby.style.zIndex  = "2";
-      active.style.zIndex   = "1";
-      standby.play().catch((e) => console.warn("[player] play() blocked:", e));
-      swapAB();
-      preloadNext(toIdx);
-      transitionActiveRef.current = false;
-      return;
-    }
-
-    standby.muted = true;
-    standby.play().catch((e) => console.warn("[player] play() blocked:", e));
-    animCancelRef.current = false;
-    animateTransition(transType, active, standby, () => {
-      // Transition complete: old clip invisible, new clip fully visible
-      active.style.opacity = "0";
-      active.style.transform = "";
-      active.pause();
-      standby.style.opacity = "1";
-      standby.style.transform = "";
-      swapAB();
-      preloadNext(toIdx);
-      transitionActiveRef.current = false;
-    });
-  }
-
   // ── Save helper ───────────────────────────────────────────────────────────
   function save(s: Scene[]) {
     fetch("/api/save-project", {
@@ -869,12 +602,20 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     try {
       const { createClient } = await import("@/lib/supabase/client");
       const sb = createClient();
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) throw new Error("Sessie verlopen");
       const ext = file.name.split(".").pop();
-      const path = `${project.user_id}/${project.id}/bgmusic.${ext}`;
+      const path = `${user.id}/${project.id}/bgmusic.${ext}`;
       await sb.storage.from("audio").upload(path, file, { upsert: true });
       const { data } = sb.storage.from("audio").getPublicUrl(path);
       setBgMusicUrl(data.publicUrl);
       onUpdate({ bg_music_url: data.publicUrl });
+      // Persisteer direct zodat muziek niet verloren gaat bij refresh
+      await fetch("/api/save-project", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, bg_music_url: data.publicUrl }),
+      }).catch(() => {});
     } catch (err) { console.error(err); }
     finally { setUploadingMusic(false); }
   }
@@ -885,6 +626,15 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     setExportError("");
     setExportUrl("");
     setExportPct(0);
+
+    // Kwaliteit per plan — hoe hoger het plan, hoe betere kwaliteit
+    const EXPORT_QUALITY: Record<string, { width: number; height: number; crf: string; preset: string }> = {
+      free:    { width: 1280, height: 720,  crf: "30", preset: "ultrafast" },
+      starter: { width: 1920, height: 1080, crf: "24", preset: "ultrafast" },
+      pro:     { width: 1920, height: 1080, crf: "18", preset: "fast" },
+      agency:  { width: 1920, height: 1080, crf: "15", preset: "fast" },
+    };
+    const quality = EXPORT_QUALITY[plan] ?? EXPORT_QUALITY.free;
 
     const writtenFiles: string[] = [];
 
@@ -932,27 +682,66 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
         writtenFiles.push(name);
       }
 
-      // ── Trim / loop each clip to the user-edited scene duration ──────
-      // Using -stream_loop -1 handles both:
-      //   shorter scene (clips trimmed) and longer scene (clip looped).
+      // ── Probe source durations for any scenes not yet cached ─────────
+      // The preview caches sourceDurRef on loadedmetadata, but user may
+      // not have visited every scene. Probe missing ones so export matches.
+      for (const vs of videoScenes) {
+        if (sourceDurRef.current[vs.video_url!]) continue;
+        try {
+          const probe = document.createElement("video");
+          probe.src = vs.video_url!;
+          probe.muted = true;
+          probe.preload = "metadata";
+          await new Promise<void>((resolve) => {
+            const done = () => { probe.removeEventListener("loadedmetadata", done); probe.removeEventListener("error", done); resolve(); };
+            probe.addEventListener("loadedmetadata", done);
+            probe.addEventListener("error", done);
+            setTimeout(resolve, 4000); // safety timeout
+          });
+          if (isFinite(probe.duration) && probe.duration > 0) {
+            sourceDurRef.current[vs.video_url!] = probe.duration;
+          }
+        } catch { /* ignore probe failures, export will fall back */ }
+      }
+
+      // ── Stretch/compress each clip to the user-edited scene duration ──
+      // Matches preview: preview slows down (playbackRate), export uses setpts filter.
+      // This ensures the export is exactly what the user sees in the preview.
       const scaleFilter =
-        "scale=1920:1080:force_original_aspect_ratio=decrease," +
-        "pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=black";
+        `scale=${quality.width}:${quality.height}:force_original_aspect_ratio=decrease,` +
+        `pad=${quality.width}:${quality.height}:(ow-iw)/2:(oh-ih)/2:color=black`;
 
       const trimmedNames: string[] = [];
       let totalExpectedDuration = 0;
+      // Trim duration per clip: scene duration + trailing transition (if non-last + non-cut)
+      const trimDurs: number[] = [];
       for (let i = 0; i < videoScenes.length; i++) {
         const sceneDur = videoScenes[i].duration;
         totalExpectedDuration += sceneDur;
+
+        const isLast = i === videoScenes.length - 1;
+        const trans = videoScenes[i].transition_out ?? "cut";
+        const transDur = !isLast && trans !== "cut"
+          ? Math.min(TRANS_DUR, sceneDur * 0.4, videoScenes[i+1].duration * 0.4)
+          : 0;
+        const trimDur = sceneDur + transDur;
+        trimDurs.push(trimDur);
+
         const srcName = `clip${i}.mp4`;
         const dstName = `clip${i}_trimmed.mp4`;
         setExportPct(25 + Math.round(((i + 1) / videoScenes.length) * 20));
+
+        // Lookup the source duration cached during preview
+        const srcDur = sourceDurRef.current[videoScenes[i].video_url!];
+        const speedRatio = srcDur && srcDur > 0 ? sceneDur / srcDur : 1;
+
         await ffmpeg.exec([
-          "-stream_loop", "-1",
           "-i", srcName,
-          "-t", String(sceneDur),
-          "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-          "-vf", scaleFilter,
+          "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
+          "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
+          // setpts stretches timing; tpad clones last frame to pad for transition overlap; -t trims exact
+          "-vf", `setpts=${speedRatio.toFixed(4)}*PTS,tpad=stop_mode=clone:stop_duration=2,${scaleFilter}`,
+          "-t", String(trimDur),
           "-an",
           "-y",
           dstName,
@@ -1009,57 +798,60 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
         const videoInputs: string[] = [];
         for (const name of trimmedNames) videoInputs.push("-i", name);
 
-        // Build video filter_complex with chained xfade
+        // Each trimmed clip has sceneDur + transDur length (extension padding with last frame).
+        // xfade offset = cumulative scene end, so transition happens AT the scene boundary in
+        // the extended tail, NOT by cutting into scene time. Total output = sum(sceneDurations).
         let vFilter = "";
         let prevLabel = "[0:v]";
-        let cumOffset = 0;
+        let cumSceneEnd = 0; // cumulative scene duration so far
         for (let i = 0; i < videoScenes.length - 1; i++) {
           const trans = videoScenes[i].transition_out ?? "cut";
-          const td = trans !== "cut" ? Math.min(TRANS_DUR, videoScenes[i].duration * 0.4, videoScenes[i+1].duration * 0.4) : 0;
-          const xType = td > 0 ? (xfadeMap[trans] ?? "dissolve") : "fade";
-          const safeTd = Math.max(td, 0.001);
-          const offset = Math.max(0, cumOffset + videoScenes[i].duration - safeTd);
+          const td = trans !== "cut"
+            ? Math.min(TRANS_DUR, videoScenes[i].duration * 0.4, videoScenes[i+1].duration * 0.4)
+            : 0.001;
+          const xType = trans !== "cut" ? (xfadeMap[trans] ?? "dissolve") : "fade";
+          cumSceneEnd += videoScenes[i].duration;
+          // Transition starts at scene boundary. Scene i+1 begins fading in from cumSceneEnd.
+          const offset = cumSceneEnd;
           const outLabel = i === videoScenes.length - 2 ? "[vout]" : `[xv${i}]`;
-          vFilter += `${prevLabel}[${i + 1}:v]xfade=transition=${xType}:duration=${safeTd}:offset=${offset}${outLabel};`;
+          vFilter += `${prevLabel}[${i + 1}:v]xfade=transition=${xType}:duration=${td}:offset=${offset}${outLabel};`;
           prevLabel = outLabel;
-          cumOffset += videoScenes[i].duration - safeTd;
         }
         vFilter = vFilter.replace(/;$/, "");
 
-        // Recalculate total duration accounting for overlaps
-        let xfadeTotalDur = 0;
-        for (let i = 0; i < videoScenes.length; i++) {
-          const trans = i < videoScenes.length - 1 ? (videoScenes[i].transition_out ?? "cut") : "cut";
-          const td = trans !== "cut" ? Math.min(TRANS_DUR, videoScenes[i].duration * 0.4) : 0;
-          xfadeTotalDur += videoScenes[i].duration - td;
-        }
-        xfadeTotalDur += Math.min(TRANS_DUR, (videoScenes.at(-1)?.duration ?? 0) * 0.4);
+        // Total duration now equals sum of scene durations (matches the preview)
+        const xfadeTotalDur = totalExpectedDuration;
 
         const n = videoScenes.length; // first audio input index
         if (hasBgMusic && hasVoice) {
-          const af = `[${n}:a]volume=0.4[bg];[${n+1}:a]volume=1.0[vo];[bg][vo]amix=inputs=2:duration=longest[aout]`;
+          // apad pads both tracks with silence so they don't cut the video short
+          const af = `[${n}:a]volume=${musicVol.toFixed(2)},apad=whole_dur=999[bg];[${n+1}:a]volume=${voiceVol.toFixed(2)},apad=whole_dur=999[vo];[bg][vo]amix=inputs=2:duration=longest[aout]`;
           cmd = [...videoInputs, "-i", "bgmusic.mp3", "-i", "voiceover.mp3",
             "-filter_complex", `${vFilter};${af}`,
             "-map", "[vout]", "-map", "[aout]",
-            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-            "-c:a", "aac", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
+            "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
+            "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
+            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
         } else if (hasBgMusic) {
           cmd = [...videoInputs, "-i", "bgmusic.mp3",
-            "-filter_complex", `${vFilter};[${n}:a]volume=0.4[aout]`,
+            "-filter_complex", `${vFilter};[${n}:a]volume=${musicVol.toFixed(2)},apad=whole_dur=999[aout]`,
             "-map", "[vout]", "-map", "[aout]",
-            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-            "-c:a", "aac", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
+            "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
+            "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
+            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
         } else if (hasVoice) {
           cmd = [...videoInputs, "-i", "voiceover.mp3",
-            "-filter_complex", vFilter,
-            "-map", "[vout]", `-map`, `${n}:a`,
-            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
-            "-c:a", "aac", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
+            "-filter_complex", `${vFilter};[${n}:a]volume=${voiceVol.toFixed(2)},apad=whole_dur=999[aout]`,
+            "-map", "[vout]", "-map", "[aout]",
+            "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
+            "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
+            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
         } else {
           cmd = [...videoInputs,
             "-filter_complex", vFilter,
             "-map", "[vout]",
-            "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+            "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
+            "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
             "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
         }
       } else {
@@ -1072,7 +864,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
           cmd = [
             "-f", "concat", "-safe", "0", "-i", "concat.txt",
             "-i", "bgmusic.mp3", "-i", "voiceover.mp3",
-            "-filter_complex", "[1:a]volume=0.4[bg];[2:a]volume=1.0[vo];[bg][vo]amix=inputs=2:duration=longest[aout]",
+            "-filter_complex", `[1:a]volume=${musicVol.toFixed(2)},apad=whole_dur=999[bg];[2:a]volume=${voiceVol.toFixed(2)},apad=whole_dur=999[vo];[bg][vo]amix=inputs=2:duration=longest[aout]`,
             "-map", "0:v", "-map", "[aout]",
             "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart",
             "-t", String(totalExpectedDuration), "output.mp4",
@@ -1080,14 +872,16 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
         } else if (hasBgMusic) {
           cmd = [
             "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", "bgmusic.mp3",
-            "-map", "0:v", "-map", "1:a",
+            "-filter_complex", `[1:a]volume=${musicVol.toFixed(2)},apad=whole_dur=999[aout]`,
+            "-map", "0:v", "-map", "[aout]",
             "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart",
             "-t", String(totalExpectedDuration), "output.mp4",
           ];
         } else if (hasVoice) {
           cmd = [
             "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", "voiceover.mp3",
-            "-map", "0:v", "-map", "1:a",
+            "-filter_complex", `[1:a]volume=${voiceVol.toFixed(2)},apad=whole_dur=999[aout]`,
+            "-map", "0:v", "-map", "[aout]",
             "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart",
             "-t", String(totalExpectedDuration), "output.mp4",
           ];
@@ -1124,7 +918,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
           ctx.font = "bold 26px Arial, Helvetica, sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText("jouwanimatievideo.nl", wmCanvas.width / 2, wmCanvas.height / 2);
+          ctx.fillText("animideo.ai", wmCanvas.width / 2, wmCanvas.height / 2);
 
           const wmBlob = await new Promise<Blob>((resolve) =>
             wmCanvas.toBlob((b) => resolve(b!), "image/png")
@@ -1139,6 +933,8 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
             "-filter_complex", "[0:v][1:v]overlay=(W-w)/2:(H-h)/2",
             "-c:a", "copy",
             "-c:v", "libx264", "-preset", "fast",
+            "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
+            "-movflags", "+faststart",
             "watermarked.mp4",
           ]);
           writtenFiles.push("watermarked.mp4");
@@ -1216,7 +1012,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
             <div className="text-center mb-5">
               <div className="text-5xl mb-3">🎉</div>
               <h2 className="text-xl font-bold mb-2">Goed bezig!</h2>
-              <p className="text-gray-500 text-sm">
+              <p className="text-slate-400 text-sm">
                 Je video is klaar. Upgrade naar <strong>Starter</strong> om het watermark
                 te verwijderen en toegang te krijgen tot meer credits.
               </p>
@@ -1230,7 +1026,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
               </Link>
               <button
                 onClick={() => setShowUpgradeModal(false)}
-                className="block w-full text-center text-gray-500 hover:text-gray-700 text-sm py-2 transition-colors"
+                className="block w-full text-center text-slate-400 hover:text-slate-300 text-sm py-2 transition-colors"
               >
                 Later
               </button>
@@ -1242,6 +1038,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
       {/* Hidden audio elements — always in DOM, refs are always valid */}
       <audio ref={audioRef}   src={project.voice_audio_url ?? undefined} preload="auto" className="hidden" />
       <audio ref={bgMusicRef} src={bgMusicUrl || undefined} preload="auto" loop className="hidden" />
+
 
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="flex-none flex items-center justify-between px-4 h-11 bg-[#161616] border-b border-[#2a2a2a]">
@@ -1300,93 +1097,53 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
 
           {/* ── Preview Player ──────────────────────────────────────────── */}
           <div className="flex-1 flex flex-col bg-[#0a0a0a] min-h-0">
-            {/* Video frame: always 16:9, fills available space */}
-            <div className="flex-1 flex items-center justify-center px-4 pt-4 min-h-0 overflow-hidden">
-              {/*
-                The container is always 16:9. Inside, videos use object-contain so:
-                  • 16:9 source → fills frame edge-to-edge (Runway clips are ~5:3, tiny bars)
-                  • 9:16 source → centred with black pillarbox bars left/right
-                aspect-ratio + maxHeight lets the browser pick the tightest constraint.
-              */}
-              <div
-                className="relative bg-black rounded-xl shadow-2xl overflow-hidden flex-none"
-                style={{
-                  aspectRatio: "16 / 9",
-                  maxWidth: "100%",
-                  maxHeight: "100%",
-                }}
-              >
-                {/* Image fallback — shown when no video clip is active */}
-                {currentScene?.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={currentScene.image_url}
-                    alt=""
-                    crossOrigin="anonymous"
-                    style={{
-                      position: "absolute",
-                      top: "50%", left: "50%",
-                      transform: "translate(-50%, -50%)",
-                      maxWidth: "100%", maxHeight: "100%",
-                      width: "auto", height: "auto",
-                      objectFit: "contain",
-                      zIndex: 0,
-                    }}
+            {/* Video frame */}
+            <div className="flex-1 flex items-center justify-center p-4 min-h-0">
+              <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <video
+                  ref={videoARef}
+                  key={scenes[activeIdx]?.id ?? "empty"}
+                  src={scenes[activeIdx]?.video_url ?? undefined}
+                  playsInline
+                  preload="auto"
+                  muted
+                  onLoadedMetadata={(e) => {
+                    const v = e.currentTarget;
+                    const scene = scenes[activeIdx];
+                    if (!scene?.video_url) return;
+                    if (isFinite(v.duration) && v.duration > 0) {
+                      sourceDurRef.current[scene.video_url] = v.duration;
+                      v.playbackRate = v.duration / scene.duration;
+                      // Seek past the black first frame common in Kling/Seedance MP4s
+                      if (v.currentTime < 0.1) v.currentTime = 0.1;
+                    }
+                  }}
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                    width: "auto",
+                    height: "auto",
+                    background: "#000",
+                  }}
+                />
+                {/* Hidden preloader for next scene — browser caches video bytes for instant scene switch */}
+                {scenes[activeIdx + 1]?.video_url && (
+                  <video
+                    key={`preload-${scenes[activeIdx + 1].id}`}
+                    src={scenes[activeIdx + 1].video_url ?? undefined}
+                    preload="auto"
+                    muted
+                    style={{ display: "none" }}
                   />
-                ) : (
-                  <span className="text-gray-700 text-sm" style={{ position: "absolute", zIndex: 0 }}>
-                    No preview available
-                  </span>
                 )}
-
                 {/* Watermark overlay for free plan */}
                 {plan === "free" && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 10 }}>
+                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                     <span className="text-white/50 text-sm font-semibold bg-black/30 px-3 py-1 rounded backdrop-blur-sm">
-                      jouwanimatievideo.nl
+                      animideo.ai
                     </span>
                   </div>
                 )}
-
-                {/*
-                  Two video elements — videoA (active) and videoB (standby).
-                  Both use inset:0 so they always fill the container exactly.
-                  No centering transform is needed, so resetVideoStyle() clearing
-                  transform never causes a mispositioned element.
-                  The standby is always opacity:0 + pointer-events:none until
-                  a transition begins. Container is bg-black so fade-to-black
-                  works by making both transparent simultaneously.
-                */}
-                <video
-                  ref={videoARef}
-                  playsInline
-                  preload="auto"
-                  muted
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "contain",
-                    zIndex: 2,
-                    pointerEvents: "none",
-                  }}
-                />
-                <video
-                  ref={videoBRef}
-                  playsInline
-                  preload="auto"
-                  muted
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "contain",
-                    zIndex: 1,
-                    pointerEvents: "none",
-                  }}
-                />
               </div>
             </div>
 
@@ -1429,7 +1186,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                 <div style={{ height: MARKER_H }} />
                 {/* Video label */}
                 <div
-                  className="flex items-center justify-end pr-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wider"
+                  className="flex items-center justify-end pr-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider"
                   style={{ height: VIDEO_H }}
                 >
                   Video
@@ -1439,7 +1196,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                 {/* Voice-over label */}
                 <div
                   className={`flex items-center justify-end pr-2 text-[10px] font-semibold uppercase tracking-wider cursor-pointer transition-colors
-                    ${selectedLayer === "voice" ? "text-blue-400" : "text-gray-500 hover:text-gray-300"}`}
+                    ${selectedLayer === "voice" ? "text-blue-400" : "text-slate-400 hover:text-gray-300"}`}
                   style={{ height: VOICE_H }}
                   onClick={() => setSelectedLayer("voice")}
                 >
@@ -1450,7 +1207,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                 {/* Music label */}
                 <div
                   className={`flex items-center justify-end pr-2 text-[10px] font-semibold uppercase tracking-wider cursor-pointer transition-colors
-                    ${selectedLayer === "music" ? "text-green-400" : "text-gray-500 hover:text-gray-300"}`}
+                    ${selectedLayer === "music" ? "text-green-400" : "text-slate-400 hover:text-gray-300"}`}
                   style={{ height: MUSIC_H }}
                   onClick={() => setSelectedLayer("music")}
                 >
@@ -1472,7 +1229,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                     <div key={t} className="absolute top-0 flex items-end" style={{ left: t * PX_PER_SEC }}>
                       <div className="absolute top-0 w-px bg-[#2a2a2a]" style={{ height: MARKER_H }} />
                       <span
-                        className="ml-1 text-[9px] text-gray-600 tabular-nums"
+                        className="ml-1 text-[9px] text-slate-400 tabular-nums"
                         style={{ lineHeight: `${MARKER_H}px` }}
                       >
                         {t}s
@@ -1619,7 +1376,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                       </div>
                     ) : (
                       <div className="absolute inset-1 rounded border border-dashed border-gray-700/40 flex items-center px-3">
-                        <span className="text-[10px] text-gray-600">No voice-over uploaded</span>
+                        <span className="text-[10px] text-slate-400">No voice-over uploaded</span>
                       </div>
                     )}
                   </div>
@@ -1663,7 +1420,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                       </div>
                     ) : (
                       <div className="absolute inset-1 rounded border border-dashed border-gray-700/40 flex items-center px-3">
-                        <span className="text-[10px] text-gray-600">No background music — upload in sidebar</span>
+                        <span className="text-[10px] text-slate-400">No background music — upload in sidebar</span>
                       </div>
                     )}
                   </div>
@@ -1688,9 +1445,9 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
           {/* Clip section */}
           {currentScene && (
             <section className="border-b border-[#2a2a2a] p-4 space-y-3">
-              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">Clip</p>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Clip</p>
               <div>
-                <label className="text-[11px] text-gray-500 block mb-1">Scene</label>
+                <label className="text-[11px] text-slate-400 block mb-1">Scene</label>
                 <input
                   className="w-full bg-[#222] border border-[#2a2a2a] rounded px-2 py-1.5 text-sm text-gray-400 focus:outline-none"
                   value={`Scene ${currentScene.number}`}
@@ -1698,7 +1455,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                 />
               </div>
               <div>
-                <label className="text-[11px] text-gray-500 block mb-1">Duration (seconds)</label>
+                <label className="text-[11px] text-slate-400 block mb-1">Duration (seconds)</label>
                 <input
                   type="number"
                   min={1}
@@ -1714,14 +1471,14 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
           {/* Transition section */}
           {currentScene && selectedIdx < scenes.length - 1 && (
             <section className="border-b border-[#2a2a2a] p-4 space-y-3">
-              <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
                 Transition after this scene
               </p>
               <button
                 onClick={() => setTransitionPopup({ sceneIdx: selectedIdx })}
                 className="w-full flex items-center gap-2 bg-[#222] border border-[#2a2a2a] hover:border-[#3b82f6] rounded-lg px-3 py-2 transition-colors"
               >
-                <svg viewBox="0 0 16 16" className={`w-4 h-4 flex-none ${getTransition(selectedIdx) !== "cut" ? "text-[#3b82f6]" : "text-gray-500"}`}>
+                <svg viewBox="0 0 16 16" className={`w-4 h-4 flex-none ${getTransition(selectedIdx) !== "cut" ? "text-[#3b82f6]" : "text-slate-400"}`}>
                   <path d="M8 0L16 8L8 16L0 8Z" fill="currentColor" />
                 </svg>
                 <span className="text-sm text-gray-300 capitalize">
@@ -1733,10 +1490,10 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
 
           {/* Audio section */}
           <section className="p-4 space-y-4 border-b border-[#2a2a2a]">
-            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest">Audio</p>
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Audio</p>
             {project.voice_audio_url && (
               <div>
-                <div className="flex justify-between text-[11px] text-gray-500 mb-1.5">
+                <div className="flex justify-between text-[11px] text-slate-400 mb-1.5">
                   <span>Voice Volume</span>
                   <span>{Math.round(voiceVol * 100)}%</span>
                 </div>
@@ -1749,21 +1506,21 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                   }}
                   className="w-full accent-[#3b82f6]"
                 />
-                <div className="flex justify-between text-[11px] text-gray-600 mt-1">
+                <div className="flex justify-between text-[11px] text-slate-400 mt-1">
                   <span>Offset</span>
                   <span>{voiceOffsetSec.toFixed(1)}s</span>
                 </div>
               </div>
             )}
             <div>
-              <label className="text-[11px] text-gray-500 block mb-1.5">Background Music</label>
+              <label className="text-[11px] text-slate-400 block mb-1.5">Background Music</label>
               <label className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg border border-[#2a2a2a] bg-[#1e1e1e] hover:border-[#555] text-xs text-gray-400 hover:text-gray-200 cursor-pointer transition-colors">
                 <input type="file" accept="audio/*" className="hidden" onChange={handleMusicUpload} />
                 {uploadingMusic ? "Uploading…" : bgMusicUrl ? "Change Music" : "Upload MP3"}
               </label>
               {bgMusicUrl && (
                 <div className="mt-3 space-y-2">
-                  <div className="flex justify-between text-[11px] text-gray-500">
+                  <div className="flex justify-between text-[11px] text-slate-400">
                     <span>Music Volume</span>
                     <span>{Math.round(musicVol * 100)}%</span>
                   </div>
@@ -1772,7 +1529,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                     onChange={(e) => setMusicVol(parseFloat(e.target.value))}
                     className="w-full accent-green-500"
                   />
-                  <div className="flex justify-between text-[11px] text-gray-600">
+                  <div className="flex justify-between text-[11px] text-slate-400">
                     <span>Offset</span>
                     <span>{musicOffsetSec.toFixed(1)}s</span>
                   </div>
@@ -1783,7 +1540,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
 
           {/* Scene list */}
           <section className="p-4 flex-1">
-            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-widest mb-3">All Scenes</p>
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-3">All Scenes</p>
             <div className="space-y-1.5">
               {scenes.map((s, i) => {
                 const hasTrans = getTransition(i) !== "cut";
@@ -1802,7 +1559,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-300 truncate">Scene {s.number}</p>
-                      <p className="text-[10px] text-gray-600">{boundaries[i].duration}s</p>
+                      <p className="text-[10px] text-slate-400">{boundaries[i].duration}s</p>
                     </div>
                     {hasTrans && (
                       <svg viewBox="0 0 12 12" className="w-2.5 h-2.5 text-[#3b82f6] flex-none">
@@ -1834,7 +1591,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
               </h3>
               <button
                 onClick={() => setTransitionPopup(null)}
-                className="text-gray-500 hover:text-white text-lg leading-none"
+                className="text-slate-400 hover:text-white text-lg leading-none"
               >
                 ×
               </button>

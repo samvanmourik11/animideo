@@ -89,8 +89,10 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
 
     try {
       const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sessie verlopen");
       const ext = file.name.split(".").pop();
-      const fileName = `${project.user_id}/${project.id}/voice.${ext}`;
+      const fileName = `${user.id}/${project.id}/voice.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from("audio")
         .upload(fileName, file, { upsert: true, contentType: file.type });
@@ -121,7 +123,7 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
     <div className="max-w-2xl mx-auto">
       <div className="mb-8">
         <h2 className="text-2xl font-semibold text-[#1e3a5f]">Voice-over</h2>
-        <p className="text-gray-500 text-sm mt-1">
+        <p className="text-slate-300 text-sm mt-1">
           Generate your voice-over using ElevenLabs (free), then upload the MP3 below.
         </p>
       </div>
@@ -145,7 +147,7 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
           readOnly
           value={fullScript}
           rows={Math.min(16, scenes.length * 3 + scenes.length)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 bg-gray-50 resize-none font-mono leading-relaxed focus:outline-none"
+          className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-slate-500 bg-gray-50 resize-none font-mono leading-relaxed focus:outline-none"
         />
       </div>
 
@@ -167,7 +169,7 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#3b82f6] text-white text-xs font-bold flex items-center justify-center mt-0.5">
                 {i + 1}
               </span>
-              <span className="text-sm text-gray-700 leading-relaxed">{step}</span>
+              <span className="text-sm text-slate-500 leading-relaxed">{step}</span>
             </li>
           ))}
         </ol>
@@ -178,11 +180,11 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
         {/* Duration comparison */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-blue-50 rounded-lg p-4 text-center">
-            <p className="text-xs text-gray-500 mb-1">Total Video Duration</p>
+            <p className="text-xs text-slate-300 mb-1">Total Video Duration</p>
             <p className="text-2xl font-bold text-[#1e3a5f]">{totalVideoDuration}s</p>
           </div>
           <div className={`rounded-lg p-4 text-center ${audioDuration !== null ? "bg-blue-50" : "bg-gray-50"}`}>
-            <p className="text-xs text-gray-500 mb-1">Audio Duration</p>
+            <p className="text-xs text-slate-300 mb-1">Audio Duration</p>
             <p className="text-2xl font-bold text-[#1e3a5f]">
               {audioDuration !== null ? `${audioDuration}s` : "—"}
             </p>

@@ -140,8 +140,8 @@ export default function LandingPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           {[
             { icon: "📝", title: "AI Script", desc: "GPT-4 schrijft automatisch een professioneel script" },
-            { icon: "🎨", title: "AI Afbeeldingen", desc: "DALL-E 3 genereert unieke visuals per scene" },
-            { icon: "🎬", title: "AI Beweging", desc: "Runway geeft elke scene vloeiende videomotion" },
+            { icon: "🎨", title: "AI Afbeeldingen", desc: "Flux & Recraft genereren unieke visuals per scene" },
+            { icon: "🎬", title: "AI Beweging", desc: "Kling geeft elke scene vloeiende videomotion" },
             { icon: "🎙️", title: "Voice-over", desc: "Realistische AI-stemmen in meerdere talen" },
             { icon: "✂️", title: "Video Editor", desc: "Timeline editor met transitions en muziek" },
             { icon: "💧", title: "Geen watermark", desc: "Professionele exports zonder branding (betaald)" },
@@ -211,7 +211,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/[0.06] py-8 text-center text-slate-600 text-sm">
+      <footer className="border-t border-white/[0.06] py-8 text-center text-slate-400 text-sm">
         © 2026 Animideo · <Link href="/login" className="hover:text-slate-400">Inloggen</Link> · <Link href="/pricing" className="hover:text-slate-400">Prijzen</Link>
       </footer>
     </div>

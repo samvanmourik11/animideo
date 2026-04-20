@@ -30,9 +30,11 @@ export default function PhotoStep5Audio({ project, onUpdate, onNext, onBack }: P
 
     try {
       const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Sessie verlopen");
       const ext      = file.name.split(".").pop();
       const key      = type === "voiceover" ? "voice" : "music";
-      const fileName = `${project.user_id}/${project.id}/${key}.${ext}`;
+      const fileName = `${user.id}/${project.id}/${key}.${ext}`;
 
       const { error: uploadError } = await supabase.storage
         .from("audio")
@@ -57,15 +59,16 @@ export default function PhotoStep5Audio({ project, onUpdate, onNext, onBack }: P
   }
 
   async function handleContinue() {
-    const supabase = createClient();
-    await supabase
-      .from("projects")
-      .update({
+    await fetch("/api/save-project", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        projectId: project.id,
         voice_audio_url: voiceUrl || null,
         bg_music_url:    musicUrl || null,
         status:          "VoiceReady",
-      })
-      .eq("id", project.id);
+      }),
+    });
     onUpdate({ voice_audio_url: voiceUrl || null, bg_music_url: musicUrl || null, status: "VoiceReady" });
     onNext();
   }

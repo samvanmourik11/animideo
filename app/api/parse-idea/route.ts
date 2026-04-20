@@ -1,11 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { createClient } from "@/lib/supabase/server";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export async function POST(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { idea } = await req.json();
   if (!idea) return NextResponse.json({ error: "Geen idee opgegeven" }, { status: 400 });
+  if (typeof idea !== "string" || idea.length > 2000) {
+    return NextResponse.json({ error: "Idee te lang of ongeldig" }, { status: 400 });
+  }
 
   const completion = await openai.chat.completions.create({
     model: "gpt-4o",

@@ -40,6 +40,8 @@ export default function PhotoStep2Upload({ project, photoScenes, onScenesChange,
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token ?? "";
+    const userId = session?.user.id;
+    if (!userId) { setUploading(false); return; }
 
     setUploading(true);
 
@@ -63,12 +65,12 @@ export default function PhotoStep2Upload({ project, photoScenes, onScenesChange,
         transforming: false,
         transformError: "",
       };
-      onScenesChange([...photoScenes, newScene]);
+      onScenesChange(prev => [...prev, newScene]);
 
       try {
         // 1. Upload naar Supabase storage
         const arrayBuf   = await file.arrayBuffer();
-        const fileName   = `${project.user_id}/${project.id}/${sceneId}-source.jpg`;
+        const fileName   = `${userId}/${project.id}/${sceneId}-source.jpg`;
         const { error: uploadErr } = await supabase.storage
           .from("scene-assets")
           .upload(fileName, arrayBuf, { contentType: file.type, upsert: true });
@@ -185,7 +187,7 @@ export default function PhotoStep2Upload({ project, photoScenes, onScenesChange,
               </div>
               {/* Motion prompt */}
               <div>
-                <label className="label text-xs">Bewegingsprompt (Runway)</label>
+                <label className="label text-xs">Bewegingsprompt (Kling)</label>
                 <textarea
                   rows={3}
                   className="input text-sm resize-none"

@@ -27,7 +27,7 @@ const PLANS: Plan[] = [
       "Script genereren (1 credit)",
       "Afbeelding genereren (1 credit)",
       "Video beweging (5 credits)",
-      "Watermark op exports",
+      "720p export met watermark",
     ],
     highlight: false,
   },
@@ -43,7 +43,7 @@ const PLANS: Plan[] = [
       "Afbeelding genereren (1 credit)",
       "Video beweging (5 credits)",
       "Geen watermark",
-      "Prioriteit rendering",
+      "1080p export",
       "Email support",
     ],
     highlight: false,
@@ -61,7 +61,7 @@ const PLANS: Plan[] = [
       "Afbeelding genereren (1 credit)",
       "Video beweging (5 credits)",
       "Geen watermark",
-      "HD exports",
+      "1080p HD export (hogere kwaliteit)",
       "Prioriteit support",
     ],
     highlight: true,
@@ -78,9 +78,9 @@ const PLANS: Plan[] = [
       "Afbeelding genereren (1 credit)",
       "Video beweging (5 credits)",
       "Geen watermark",
-      "4K exports",
+      "1080p HD export (maximale kwaliteit)",
       "Dedicated support",
-      "Meerdere teamleden",
+      "Onbeperkte brand kits",
     ],
     highlight: false,
   },
@@ -266,12 +266,11 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
       {/* Credits explanation */}
       <div className="mt-10 bg-[#0c1428] border border-white/[0.07] rounded-2xl p-6">
         <h3 className="font-semibold text-white mb-4">Hoe werken credits?</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           {[
             { action: "Script genereren", cost: "1 credit", icon: "📝" },
             { action: "Afbeelding genereren", cost: "1 credit", icon: "🎨" },
-            { action: "Video beweging (Runway)", cost: "5 credits", icon: "🎬" },
-            { action: "HD export", cost: "2 credits", icon: "💾" },
+            { action: "Video beweging (Kling)", cost: "5 credits", icon: "🎬" },
           ].map((item) => (
             <div key={item.action} className="text-center bg-white/[0.03] rounded-xl p-4">
               <div className="text-2xl mb-2">{item.icon}</div>

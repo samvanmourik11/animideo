@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
-import RunwayML from "@runwayml/sdk";
 import { createClient } from "@/lib/supabase/server";
-import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
+import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
-const runway = new RunwayML({ apiKey: process.env.RUNWAY_API_KEY });
-
 const KLING_PRO      = "fal-ai/kling-video/v1.6/pro/image-to-video";
 const KLING_STANDARD = "fal-ai/kling-video/v1.6/standard/image-to-video";
+const SEEDANCE_PRO   = "fal-ai/bytedance/seedance/v1/pro/image-to-video";
+const SEEDANCE_LITE  = "fal-ai/bytedance/seedance/v1/lite/image-to-video";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -25,10 +24,10 @@ export async function POST(req: NextRequest) {
   }
   if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
 
-  const credit = await deductCredits(user.id, CREDIT_COSTS.RUNWAY_GENERATION, "Video beweging genereren");
+  const credit = await deductCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Video beweging genereren");
   if (!credit.success) {
     return NextResponse.json(
-      { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.RUNWAY_GENERATION },
+      { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.VIDEO_GENERATION },
       { status: 402 }
     );
   }
@@ -49,34 +48,36 @@ export async function POST(req: NextRequest) {
   console.log("[generate-motion] model:", videoModel);
 
   try {
-    if (videoModel === "runway") {
-      const ratio = format === "9:16" ? "768:1280" : "1280:768";
-      const task = await runway.imageToVideo.create({
-        model:       "gen3a_turbo",
-        promptImage: promptImage,
-        promptText:  safePrompt,
-        duration:    5,
-        ratio,
-      });
-      return NextResponse.json({ taskId: task.id, videoModel: "runway" });
-    }
-
-    // Kling Pro of Standard via fal queue
-    const klingModel   = videoModel === "kling-standard" ? KLING_STANDARD : KLING_PRO;
     const aspectRatio  = format === "9:16" ? "9:16" : "16:9";
-    const { request_id } = await fal.queue.submit(klingModel, {
-      input: {
+    let modelId: string;
+    let input: Record<string, unknown>;
+
+    if (videoModel === "seedance-pro" || videoModel === "seedance-lite") {
+      modelId = videoModel === "seedance-pro" ? SEEDANCE_PRO : SEEDANCE_LITE;
+      input = {
+        image_url:  promptImage,
+        prompt:     safePrompt.slice(0, 2500),
+        duration:   "5",
+        resolution: "720p",
+      };
+    } else {
+      // Kling Pro of Standard
+      modelId = videoModel === "kling-standard" ? KLING_STANDARD : KLING_PRO;
+      input = {
         image_url:    promptImage,
         prompt:       safePrompt.slice(0, 2500),
         duration:     "5",
         aspect_ratio: aspectRatio,
-      },
-    });
+      };
+    }
 
+    const { request_id } = await fal.queue.submit(modelId, { input });
     return NextResponse.json({ taskId: request_id, videoModel });
   } catch (err: unknown) {
+    // Refund bij submit failure (video is nooit gestart)
+    try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: video submit mislukt"); } catch {}
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[generate-motion] Fout:", JSON.stringify(err));
+    console.error("[generate-motion] Fout:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

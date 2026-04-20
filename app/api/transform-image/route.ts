@@ -10,6 +10,8 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 fal.config({ credentials: process.env.FAL_KEY });
 
 const recraftStyles: Record<string, string> = {
+  "Cinematic":      "realistic_image",
+  "Realistic":      "realistic_image/natural_light",
   "Whiteboard":     "digital_illustration/hand_drawn_outline",
   "2D Cartoon":     "digital_illustration",
   "2D SaaS":        "vector_illustration",
@@ -19,6 +21,8 @@ const recraftStyles: Record<string, string> = {
 };
 
 const styleSuffix: Record<string, string> = {
+  "Cinematic":      "Cinematic film still, anamorphic widescreen, dramatic Hollywood color grading, 35mm film, shallow depth of field, film grain, professional movie cinematography.",
+  "Realistic":      "Photorealistic photograph, shot on Sony A7R5 DSLR, natural daylight, documentary photography, ultra-sharp focus, true-to-life colors.",
   "Whiteboard":     "Pure white background, black hand-drawn marker lines only, RSA Animate style, NO color, NO photography.",
   "2D Cartoon":     "Kurzgesagt style, bold black outlines, vibrant flat cel-shaded colors, NO photorealism, NO photography.",
   "2D SaaS":        "Stripe/Linear style, soft pastel colors, clean minimal vector graphic, no black outlines, modern startup aesthetic.",
@@ -106,6 +110,19 @@ export async function POST(req: NextRequest) {
       });
       tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
       if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van Flux Pro" }, { status: 500 });
+    } else if (model === "seedream") {
+      // Seedream 4.0 edit — bewaart compositie via reference image
+      const imageSize = format === "9:16" ? "portrait_16_9" : "landscape_16_9";
+      const result = await fal.subscribe("fal-ai/bytedance/seedream/v4/edit", {
+        input: {
+          prompt:     fullPrompt.slice(0, 2000),
+          image_urls: [sourceImageUrl],
+          image_size: imageSize,
+          num_images: 1,
+        },
+      });
+      tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
+      if (!tempUrl) return NextResponse.json({ error: "Geen afbeelding ontvangen van Seedream" }, { status: 500 });
     } else if (model === "controlnet") {
       // Flux Pro Canny ControlNet — bewaart structuur/compositie via edge detection
       const result = await fal.subscribe("fal-ai/flux-pro/v1/canny", {

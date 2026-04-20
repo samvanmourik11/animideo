@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
+import { deductCredits } from "@/lib/credits";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -9,6 +10,14 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const credit = await deductCredits(user.id, 1, "Afbeelding analyseren");
+    if (!credit.success) {
+      return NextResponse.json(
+        { error: "insufficient_credits", credits: credit.credits, required: 1 },
+        { status: 402 }
+      );
+    }
 
     const { imageBase64, mimeType } = await req.json();
     if (!imageBase64) return NextResponse.json({ error: "Geen afbeelding meegegeven" }, { status: 400 });

@@ -8,11 +8,11 @@ import { createClient } from "@/lib/supabase/client";
 
 const VIDEO_MODELS: { value: VideoModel; label: string; badge: string; badgeColor: string; description: string }[] = [
   {
-    value:       "kling-pro",
-    label:       "Kling 1.6 Pro",
-    badge:       "Beste kwaliteit",
-    badgeColor:  "bg-purple-500/15 text-purple-400",
-    description: "Vloeiende beweging, hoogste detail — ~45s",
+    value:       "seedance-lite",
+    label:       "Seedance Lite",
+    badge:       "Goedkoop",
+    badgeColor:  "bg-cyan-500/15 text-cyan-400",
+    description: "ByteDance, snel en betaalbaar — ~30s",
   },
   {
     value:       "kling-standard",
@@ -22,11 +22,18 @@ const VIDEO_MODELS: { value: VideoModel; label: string; badge: string; badgeColo
     description: "Goede kwaliteit, sneller klaar — ~25s",
   },
   {
-    value:       "runway",
-    label:       "Runway Gen-3 Turbo",
-    badge:       "Snel",
-    badgeColor:  "bg-slate-500/15 text-slate-400",
-    description: "Snelste optie, minder vloeiend — ~15s",
+    value:       "seedance-pro",
+    label:       "Seedance Pro",
+    badge:       "Sterk",
+    badgeColor:  "bg-indigo-500/15 text-indigo-400",
+    description: "ByteDance, sterk in mensen en beweging — ~60s",
+  },
+  {
+    value:       "kling-pro",
+    label:       "Kling 1.6 Pro",
+    badge:       "Beste kwaliteit",
+    badgeColor:  "bg-purple-500/15 text-purple-400",
+    description: "Vloeiendste beweging, meeste detail — ~2min",
   },
 ];
 
@@ -74,7 +81,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
     }
     setGenerating(true);
     setError("");
-    setStatusMsg("Indienen bij Kling 2.0…");
+    setStatusMsg("Indienen bij Kling…");
 
     try {
       const supabase = createClient();
@@ -118,13 +125,23 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
             clearInterval(pollIntervalRef.current!);
             pollIntervalRef.current = null;
             setStatusMsg("");
-            const updatedScenes = scenes.map((s, i) =>
-              i === currentIndex
-                ? { ...s, video_url: statusData.videoUrl, motion_prompt: motionPrompt }
-                : s
-            );
-            setScenes(updatedScenes);
+            let persistedScenes: Scene[] = [];
+            setScenes(prev => {
+              persistedScenes = prev.map((s, i) =>
+                i === currentIndex
+                  ? { ...s, video_url: statusData.videoUrl, motion_prompt: motionPrompt }
+                  : s
+              );
+              return persistedScenes;
+            });
             setCacheBust(prev => ({ ...prev, [scene.id]: Date.now() }));
+            // Persisteer direct zodat video_url niet verloren gaat bij refresh
+            onUpdate({ scenes: persistedScenes });
+            fetch("/api/save-project", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ projectId: project.id, scenes: persistedScenes }),
+            }).catch(() => {});
             router.refresh(); // update credits in navbar
             setEditingPrompt(false);
             setGenerating(false);
@@ -207,8 +224,8 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
 
       {/* Video model selector */}
       <div className="mb-6">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Video model</p>
-        <div className="grid grid-cols-3 gap-3">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Video model</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {VIDEO_MODELS.map((m) => (
             <button
               key={m.value}
@@ -332,7 +349,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
               {plan === "free" && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <span className="text-white/40 text-sm font-semibold bg-black/30 px-3 py-1 rounded backdrop-blur-sm">
-                    jouwanimatievideo.nl
+                    animideo.ai
                   </span>
                 </div>
               )}
