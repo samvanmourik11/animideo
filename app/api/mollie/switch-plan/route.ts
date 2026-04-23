@@ -17,9 +17,9 @@ const PLAN_AMOUNT: Record<string, string> = {
 };
 
 const PLAN_DESCRIPTION: Record<string, string> = {
-  starter: "JouwAnimatieVideo A.I. — Starter (maandelijks abonnement)",
-  pro: "JouwAnimatieVideo A.I. — Pro (maandelijks abonnement)",
-  agency: "JouwAnimatieVideo A.I. — Agency (maandelijks abonnement)",
+  starter: "Animideo A.I. — Starter (maandelijks abonnement)",
+  pro: "Animideo A.I. — Pro (maandelijks abonnement)",
+  agency: "Animideo A.I. — Agency (maandelijks abonnement)",
 };
 
 // Handles plan switches that don't require a new checkout (downgrades + free cancellation)

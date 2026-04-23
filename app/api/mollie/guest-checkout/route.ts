@@ -4,9 +4,9 @@ import { createServiceClient } from "@/lib/supabase/service";
 const MOLLIE_BASE = "https://api.mollie.com/v2";
 
 const PLANS = {
-  starter: { amount: "49.00", label: "Starter",  description: "JouwAnimatieVideo A.I. — Starter (maandelijks abonnement)" },
-  pro:     { amount: "99.00", label: "Pro",       description: "JouwAnimatieVideo A.I. — Pro (maandelijks abonnement)" },
-  agency:  { amount: "249.00", label: "Agency",   description: "JouwAnimatieVideo A.I. — Agency (maandelijks abonnement)" },
+  starter: { amount: "49.00", label: "Starter",  description: "Animideo A.I. — Starter (maandelijks abonnement)" },
+  pro:     { amount: "99.00", label: "Pro",       description: "Animideo A.I. — Pro (maandelijks abonnement)" },
+  agency:  { amount: "249.00", label: "Agency",   description: "Animideo A.I. — Agency (maandelijks abonnement)" },
 } as const;
 
 type PlanId = keyof typeof PLANS;
