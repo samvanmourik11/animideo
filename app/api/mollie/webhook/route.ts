@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
   const planId          = metadata?.planId          as string | undefined;
   const isGuest         = metadata?.isGuest         as boolean | undefined;
   const guestCheckoutId = metadata?.guestCheckoutId as string | undefined;
+  const isCursus        = metadata?.isCursus        as boolean | undefined;
 
   const supabase = createServiceClient();
 
@@ -81,6 +82,11 @@ export async function POST(req: NextRequest) {
         metadata: { planId, guestCheckoutId, isGuest: true },
       };
       if (resolvedMandateId) subBody.mandateId = resolvedMandateId;
+      if (isCursus) {
+        // First month was €1; recurring billing of full price starts 30 days later
+        const start = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        subBody.startDate = start.toISOString().slice(0, 10);
+      }
 
       let subscriptionId: string | null = null;
       const subRes = await fetch(`${MOLLIE_BASE}/customers/${customerId}/subscriptions`, {

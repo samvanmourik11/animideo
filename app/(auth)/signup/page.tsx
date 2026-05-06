@@ -15,11 +15,18 @@ function SignupForm() {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
+  const guestEmail = searchParams.get("guest_email");
+
   // Save idea from URL into localStorage so PendingIdeaHandler can pick it up
   useEffect(() => {
     const idea = searchParams.get("idea");
     if (idea) localStorage.setItem("pending_idea", idea);
   }, [searchParams]);
+
+  // Pre-fill (and lock) email when arriving from a paid guest checkout
+  useEffect(() => {
+    if (guestEmail) setEmail(guestEmail);
+  }, [guestEmail]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -82,7 +89,14 @@ function SignupForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                readOnly={!!guestEmail}
+                aria-readonly={!!guestEmail}
               />
+              {guestEmail && (
+                <p className="text-xs text-slate-500 mt-1">
+                  Gekoppeld aan je betaling — niet wijzigbaar.
+                </p>
+              )}
             </div>
             <div>
               <label className="label">Wachtwoord</label>
