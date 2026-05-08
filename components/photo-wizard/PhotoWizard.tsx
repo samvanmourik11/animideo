@@ -9,6 +9,7 @@ import PhotoStep3Transform from "./PhotoStep3Transform";
 import Step4Motion from "@/components/wizard/Step4Motion";
 import PhotoStep5Audio from "./PhotoStep5Audio";
 import Step6Editor from "@/components/wizard/Step6Editor";
+import { useProjectAutosave, AutosaveIndicator } from "@/lib/use-project-autosave";
 
 const STEPS = ["Setup", "Foto's", "Transformeer", "Motion", "Voice-over", "Editor"];
 
@@ -35,6 +36,7 @@ export default function PhotoWizard({ initialProject, plan }: { initialProject: 
   const [step, setStep]             = useState(() => statusToStep(initialProject.status));
   const [maxReached, setMaxReached] = useState(() => statusToStep(initialProject.status));
   const [photoScenes, setPhotoScenes] = useState<PhotoScene[]>([]);
+  const saveState = useProjectAutosave(project);
 
   function updateProject(updates: Partial<Project>) {
     setProject((prev) => ({ ...prev, ...updates }));
@@ -64,7 +66,10 @@ export default function PhotoWizard({ initialProject, plan }: { initialProject: 
         <h1 className="text-xl font-bold text-white truncate">{project.title}</h1>
       </div>
 
-      <Stepper steps={STEPS} current={step} onSelect={setStep} maxReached={maxReached} />
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <Stepper steps={STEPS} current={step} onSelect={setStep} maxReached={maxReached} />
+        <div className="shrink-0"><AutosaveIndicator state={saveState} /></div>
+      </div>
 
       <div className="mt-6">
         {step === 0 && (

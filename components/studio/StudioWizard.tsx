@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Project } from "@/lib/types";
 import Stepper from "@/components/wizard/Stepper";
 import StudioStepScript from "./StudioStepScript";
@@ -8,6 +8,7 @@ import StudioStepImages from "./StudioStepImages";
 import Step4Motion from "@/components/wizard/Step4Motion";
 import Step5Voiceover from "@/components/wizard/Step5Voiceover";
 import Step6Editor from "@/components/wizard/Step6Editor";
+import { useProjectAutosave, AutosaveIndicator } from "@/lib/use-project-autosave";
 
 const STEPS = ["Script", "Beelden", "Beweging", "Voice-over", "Editor"];
 
@@ -25,26 +26,6 @@ function statusToStep(status: Project["status"]): number {
   }
 }
 
-// Fields that change during the wizard and need persisting via /api/save-project
-const PERSIST_FIELDS = [
-  "scenes",
-  "status",
-  "title",
-  "voice_audio_url",
-  "selected_voice",
-  "video_url",
-  "bg_music_url",
-] as const;
-
-function pickPersistable(project: Project): Partial<Project> {
-  const out: Partial<Project> = {};
-  for (const k of PERSIST_FIELDS) {
-    // @ts-expect-error - dynamic key access
-    out[k] = project[k];
-  }
-  return out;
-}
-
 export default function StudioWizard({
   initialProject,
   plan,
@@ -56,38 +37,11 @@ export default function StudioWizard({
 }) {
   const [project, setProject] = useState<Project>(initialProject);
   const [step, setStep] = useState(() => statusToStep(initialProject.status));
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const skipFirstSaveRef = useRef(true);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveState = useProjectAutosave(project);
 
   function updateProject(updates: Partial<Project>) {
     setProject(prev => ({ ...prev, ...updates }));
   }
-
-  // Auto-save: debounce 800ms after any project change. Skips initial mount.
-  useEffect(() => {
-    if (skipFirstSaveRef.current) {
-      skipFirstSaveRef.current = false;
-      return;
-    }
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      setSaveState("saving");
-      try {
-        const res = await fetch("/api/save-project", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ projectId: project.id, ...pickPersistable(project) }),
-        });
-        setSaveState(res.ok ? "saved" : "error");
-      } catch {
-        setSaveState("error");
-      }
-    }, 800);
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-  }, [project]);
 
   function goNext() {
     setStep(s => Math.min(s + 1, STEPS.length - 1));
@@ -134,11 +88,7 @@ export default function StudioWizard({
 
       <div className="flex items-center justify-between gap-3 mb-1">
         <Stepper steps={STEPS} current={step} onSelect={setStep} maxReached={STEPS.length - 1} />
-        <div className="text-xs text-slate-500 shrink-0">
-          {saveState === "saving" && "Opslaan..."}
-          {saveState === "saved"  && <span className="text-emerald-400">Opgeslagen</span>}
-          {saveState === "error"  && <span className="text-red-400">Opslaan mislukt</span>}
-        </div>
+        <div className="shrink-0"><AutosaveIndicator state={saveState} /></div>
       </div>
 
       <div className="mt-6">

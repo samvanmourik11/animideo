@@ -9,6 +9,7 @@ import Step3Images from "./Step3Images";
 import Step4Motion from "./Step4Motion";
 import Step5Voiceover from "./Step5Voiceover";
 import Step6Editor from "./Step6Editor";
+import { useProjectAutosave, AutosaveIndicator } from "@/lib/use-project-autosave";
 
 const STEPS = [
   "Setup",
@@ -42,6 +43,7 @@ export default function ProjectWizard({ initialProject, plan }: { initialProject
   });
   const [step, setStep] = useState(() => statusToStep(initialProject.status));
   const [maxReached, setMaxReached] = useState(() => statusToStep(initialProject.status));
+  const saveState = useProjectAutosave(project);
 
   function updateProject(updates: Partial<Project>) {
     setProject((prev) => ({ ...prev, ...updates }));
@@ -65,7 +67,10 @@ export default function ProjectWizard({ initialProject, plan }: { initialProject
         <h1 className="text-xl font-bold text-white truncate">{project.title}</h1>
       </div>
 
-      <Stepper steps={STEPS} current={step} onSelect={setStep} maxReached={maxReached} />
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <Stepper steps={STEPS} current={step} onSelect={setStep} maxReached={maxReached} />
+        <div className="shrink-0"><AutosaveIndicator state={saveState} /></div>
+      </div>
 
       <div className="mt-6">
         {step === 0 && (
