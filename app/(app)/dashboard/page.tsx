@@ -12,14 +12,16 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const [{ data: projects }, profile] = await Promise.all([
+  const [{ data: projects }, profile, { data: profileRow }] = await Promise.all([
     supabase
       .from("projects")
       .select("*")
       .eq("user_id", user!.id)
       .order("created_at", { ascending: false }),
     getProfile(user!.id),
+    supabase.from("profiles").select("is_admin").eq("id", user!.id).single(),
   ]);
+  const isAdmin = !!profileRow?.is_admin;
 
   return (
     <div>
@@ -49,10 +51,10 @@ export default async function DashboardPage() {
             {projects?.length ?? 0} project{(projects?.length ?? 0) !== 1 ? "en" : ""}
           </p>
         </div>
-        <NewProjectButton userId={user!.id} />
+        <NewProjectButton userId={user!.id} isAdmin={isAdmin} />
       </div>
 
-      <ProjectLibrary projects={(projects ?? []) as Project[]} userId={user!.id} />
+      <ProjectLibrary projects={(projects ?? []) as Project[]} userId={user!.id} isAdmin={isAdmin} />
     </div>
   );
 }

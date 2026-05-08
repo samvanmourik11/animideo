@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 const UNLIMITED_ACCOUNTS = new Set([
   "sam@jouwanimatievideo.nl",
   "alyssa@jouwanimatievideo.nl",
+  "nohaila@jouwanimatievideo.nl",
 ]);
 
 export const CREDIT_COSTS = {

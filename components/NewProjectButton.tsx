@@ -4,10 +4,10 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function NewProjectButton({ userId }: { userId: string }) {
+export default function NewProjectButton({ userId, isAdmin = false }: { userId: string; isAdmin?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState<"wizard" | "free" | "photo" | "t2v" | null>(null);
+  const [loading, setLoading] = useState<"wizard" | "free" | "photo" | "t2v" | "studio" | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   // Sluit dropdown bij klik buiten het component
@@ -20,6 +20,12 @@ export default function NewProjectButton({ userId }: { userId: string }) {
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
+
+  function openStudio() {
+    setLoading("studio");
+    setOpen(false);
+    router.push("/studio/new");
+  }
 
   async function createWizard() {
     setLoading("wizard");
@@ -152,6 +158,24 @@ export default function NewProjectButton({ userId }: { userId: string }) {
 
       {open && (
         <div className="absolute right-0 mt-2 w-56 bg-[#0c1428] border border-white/[0.09] rounded-xl shadow-2xl z-50 overflow-hidden">
+          {isAdmin && (
+            <>
+              <button
+                onClick={openStudio}
+                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-cyan-500/10 to-transparent"
+              >
+                <span className="text-lg leading-none mt-0.5">🎬</span>
+                <div>
+                  <p className="text-sm font-medium text-white flex items-center gap-1.5">
+                    Karakter Studio
+                    <span className="text-[9px] font-bold uppercase tracking-wider bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded">beta</span>
+                  </p>
+                  <p className="text-xs text-slate-500 mt-0.5">Karakter en stijl consistent door alle scenes</p>
+                </div>
+              </button>
+              <div className="h-px bg-white/[0.06] mx-3" />
+            </>
+          )}
           <button
             onClick={createWizard}
             className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"

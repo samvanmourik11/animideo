@@ -1,4 +1,4 @@
-export type ProjectMode = "wizard" | "free" | "photo" | "t2v";
+export type ProjectMode = "wizard" | "free" | "photo" | "t2v" | "studio";
 export type ImageModel = "flux-schnell" | "flux-pro" | "dall-e-3" | "controlnet" | "recraft" | "seedream";
 export type VideoModel = "kling-pro" | "kling-standard" | "seedance-pro" | "seedance-lite";
 
@@ -101,6 +101,8 @@ export interface Project {
   mode: ProjectMode;
   brand_kit_id: string | null;
   video_model: string | null;
+  style_reference_url: string | null;
+  character_reference_urls: string[];
   status: ProjectStatus;
   created_at: string;
   updated_at: string;
