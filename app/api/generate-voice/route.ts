@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     const safeVoice = voice && ALLOWED_VOICES.has(voice) ? voice : "Charlotte";
     const langCode = LANGUAGE_TO_CODE[project.language] ?? "en";
 
-    const result = await fal.subscribe("fal-ai/elevenlabs/tts/multilingual-v2", {
+    const result = await fal.subscribe("fal-ai/elevenlabs/tts/eleven-v3", {
       input: {
         text,
         voice:            safeVoice,
