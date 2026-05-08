@@ -14,9 +14,11 @@ type SceneStatus = "idle" | "running" | "done" | "error";
 
 export default function StudioStepImages({ project, onUpdate, onNext, onBack }: Props) {
   const scenes = project.scenes ?? [];
-  // Sync ref every render so async loops always see the latest scenes
+  // Initialize once, then ONLY mutate via pushScenes. Auto-syncing from props on
+  // every render would race with our synchronous pushScenes update during async
+  // batch generation: a setStatus re-render could read stale props (because
+  // parent setProject hadn't propagated yet) and overwrite the fresh ref.
   const scenesRef = useRef<Scene[]>(scenes);
-  scenesRef.current = scenes;
 
   const [statuses, setStatuses] = useState<Record<string, SceneStatus>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -59,7 +61,9 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack }: 
   }
 
   function updatePrompt(id: string, value: string) {
-    setScenes(scenes.map(s => s.id === id ? { ...s, image_prompt: value } : s));
+    // Use the ref (always latest) instead of closure scenes to avoid race
+    // when typing fast or when scenes were just updated by another action.
+    setScenes(scenesRef.current.map(s => s.id === id ? { ...s, image_prompt: value } : s));
   }
 
   async function generateOne(sceneId: string): Promise<boolean> {
