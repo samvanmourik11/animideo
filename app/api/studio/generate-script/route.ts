@@ -48,8 +48,14 @@ export async function POST(req: NextRequest) {
 
 ANCHOR CONTEXT (critical for image_prompt construction):
 ${hasStyle ? "- A STYLE REFERENCE image is provided. Every image_prompt MUST start with: \"Same painted illustration style, color palette and atmosphere as the reference image.\"" : ""}
-${hasCharacter ? `- ${characterCount} CHARACTER REFERENCE image${characterCount > 1 ? "s are" : " is"} provided. Every image_prompt MUST explicitly mention: "Same character (and outfit) as the character reference image${characterCount > 1 ? "s" : ""}." Always describe the character's actions and emotions in this scene, but assume their face, body, hair, and clothing are already locked in by the reference.` : ""}
-- The image generator (Nano Banana Pro) will receive these references alongside your prompt for every scene, so DO NOT re-describe the character's appearance or the visual style in detail. Focus your image_prompt on what HAPPENS in the scene: action, setting, framing, lighting, mood.` : "";
+${hasCharacter ? `- ${characterCount} CHARACTER REFERENCE image${characterCount > 1 ? "s are" : " is"} provided. Every image_prompt MUST explicitly mention: "Same character (and outfit) as the character reference image${characterCount > 1 ? "s" : ""}." Use the reference ONLY for the character's face, body, hair, and clothing. The setting, location, camera angle and composition in the reference must NOT be copied.` : ""}
+- The image generator will combine these references with your prompt. To avoid every scene looking like the reference image, EACH scene must describe a DISTINCTLY DIFFERENT setting, location, camera angle and framing.
+- For every image_prompt, EXPLICITLY specify (in this order):
+  1. Setting / location (e.g., "in a sunlit kitchen", "on a busy office floor", "at a forest path during golden hour")
+  2. Camera framing (e.g., "wide establishing shot", "close-up of the hands", "over-the-shoulder medium shot")
+  3. Action and emotion of the character
+  4. Lighting and mood specific to this scene
+- The 6 scenes together should form a visual journey across DIFFERENT environments, not the same location 6 times. Vary indoor/outdoor, day/night, wide/close, calm/active.` : "";
 
   const VISUAL_RULES = `VISUAL RULES: No text, letters, words, signs or labels visible anywhere. No more than 2 hands per person. No extra limbs or distorted anatomy. Faces natural and symmetrical. Lighting consistent with the previous scene unless the story explicitly shifts.`;
 

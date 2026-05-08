@@ -26,8 +26,16 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack }: 
     (project.style_reference_url ? 1 : 0) +
     (project.character_reference_urls?.length ?? 0);
 
-  function setScenes(newScenes: Scene[]) {
+  // Update both the ref (synchronously) and the parent state. Critical inside
+  // async batch loops where React may not re-render between iterations, so
+  // relying on render-synced scenesRef would leave it stale.
+  function pushScenes(newScenes: Scene[]) {
+    scenesRef.current = newScenes;
     onUpdate({ scenes: newScenes });
+  }
+
+  function setScenes(newScenes: Scene[]) {
+    pushScenes(newScenes);
   }
 
   function setStatus(id: string, status: SceneStatus) {
@@ -78,12 +86,12 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack }: 
       }
       // Trust the canonical scenes returned by the server
       if (Array.isArray(data.scenes)) {
-        onUpdate({ scenes: data.scenes });
+        pushScenes(data.scenes);
       } else {
         const fallback = scenesRef.current.map(s =>
           s.id === sceneId ? { ...s, image_url: data.imageUrl } : s
         );
-        onUpdate({ scenes: fallback });
+        pushScenes(fallback);
       }
       setStatus(sceneId, "done");
       return true;
