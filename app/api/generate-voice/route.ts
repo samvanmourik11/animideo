@@ -27,14 +27,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single();
-  if (!profile?.is_admin) return NextResponse.json({ error: "Geen toegang" }, { status: 403 });
-
-  const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Studio voice-over");
+  const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Voice-over");
   if (!credit.success) {
     return NextResponse.json(
       { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
@@ -44,7 +37,7 @@ export async function POST(req: NextRequest) {
 
   const userId = user.id;
   async function refund() {
-    try { await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Refund: studio voice-over"); } catch {}
+    try { await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Refund: voice-over"); } catch {}
   }
 
   try {
@@ -79,11 +72,11 @@ export async function POST(req: NextRequest) {
     const result = await fal.subscribe("fal-ai/elevenlabs/tts/multilingual-v2", {
       input: {
         text,
-        voice:         safeVoice,
-        language_code: langCode,
-        stability:     typeof stability === "number" ? Math.max(0, Math.min(1, stability)) : 0.5,
+        voice:            safeVoice,
+        language_code:    langCode,
+        stability:        typeof stability === "number" ? Math.max(0, Math.min(1, stability)) : 0.5,
         similarity_boost: 0.75,
-        speed:         typeof speed === "number" ? Math.max(0.7, Math.min(1.2, speed)) : 1,
+        speed:            typeof speed === "number" ? Math.max(0.7, Math.min(1.2, speed)) : 1,
       },
     });
 
@@ -122,7 +115,7 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     await refund();
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[studio/generate-voice] Fout:", message);
+    console.error("[generate-voice] Fout:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

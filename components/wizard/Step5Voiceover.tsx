@@ -11,82 +11,99 @@ interface Props {
   onBack: () => void;
 }
 
+const VOICES = [
+  { value: "Charlotte", label: "Charlotte (warm vrouwelijk)" },
+  { value: "Sarah",     label: "Sarah (zacht vrouwelijk)" },
+  { value: "Rachel",    label: "Rachel (kalm vrouwelijk)" },
+  { value: "Jessica",   label: "Jessica (jeugdig vrouwelijk)" },
+  { value: "Lily",      label: "Lily (warm jong vrouwelijk)" },
+  { value: "Brian",     label: "Brian (warm mannelijk)" },
+  { value: "Daniel",    label: "Daniel (autoritair mannelijk)" },
+  { value: "George",    label: "George (Brits mannelijk)" },
+  { value: "Liam",      label: "Liam (jong mannelijk)" },
+  { value: "Will",      label: "Will (rustig mannelijk)" },
+];
+
 export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Props) {
+  const [voice, setVoice] = useState(project.selected_voice ?? "Charlotte");
+  const [stability, setStability] = useState(0.5);
+  const [speed, setSpeed] = useState(1);
   const [audioUrl, setAudioUrl] = useState(project.voice_audio_url ?? "");
+  const [generating, setGenerating] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [audioDuration, setAudioDuration] = useState<number | null>(null);
-  const [copied, setCopied] = useState(false);
-  const waveContainerRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const wavesurferRef = useRef<any>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const waveRef = useRef<HTMLDivElement>(null);
 
   const scenes = project.scenes ?? [];
+  const fullScript = scenes.map(s => s.voiceover_text).filter(Boolean).join(" ");
   const totalVideoDuration = scenes.reduce((acc, s) => acc + (s.duration || 0), 0);
 
-  // Build the full concatenated voiceover script
-  const fullScript = scenes
-    .map((s) => `Scene ${s.number}:\n${s.voiceover_text}`)
-    .join("\n\n");
-
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(fullScript);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Fallback for older browsers
-      const el = document.createElement("textarea");
-      el.value = fullScript;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  }
-
   useEffect(() => {
-    if (!audioUrl || !waveContainerRef.current) return;
-
+    if (!audioUrl || !waveRef.current) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let ws: any = null;
     (async () => {
       const WaveSurfer = (await import("wavesurfer.js")).default;
-      if (!waveContainerRef.current) return;
+      if (!waveRef.current) return;
       ws = WaveSurfer.create({
-        container: waveContainerRef.current,
-        waveColor: "#3b82f6",
+        container:     waveRef.current,
+        waveColor:     "#3b82f6",
         progressColor: "#1e3a5f",
-        height: 80,
-        barWidth: 2,
-        barGap: 1,
-        barRadius: 2,
+        height:        70,
+        barWidth:      2,
+        barGap:        1,
+        barRadius:     2,
       });
       ws.load(audioUrl);
-      ws.on("ready", () => {
-        setAudioDuration(Math.round(ws.getDuration()));
-      });
-      wavesurferRef.current = ws;
+      ws.on("ready", () => setAudioDuration(Math.round(ws.getDuration())));
     })();
-
     return () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (ws as any)?.destroy();
     };
   }, [audioUrl]);
 
+  async function handleGenerate() {
+    if (!fullScript.trim()) {
+      setError("Geen voice-over tekst in scenes");
+      return;
+    }
+    setError("");
+    setGenerating(true);
+    setAudioUrl("");
+    setAudioDuration(null);
+    try {
+      const res = await fetch("/api/generate-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, voice, stability, speed }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.audioUrl) {
+        setError(data.error ?? "Voice generatie mislukt");
+        return;
+      }
+      setAudioUrl(data.audioUrl);
+      onUpdate({ voice_audio_url: data.audioUrl, selected_voice: data.voice, status: "VoiceReady" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith("audio/")) {
-      setError("Please upload an MP3 or WAV file.");
+      setError("Upload een MP3 of WAV bestand.");
       return;
     }
     setError("");
     setUploading(true);
-
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -96,7 +113,6 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
       const { error: uploadError } = await supabase.storage
         .from("audio")
         .upload(fileName, file, { upsert: true, contentType: file.type });
-
       if (uploadError) throw new Error(uploadError.message);
 
       const { data: urlData } = supabase.storage.from("audio").getPublicUrl(fileName);
@@ -111,7 +127,7 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
       setAudioUrl(url);
       onUpdate({ voice_audio_url: url, status: "VoiceReady" });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      setError(err instanceof Error ? err.message : "Upload mislukt");
     } finally {
       setUploading(false);
     }
@@ -120,142 +136,157 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
   const durationDiff = audioDuration !== null ? audioDuration - totalVideoDuration : null;
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="mb-8">
-        <h2 className="text-2xl font-semibold text-[#1e3a5f]">Voice-over</h2>
-        <p className="text-slate-300 text-sm mt-1">
-          Generate your voice-over using ElevenLabs (free), then upload the MP3 below.
+    <div>
+      <div className="mb-5">
+        <h2 className="text-xl font-bold text-white">Voice-over</h2>
+        <p className="text-slate-500 text-sm mt-0.5">
+          Genereer direct met ElevenLabs via fal.ai. Geen apart abonnement nodig.
         </p>
       </div>
 
-      {/* ── Full script ───────────────────────────────────────── */}
-      <div className="card space-y-3 mb-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-[#1e3a5f]">Your Voice-over Script</h3>
-          <button
-            onClick={handleCopy}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors
-              ${copied
-                ? "bg-green-100 text-green-700"
-                : "bg-[#1e3a5f] text-white hover:bg-[#2a4d7f]"
-              }`}
-          >
-            {copied ? "✓ Copied!" : "Copy All Text"}
-          </button>
-        </div>
-        <textarea
-          readOnly
-          value={fullScript}
-          rows={Math.min(16, scenes.length * 3 + scenes.length)}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-slate-500 bg-gray-50 resize-none font-mono leading-relaxed focus:outline-none"
-        />
-      </div>
-
-      {/* ── ElevenLabs instructions ───────────────────────────── */}
-      <div className="card mb-6">
-        <h3 className="text-sm font-semibold text-[#1e3a5f] mb-4">
-          How to create your voice-over with ElevenLabs (free):
-        </h3>
-        <ol className="space-y-3">
-          {[
-            <>Go to <strong>elevenlabs.io</strong> and create a free account</>,
-            <>Click <strong>Text to Speech</strong> in the left menu</>,
-            <>Paste the copied text into the text box</>,
-            <>Choose a voice you like and click <strong>Generate</strong></>,
-            <>Click the download button to save the MP3</>,
-            <>Upload your MP3 file below</>,
-          ].map((step, i) => (
-            <li key={i} className="flex items-start gap-3">
-              <span className="flex-shrink-0 w-6 h-6 rounded-full bg-[#3b82f6] text-white text-xs font-bold flex items-center justify-center mt-0.5">
-                {i + 1}
-              </span>
-              <span className="text-sm text-slate-500 leading-relaxed">{step}</span>
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      {/* ── Upload + waveform ─────────────────────────────────── */}
-      <div className="card space-y-6">
-        {/* Duration comparison */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-blue-50 rounded-lg p-4 text-center">
-            <p className="text-xs text-slate-300 mb-1">Total Video Duration</p>
-            <p className="text-2xl font-bold text-[#1e3a5f]">{totalVideoDuration}s</p>
-          </div>
-          <div className={`rounded-lg p-4 text-center ${audioDuration !== null ? "bg-blue-50" : "bg-gray-50"}`}>
-            <p className="text-xs text-slate-300 mb-1">Audio Duration</p>
-            <p className="text-2xl font-bold text-[#1e3a5f]">
-              {audioDuration !== null ? `${audioDuration}s` : "—"}
-            </p>
-          </div>
-        </div>
-
-        {durationDiff !== null && (
-          <div className={`rounded-lg p-3 text-sm ${
-            Math.abs(durationDiff) <= 3
-              ? "bg-green-50 text-green-700"
-              : "bg-amber-50 text-amber-700"
-          }`}>
-            {Math.abs(durationDiff) <= 3
-              ? "Audio and video lengths match well."
-              : durationDiff > 0
-              ? `Audio is ${durationDiff}s longer than the video — it will be trimmed on export.`
-              : `Audio is ${Math.abs(durationDiff)}s shorter than the video — the end will be silent.`
-            }
-          </div>
-        )}
-
-        {/* Upload */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-4">
         <div>
-          <label className="label">Upload MP3 or WAV</label>
-          <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-colors
-            ${uploading ? "border-blue-300 bg-blue-50" : "border-gray-200 hover:border-[#3b82f6] hover:bg-blue-50/30"}`}
-          >
-            <input
-              type="file"
-              accept="audio/mpeg,audio/wav,audio/mp3,.mp3,.wav"
-              className="hidden"
-              onChange={handleFileUpload}
-              disabled={uploading}
-            />
-            {uploading ? (
-              <div className="flex items-center gap-2 text-blue-600">
-                <div className="w-5 h-5 border-2 border-[#3b82f6] border-t-transparent rounded-full animate-spin" />
-                <span className="text-sm">Uploading…</span>
-              </div>
-            ) : (
-              <div className="text-center text-gray-400">
-                <p className="text-3xl mb-1">🎵</p>
-                <p className="text-sm font-medium">{audioUrl ? "Upload a new file" : "Click to upload your MP3"}</p>
-                <p className="text-xs mt-1">MP3 or WAV</p>
-              </div>
-            )}
-          </label>
+          <label className="block text-sm font-medium text-slate-200 mb-2">Volledig script ({project.language})</label>
+          <textarea
+            readOnly
+            value={fullScript}
+            rows={Math.min(12, Math.max(4, scenes.length * 2))}
+            className="w-full bg-slate-950/60 border border-white/10 rounded-md px-3 py-2 text-sm text-slate-300 font-mono leading-relaxed"
+          />
         </div>
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-
-        {/* Waveform */}
-        {audioUrl && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="label">Waveform Preview</label>
-            <div
-              ref={waveContainerRef}
-              className="rounded-lg bg-gray-50 border border-gray-100 overflow-hidden p-2"
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">Voice</label>
+            <select
+              value={voice}
+              onChange={e => setVoice(e.target.value)}
+              disabled={generating}
+              className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+            >
+              {VOICES.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              Stabiliteit ({stability.toFixed(2)})
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={stability}
+              onChange={e => setStability(Number(e.target.value))}
+              disabled={generating}
+              className="w-full accent-blue-500"
             />
+            <p className="text-[10px] text-slate-500 mt-0.5">Lager = expressiever, hoger = consistenter</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              Snelheid ({speed.toFixed(2)}x)
+            </label>
+            <input
+              type="range"
+              min="0.7"
+              max="1.2"
+              step="0.05"
+              value={speed}
+              onChange={e => setSpeed(Number(e.target.value))}
+              disabled={generating}
+              className="w-full accent-blue-500"
+            />
+          </div>
+        </div>
+
+        <button
+          onClick={handleGenerate}
+          disabled={generating || !fullScript.trim()}
+          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 text-white font-medium py-2.5 rounded-lg"
+        >
+          {generating ? "Voice genereren..." : audioUrl ? "Opnieuw genereren" : "Genereer voice-over"}
+        </button>
+
+        {error && (
+          <div className="bg-red-950/40 border border-red-700/40 text-red-200 text-sm rounded-lg px-3 py-2">{error}</div>
+        )}
+      </div>
+
+      {audioUrl && (
+        <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-3 mt-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-slate-950/60 rounded-lg p-3 text-center">
+              <p className="text-[10px] text-slate-500 mb-0.5">Video duur</p>
+              <p className="text-lg font-bold text-white">{totalVideoDuration}s</p>
+            </div>
+            <div className="bg-slate-950/60 rounded-lg p-3 text-center">
+              <p className="text-[10px] text-slate-500 mb-0.5">Audio duur</p>
+              <p className="text-lg font-bold text-white">{audioDuration ?? "..."}s</p>
+            </div>
+          </div>
+
+          {durationDiff !== null && (
+            <div className={`text-xs px-3 py-2 rounded-lg ${
+              Math.abs(durationDiff) <= 3
+                ? "bg-emerald-950/40 text-emerald-300 border border-emerald-700/30"
+                : "bg-amber-950/40 text-amber-200 border border-amber-700/30"
+            }`}>
+              {Math.abs(durationDiff) <= 3
+                ? "Audio en video sluiten goed aan."
+                : durationDiff > 0
+                ? `Audio is ${durationDiff}s langer dan de video. Wordt afgekapt bij export.`
+                : `Audio is ${Math.abs(durationDiff)}s korter. Het einde wordt stil.`}
+            </div>
+          )}
+
+          <div ref={waveRef} className="rounded-md bg-slate-950/60 border border-white/10 p-2" />
+          <audio src={audioUrl} controls className="w-full mt-2" />
+        </div>
+      )}
+
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => setShowUpload(s => !s)}
+          className="text-xs text-slate-400 hover:text-slate-200"
+        >
+          {showUpload ? "Verberg upload optie" : "Of upload eigen MP3"}
+        </button>
+        {showUpload && (
+          <div className="mt-3 bg-white/5 border border-white/10 rounded-xl p-4">
+            <label className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-white/10 rounded-lg cursor-pointer hover:border-blue-500/40 hover:bg-blue-500/5">
+              <input
+                type="file"
+                accept="audio/mpeg,audio/wav,audio/mp3,.mp3,.wav"
+                className="hidden"
+                onChange={handleFileUpload}
+                disabled={uploading}
+              />
+              {uploading ? (
+                <div className="flex items-center gap-2 text-blue-400">
+                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-sm">Uploaden...</span>
+                </div>
+              ) : (
+                <div className="text-center text-slate-400">
+                  <p className="text-2xl mb-0.5">🎵</p>
+                  <p className="text-xs">Klik om je eigen MP3 of WAV te uploaden</p>
+                </div>
+              )}
+            </label>
           </div>
         )}
       </div>
 
       <div className="flex items-center justify-between mt-6">
-        <button onClick={onBack} className="btn-secondary">← Back</button>
+        <button onClick={onBack} className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-2 rounded-md">← Terug</button>
         <button
           onClick={onNext}
           disabled={!audioUrl}
-          className="btn-primary px-8 py-3"
+          className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 text-white font-medium px-6 py-2.5 rounded-lg"
         >
-          Continue to Editor →
+          Naar editor →
         </button>
       </div>
     </div>

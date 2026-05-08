@@ -25,8 +25,9 @@ interface Props {
 }
 
 function projectHref(p: Project) {
-  if (p.mode === "free") return `/project/${p.id}/free`;
-  if (p.mode === "t2v")  return `/project/${p.id}/t2v`;
+  if (p.mode === "free")   return `/project/${p.id}/free`;
+  if (p.mode === "t2v")    return `/project/${p.id}/t2v`;
+  if (p.mode === "studio") return `/studio/${p.id}`;
   return `/project/${p.id}`;
 }
 

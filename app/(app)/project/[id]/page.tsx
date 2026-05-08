@@ -28,6 +28,11 @@ export default async function ProjectPage({
 
   if (!project) notFound();
 
+  // Studio-mode projecten horen op de /studio pagina
+  if (project.mode === "studio") {
+    redirect(`/studio/${id}`);
+  }
+
   // Free-mode projecten horen op de /free pagina
   if (project.mode === "free") {
     redirect(`/project/${id}/free`);

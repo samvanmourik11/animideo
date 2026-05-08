@@ -5,8 +5,8 @@ import { Project } from "@/lib/types";
 import Stepper from "@/components/wizard/Stepper";
 import StudioStepScript from "./StudioStepScript";
 import StudioStepImages from "./StudioStepImages";
-import StudioStepVoiceover from "./StudioStepVoiceover";
 import Step4Motion from "@/components/wizard/Step4Motion";
+import Step5Voiceover from "@/components/wizard/Step5Voiceover";
 import Step6Editor from "@/components/wizard/Step6Editor";
 
 const STEPS = ["Script", "Beelden", "Beweging", "Voice-over", "Editor"];
@@ -168,7 +168,7 @@ export default function StudioWizard({
           />
         )}
         {step === 3 && (
-          <StudioStepVoiceover
+          <Step5Voiceover
             project={project}
             onUpdate={updateProject}
             onNext={goNext}
