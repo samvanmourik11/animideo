@@ -98,6 +98,13 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
       setScenes(updatedScenes);
       setCacheBust(prev => ({ ...prev, [scene.id]: Date.now() }));
       setEditingPrompt(false);
+      // Direct persisteren zodat image_url niet verloren gaat bij navigatie
+      onUpdate({ scenes: updatedScenes });
+      fetch("/api/save-project", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, scenes: updatedScenes }),
+      }).catch(() => {});
       router.refresh(); // update credits in navbar
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
@@ -142,6 +149,12 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
       );
       setScenes(updatedScenes);
       setCacheBust(prev => ({ ...prev, [scene.id]: Date.now() }));
+      onUpdate({ scenes: updatedScenes });
+      fetch("/api/save-project", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, scenes: updatedScenes }),
+      }).catch(() => {});
       router.refresh();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Upscalen mislukt");
@@ -157,6 +170,12 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
     setScenes(updatedScenes);
     setCacheBust(prev => ({ ...prev, [scene.id]: Date.now() }));
     setInpaintOpen(false);
+    onUpdate({ scenes: updatedScenes });
+    fetch("/api/save-project", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id, scenes: updatedScenes }),
+    }).catch(() => {});
     router.refresh();
   }
 

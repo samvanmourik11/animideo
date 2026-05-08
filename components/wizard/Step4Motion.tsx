@@ -113,12 +113,30 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
       const { taskId, videoModel: usedModel } = data;
       setStatusMsg("Video genereren, even geduld…");
 
+      // Safety: stop polling after 5 minutes regardless. If no result by then,
+      // assume Kling failed and refund/error.
+      const pollStartedAt = Date.now();
+      const MAX_POLL_MS = 5 * 60 * 1000;
+
       // Poll for status
       pollIntervalRef.current = setInterval(async () => {
         try {
+          if (Date.now() - pollStartedAt > MAX_POLL_MS) {
+            clearInterval(pollIntervalRef.current!);
+            pollIntervalRef.current = null;
+            throw new Error("Video generatie duurt te lang. Probeer opnieuw of neem contact op met support als de credits niet teruggestort zijn.");
+          }
+
           const statusRes = await fetch(
             `/api/runway-status?taskId=${taskId}&projectId=${project.id}&sceneId=${scene.id}&videoModel=${usedModel ?? videoModel}`
           );
+          // Non-2xx of geen geldige JSON: behandel als FAILED zodat client
+          // niet eeuwig blijft pollen op een 500.
+          if (!statusRes.ok) {
+            clearInterval(pollIntervalRef.current!);
+            pollIntervalRef.current = null;
+            throw new Error(`Status check faalde (HTTP ${statusRes.status})`);
+          }
           const statusData = await statusRes.json();
 
           if (statusData.status === "SUCCEEDED") {

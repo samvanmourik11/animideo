@@ -91,8 +91,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ status: "SUCCEEDED", videoUrl: urlData.publicUrl });
 
   } catch (err: unknown) {
+    // Onbekende fal/Kling fout. Refund + return FAILED zodat de client niet
+    // eeuwig blijft pollen en credits niet verloren gaan.
+    try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: video status fout"); } catch {}
     const message = err instanceof Error ? err.message : String(err);
     console.error("[runway-status] Fout:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ status: "FAILED", error: message });
   }
 }
