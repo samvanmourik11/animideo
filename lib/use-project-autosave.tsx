@@ -49,6 +49,10 @@ export function useProjectAutosave(project: Project): AutosaveState {
   const [state, setState] = useState<AutosaveState>("idle");
   const skipFirstRef = useRef(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  // Monotonic save sequence so an in-flight slow save's response can never
+  // clobber a newer save's state, and a stale PATCH cannot overwrite the DB.
+  const seqRef = useRef(0);
 
   useEffect(() => {
     if (skipFirstRef.current) {
@@ -56,21 +60,32 @@ export function useProjectAutosave(project: Project): AutosaveState {
       return;
     }
     if (timerRef.current) clearTimeout(timerRef.current);
+    // Abort any save still in flight from a previous (now-stale) project state.
+    if (abortRef.current) abortRef.current.abort();
+
     timerRef.current = setTimeout(async () => {
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const mySeq = ++seqRef.current;
       setState("saving");
       try {
         const res = await fetch("/api/save-project", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ projectId: project.id, ...pickPersistable(project) }),
+          signal: controller.signal,
         });
+        if (mySeq !== seqRef.current) return; // a newer save already started/finished
         setState(res.ok ? "saved" : "error");
-      } catch {
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        if (mySeq !== seqRef.current) return;
         setState("error");
       }
     }, 800);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (abortRef.current) abortRef.current.abort();
     };
   }, [project]);
 

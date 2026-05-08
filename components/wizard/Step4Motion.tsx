@@ -79,6 +79,10 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
       setError("This scene has no accepted image yet. Go back to Step 3 — Images and accept one first.");
       return;
     }
+    // Capture the scene we are generating for at submit time. If the user
+    // navigates to a different scene during polling, we still update the
+    // correct scene's video_url instead of overwriting the wrong one.
+    const targetSceneId = scene.id;
     setGenerating(true);
     setError("");
     setStatusMsg("Indienen bij Kling…");
@@ -128,7 +132,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
           }
 
           const statusRes = await fetch(
-            `/api/runway-status?taskId=${taskId}&projectId=${project.id}&sceneId=${scene.id}&videoModel=${usedModel ?? videoModel}`
+            `/api/runway-status?taskId=${taskId}&projectId=${project.id}&sceneId=${targetSceneId}&videoModel=${usedModel ?? videoModel}`
           );
           // Non-2xx of geen geldige JSON: behandel als FAILED zodat client
           // niet eeuwig blijft pollen op een 500.
@@ -145,14 +149,14 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
             setStatusMsg("");
             let persistedScenes: Scene[] = [];
             setScenes(prev => {
-              persistedScenes = prev.map((s, i) =>
-                i === currentIndex
+              persistedScenes = prev.map(s =>
+                s.id === targetSceneId
                   ? { ...s, video_url: statusData.videoUrl, motion_prompt: motionPrompt }
                   : s
               );
               return persistedScenes;
             });
-            setCacheBust(prev => ({ ...prev, [scene.id]: Date.now() }));
+            setCacheBust(prev => ({ ...prev, [targetSceneId]: Date.now() }));
             // Persisteer direct zodat video_url niet verloren gaat bij refresh
             onUpdate({ scenes: persistedScenes });
             fetch("/api/save-project", {

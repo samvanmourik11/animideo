@@ -110,9 +110,14 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack }: 
   async function generateAll() {
     if (batchRunning) return;
     setBatchRunning(true);
-    for (const scene of scenes) {
-      if (effectiveStatus(scene) === "done") continue;
-      await generateOne(scene.id);
+    // Iterate ref so newly added scenes (or removed ones) are seen mid-batch.
+    // Closure scenes from props would be stale after a re-render.
+    const ids = scenesRef.current.map(s => s.id);
+    for (const id of ids) {
+      const current = scenesRef.current.find(s => s.id === id);
+      if (!current) continue;
+      if ((statuses[id] ?? (current.image_url ? "done" : "idle")) === "done") continue;
+      await generateOne(id);
     }
     setBatchRunning(false);
   }

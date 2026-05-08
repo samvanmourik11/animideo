@@ -130,11 +130,18 @@ export async function POST(req: NextRequest) {
       s.id === sceneId ? { ...s, image_url: cacheBustedUrl } : s
     );
 
-    await supabase
+    const { error: dbErr } = await supabase
       .from("projects")
       .update({ scenes: updatedScenes })
       .eq("id", projectId)
       .eq("user_id", userId);
+    if (dbErr) {
+      console.error("[studio/generate-scene-image] DB update failed:", dbErr.message);
+      return NextResponse.json(
+        { error: `Beeld gegenereerd maar opslaan mislukt: ${dbErr.message}`, imageUrl: cacheBustedUrl },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       imageUrl:    cacheBustedUrl,

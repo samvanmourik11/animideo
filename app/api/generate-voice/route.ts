@@ -105,11 +105,20 @@ export async function POST(req: NextRequest) {
     const { data: urlData } = supabase.storage.from("audio").getPublicUrl(fileName);
     const audioUrl = `${urlData.publicUrl}?t=${Date.now()}`;
 
-    await supabase
+    const { error: dbErr } = await supabase
       .from("projects")
       .update({ voice_audio_url: audioUrl, selected_voice: safeVoice, status: "VoiceReady" })
       .eq("id", projectId)
       .eq("user_id", userId);
+    if (dbErr) {
+      // Audio is uploaded, but project couldn't persist the URL. Tell the
+      // client so it can retry instead of silently losing the link.
+      console.error("[generate-voice] DB update failed:", dbErr.message);
+      return NextResponse.json(
+        { error: `Audio gegenereerd maar opslaan mislukt: ${dbErr.message}`, audioUrl, voice: safeVoice },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ audioUrl, voice: safeVoice });
   } catch (err: unknown) {
