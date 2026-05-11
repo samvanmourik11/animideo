@@ -51,7 +51,7 @@ async function scrapeWebsite(rawUrl: string): Promise<string> {
   try {
     const res = await fetch(parsed.toString(), {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; AnimideoBot/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; JouwAnimatieVideoBot/1.0)",
         "Accept":     "text/html,*/*;q=0.8",
       },
       signal: ctrl.signal,

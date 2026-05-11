@@ -106,7 +106,7 @@ function TryPage() {
       <header className="border-b border-white/[0.07] bg-[#060d1f]/90 backdrop-blur-md sticky top-0 z-40">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <Link href="/" className="font-bold text-lg bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent">
-            Animideo
+            JouwAnimatieVideo A.I.
           </Link>
           <div className="flex items-center gap-3">
             {/* Fake 0-credits badge */}

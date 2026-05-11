@@ -73,7 +73,7 @@ function SignupForm() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent mb-1">
-            Animideo
+            JouwAnimatieVideo A.I.
           </h1>
           <p className="text-slate-500 text-sm">Maak je account aan en begin gratis</p>
         </div>

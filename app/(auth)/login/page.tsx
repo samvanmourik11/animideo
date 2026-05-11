@@ -36,9 +36,9 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent mb-1">
-            Animideo
+            JouwAnimatieVideo A.I.
           </h1>
-          <p className="text-slate-500 text-sm">Welkom terug — log in op je account</p>
+          <p className="text-slate-500 text-sm">Welkom terug, log in op je account</p>
         </div>
 
         <div className="card shadow-[0_8px_40px_rgba(0,0,0,0.5)]">

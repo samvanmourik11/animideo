@@ -357,7 +357,7 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
               {plan === "free" && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <span className="text-white/50 text-sm font-semibold bg-black/30 px-3 py-1 rounded backdrop-blur-sm">
-                    animideo.ai
+                    JouwAnimatieVideo A.I.
                   </span>
                 </div>
               )}

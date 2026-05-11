@@ -356,7 +356,7 @@ export default function T2VWizard({ initialProject, plan }: Props) {
                 {plan === "free" && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <span className="text-white/40 text-sm font-semibold bg-black/30 px-3 py-1 rounded backdrop-blur-sm">
-                      animideo.ai
+                      JouwAnimatieVideo A.I.
                     </span>
                   </div>
                 )}

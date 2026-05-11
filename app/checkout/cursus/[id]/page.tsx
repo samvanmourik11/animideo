@@ -59,7 +59,7 @@ export default async function CursusCheckoutPage({
             </div>
 
             <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-6 shadow-[0_16px_60px_rgba(0,0,0,0.5)]">
-              <h1 className="text-xl font-bold text-white mb-1">Animideo A.I. — Starter</h1>
+              <h1 className="text-xl font-bold text-white mb-1">JouwAnimatieVideo A.I., Starter</h1>
               <p className="text-sm text-slate-400 mb-4">Voor: <span className="text-white">{pending!.email}</span></p>
 
               <ul className="text-sm text-slate-300 space-y-2 mb-6">

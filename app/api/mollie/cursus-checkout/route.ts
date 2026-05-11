@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       amount: { currency: "EUR", value: "1.00" },
-      description: "Animideo A.I. — Cursusaanbod (eerste maand €1, daarna €49/m)",
+      description: "JouwAnimatieVideo A.I., Cursusaanbod (eerste maand €1, daarna €49/m)",
       sequenceType: "first",
       customerId,
       redirectUrl: `${appUrl}/checkout/success?checkout_id=${pending.id}&email=${encodeURIComponent(pending.email)}&plan=${pending.plan}`,

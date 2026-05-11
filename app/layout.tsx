@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Animideo – AI Animated Video Generator",
-  description: "Generate animated videos with AI in minutes.",
+  title: "JouwAnimatieVideo A.I.",
+  description: "Maak animatievideo's met AI in minuten.",
 };
 
 export default function RootLayout({

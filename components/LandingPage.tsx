@@ -41,7 +41,7 @@ export default function LandingPage() {
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
         <span className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent">
-          Animideo
+          JouwAnimatieVideo A.I.
         </span>
         <div className="flex items-center gap-3">
           <Link href="/login" className="text-sm text-slate-400 hover:text-white transition-colors px-4 py-2">
@@ -212,7 +212,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-white/[0.06] py-8 text-center text-slate-400 text-sm">
-        © 2026 Animideo · <Link href="/login" className="hover:text-slate-400">Inloggen</Link> · <Link href="/pricing" className="hover:text-slate-400">Prijzen</Link>
+        © 2026 JouwAnimatieVideo A.I. · <Link href="/login" className="hover:text-slate-400">Inloggen</Link> · <Link href="/pricing" className="hover:text-slate-400">Prijzen</Link>
       </footer>
     </div>
   );

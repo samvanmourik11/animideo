@@ -923,7 +923,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
           ctx.font = "bold 26px Arial, Helvetica, sans-serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
-          ctx.fillText("animideo.ai", wmCanvas.width / 2, wmCanvas.height / 2);
+          ctx.fillText("JouwAnimatieVideo A.I.", wmCanvas.width / 2, wmCanvas.height / 2);
 
           const wmBlob = await new Promise<Blob>((resolve) =>
             wmCanvas.toBlob((b) => resolve(b!), "image/png")
@@ -1145,7 +1145,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                 {plan === "free" && (
                   <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                     <span className="text-white/50 text-sm font-semibold bg-black/30 px-3 py-1 rounded backdrop-blur-sm">
-                      animideo.ai
+                      JouwAnimatieVideo A.I.
                     </span>
                   </div>
                 )}

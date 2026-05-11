@@ -41,7 +41,7 @@ export default function NavBar({ email, credits, plan, creditsResetDate }: NavBa
         {/* Logo + nav */}
         <div className="flex items-center gap-6">
           <Link href="/dashboard" className="font-bold text-lg bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent">
-            Animideo
+            JouwAnimatieVideo A.I.
           </Link>
           <Link href="/brand" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
             Huisstijlen
