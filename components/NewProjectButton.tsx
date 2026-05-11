@@ -166,9 +166,8 @@ export default function NewProjectButton({ userId, isAdmin = false }: { userId: 
               >
                 <span className="text-lg leading-none mt-0.5">🎬</span>
                 <div>
-                  <p className="text-sm font-medium text-white flex items-center gap-1.5">
-                    Karakter Studio
-                    <span className="text-[9px] font-bold uppercase tracking-wider bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded">beta</span>
+                  <p className="text-sm font-medium text-white">
+                    Creator Studio
                   </p>
                   <p className="text-xs text-slate-500 mt-0.5">Karakter en stijl consistent door alle scenes</p>
                 </div>

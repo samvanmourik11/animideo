@@ -31,9 +31,8 @@ export default async function StudioNewPage() {
   return (
     <div className="space-y-6">
       <div>
-        <div className="flex items-center gap-2 mb-1">
-          <h1 className="text-2xl font-bold text-white">Karakter Studio</h1>
-          <span className="text-[10px] font-bold uppercase tracking-wider bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded">beta</span>
+        <div className="mb-1">
+          <h1 className="text-2xl font-bold text-white">Creator Studio</h1>
         </div>
         <p className="text-sm text-slate-400">
           Bouw je karakters één keer en hergebruik ze in elk project. Kies per
