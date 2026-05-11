@@ -61,7 +61,7 @@ export default function StudioWizard({
           </div>
           <p className="text-xs text-slate-500 line-clamp-1">{project.notes}</p>
         </div>
-        {(project.style_reference_url || project.character_reference_urls.length > 0) && (
+        {(project.style_reference_url || project.character_reference_urls.length > 0 || project.outro_logo_url) && (
           <div className="flex gap-1.5 shrink-0">
             {project.style_reference_url && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -82,6 +82,15 @@ export default function StudioWizard({
                 className="w-10 h-10 object-cover rounded-md border border-cyan-500/30"
               />
             ))}
+            {project.outro_logo_url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={project.outro_logo_url}
+                alt="outro logo"
+                title="Outro logo (verschijnt op de eindscene)"
+                className="w-10 h-10 object-contain bg-white/5 p-1 rounded-md border border-amber-500/30"
+              />
+            )}
           </div>
         )}
       </div>

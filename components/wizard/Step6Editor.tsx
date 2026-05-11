@@ -163,6 +163,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
   const [displayTime,       setDisplayTime]       = useState(0);
   const [bgMusicUrl,        setBgMusicUrl]        = useState(project.bg_music_url ?? "");
   const [voiceVol,          setVoiceVol]          = useState(1);
+  const [voiceSpeed,        setVoiceSpeed]        = useState(1);
   const [musicVol,          setMusicVol]          = useState(0.5);
   const [exporting,         setExporting]         = useState(false);
   const [exportPct,         setExportPct]         = useState(0);
@@ -292,7 +293,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     const clipLocal = clamped - (bs[idx]?.start ?? 0);
     loadScene(idx, clipLocal, isPlayingRef.current);
 
-    if (audioRef.current) audioRef.current.currentTime = Math.max(0, clamped - voiceOffsetSec);
+    if (audioRef.current) audioRef.current.currentTime = Math.max(0, (clamped - voiceOffsetSec) * voiceSpeed);
     if (bgMusicRef.current && bgMusicUrl) bgMusicRef.current.currentTime = Math.max(0, clamped - musicOffsetSec);
   }
 
@@ -397,8 +398,9 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
 
     // Start audio
     if (audioRef.current) {
-      audioRef.current.currentTime = Math.max(0, t - voiceOffsetSec);
+      audioRef.current.currentTime = Math.max(0, (t - voiceOffsetSec) * voiceSpeed);
       audioRef.current.volume = voiceVol;
+      audioRef.current.playbackRate = voiceSpeed;
       if (t >= voiceOffsetSec) audioRef.current.play().catch((e) => console.warn("[player] play() blocked:", e));
     }
     if (bgMusicRef.current && bgMusicUrl) {
@@ -429,6 +431,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
 
   // ── Live volume updates — slider movements apply immediately ──────────────
   useEffect(() => { if (audioRef.current)   audioRef.current.volume   = voiceVol; }, [voiceVol]);
+  useEffect(() => { if (audioRef.current)   audioRef.current.playbackRate = voiceSpeed; }, [voiceSpeed]);
   useEffect(() => { if (bgMusicRef.current) bgMusicRef.current.volume = musicVol; }, [musicVol]);
 
   // ── Auto-save every 30s ───────────────────────────────────────────────────
@@ -823,9 +826,10 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
         const xfadeTotalDur = totalExpectedDuration;
 
         const n = videoScenes.length; // first audio input index
+        const voiceTempo = voiceSpeed !== 1 ? `atempo=${voiceSpeed.toFixed(2)},` : "";
         if (hasBgMusic && hasVoice) {
           // apad pads both tracks with silence so they don't cut the video short
-          const af = `[${n}:a]volume=${musicVol.toFixed(2)},apad=whole_dur=999[bg];[${n+1}:a]volume=${voiceVol.toFixed(2)},apad=whole_dur=999[vo];[bg][vo]amix=inputs=2:duration=longest[aout]`;
+          const af = `[${n}:a]volume=${musicVol.toFixed(2)},apad=whole_dur=999[bg];[${n+1}:a]${voiceTempo}volume=${voiceVol.toFixed(2)},apad=whole_dur=999[vo];[bg][vo]amix=inputs=2:duration=longest[aout]`;
           cmd = [...videoInputs, "-i", "bgmusic.mp3", "-i", "voiceover.mp3",
             "-filter_complex", `${vFilter};${af}`,
             "-map", "[vout]", "-map", "[aout]",
@@ -841,7 +845,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
             "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
         } else if (hasVoice) {
           cmd = [...videoInputs, "-i", "voiceover.mp3",
-            "-filter_complex", `${vFilter};[${n}:a]volume=${voiceVol.toFixed(2)},apad=whole_dur=999[aout]`,
+            "-filter_complex", `${vFilter};[${n}:a]${voiceTempo}volume=${voiceVol.toFixed(2)},apad=whole_dur=999[aout]`,
             "-map", "[vout]", "-map", "[aout]",
             "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
             "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
@@ -860,11 +864,12 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
         await ffmpeg.writeFile("concat.txt", new TextEncoder().encode(concatContent));
         writtenFiles.push("concat.txt");
 
+        const voiceTempoSimple = voiceSpeed !== 1 ? `atempo=${voiceSpeed.toFixed(2)},` : "";
         if (hasBgMusic && hasVoice) {
           cmd = [
             "-f", "concat", "-safe", "0", "-i", "concat.txt",
             "-i", "bgmusic.mp3", "-i", "voiceover.mp3",
-            "-filter_complex", `[1:a]volume=${musicVol.toFixed(2)},apad=whole_dur=999[bg];[2:a]volume=${voiceVol.toFixed(2)},apad=whole_dur=999[vo];[bg][vo]amix=inputs=2:duration=longest[aout]`,
+            "-filter_complex", `[1:a]volume=${musicVol.toFixed(2)},apad=whole_dur=999[bg];[2:a]${voiceTempoSimple}volume=${voiceVol.toFixed(2)},apad=whole_dur=999[vo];[bg][vo]amix=inputs=2:duration=longest[aout]`,
             "-map", "0:v", "-map", "[aout]",
             "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart",
             "-t", String(totalExpectedDuration), "output.mp4",
@@ -880,7 +885,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
         } else if (hasVoice) {
           cmd = [
             "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", "voiceover.mp3",
-            "-filter_complex", `[1:a]volume=${voiceVol.toFixed(2)},apad=whole_dur=999[aout]`,
+            "-filter_complex", `[1:a]${voiceTempoSimple}volume=${voiceVol.toFixed(2)},apad=whole_dur=999[aout]`,
             "-map", "0:v", "-map", "[aout]",
             "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart",
             "-t", String(totalExpectedDuration), "output.mp4",
@@ -1492,21 +1497,45 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
           <section className="p-4 space-y-4 border-b border-[#2a2a2a]">
             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Audio</p>
             {project.voice_audio_url && (
-              <div>
-                <div className="flex justify-between text-[11px] text-slate-400 mb-1.5">
-                  <span>Voice Volume</span>
-                  <span>{Math.round(voiceVol * 100)}%</span>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between text-[11px] text-slate-400 mb-1.5">
+                    <span>Voice Volume</span>
+                    <span>{Math.round(voiceVol * 100)}%</span>
+                  </div>
+                  <input
+                    type="range" min={0} max={1} step={0.01} value={voiceVol}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      setVoiceVol(v);
+                      if (audioRef.current) audioRef.current.volume = v;
+                    }}
+                    className="w-full accent-[#3b82f6]"
+                  />
                 </div>
-                <input
-                  type="range" min={0} max={1} step={0.01} value={voiceVol}
-                  onChange={(e) => {
-                    const v = parseFloat(e.target.value);
-                    setVoiceVol(v);
-                    if (audioRef.current) audioRef.current.volume = v;
-                  }}
-                  className="w-full accent-[#3b82f6]"
-                />
-                <div className="flex justify-between text-[11px] text-slate-400 mt-1">
+                <div>
+                  <div className="flex justify-between text-[11px] text-slate-400 mb-1.5">
+                    <span>Voice Speed</span>
+                    <span>{voiceSpeed.toFixed(2)}x</span>
+                  </div>
+                  <input
+                    type="range" min={0.7} max={1.5} step={0.05} value={voiceSpeed}
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value);
+                      setVoiceSpeed(v);
+                    }}
+                    className="w-full accent-[#3b82f6]"
+                  />
+                  <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => setVoiceSpeed(1)}
+                      className="hover:text-slate-300"
+                    >Reset 1.00x</button>
+                    <span>0.70x — 1.50x</span>
+                  </div>
+                </div>
+                <div className="flex justify-between text-[11px] text-slate-400">
                   <span>Offset</span>
                   <span>{voiceOffsetSec.toFixed(1)}s</span>
                 </div>

@@ -46,13 +46,28 @@ export async function POST(req: NextRequest) {
 
     const { data: project } = await supabase
       .from("projects")
-      .select("scenes, format, style_reference_url, character_reference_urls")
+      .select("scenes, format, style_reference_url, character_reference_urls, main_character_id, supporting_character_id")
       .eq("id", projectId)
       .eq("user_id", userId)
       .single();
     if (!project) {
       await refund();
       return NextResponse.json({ error: "Project niet gevonden" }, { status: 404 });
+    }
+
+    const charIds = [project.main_character_id, project.supporting_character_id].filter(Boolean) as string[];
+    let charImageUrls: string[] = [];
+    if (charIds.length > 0) {
+      const { data: chars } = await supabase
+        .from("characters")
+        .select("id, image_url")
+        .in("id", charIds)
+        .eq("user_id", userId);
+      const byId = new Map((chars ?? []).map(c => [c.id, c.image_url as string | null]));
+      charImageUrls = [
+        project.main_character_id        ? byId.get(project.main_character_id)        : null,
+        project.supporting_character_id  ? byId.get(project.supporting_character_id)  : null,
+      ].filter((u): u is string => !!u);
     }
 
     // Trust client scenes (carries any unsaved prompt edits) but fall back to DB
@@ -71,6 +86,7 @@ export async function POST(req: NextRequest) {
 
     const refs: string[] = [
       ...(project.style_reference_url ? [project.style_reference_url] : []),
+      ...charImageUrls,
       ...(project.character_reference_urls ?? []),
     ];
 

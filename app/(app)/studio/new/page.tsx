@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import CreateForm from "./CreateForm";
+import StudioCreateTabs from "./StudioCreateTabs";
+import { BrandKit, Character } from "@/lib/types";
 
 export default async function StudioNewPage() {
   const supabase = await createClient();
@@ -14,6 +15,19 @@ export default async function StudioNewPage() {
     .single();
   if (!profile?.is_admin) redirect("/dashboard");
 
+  const [{ data: brandKits }, { data: characters }] = await Promise.all([
+    supabase
+      .from("brand_kits")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false }),
+    supabase
+      .from("characters")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false }),
+  ]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -22,12 +36,15 @@ export default async function StudioNewPage() {
           <span className="text-[10px] font-bold uppercase tracking-wider bg-cyan-500/20 text-cyan-300 px-2 py-0.5 rounded">beta</span>
         </div>
         <p className="text-sm text-slate-400">
-          Beschrijf je idee en upload optioneel een style reference of character. Die anchors
-          worden in elke scene meegestuurd zodat karakter en stijl door het hele verhaal
-          consistent blijven.
+          Bouw je karakters één keer en hergebruik ze in elk project. Kies per
+          project een hoofd- en bijpersoon, of laat AI er een verzinnen.
         </p>
       </div>
-      <CreateForm userId={user.id} />
+      <StudioCreateTabs
+        userId={user.id}
+        brandKits={(brandKits ?? []) as BrandKit[]}
+        characters={(characters ?? []) as Character[]}
+      />
     </div>
   );
 }

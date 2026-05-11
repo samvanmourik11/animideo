@@ -37,7 +37,7 @@ export default async function StudioProjectPage({
   if (!project) notFound();
   if (project.mode !== "studio") redirect(`/project/${id}`);
 
-  const targetScenes = scenes ? Math.max(1, Math.min(12, Number(scenes))) : 4;
+  const targetScenes = scenes ? Math.max(1, Math.min(15, Number(scenes))) : 5;
 
   return (
     <StudioWizard

@@ -3,16 +3,62 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { BrandKit, Character, OutroContact, VisualStyle } from "@/lib/types";
 
 const FORMATS = [
   { value: "16:9", label: "Liggend (16:9) - YouTube, presentaties" },
   { value: "9:16", label: "Staand (9:16) - TikTok, Reels, Shorts" },
 ] as const;
 
-const SCENE_COUNTS = [3, 4, 5, 6] as const;
-const MAX_CHARACTER_REFS = 3;
+const VISUAL_STYLES: VisualStyle[] = [
+  "Cinematic",
+  "Realistic",
+  "Whiteboard",
+  "2D Cartoon",
+  "2D SaaS",
+  "Motion Graphic",
+  "3D Pixar",
+  "3D Animatie",
+];
 
-async function resizeToBlob(file: File, maxDim = 1280): Promise<Blob> {
+const SCENE_COUNTS = [3, 4, 5, 6, 7, 8, 9, 10, 12, 15] as const;
+
+const IDEA_TEMPLATES: { label: string; emoji: string; text: string }[] = [
+  {
+    label: "Uitlegvideo",
+    emoji: "💡",
+    text: "Een korte uitlegvideo voor [bedrijfsnaam], een [type dienst]. We volgen een hoofdpersoon die het probleem herkent dat onze doelgroep heeft (bijvoorbeeld te veel tijd kwijt aan administratie). Hij ontdekt onze oplossing en we zien hoe zijn werkdag verandert: meer rust, betere resultaten. De video eindigt met een warme uitnodiging om een gratis kennismaking te plannen.",
+  },
+  {
+    label: "Productdemo",
+    emoji: "🚀",
+    text: "Productdemo voor [product]. Open met een korte hook over het probleem dat het oplost. Daarna laten we de drie belangrijkste features in actie zien via concrete scenes (geen UI-screenshots maar mensen die het gebruiken). Eindig met een sterke call-to-action: probeer het nu gratis op [website].",
+  },
+  {
+    label: "Klantverhaal",
+    emoji: "⭐",
+    text: "Klantverhaal van [klantnaam], een tevreden klant van [bedrijfsnaam]. We beginnen bij de situatie vóór onze samenwerking: welke uitdaging speelde er. Daarna het keerpunt waarop onze oplossing in beeld kwam, en we sluiten af met het resultaat: meer omzet, blije klanten, rust in het hoofd. Authentiek en geloofwaardig.",
+  },
+  {
+    label: "Teamintro",
+    emoji: "👋",
+    text: "Maak kennis met het team van [bedrijfsnaam]. We zien drie tot vijf collega's in hun werkomgeving, elk met een korte intro: wie ze zijn, waar ze gepassioneerd over zijn, wat ze bijdragen aan onze klanten. Warm en menselijk, zodat je na het kijken het gevoel hebt het team al een beetje te kennen.",
+  },
+  {
+    label: "Recruitment",
+    emoji: "🎯",
+    text: "Wervingsvideo voor [vacature] bij [bedrijfsnaam]. We laten zien wie wij zijn, hoe het is om bij ons te werken, en wat we zoeken in een nieuwe collega. Een glimp van de cultuur, het werk, de groei-mogelijkheden en de mensen. Eindigt met een directe uitnodiging om te solliciteren.",
+  },
+  {
+    label: "Webinar/event",
+    emoji: "📅",
+    text: "Aankondiging voor een webinar/event van [bedrijfsnaam] op [datum]. We pakken de kijker bij de kraag met de belangrijkste belofte (wat ga je leren of meenemen?). Dan een korte preview van de inhoud, wie de spreker is en waarom dat ertoe doet. Sluit af met een duidelijke uitnodiging om aan te melden.",
+  },
+];
+
+const TONES = ["Helder en zakelijk", "Warm en persoonlijk", "Energiek en speels", "Inspirerend"] as const;
+
+async function resizeToBlob(file: File, maxDim = 1280, format: "jpeg" | "png" = "jpeg"): Promise<Blob> {
   const dataUrl: string = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
@@ -34,24 +80,265 @@ async function resizeToBlob(file: File, maxDim = 1280): Promise<Blob> {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas niet beschikbaar");
   ctx.drawImage(img, 0, 0, w, h);
+  const mime = format === "png" ? "image/png" : "image/jpeg";
   return new Promise((resolve, reject) => {
-    canvas.toBlob(b => b ? resolve(b) : reject(new Error("Blob conversie mislukt")), "image/jpeg", 0.9);
+    canvas.toBlob(b => b ? resolve(b) : reject(new Error("Blob conversie mislukt")), mime, format === "jpeg" ? 0.9 : undefined);
   });
 }
 
 type Preview = { file: File; previewUrl: string };
 
-export default function CreateForm({ userId }: { userId: string }) {
+function CharacterPicker({
+  label, value, characters, excludeId, onChange, placeholder,
+}: {
+  label:        string;
+  value:        string;
+  characters:   Character[];
+  excludeId?:   string;
+  onChange:     (id: string) => void;
+  placeholder:  string;
+}) {
+  const available = characters.filter(c => !excludeId || c.id !== excludeId);
+  const selected = characters.find(c => c.id === value);
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-200 mb-2">{label}</label>
+      <div className="flex items-center gap-3">
+        <div className="w-16 h-16 rounded-md border border-white/10 bg-slate-950 overflow-hidden flex items-center justify-center shrink-0">
+          {selected?.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={selected.image_url} alt={selected.name} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-2xl">🎭</span>
+          )}
+        </div>
+        <select
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="flex-1 bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+        >
+          <option value="">{placeholder}</option>
+          {available.map(c => (
+            <option key={c.id} value={c.id}>
+              {c.name}{[c.gender, c.age_range].filter(Boolean).length > 0 ? ` (${[c.gender, c.age_range].filter(Boolean).join(", ")})` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+      {selected?.description && (
+        <p className="text-[11px] text-slate-500 mt-1.5 line-clamp-2">{selected.description}</p>
+      )}
+    </div>
+  );
+}
+
+interface CreateFormProps {
+  userId:                 string;
+  brandKits:              BrandKit[];
+  characters:             Character[];
+  onSwitchToCharacters?:  () => void;
+}
+
+export default function CreateForm({ userId, brandKits, characters, onSwitchToCharacters }: CreateFormProps) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [idea, setIdea] = useState("");
   const [format, setFormat] = useState<"16:9" | "9:16">("16:9");
-  const [sceneCount, setSceneCount] = useState<number>(4);
+  const [sceneCount, setSceneCount] = useState<number>(5);
+  const [visualStyle, setVisualStyle] = useState<VisualStyle>("Cinematic");
+  const [brandKitId, setBrandKitId] = useState<string>("");
   const [styleRef, setStyleRef] = useState<Preview | null>(null);
-  const [characterRefs, setCharacterRefs] = useState<Preview[]>([]);
+  const [mainCharacterId, setMainCharacterId] = useState<string>("");
+  const [supportingCharacterId, setSupportingCharacterId] = useState<string>("");
+  const [outroLogo, setOutroLogo] = useState<Preview | null>(null);
+  const [outro, setOutro] = useState<OutroContact>({});
   const [submitting, setSubmitting] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
+
+  type IdeaMode = "smart" | "self" | "templates" | "wizard" | "expand" | "website" | "pdf";
+  const [ideaMode, setIdeaMode] = useState<IdeaMode>("smart");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [ideaAudience, setIdeaAudience] = useState("");
+  const [ideaMessage, setIdeaMessage] = useState("");
+  const [ideaTone, setIdeaTone] = useState<string>("");
+  const [ideaCharacter, setIdeaCharacter] = useState("");
+  const [ideaSeed, setIdeaSeed] = useState("");
+  const [ideaUrl, setIdeaUrl] = useState("");
+  const [ideaLoading, setIdeaLoading] = useState<"" | "expand" | "wizard" | "website" | "smart" | "pdf">("");
+  const [ideaError, setIdeaError] = useState("");
+
+  const [smartUrl, setSmartUrl] = useState("");
+  const [smartGenre, setSmartGenre] = useState<string>("");
+  const [smartSeed, setSmartSeed] = useState("");
+
+  function applyTemplate(text: string) {
+    setIdea(text);
+    setIdeaError("");
+    setIdeaMode("self");
+  }
+
+  async function expandIdeaWithAI() {
+    if (!ideaSeed.trim()) {
+      setIdeaError("Typ eerst een paar woorden om uit te werken");
+      return;
+    }
+    setIdeaError("");
+    setIdeaLoading("expand");
+    try {
+      const res = await fetch("/api/studio/expand-idea", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode:       "expand",
+          seed:       ideaSeed,
+          brandKitId: brandKitId || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.idea) {
+        setIdeaError(data.error ?? "Uitwerken mislukt");
+        return;
+      }
+      setIdea(data.idea);
+      setIdeaMode("self");
+    } catch (err: unknown) {
+      setIdeaError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIdeaLoading("");
+    }
+  }
+
+  async function buildIdeaSmart() {
+    const trimmedUrl = smartUrl.trim();
+    if (!trimmedUrl && !smartGenre && !smartSeed.trim()) {
+      setIdeaError("Vul minstens een URL, type of korte beschrijving in");
+      return;
+    }
+    setIdeaError("");
+    setIdeaLoading("smart");
+    try {
+      const url = trimmedUrl ? (/^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`) : "";
+      const genreTpl = IDEA_TEMPLATES.find(t => t.label === smartGenre);
+      const res = await fetch("/api/studio/expand-idea", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode:       "smart",
+          url,
+          genre:      smartGenre,
+          genreHint:  genreTpl?.text ?? "",
+          seed:       smartSeed,
+          brandKitId: brandKitId || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.idea) {
+        setIdeaError(data.error ?? "Genereren mislukt");
+        return;
+      }
+      setIdea(data.idea);
+      setIdeaMode("self");
+    } catch (err: unknown) {
+      setIdeaError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIdeaLoading("");
+    }
+  }
+
+  async function buildIdeaFromPdf() {
+    if (!pdfFile) {
+      setIdeaError("Upload eerst een PDF");
+      return;
+    }
+    setIdeaError("");
+    setIdeaLoading("pdf");
+    try {
+      const form = new FormData();
+      form.append("file", pdfFile);
+      if (brandKitId) form.append("brandKitId", brandKitId);
+      const res = await fetch("/api/studio/expand-idea-pdf", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok || !data.idea) {
+        setIdeaError(data.error ?? "PDF lezen mislukt");
+        return;
+      }
+      setIdea(data.idea);
+      setIdeaMode("self");
+      setPdfFile(null);
+    } catch (err: unknown) {
+      setIdeaError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIdeaLoading("");
+    }
+  }
+
+  async function buildIdeaFromWebsite() {
+    const trimmed = ideaUrl.trim();
+    if (!trimmed) {
+      setIdeaError("Vul een URL in");
+      return;
+    }
+    setIdeaError("");
+    setIdeaLoading("website");
+    try {
+      const url = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+      const res = await fetch("/api/studio/expand-idea", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode:       "from-website",
+          url,
+          brandKitId: brandKitId || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.idea) {
+        setIdeaError(data.error ?? "Website lezen mislukt");
+        return;
+      }
+      setIdea(data.idea);
+      setIdeaMode("self");
+    } catch (err: unknown) {
+      setIdeaError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIdeaLoading("");
+    }
+  }
+
+  async function buildIdeaFromWizard() {
+    if (!ideaAudience && !ideaMessage && !ideaTone && !ideaCharacter) {
+      setIdeaError("Vul minstens 1 vraag in");
+      return;
+    }
+    setIdeaError("");
+    setIdeaLoading("wizard");
+    try {
+      const res = await fetch("/api/studio/expand-idea", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode:       "from-questions",
+          audience:   ideaAudience,
+          message:    ideaMessage,
+          tone:       ideaTone,
+          character:  ideaCharacter,
+          brandKitId: brandKitId || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.idea) {
+        setIdeaError(data.error ?? "Genereren mislukt");
+        return;
+      }
+      setIdea(data.idea);
+      setIdeaMode("self");
+    } catch (err: unknown) {
+      setIdeaError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIdeaLoading("");
+    }
+  }
 
   function handleStyleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -60,11 +347,10 @@ export default function CreateForm({ userId }: { userId: string }) {
     e.target.value = "";
   }
 
-  function handleCharacterFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
-    const previews = files.map(f => ({ file: f, previewUrl: URL.createObjectURL(f) }));
-    setCharacterRefs(prev => [...prev, ...previews].slice(0, MAX_CHARACTER_REFS));
+  function handleOutroLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setOutroLogo({ file, previewUrl: URL.createObjectURL(file) });
     e.target.value = "";
   }
 
@@ -73,12 +359,24 @@ export default function CreateForm({ userId }: { userId: string }) {
     setStyleRef(null);
   }
 
-  function removeCharacter(idx: number) {
-    setCharacterRefs(prev => {
-      const removed = prev[idx];
-      if (removed) URL.revokeObjectURL(removed.previewUrl);
-      return prev.filter((_, i) => i !== idx);
-    });
+  function removeOutroLogo() {
+    if (outroLogo) URL.revokeObjectURL(outroLogo.previewUrl);
+    setOutroLogo(null);
+  }
+
+  function setOutroField<K extends keyof OutroContact>(key: K, value: OutroContact[K]) {
+    setOutro(prev => ({ ...prev, [key]: value }));
+  }
+
+  function applyBrandKit(id: string) {
+    setBrandKitId(id);
+    if (!id) return;
+    const kit = brandKits.find(k => k.id === id);
+    if (!kit) return;
+    setOutroField("company_name", kit.name);
+    if (kit.default_format === "9:16" || kit.default_format === "16:9") {
+      setFormat(kit.default_format);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -92,26 +390,36 @@ export default function CreateForm({ userId }: { userId: string }) {
     const supabase = createClient();
     const today = new Date().toLocaleDateString("nl-NL", { day: "numeric", month: "long" });
     const projectTitle = title.trim() || `Studio - ${today}`;
+    const cleanedOutro: OutroContact = Object.fromEntries(
+      Object.entries(outro).filter(([, v]) => v && String(v).trim())
+    ) as OutroContact;
 
     try {
       setProgress("Project aanmaken...");
       const { data: project, error: insertErr } = await supabase
         .from("projects")
         .insert({
-          user_id:      userId,
-          title:        projectTitle,
-          language:     "Dutch",
+          user_id:                  userId,
+          title:                    projectTitle,
+          language:                 "Dutch",
           format,
-          visual_style: "Cinematic",
-          notes:        idea,
-          status:       "Draft",
-          mode:         "studio",
+          visual_style:             visualStyle,
+          notes:                    idea,
+          status:                   "Draft",
+          mode:                     "studio",
+          brand_kit_id:             brandKitId || null,
+          main_character_id:        mainCharacterId || null,
+          supporting_character_id:  supportingCharacterId || null,
+          outro_contact:            cleanedOutro,
         })
         .select()
         .single();
       if (insertErr || !project) throw new Error(insertErr?.message ?? "Kon project niet aanmaken");
 
-      const updates: { style_reference_url?: string; character_reference_urls?: string[] } = {};
+      const updates: {
+        style_reference_url?: string;
+        outro_logo_url?: string;
+      } = {};
 
       if (styleRef) {
         setProgress("Style reference uploaden...");
@@ -124,19 +432,18 @@ export default function CreateForm({ userId }: { userId: string }) {
         updates.style_reference_url = supabase.storage.from("scene-assets").getPublicUrl(path).data.publicUrl;
       }
 
-      if (characterRefs.length > 0) {
-        const urls: string[] = [];
-        for (let i = 0; i < characterRefs.length; i++) {
-          setProgress(`Character reference ${i + 1}/${characterRefs.length} uploaden...`);
-          const blob = await resizeToBlob(characterRefs[i].file, 1280);
-          const path = `${userId}/${project.id}/char-ref-${i}.jpg`;
-          const { error: upErr } = await supabase.storage
-            .from("scene-assets")
-            .upload(path, blob, { contentType: "image/jpeg", upsert: true });
-          if (upErr) throw new Error(`Character upload ${i + 1}: ${upErr.message}`);
-          urls.push(supabase.storage.from("scene-assets").getPublicUrl(path).data.publicUrl);
-        }
-        updates.character_reference_urls = urls;
+      if (outroLogo) {
+        setProgress("Logo uploaden...");
+        const isPng = outroLogo.file.type === "image/png" || outroLogo.file.name.toLowerCase().endsWith(".png");
+        const blob = await resizeToBlob(outroLogo.file, 1024, isPng ? "png" : "jpeg");
+        const ext = isPng ? "png" : "jpg";
+        const contentType = isPng ? "image/png" : "image/jpeg";
+        const path = `${userId}/${project.id}/outro-logo.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("scene-assets")
+          .upload(path, blob, { contentType, upsert: true });
+        if (upErr) throw new Error(`Logo upload: ${upErr.message}`);
+        updates.outro_logo_url = supabase.storage.from("scene-assets").getPublicUrl(path).data.publicUrl;
       }
 
       if (Object.keys(updates).length > 0) {
@@ -148,7 +455,6 @@ export default function CreateForm({ userId }: { userId: string }) {
         if (updErr) throw new Error(`Project update: ${updErr.message}`);
       }
 
-      // Pass scene count via query so wizard knows the target
       router.push(`/studio/${project.id}?scenes=${sceneCount}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -175,17 +481,294 @@ export default function CreateForm({ userId }: { userId: string }) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-200 mb-2">
-            Idee
-          </label>
+          <label className="block text-sm font-medium text-slate-200 mb-2">Idee</label>
+
+          <div className="grid grid-cols-2 md:grid-cols-7 gap-1.5 mb-3 p-1 bg-slate-950/60 border border-white/10 rounded-lg">
+            {([
+              { id: "smart",     label: "Slim genereren",     emoji: "🎯" },
+              { id: "self",      label: "Zelf typen",         emoji: "✏️" },
+              { id: "templates", label: "Voorbeelden",        emoji: "📋" },
+              { id: "wizard",    label: "Vragenlijst",        emoji: "❓" },
+              { id: "expand",    label: "Korte zin → AI",     emoji: "✨" },
+              { id: "website",   label: "Website lezen",      emoji: "🌐" },
+              { id: "pdf",       label: "PDF lezen",          emoji: "📄" },
+            ] as { id: IdeaMode; label: string; emoji: string }[]).map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => { setIdeaMode(tab.id); setIdeaError(""); }}
+                className={`text-xs font-medium px-2.5 py-1.5 rounded-md transition ${
+                  ideaMode === tab.id
+                    ? "bg-cyan-600 text-white"
+                    : "text-slate-300 hover:bg-white/5"
+                }`}
+              >
+                <span className="mr-1">{tab.emoji}</span>{tab.label}
+              </button>
+            ))}
+          </div>
+
+          {ideaMode === "smart" && (
+            <div className="bg-slate-950/60 border border-cyan-500/30 rounded-lg p-3 mb-2 space-y-3">
+              <p className="text-xs text-slate-400">
+                Combineer drie inputs voor het beste idee. Alles is optioneel — vul in wat je hebt.
+              </p>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  1. Website (optioneel)
+                </label>
+                <input
+                  type="url"
+                  value={smartUrl}
+                  onChange={e => setSmartUrl(e.target.value)}
+                  placeholder="https://www.jouwbedrijf.nl"
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder:text-slate-500"
+                />
+                <p className="text-[11px] text-slate-500 mt-1">AI leest de pagina en pakt het kernverhaal.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  2. Type video (optioneel)
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setSmartGenre("")}
+                    className={`text-xs px-2 py-1 rounded-md border ${
+                      smartGenre === ""
+                        ? "bg-cyan-600 border-cyan-500 text-white"
+                        : "bg-white/[0.04] border-white/10 text-slate-300 hover:bg-white/10"
+                    }`}
+                  >
+                    Geen voorkeur
+                  </button>
+                  {IDEA_TEMPLATES.map(tpl => (
+                    <button
+                      key={tpl.label}
+                      type="button"
+                      onClick={() => setSmartGenre(tpl.label)}
+                      className={`text-xs px-2 py-1 rounded-md border ${
+                        smartGenre === tpl.label
+                          ? "bg-cyan-600 border-cyan-500 text-white"
+                          : "bg-white/[0.04] border-white/10 text-slate-300 hover:bg-white/10"
+                      }`}
+                    >
+                      <span className="mr-1">{tpl.emoji}</span>{tpl.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">Geeft richting aan de structuur.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1">
+                  3. Korte beschrijving (optioneel)
+                </label>
+                <textarea
+                  value={smartSeed}
+                  onChange={e => setSmartSeed(e.target.value)}
+                  rows={2}
+                  placeholder="Bijv. focus op nieuwe klanten in Amsterdam, of: gericht op ZZP'ers"
+                  className="w-full bg-slate-900/60 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder:text-slate-500"
+                />
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={buildIdeaSmart}
+                  disabled={ideaLoading !== "" || (!smartUrl.trim() && !smartGenre && !smartSeed.trim())}
+                  className="text-xs bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 text-white font-medium px-4 py-2 rounded-md"
+                >
+                  {ideaLoading === "smart" ? "Idee bouwen..." : "🎯 Genereer idee"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {ideaMode === "templates" && (
+            <div className="bg-slate-950/60 border border-white/10 rounded-lg p-3 mb-2 space-y-2">
+              <p className="text-xs text-slate-400">
+                Kies een voorbeeld als startpunt. De tekst komt in het idee-veld; daarna kun je vrij aanpassen.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                {IDEA_TEMPLATES.map(tpl => (
+                  <button
+                    key={tpl.label}
+                    type="button"
+                    onClick={() => applyTemplate(tpl.text)}
+                    className="text-left text-xs bg-white/[0.04] hover:bg-white/10 border border-white/10 text-slate-200 px-3 py-2 rounded-md"
+                  >
+                    <span className="mr-1.5">{tpl.emoji}</span>
+                    <span className="font-medium">{tpl.label}</span>
+                    <span className="block text-slate-500 mt-0.5 text-[11px] line-clamp-2">{tpl.text}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {ideaMode === "wizard" && (
+            <div className="bg-slate-950/60 border border-cyan-500/20 rounded-lg p-3 mb-2 space-y-3">
+              <p className="text-xs text-slate-400">
+                Beantwoord wat je weet, AI maakt er een uitgewerkt idee van.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">Voor wie?</label>
+                  <input
+                    type="text"
+                    value={ideaAudience}
+                    onChange={e => setIdeaAudience(e.target.value)}
+                    placeholder="Bijv. ZZP-coaches die meer klanten willen"
+                    className="w-full bg-slate-900/60 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder:text-slate-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">Boodschap of CTA</label>
+                  <input
+                    type="text"
+                    value={ideaMessage}
+                    onChange={e => setIdeaMessage(e.target.value)}
+                    placeholder="Bijv. plan een gratis kennismaking"
+                    className="w-full bg-slate-900/60 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder:text-slate-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">Toon</label>
+                  <select
+                    value={ideaTone}
+                    onChange={e => setIdeaTone(e.target.value)}
+                    className="w-full bg-slate-900/60 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white"
+                  >
+                    <option value="">Kies een toon</option>
+                    {TONES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-300 mb-1">Hoofdpersoon (optioneel)</label>
+                  <input
+                    type="text"
+                    value={ideaCharacter}
+                    onChange={e => setIdeaCharacter(e.target.value)}
+                    placeholder="Bijv. een gestreste ondernemer in de 40"
+                    className="w-full bg-slate-900/60 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={buildIdeaFromWizard}
+                  disabled={ideaLoading !== ""}
+                  className="text-xs bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 text-white font-medium px-3 py-1.5 rounded-md"
+                >
+                  {ideaLoading === "wizard" ? "Genereren..." : "Maak idee"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {ideaMode === "expand" && (
+            <div className="bg-slate-950/60 border border-cyan-500/20 rounded-lg p-3 mb-2 space-y-2">
+              <p className="text-xs text-slate-400">
+                Typ een paar woorden of een zin, AI werkt het uit tot een volledige briefing.
+              </p>
+              <textarea
+                value={ideaSeed}
+                onChange={e => setIdeaSeed(e.target.value)}
+                rows={2}
+                placeholder="Bijv. video voor relatietherapeut die nieuwe klanten wil"
+                className="w-full bg-slate-900/60 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder:text-slate-500"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={expandIdeaWithAI}
+                  disabled={ideaLoading !== "" || !ideaSeed.trim()}
+                  className="text-xs bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 text-white font-medium px-3 py-1.5 rounded-md"
+                >
+                  {ideaLoading === "expand" ? "Uitwerken..." : "✨ Werk uit met AI"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {ideaMode === "pdf" && (
+            <div className="bg-slate-950/60 border border-cyan-500/20 rounded-lg p-3 mb-2 space-y-2">
+              <p className="text-xs text-slate-400">
+                Upload een PDF (offerte, brochure, whitepaper). AI extract de kernpunten en
+                maakt er een explainer-idee van.
+              </p>
+              {pdfFile ? (
+                <div className="flex items-center gap-2 text-xs text-slate-300 bg-slate-900/60 border border-white/10 rounded-md px-3 py-2">
+                  <span>📄</span>
+                  <span className="truncate flex-1">{pdfFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPdfFile(null)}
+                    className="text-slate-500 hover:text-slate-200"
+                  >×</button>
+                </div>
+              ) : (
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) setPdfFile(f); e.target.value = ""; }}
+                  className="block w-full text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:bg-cyan-600 file:text-white"
+                />
+              )}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={buildIdeaFromPdf}
+                  disabled={ideaLoading !== "" || !pdfFile}
+                  className="text-xs bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 text-white font-medium px-3 py-1.5 rounded-md"
+                >
+                  {ideaLoading === "pdf" ? "Lezen..." : "📄 Lees PDF"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {ideaMode === "website" && (
+            <div className="bg-slate-950/60 border border-cyan-500/20 rounded-lg p-3 mb-2 space-y-2">
+              <p className="text-xs text-slate-400">
+                Geef een URL op. AI leest de pagina en maakt er een explainer-idee van.
+              </p>
+              <input
+                type="url"
+                value={ideaUrl}
+                onChange={e => setIdeaUrl(e.target.value)}
+                placeholder="https://www.jouwbedrijf.nl"
+                className="w-full bg-slate-900/60 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder:text-slate-500"
+              />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={buildIdeaFromWebsite}
+                  disabled={ideaLoading !== "" || !ideaUrl.trim()}
+                  className="text-xs bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 text-white font-medium px-3 py-1.5 rounded-md"
+                >
+                  {ideaLoading === "website" ? "Lezen..." : "🌐 Lees website"}
+                </button>
+              </div>
+            </div>
+          )}
+
           <textarea
             value={idea}
             onChange={e => setIdea(e.target.value)}
-            rows={5}
-            placeholder="Beschrijf het verhaal of de boodschap. Bijv. een korte video voor een relatietherapeut: een man worstelt met zijn relatie, gaat naar de therapeut en loopt naar buiten met nieuwe hoop."
+            rows={6}
+            placeholder="Beschrijf het verhaal of de boodschap. Of kies hierboven een andere manier."
             className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500"
             required
           />
+          {ideaError && (
+            <p className="text-xs text-red-400 mt-1">{ideaError}</p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -210,80 +793,204 @@ export default function CreateForm({ userId }: { userId: string }) {
             </select>
           </div>
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-200 mb-2">Visuele stijl</label>
+            <select
+              value={visualStyle}
+              onChange={e => setVisualStyle(e.target.value as VisualStyle)}
+              className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+            >
+              {VISUAL_STYLES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <p className="text-xs text-slate-500 mt-1.5">Wordt meegestuurd in elk image-prompt</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-200 mb-2">
+              Huisstijl <span className="text-slate-500 font-normal">(optioneel)</span>
+            </label>
+            <select
+              value={brandKitId}
+              onChange={e => applyBrandKit(e.target.value)}
+              className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
+            >
+              <option value="">Geen huisstijl</option>
+              {brandKits.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+            </select>
+            <p className="text-xs text-slate-500 mt-1.5">
+              {brandKits.length === 0
+                ? "Beheer huisstijlen via Brand Kits"
+                : "Stuurt tone of voice, kleuren en do-nots mee naar het script"}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-white mb-1">Karakters</h2>
+            <p className="text-xs text-slate-400">
+              Kies wie er in beeld komt. Laat een rol leeg en AI verzint zelf een
+              passende persoon — die contrasteert dan automatisch met de wel ingevulde rol.
+            </p>
+          </div>
+          {onSwitchToCharacters && (
+            <button
+              type="button"
+              onClick={onSwitchToCharacters}
+              className="text-xs bg-cyan-600/20 border border-cyan-500/40 hover:bg-cyan-600/30 text-cyan-200 px-2.5 py-1 rounded-md whitespace-nowrap"
+            >
+              + Nieuw karakter
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <CharacterPicker
+            label="Hoofdpersoon"
+            value={mainCharacterId}
+            characters={characters}
+            excludeId={supportingCharacterId}
+            onChange={setMainCharacterId}
+            placeholder="AI verzint hoofdpersoon"
+          />
+          <CharacterPicker
+            label="Bijpersoon"
+            value={supportingCharacterId}
+            characters={characters}
+            excludeId={mainCharacterId}
+            onChange={setSupportingCharacterId}
+            placeholder="AI verzint bijpersoon"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-200 mb-2">
+            Style reference {styleRef ? "(1)" : "(optioneel)"}
+          </label>
+          {styleRef ? (
+            <div className="relative inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={styleRef.previewUrl} alt="style" className="w-32 h-32 object-cover rounded-md border border-white/10" />
+              <button
+                type="button"
+                onClick={removeStyle}
+                disabled={submitting}
+                className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded"
+              >x</button>
+            </div>
+          ) : (
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleStyleFile}
+              disabled={submitting}
+              className="block w-full text-sm text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-cyan-600 file:text-white hover:file:bg-cyan-700"
+            />
+          )}
+          <p className="text-xs text-slate-500 mt-1.5">Bepaalt de visuele look (kleurpalet, brushwork, sfeer)</p>
+        </div>
       </div>
 
       <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-5">
         <div>
-          <h2 className="text-sm font-semibold text-white mb-1">Anchors</h2>
+          <h2 className="text-sm font-semibold text-white mb-1">Eindscene</h2>
           <p className="text-xs text-slate-400">
-            Optioneel maar sterk aanbevolen. Worden in elke scene meegestuurd voor strakke
-            stijl- en character-consistency.
+            Optioneel. Logo en contactgegevens worden gebruikt voor de afsluitende scene
+            (typische call-to-action zoals je in elke explainer ziet).
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <label className="block text-sm font-medium text-slate-200 mb-2">
-              Style reference {styleRef ? "(1)" : "(optioneel)"}
-            </label>
-            {styleRef ? (
-              <div className="relative inline-block">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={styleRef.previewUrl} alt="style" className="w-32 h-32 object-cover rounded-md border border-white/10" />
-                <button
-                  type="button"
-                  onClick={removeStyle}
-                  disabled={submitting}
-                  className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded"
-                >
-                  x
-                </button>
-              </div>
-            ) : (
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleStyleFile}
+        <div>
+          <label className="block text-sm font-medium text-slate-200 mb-2">
+            Logo {outroLogo ? "(1)" : "(optioneel)"}
+          </label>
+          {outroLogo ? (
+            <div className="relative inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={outroLogo.previewUrl} alt="logo" className="w-32 h-32 object-contain bg-white/5 rounded-md border border-white/10 p-2" />
+              <button
+                type="button"
+                onClick={removeOutroLogo}
                 disabled={submitting}
-                className="block w-full text-sm text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-cyan-600 file:text-white hover:file:bg-cyan-700"
-              />
-            )}
-            <p className="text-xs text-slate-500 mt-1.5">Bepaalt de visuele look (kleurpalet, brushwork, sfeer)</p>
-          </div>
+                className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded"
+              >
+                x
+              </button>
+            </div>
+          ) : (
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleOutroLogoFile}
+              disabled={submitting}
+              className="block w-full text-sm text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-cyan-600 file:text-white hover:file:bg-cyan-700"
+            />
+          )}
+        </div>
 
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-200 mb-2">
-              Character references ({characterRefs.length}/{MAX_CHARACTER_REFS})
-            </label>
-            {characterRefs.length < MAX_CHARACTER_REFS && (
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleCharacterFiles}
-                disabled={submitting}
-                className="block w-full text-sm text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-cyan-600 file:text-white hover:file:bg-cyan-700 mb-2"
-              />
-            )}
-            {characterRefs.length > 0 && (
-              <div className="flex gap-2">
-                {characterRefs.map((ref, i) => (
-                  <div key={i} className="relative">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={ref.previewUrl} alt={`char ${i + 1}`} className="w-20 h-20 object-cover rounded-md border border-white/10" />
-                    <button
-                      type="button"
-                      onClick={() => removeCharacter(i)}
-                      disabled={submitting}
-                      className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded"
-                    >
-                      x
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <p className="text-xs text-slate-500 mt-1.5">Wie verschijnt in de video (1 portretfoto is meestal genoeg)</p>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">Bedrijfsnaam</label>
+            <input
+              type="text"
+              value={outro.company_name ?? ""}
+              onChange={e => setOutroField("company_name", e.target.value)}
+              placeholder="Jouw Animatievideo"
+              className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">Tagline</label>
+            <input
+              type="text"
+              value={outro.tagline ?? ""}
+              onChange={e => setOutroField("tagline", e.target.value)}
+              placeholder="Plan een gratis kennismaking"
+              className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">Website</label>
+            <input
+              type="text"
+              value={outro.website ?? ""}
+              onChange={e => setOutroField("website", e.target.value)}
+              placeholder="www.jouwanimatievideo.nl"
+              className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">E-mail</label>
+            <input
+              type="text"
+              value={outro.email ?? ""}
+              onChange={e => setOutroField("email", e.target.value)}
+              placeholder="hallo@jouwanimatievideo.nl"
+              className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">Telefoon</label>
+            <input
+              type="text"
+              value={outro.phone ?? ""}
+              onChange={e => setOutroField("phone", e.target.value)}
+              placeholder="06 - 12 34 56 78"
+              className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">Socials</label>
+            <input
+              type="text"
+              value={outro.socials ?? ""}
+              onChange={e => setOutroField("socials", e.target.value)}
+              placeholder="@jouwanimatievideo"
+              className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500"
+            />
           </div>
         </div>
       </div>

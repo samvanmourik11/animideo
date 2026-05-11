@@ -80,6 +80,29 @@ export interface Scene {
   source_image_url?: string | null; // original uploaded photo (photo mode only)
 }
 
+export interface Character {
+  id:           string;
+  user_id:      string;
+  name:         string;
+  description:  string | null;
+  image_url:    string | null;
+  source_type:  "uploaded" | "generated";
+  gender:       string | null;
+  age_range:    string | null;
+  style:        string | null;
+  created_at:   string;
+  updated_at:   string;
+}
+
+export interface OutroContact {
+  company_name?: string;
+  website?: string;
+  email?: string;
+  phone?: string;
+  socials?: string;
+  tagline?: string;
+}
+
 export interface Project {
   id: string;
   user_id: string;
@@ -103,6 +126,10 @@ export interface Project {
   video_model: string | null;
   style_reference_url: string | null;
   character_reference_urls: string[];
+  outro_logo_url: string | null;
+  outro_contact: OutroContact;
+  main_character_id: string | null;
+  supporting_character_id: string | null;
   status: ProjectStatus;
   created_at: string;
   updated_at: string;

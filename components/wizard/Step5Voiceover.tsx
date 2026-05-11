@@ -34,6 +34,8 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
   const [error, setError] = useState("");
   const [audioDuration, setAudioDuration] = useState<number | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [aligning, setAligning] = useState(false);
+  const [alignResult, setAlignResult] = useState<{ ok: boolean; message: string } | null>(null);
   const waveRef = useRef<HTMLDivElement>(null);
 
   const scenes = project.scenes ?? [];
@@ -133,7 +135,36 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
     }
   }
 
-  const durationDiff = audioDuration !== null ? audioDuration - totalVideoDuration : null;
+  async function handleAlign() {
+    setAlignResult(null);
+    setAligning(true);
+    try {
+      const res = await fetch("/api/align-voice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.scenes) {
+        setAlignResult({ ok: false, message: data.error ?? "Sync mislukt" });
+        return;
+      }
+      onUpdate({ scenes: data.scenes });
+      setAlignResult({
+        ok:      true,
+        message: data.fallbackUsed
+          ? "Synchroon op tekstlengte (Whisper miste woorden)"
+          : `Scenes gesynchroniseerd op stem (${data.wordsMatched} woorden)`,
+      });
+    } catch (err: unknown) {
+      setAlignResult({ ok: false, message: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setAligning(false);
+    }
+  }
+
+  const fmtDur = (n: number) => Math.round(n * 10) / 10;
+  const durationDiff = audioDuration !== null ? fmtDur(audioDuration - totalVideoDuration) : null;
 
   return (
     <div>
@@ -218,11 +249,11 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-slate-950/60 rounded-lg p-3 text-center">
               <p className="text-[10px] text-slate-500 mb-0.5">Video duur</p>
-              <p className="text-lg font-bold text-white">{totalVideoDuration}s</p>
+              <p className="text-lg font-bold text-white">{fmtDur(totalVideoDuration)}s</p>
             </div>
             <div className="bg-slate-950/60 rounded-lg p-3 text-center">
               <p className="text-[10px] text-slate-500 mb-0.5">Audio duur</p>
-              <p className="text-lg font-bold text-white">{audioDuration ?? "..."}s</p>
+              <p className="text-lg font-bold text-white">{audioDuration !== null ? fmtDur(audioDuration) : "..."}s</p>
             </div>
           </div>
 
@@ -232,13 +263,38 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
                 ? "bg-emerald-950/40 text-emerald-300 border border-emerald-700/30"
                 : "bg-amber-950/40 text-amber-200 border border-amber-700/30"
             }`}>
-              {Math.abs(durationDiff) <= 3
+              {Math.abs(durationDiff) <= 1
                 ? "Audio en video sluiten goed aan."
                 : durationDiff > 0
-                ? `Audio is ${durationDiff}s langer dan de video. Wordt afgekapt bij export.`
-                : `Audio is ${Math.abs(durationDiff)}s korter. Het einde wordt stil.`}
+                ? `Audio is ${fmtDur(durationDiff)}s langer dan de video. Klik 'Auto-sync' om scenes aan te passen.`
+                : `Audio is ${fmtDur(Math.abs(durationDiff))}s korter. Klik 'Auto-sync' om scenes aan te passen.`}
             </div>
           )}
+
+          <div className="bg-slate-950/60 border border-cyan-500/20 rounded-lg p-3 space-y-2">
+            <div className="flex items-start gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-white">🎯 Auto-sync video met stem</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Whisper transcribeert de audio en matcht woord voor woord met de
+                  voice-over tekst van elke scene. De scene-duraties worden zo gezet
+                  dat ze samen exact gelijk zijn aan de audio-duur — geen gaps, geen overhang.
+                </p>
+              </div>
+              <button
+                onClick={handleAlign}
+                disabled={aligning || !audioUrl}
+                className="text-xs bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 text-white font-medium px-3 py-2 rounded-md whitespace-nowrap"
+              >
+                {aligning ? "Sync..." : "Auto-sync"}
+              </button>
+            </div>
+            {alignResult && (
+              <p className={`text-xs ${alignResult.ok ? "text-emerald-300" : "text-red-300"}`}>
+                {alignResult.message}
+              </p>
+            )}
+          </div>
 
           <div ref={waveRef} className="rounded-md bg-slate-950/60 border border-white/10 p-2" />
           <audio src={audioUrl} controls className="w-full mt-2" />

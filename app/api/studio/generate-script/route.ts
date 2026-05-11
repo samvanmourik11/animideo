@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
-import { Scene } from "@/lib/types";
+import { OutroContact, Scene } from "@/lib/types";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -27,11 +27,11 @@ export async function POST(req: NextRequest) {
   }
 
   const { projectId, targetScenes } = await req.json() as { projectId: string; targetScenes?: number };
-  const sceneCount = Math.max(2, Math.min(12, targetScenes ?? 4));
+  const sceneCount = Math.max(2, Math.min(15, targetScenes ?? 5));
 
   const { data: project } = await supabase
     .from("projects")
-    .select("title, notes, language, format, style_reference_url, character_reference_urls")
+    .select("title, notes, language, format, visual_style, style_reference_url, character_reference_urls, outro_logo_url, outro_contact, brand_kit_id, main_character_id, supporting_character_id")
     .eq("id", projectId)
     .eq("user_id", user.id)
     .single();
@@ -40,9 +40,37 @@ export async function POST(req: NextRequest) {
   const idea = (project.notes ?? "").trim();
   if (!idea) return NextResponse.json({ error: "Geen idee gevonden in project" }, { status: 400 });
 
+  let brandKit: { name: string; tone_of_voice: string | null; description: string | null; do_nots: string | null; brand_values: string[] | null } | null = null;
+  if (project.brand_kit_id) {
+    const { data } = await supabase
+      .from("brand_kits")
+      .select("name, tone_of_voice, description, do_nots, brand_values")
+      .eq("id", project.brand_kit_id)
+      .eq("user_id", user.id)
+      .single();
+    brandKit = data;
+  }
+
+  type CharRow = { id: string; name: string; description: string | null; gender: string | null; age_range: string | null; image_url: string | null };
+  let mainChar: CharRow | null = null;
+  let supportChar: CharRow | null = null;
+  const charIds = [project.main_character_id, project.supporting_character_id].filter(Boolean) as string[];
+  if (charIds.length > 0) {
+    const { data: chars } = await supabase
+      .from("characters")
+      .select("id, name, description, gender, age_range, image_url")
+      .in("id", charIds)
+      .eq("user_id", user.id);
+    const byId = new Map((chars ?? []).map(c => [c.id, c as CharRow]));
+    mainChar    = project.main_character_id        ? byId.get(project.main_character_id)        ?? null : null;
+    supportChar = project.supporting_character_id  ? byId.get(project.supporting_character_id)  ?? null : null;
+  }
+
+  const charLabel = (c: CharRow) => `${c.name}${[c.gender, c.age_range].filter(Boolean).length ? ` (${[c.gender, c.age_range].filter(Boolean).join(", ")})` : ""}`;
+
   const hasStyle = !!project.style_reference_url;
-  const hasCharacter = (project.character_reference_urls?.length ?? 0) > 0;
-  const characterCount = project.character_reference_urls?.length ?? 0;
+  const characterCount = (mainChar ? 1 : 0) + (supportChar ? 1 : 0);
+  const hasCharacter = characterCount > 0 || (project.character_reference_urls?.length ?? 0) > 0;
 
   const anchorContext = (hasStyle || hasCharacter) ? `
 
@@ -55,7 +83,61 @@ ${hasCharacter ? `- ${characterCount} CHARACTER REFERENCE image${characterCount 
   2. Camera framing (e.g., "wide establishing shot", "close-up of the hands", "over-the-shoulder medium shot")
   3. Action and emotion of the character
   4. Lighting and mood specific to this scene
-- The 6 scenes together should form a visual journey across DIFFERENT environments, not the same location 6 times. Vary indoor/outdoor, day/night, wide/close, calm/active.` : "";
+- The ${sceneCount} scenes together should form a visual journey across DIFFERENT environments, not the same location every time. Vary indoor/outdoor, day/night, wide/close, calm/active.` : "";
+
+  const visualStyle = project.visual_style ?? "Cinematic";
+  const styleContext = `
+VISUAL STYLE: Every image_prompt must reflect "${visualStyle}" as the rendering style. Append a short style descriptor that fits this style to each image_prompt.`;
+
+  const characterContext = (() => {
+    const lines: string[] = [];
+    if (mainChar) {
+      lines.push(`MAIN CHARACTER (eigenaar / hoofdpersoon): ${charLabel(mainChar)}${mainChar.description ? ` — ${mainChar.description}` : ""}`);
+    } else if (supportChar) {
+      lines.push(`MAIN CHARACTER: not specified — verzin een hoofdpersoon die DUIDELIJK contrasteert met de ${charLabel(supportChar)} (verschillende leeftijd, ander geslacht, andere uitstraling).`);
+    } else {
+      lines.push(`MAIN CHARACTER: not specified — verzin een passende hoofdpersoon voor dit verhaal.`);
+    }
+
+    if (supportChar) {
+      lines.push(`SUPPORTING CHARACTER (klant / bijpersoon): ${charLabel(supportChar)}${supportChar.description ? ` — ${supportChar.description}` : ""}`);
+    } else if (mainChar) {
+      lines.push(`SUPPORTING CHARACTER: not specified — verzin een bijpersoon die DUIDELIJK contrasteert met ${charLabel(mainChar)} (verschillende leeftijd OF ander geslacht OF andere uitstraling). Nooit twee gelijke personen tegen elkaar.`);
+    } else {
+      lines.push(`SUPPORTING CHARACTER: not specified — verzin een bijpersoon die contrasteert met de hoofdpersoon (andere leeftijd, geslacht of look). Nooit twee gelijke personen tegen elkaar.`);
+    }
+
+    lines.push(`In elke image_prompt waarin een persoon voorkomt, MOET je expliciet vermelden of het de main character of de supporting character is, en hun kerneigenschappen herhalen (geslacht, leeftijdsindicatie, kledingkleur) zodat consistency bewaard blijft.`);
+    return `\n\nCHARACTERS:\n${lines.join("\n")}`;
+  })();
+
+  const brandContext = brandKit ? `
+BRAND CONTEXT:
+- Brand: ${brandKit.name}${brandKit.description ? ` — ${brandKit.description}` : ""}
+${brandKit.tone_of_voice ? `- Tone of voice: ${brandKit.tone_of_voice}` : ""}
+${brandKit.brand_values && brandKit.brand_values.length > 0 ? `- Brand values: ${brandKit.brand_values.join(", ")}` : ""}
+${brandKit.do_nots ? `- Do NOT: ${brandKit.do_nots}` : ""}
+Apply this brand voice to the voiceover_text. Stay on-brand.` : "";
+
+  const outro = (project.outro_contact ?? {}) as OutroContact;
+  const outroParts: string[] = [];
+  if (outro.company_name)  outroParts.push(`Company: ${outro.company_name}`);
+  if (outro.tagline)       outroParts.push(`Tagline / CTA: ${outro.tagline}`);
+  if (outro.website)       outroParts.push(`Website: ${outro.website}`);
+  if (outro.email)         outroParts.push(`Email: ${outro.email}`);
+  if (outro.phone)         outroParts.push(`Phone: ${outro.phone}`);
+  if (outro.socials)       outroParts.push(`Socials: ${outro.socials}`);
+  const hasOutro = outroParts.length > 0 || !!project.outro_logo_url;
+
+  const outroContext = hasOutro ? `
+
+OUTRO SCENE (LAST scene of ${sceneCount}):
+The final scene MUST be a clean closing / call-to-action scene typical of explainer videos.
+${outroParts.length > 0 ? `Contact details to feature:\n${outroParts.map(p => `  - ${p}`).join("\n")}` : ""}
+${project.outro_logo_url ? "- A LOGO image is provided and will be composited in by the image generator." : ""}
+- voiceover_text for the outro: a short, warm call-to-action in ${project.language} that mentions the company name${outro.tagline ? ` and reinforces the tagline "${outro.tagline}"` : ""}. Keep it under 12 seconds of speech.
+- image_prompt for the outro: describe a calm, branded closing composition (e.g., the main character in a welcoming pose with empty space for the logo and contact text overlay, OR an abstract on-brand background with negative space). The image_prompt must end with: "Leave clean negative space in the lower-third for logo and contact details overlay. No text rendered in the image itself."
+- duration: 5 to 7 seconds.` : "";
 
   const VISUAL_RULES = `VISUAL RULES: No text, letters, words, signs or labels visible anywhere. No more than 2 hands per person. No extra limbs or distorted anatomy. Faces natural and symmetrical. Lighting consistent with the previous scene unless the story explicitly shifts.`;
 
@@ -67,8 +149,10 @@ Create a video script for the following project:
 - Title: ${project.title}
 - Language: ${project.language}
 - Video format: ${project.format}
+- Visual style: ${visualStyle}
 - Idea / brief: ${idea}
-
+${characterContext}
+${brandContext}
 Generate EXACTLY ${sceneCount} scenes. Return ONLY a valid JSON array with no markdown, no code fences, no commentary.
 
 Each element must have exactly these fields:
@@ -79,7 +163,7 @@ Each element must have exactly these fields:
   "image_prompt": "<what HAPPENS in this scene, in English. Action, setting, framing, lighting, mood. Will be sent to Nano Banana Pro along with anchor reference images.>",
   "motion_prompt": "<how the image should animate, in English>"
 }
-${anchorContext}
+${anchorContext}${styleContext}${outroContext}
 
 CRITICAL RULES for image_prompt:
 - Write image_prompts in ENGLISH (image generators perform best in English) even if voiceover_text is in ${project.language}.
@@ -91,7 +175,7 @@ CRITICAL RULES for image_prompt:
 STORY ARC:
 1. OPENING scene: a strong hook that immediately grabs attention.
 2. MIDDLE scenes: develop the story or explain the message with concrete visuals.
-3. CLOSING scene (last one): emotional payoff or call to action.
+3. ${hasOutro ? "OUTRO scene (last): branded call-to-action with negative space for logo and contact." : "CLOSING scene (last): emotional payoff or call to action."}
 
 Voiceover rules:
 - voiceover_text in ${project.language}, natural narration, no stage directions.
