@@ -21,7 +21,6 @@ const STATUS_OPTIONS: { value: ProjectStatus | "all"; label: string }[] = [
 interface Props {
   projects: Project[];
   userId: string;
-  isAdmin?: boolean;
 }
 
 function projectHref(p: Project) {
@@ -35,7 +34,7 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric" });
 }
 
-export default function ProjectLibrary({ projects: initial, userId, isAdmin = false }: Props) {
+export default function ProjectLibrary({ projects: initial, userId }: Props) {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>(initial);
   const [search, setSearch] = useState("");
@@ -80,7 +79,7 @@ export default function ProjectLibrary({ projects: initial, userId, isAdmin = fa
           Klik op <strong className="text-slate-300">Nieuw project</strong> om te beginnen.
         </p>
         <div className="flex justify-center">
-          <NewProjectButton userId={userId} isAdmin={isAdmin} />
+          <NewProjectButton userId={userId} />
         </div>
       </div>
     );

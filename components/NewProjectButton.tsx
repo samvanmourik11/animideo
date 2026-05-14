@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function NewProjectButton({ userId, isAdmin = false }: { userId: string; isAdmin?: boolean }) {
+export default function NewProjectButton({ userId }: { userId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState<"wizard" | "free" | "photo" | "t2v" | "studio" | null>(null);
@@ -158,23 +158,19 @@ export default function NewProjectButton({ userId, isAdmin = false }: { userId: 
 
       {open && (
         <div className="absolute right-0 mt-2 w-56 bg-[#0c1428] border border-white/[0.09] rounded-xl shadow-2xl z-50 overflow-hidden">
-          {isAdmin && (
-            <>
-              <button
-                onClick={openStudio}
-                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-cyan-500/10 to-transparent"
-              >
-                <span className="text-lg leading-none mt-0.5">🎬</span>
-                <div>
-                  <p className="text-sm font-medium text-white">
-                    Creator Studio
-                  </p>
-                  <p className="text-xs text-slate-500 mt-0.5">Karakter en stijl consistent door alle scenes</p>
-                </div>
-              </button>
-              <div className="h-px bg-white/[0.06] mx-3" />
-            </>
-          )}
+          <button
+            onClick={openStudio}
+            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-cyan-500/10 to-transparent"
+          >
+            <span className="text-lg leading-none mt-0.5">🎬</span>
+            <div>
+              <p className="text-sm font-medium text-white">
+                Creator Studio
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">Karakter en stijl consistent door alle scenes</p>
+            </div>
+          </button>
+          <div className="h-px bg-white/[0.06] mx-3" />
           <button
             onClick={createWizard}
             className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"

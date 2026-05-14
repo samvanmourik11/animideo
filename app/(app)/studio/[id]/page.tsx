@@ -17,13 +17,6 @@ export default async function StudioProjectPage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: profileRow } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single();
-  if (!profileRow?.is_admin) redirect("/dashboard");
-
   const [{ data: project }, profile] = await Promise.all([
     supabase
       .from("projects")
