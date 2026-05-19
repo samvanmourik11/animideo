@@ -10,21 +10,15 @@ fal.config({ credentials: process.env.FAL_KEY });
 
 type FalImageResult = { images?: { url: string }[] };
 
-async function adminGuard() {
+async function authGuard() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", user.id)
-    .single();
-  if (!profile?.is_admin) return { error: NextResponse.json({ error: "Geen toegang" }, { status: 403 }) };
   return { supabase, user };
 }
 
 export async function GET() {
-  const guard = await adminGuard();
+  const guard = await authGuard();
   if ("error" in guard) return guard.error;
   const { supabase, user } = guard;
 
@@ -39,7 +33,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await adminGuard();
+  const guard = await authGuard();
   if ("error" in guard) return guard.error;
   const { supabase, user } = guard;
 
