@@ -14,6 +14,8 @@ function SignupForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [resendMsg, setResendMsg] = useState("");
+  const [resending, setResending] = useState(false);
 
   const guestEmail = searchParams.get("guest_email");
 
@@ -35,7 +37,7 @@ function SignupForm() {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: `${appUrl}/dashboard` },
@@ -44,9 +46,38 @@ function SignupForm() {
     if (error) {
       setError(error.message);
       setLoading(false);
-    } else {
-      setDone(true);
+      return;
     }
+
+    // Supabase stuurt geen mail en geeft geen fout als het e-mailadres al
+    // bestaat (bescherming tegen account-enumeratie). Je herkent dit aan een
+    // lege identities-array. Zonder deze check zien bestaande gebruikers
+    // onterecht "Check je inbox" terwijl er niets verstuurd is.
+    if (data.user && (data.user.identities?.length ?? 0) === 0) {
+      setError("Dit e-mailadres heeft al een account. Log hieronder in of herstel je wachtwoord.");
+      setLoading(false);
+      return;
+    }
+
+    setDone(true);
+  }
+
+  async function handleResend() {
+    setResendMsg("");
+    setResending(true);
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    const supabase = createClient();
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: `${appUrl}/dashboard` },
+    });
+    setResendMsg(
+      error
+        ? `Versturen mislukt: ${error.message}`
+        : "Nieuwe bevestigingslink verstuurd."
+    );
+    setResending(false);
   }
 
   if (done) {
@@ -61,7 +92,27 @@ function SignupForm() {
             <p className="text-slate-500 text-sm mt-1">
               We hebben een link gestuurd naar <strong className="text-white">{email}</strong>.
             </p>
+            <p className="text-slate-500 text-xs mt-3">
+              Geen mail na een paar minuten? Check je spam-map of vraag een nieuwe link aan.
+            </p>
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resending}
+              className="text-blue-400 hover:text-blue-300 transition-colors text-sm font-medium mt-2"
+            >
+              {resending ? "Versturen…" : "Nieuwe link versturen"}
+            </button>
+            {resendMsg && (
+              <p className="text-slate-400 text-xs mt-2">{resendMsg}</p>
+            )}
           </div>
+          <p className="text-center text-sm text-slate-500 mt-5">
+            Al bevestigd?{" "}
+            <Link href="/login" className="text-blue-400 hover:text-blue-300 transition-colors font-medium">
+              Inloggen
+            </Link>
+          </p>
         </div>
       </div>
     );
