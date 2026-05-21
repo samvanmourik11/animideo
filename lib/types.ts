@@ -1,4 +1,4 @@
-export type ProjectMode = "wizard" | "free" | "photo" | "t2v" | "studio";
+export type ProjectMode = "wizard" | "free" | "photo" | "t2v" | "studio" | "playground";
 export type ImageModel = "flux-schnell" | "flux-pro" | "dall-e-3" | "controlnet" | "recraft" | "seedream";
 export type VideoModel = "kling-pro" | "kling-standard" | "seedance-pro" | "seedance-lite";
 
@@ -92,6 +92,26 @@ export interface Character {
   style:        string | null;
   created_at:   string;
   updated_at:   string;
+}
+
+/**
+ * Een node op het vrije Playground-canvas. Elke node is een gegenereerd of
+ * bewerkt beeld (of clip). parent_id wijst naar de node waaruit deze ontstond,
+ * waardoor varianten een vertakkende geschiedenis vormen.
+ */
+export interface PlaygroundNode {
+  id: string;
+  project_id: string;
+  user_id: string;
+  parent_id: string | null;
+  kind: "image" | "video";
+  prompt: string | null;        // generatie-prompt of bewerk-instructie
+  image_url: string | null;
+  video_url: string | null;
+  in_video: boolean;            // zit deze node in de eindmontage
+  sort_order: number | null;
+  meta: Record<string, unknown>;
+  created_at: string;
 }
 
 export interface OutroContact {
