@@ -49,6 +49,9 @@ export default function NavBar({ email, credits, plan, creditsResetDate }: NavBa
           <Link href="/account" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
             Account
           </Link>
+          <Link href="/support" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
+            Hulp
+          </Link>
         </div>
 
         <div className="flex items-center gap-3">
