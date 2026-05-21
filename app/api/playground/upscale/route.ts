@@ -5,12 +5,8 @@ import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
-// Model voor instructie-bewerken: neemt een bestaand beeld plus een instructie
-// ("maak het paard wit") en regenereert het beeld met die wijziging, de rest
-// blijft staan. Dit is de kern van de Flow-lus. Zelfde slug als de bestaande
-// admin-testroute /api/test-nano-banana.
-const EDIT_MODEL = "fal-ai/nano-banana-pro/edit";
-
+// Upscalen verscherpt een bestaand beeld zonder het te veranderen.
+// Clarity Upscaler met lage creativity = zo dicht mogelijk bij het origineel.
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const {
@@ -18,33 +14,27 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sessie ongeldig, log opnieuw in" }, { status: 401 });
 
-  const { projectId, parentNodeId, instruction, label } = (await req.json().catch(() => ({}))) as {
+  const { projectId, nodeId } = (await req.json().catch(() => ({}))) as {
     projectId?: string;
-    parentNodeId?: string;
-    instruction?: string;
-    label?: string;
+    nodeId?: string;
   };
-  if (!projectId || !parentNodeId || !instruction || instruction.trim().length < 2) {
-    return NextResponse.json(
-      { error: "projectId, parentNodeId en instruction zijn verplicht" },
-      { status: 400 }
-    );
+  if (!projectId || !nodeId) {
+    return NextResponse.json({ error: "projectId en nodeId zijn verplicht" }, { status: 400 });
   }
 
-  // Haal de bron-node op en controleer eigendom.
-  const { data: parent } = await supabase
+  const { data: src } = await supabase
     .from("playground_nodes")
     .select("id, user_id, project_id, image_url, meta")
-    .eq("id", parentNodeId)
+    .eq("id", nodeId)
     .single();
-  if (!parent || parent.user_id !== user.id || parent.project_id !== projectId) {
-    return NextResponse.json({ error: "Bron-beeld niet gevonden" }, { status: 404 });
+  if (!src || src.user_id !== user.id || src.project_id !== projectId) {
+    return NextResponse.json({ error: "Beeld niet gevonden" }, { status: 404 });
   }
-  if (!parent.image_url) {
-    return NextResponse.json({ error: "Bron-node heeft geen afbeelding" }, { status: 400 });
+  if (!src.image_url) {
+    return NextResponse.json({ error: "Node heeft geen afbeelding" }, { status: 400 });
   }
 
-  const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Playground: beeld bewerken");
+  const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Playground: upscalen");
   if (!credit.success) {
     return NextResponse.json(
       { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
@@ -55,25 +45,23 @@ export async function POST(req: NextRequest) {
   const userId = user.id;
   async function refund() {
     try {
-      await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Refund: playground bewerken mislukt");
+      await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Refund: playground upscale mislukt");
     } catch {}
   }
 
   try {
-    const parentFormat = parent.meta?.format === "9:16" ? "9:16" : "16:9";
-    const result = await fal.subscribe(EDIT_MODEL, {
+    const result = await fal.subscribe("fal-ai/clarity-upscaler", {
       input: {
-        prompt: instruction.trim().slice(0, 4000),
-        image_urls: [parent.image_url],
-        aspect_ratio: parentFormat,
-        resolution: "2K",
-        num_images: 1,
-        output_format: "jpeg",
+        image_url: src.image_url,
+        upscale_factor: 2,
+        creativity: 0.35,
+        resemblance: 1.5,
+        prompt: "masterpiece, best quality, highres",
       },
     });
 
-    const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
-    if (!tempUrl) throw new Error("Geen afbeelding ontvangen");
+    const tempUrl = (result.data as { image?: { url: string } }).image?.url;
+    if (!tempUrl) throw new Error("Geen upscaled afbeelding ontvangen");
 
     const imgRes = await fetch(tempUrl);
     if (!imgRes.ok) throw new Error(`Afbeelding downloaden mislukt (HTTP ${imgRes.status})`);
@@ -93,11 +81,11 @@ export async function POST(req: NextRequest) {
       .insert({
         project_id: projectId,
         user_id: userId,
-        parent_id: parentNodeId,
+        parent_id: nodeId,
         kind: "image",
-        prompt: typeof label === "string" && label.trim() ? label.trim() : instruction.trim(),
+        prompt: "Upscaled (2x)",
         image_url: urlData.publicUrl,
-        meta: { model: EDIT_MODEL, format: parent.meta?.format ?? null },
+        meta: { ...(src.meta ?? {}), upscaled: true, is_ingredient: false },
       })
       .select()
       .single();
@@ -107,7 +95,7 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     await refund();
     const message = err instanceof Error ? err.message : String(err);
-    console.error("[playground/edit] Fout:", message);
+    console.error("[playground/upscale] Fout:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -9,6 +9,9 @@ fal.config({ credentials: process.env.FAL_KEY });
 // Nano Banana Pro = Gemini image (zelfde model dat Google Flow gebruikt),
 // dezelfde slug als de bestaande admin-testroute /api/test-nano-banana.
 const GENERATE_MODEL = "fal-ai/nano-banana-pro";
+// Met ingrediënten (referentiebeelden) erbij gebruiken we de edit-variant,
+// die meerdere image_urls als referentie accepteert voor consistentie.
+const GENERATE_WITH_REFS_MODEL = "fal-ai/nano-banana-pro/edit";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -17,10 +20,11 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sessie ongeldig, log opnieuw in" }, { status: 401 });
 
-  const { projectId, prompt, format } = (await req.json().catch(() => ({}))) as {
+  const { projectId, prompt, format, ingredientUrls } = (await req.json().catch(() => ({}))) as {
     projectId?: string;
     prompt?: string;
     format?: string;
+    ingredientUrls?: string[];
   };
   if (!projectId || !prompt || prompt.trim().length < 2) {
     return NextResponse.json({ error: "projectId en prompt zijn verplicht" }, { status: 400 });
@@ -53,10 +57,15 @@ export async function POST(req: NextRequest) {
 
   try {
     const aspectRatio = format === "9:16" ? "9:16" : "16:9";
+    const refs = Array.isArray(ingredientUrls)
+      ? ingredientUrls.filter((u): u is string => typeof u === "string" && u.length > 0).slice(0, 8)
+      : [];
+    const usedModel = refs.length ? GENERATE_WITH_REFS_MODEL : GENERATE_MODEL;
 
-    const result = await fal.subscribe(GENERATE_MODEL, {
+    const result = await fal.subscribe(usedModel, {
       input: {
         prompt: prompt.trim().slice(0, 4000),
+        ...(refs.length ? { image_urls: refs } : {}),
         aspect_ratio: aspectRatio,
         resolution: "2K",
         num_images: 1,
@@ -90,7 +99,7 @@ export async function POST(req: NextRequest) {
         kind: "image",
         prompt: prompt.trim(),
         image_url: urlData.publicUrl,
-        meta: { model: GENERATE_MODEL, format: aspectRatio },
+        meta: { model: usedModel, format: aspectRatio, ingredients: refs },
       })
       .select()
       .single();
