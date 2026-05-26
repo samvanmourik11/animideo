@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 export default function NewProjectButton({ userId }: { userId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState<"wizard" | "free" | "photo" | "t2v" | "studio" | null>(null);
+  const [loading, setLoading] = useState<"wizard" | "free" | "photo" | "t2v" | "studio" | "playground" | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   // Sluit dropdown bij klik buiten het component
@@ -25,6 +25,12 @@ export default function NewProjectButton({ userId }: { userId: string }) {
     setLoading("studio");
     setOpen(false);
     router.push("/studio/new");
+  }
+
+  function openPlayground() {
+    setLoading("playground");
+    setOpen(false);
+    router.push("/playground");
   }
 
   async function createWizard() {
@@ -94,7 +100,7 @@ export default function NewProjectButton({ userId }: { userId: string }) {
         visual_style: "Cinematic",
         status:       "Draft",
         mode:         "t2v",
-        video_model:  "kling-standard-t2v",
+        video_model:  "seedance-lite-t2v",
       })
       .select()
       .single();
@@ -212,6 +218,17 @@ export default function NewProjectButton({ userId }: { userId: string }) {
             <div>
               <p className="text-sm font-medium text-white">Text to Video</p>
               <p className="text-xs text-slate-500 mt-0.5">Direct video van tekst, geen afbeeldingen</p>
+            </div>
+          </button>
+          <div className="h-px bg-white/[0.06] mx-3" />
+          <button
+            onClick={openPlayground}
+            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
+          >
+            <span className="text-lg leading-none mt-0.5">🎨</span>
+            <div>
+              <p className="text-sm font-medium text-white">Playground</p>
+              <p className="text-xs text-slate-500 mt-0.5">Vrij spelen met beelden, geen vaste volgorde</p>
             </div>
           </button>
         </div>

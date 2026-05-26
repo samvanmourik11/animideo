@@ -3,12 +3,15 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import StylePicker from "@/components/StylePicker";
+import type { VisualStyle } from "@/lib/types";
 
 export default function PlaygroundEntryPage() {
   const router = useRouter();
   const [withBrief, setWithBrief] = useState(false);
   const [brief, setBrief] = useState("");
   const [format, setFormat] = useState<"16:9" | "9:16">("16:9");
+  const [visualStyle, setVisualStyle] = useState<VisualStyle | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -31,6 +34,7 @@ export default function PlaygroundEntryPage() {
         title: "Playground " + new Date().toLocaleDateString("nl-NL"),
         mode: "playground",
         format,
+        visual_style: visualStyle,
         language: "Dutch",
         status: "Draft",
         notes: useBrief ? brief.trim() || null : null,
@@ -76,6 +80,15 @@ export default function PlaygroundEntryPage() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Stijl */}
+      <div className="card mb-5">
+        <StylePicker
+          value={visualStyle}
+          onChange={setVisualStyle}
+          label="Stijl (optioneel — bepaalt de look van alle beelden)"
+        />
       </div>
 
       {/* Keuze: blanco of met brief */}

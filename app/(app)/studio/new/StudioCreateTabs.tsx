@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import CreateForm from "./CreateForm";
-import CharacterStudio from "./CharacterStudio";
+import CharacterStudio from "@/components/characters/CharacterStudio";
 import { BrandKit, Character } from "@/lib/types";
 
 interface Props {

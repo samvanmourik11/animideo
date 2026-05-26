@@ -2,11 +2,7 @@
 
 import { useState } from "react";
 import { Character, VisualStyle } from "@/lib/types";
-
-const STYLES: VisualStyle[] = [
-  "Cinematic", "Realistic", "Whiteboard", "2D Cartoon",
-  "2D SaaS", "Motion Graphic", "3D Pixar", "3D Animatie",
-];
+import StylePicker from "@/components/StylePicker";
 
 interface Props {
   characters: Character[];
@@ -20,7 +16,7 @@ export default function CharacterStudio({ characters, onAdd, onRemove }: Props) 
   const [mode, setMode] = useState<Mode>("upload");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [style, setStyle] = useState<VisualStyle>("Cinematic");
+  const [style, setStyle] = useState<VisualStyle>("Realistic");
   const [gender, setGender] = useState("");
   const [ageRange, setAgeRange] = useState("");
   const [removeBg, setRemoveBg] = useState(true);
@@ -134,28 +130,17 @@ export default function CharacterStudio({ characters, onAdd, onRemove }: Props) 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Naam</label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Bijv. Sarah de coach"
-                className="w-full bg-slate-900/60 border border-white/10 rounded-md px-3 py-2 text-sm text-white"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Stijl</label>
-              <select
-                value={style}
-                onChange={e => setStyle(e.target.value as VisualStyle)}
-                className="w-full bg-slate-900/60 border border-white/10 rounded-md px-3 py-2 text-sm text-white"
-              >
-                {STYLES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">Naam</label>
+            <input
+              type="text"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Bijv. Sarah de coach"
+              className="w-full bg-slate-900/60 border border-white/10 rounded-md px-3 py-2 text-sm text-white"
+            />
           </div>
+          <StylePicker value={style} onChange={setStyle} label="Stijl" size="sm" />
 
           {mode === "upload" ? (
             <div>

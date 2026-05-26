@@ -43,8 +43,8 @@ export default function NavBar({ email, credits, plan, creditsResetDate }: NavBa
           <Link href="/dashboard" className="font-bold text-lg bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent">
             JouwAnimatieVideo A.I.
           </Link>
-          <Link href="/playground" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
-            Playground
+          <Link href="/characters" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
+            Personages
           </Link>
           <Link href="/brand" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
             Huisstijlen

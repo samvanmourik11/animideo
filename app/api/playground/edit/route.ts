@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fal } from "@fal-ai/client";
 import { createClient } from "@/lib/supabase/server";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
+import { generateImageWithStyle } from "@/lib/image-gen";
+import type { VisualStyle } from "@/lib/types";
 
-fal.config({ credentials: process.env.FAL_KEY });
-
-// Model voor instructie-bewerken: neemt een bestaand beeld plus een instructie
-// ("maak het paard wit") en regenereert het beeld met die wijziging, de rest
-// blijft staan. Dit is de kern van de Flow-lus. Zelfde slug als de bestaande
-// admin-testroute /api/test-nano-banana.
-const EDIT_MODEL = "fal-ai/nano-banana-pro/edit";
+// Instructie-bewerken: neemt een bestaand beeld plus een instructie
+// ("maak het paard wit") en regenereert dat beeld met de wijziging — rest
+// blijft staan. Stijl-pack van het project gaat als anker mee zodat de
+// bewerking dezelfde look behoudt.
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -61,19 +59,24 @@ export async function POST(req: NextRequest) {
 
   try {
     const parentFormat = parent.meta?.format === "9:16" ? "9:16" : "16:9";
-    const result = await fal.subscribe(EDIT_MODEL, {
-      input: {
-        prompt: instruction.trim().slice(0, 4000),
-        image_urls: [parent.image_url],
-        aspect_ratio: parentFormat,
-        resolution: "2K",
-        num_images: 1,
-        output_format: "jpeg",
-      },
-    });
 
-    const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
-    if (!tempUrl) throw new Error("Geen afbeelding ontvangen");
+    // Project-niveau stijl + character ophalen zodat een bewerking dezelfde
+    // look behoudt als de originele generatie.
+    const { data: project } = await supabase
+      .from("projects")
+      .select("visual_style, character_reference_urls")
+      .eq("id", projectId)
+      .eq("user_id", userId)
+      .single();
+
+    const { imageUrl: tempUrl, usedModel } = await generateImageWithStyle({
+      prompt: instruction.trim(),
+      format: parentFormat,
+      visualStyle: (project?.visual_style as VisualStyle | null) ?? null,
+      characterUrls: project?.character_reference_urls as string[] | null,
+      // Het te bewerken beeld is de bron — als ingredient meegeven.
+      ingredientUrls: [parent.image_url],
+    });
 
     const imgRes = await fetch(tempUrl);
     if (!imgRes.ok) throw new Error(`Afbeelding downloaden mislukt (HTTP ${imgRes.status})`);
@@ -97,7 +100,7 @@ export async function POST(req: NextRequest) {
         kind: "image",
         prompt: typeof label === "string" && label.trim() ? label.trim() : instruction.trim(),
         image_url: urlData.publicUrl,
-        meta: { model: EDIT_MODEL, format: parent.meta?.format ?? null },
+        meta: { model: usedModel, format: parent.meta?.format ?? null },
       })
       .select()
       .single();

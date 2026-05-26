@@ -1,17 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fal } from "@fal-ai/client";
 import { createClient } from "@/lib/supabase/server";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
-
-fal.config({ credentials: process.env.FAL_KEY });
-
-// Model voor het genereren van een nieuw beeld vanuit tekst.
-// Nano Banana Pro = Gemini image (zelfde model dat Google Flow gebruikt),
-// dezelfde slug als de bestaande admin-testroute /api/test-nano-banana.
-const GENERATE_MODEL = "fal-ai/nano-banana-pro";
-// Met ingrediënten (referentiebeelden) erbij gebruiken we de edit-variant,
-// die meerdere image_urls als referentie accepteert voor consistentie.
-const GENERATE_WITH_REFS_MODEL = "fal-ai/nano-banana-pro/edit";
+import { generateImageWithStyle } from "@/lib/image-gen";
+import type { VisualStyle } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -33,7 +24,7 @@ export async function POST(req: NextRequest) {
   // Controleer dat dit playground-project van de ingelogde gebruiker is.
   const { data: project } = await supabase
     .from("projects")
-    .select("id, user_id, mode")
+    .select("id, user_id, mode, visual_style, character_reference_urls")
     .eq("id", projectId)
     .single();
   if (!project || project.user_id !== user.id || project.mode !== "playground") {
@@ -57,24 +48,17 @@ export async function POST(req: NextRequest) {
 
   try {
     const aspectRatio = format === "9:16" ? "9:16" : "16:9";
-    const refs = Array.isArray(ingredientUrls)
-      ? ingredientUrls.filter((u): u is string => typeof u === "string" && u.length > 0).slice(0, 8)
+    const cleanIngredients = Array.isArray(ingredientUrls)
+      ? ingredientUrls.filter((u): u is string => typeof u === "string" && u.length > 0)
       : [];
-    const usedModel = refs.length ? GENERATE_WITH_REFS_MODEL : GENERATE_MODEL;
 
-    const result = await fal.subscribe(usedModel, {
-      input: {
-        prompt: prompt.trim().slice(0, 4000),
-        ...(refs.length ? { image_urls: refs } : {}),
-        aspect_ratio: aspectRatio,
-        resolution: "2K",
-        num_images: 1,
-        output_format: "jpeg",
-      },
+    const { imageUrl: tempUrl, usedModel, refsUsed } = await generateImageWithStyle({
+      prompt: prompt.trim(),
+      format: aspectRatio,
+      visualStyle: (project.visual_style as VisualStyle | null) ?? null,
+      characterUrls: project.character_reference_urls as string[] | null,
+      ingredientUrls: cleanIngredients,
     });
-
-    const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
-    if (!tempUrl) throw new Error("Geen afbeelding ontvangen");
 
     // fal-URLs verlopen, dus direct opslaan in Supabase storage.
     const imgRes = await fetch(tempUrl);
@@ -99,7 +83,7 @@ export async function POST(req: NextRequest) {
         kind: "image",
         prompt: prompt.trim(),
         image_url: urlData.publicUrl,
-        meta: { model: usedModel, format: aspectRatio, ingredients: refs },
+        meta: { model: usedModel, format: aspectRatio, ingredients: refsUsed },
       })
       .select()
       .single();
