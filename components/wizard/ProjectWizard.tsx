@@ -38,7 +38,7 @@ export default function ProjectWizard({ initialProject, plan }: { initialProject
   const [project, setProject] = useState<Project>({
     ...initialProject,
     scenes: initialProject.scenes ?? [],
-    visual_style: initialProject.visual_style ?? "Cinematic",
+    visual_style: initialProject.visual_style ?? "Realistic",
     bg_music_url: initialProject.bg_music_url ?? null,
   });
   const [step, setStep] = useState(() => statusToStep(initialProject.status));

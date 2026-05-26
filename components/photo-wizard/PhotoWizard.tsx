@@ -30,7 +30,7 @@ export default function PhotoWizard({ initialProject, plan }: { initialProject: 
   const [project, setProject] = useState<Project>({
     ...initialProject,
     scenes:       initialProject.scenes ?? [],
-    visual_style: initialProject.visual_style ?? "2D Cartoon",
+    visual_style: initialProject.visual_style ?? "Cartoon",
     bg_music_url: initialProject.bg_music_url ?? null,
   });
   const [step, setStep]             = useState(() => statusToStep(initialProject.status));

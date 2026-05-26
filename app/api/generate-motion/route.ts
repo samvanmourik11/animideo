@@ -5,10 +5,10 @@ import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
-const KLING_PRO      = "fal-ai/kling-video/v1.6/pro/image-to-video";
-const KLING_STANDARD = "fal-ai/kling-video/v1.6/standard/image-to-video";
-const SEEDANCE_PRO   = "fal-ai/bytedance/seedance/v1/pro/image-to-video";
-const SEEDANCE_LITE  = "fal-ai/bytedance/seedance/v1/lite/image-to-video";
+// Sinds de model-consolidatie draait video-generatie altijd op Seedance Lite.
+// De Kling- en Seedance-Pro constants zijn weg; runway-status accepteert
+// "seedance-lite" en mapt nog naar dezelfde fal-slug.
+const SEEDANCE_LITE = "fal-ai/bytedance/seedance/v1/lite/image-to-video";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { imageUrl, motionPrompt, format, videoModel = "kling-pro" } = await req.json();
+  const { imageUrl, motionPrompt } = await req.json();
   const safePrompt = (motionPrompt || "Smooth cinematic camera movement").slice(0, 950);
 
   // Signed URL zodat externe services de afbeelding kunnen ophalen
@@ -45,33 +45,20 @@ export async function POST(req: NextRequest) {
     if (signed?.signedUrl) promptImage = signed.signedUrl;
   }
 
-  console.log("[generate-motion] model:", videoModel);
+  // Vanaf de model-refactor draait alle motion op Seedance Lite. De
+  // videoModel-parameter is uit de UI verdwenen, maar de polling-route
+  // (/api/runway-status) verwacht hem nog wel, dus we geven hem terug.
+  const videoModel = "seedance-lite";
 
   try {
-    const aspectRatio  = format === "9:16" ? "9:16" : "16:9";
-    let modelId: string;
-    let input: Record<string, unknown>;
-
-    if (videoModel === "seedance-pro" || videoModel === "seedance-lite") {
-      modelId = videoModel === "seedance-pro" ? SEEDANCE_PRO : SEEDANCE_LITE;
-      input = {
+    const { request_id } = await fal.queue.submit(SEEDANCE_LITE, {
+      input: {
         image_url:  promptImage,
         prompt:     safePrompt.slice(0, 2500),
         duration:   "5",
         resolution: "720p",
-      };
-    } else {
-      // Kling Pro of Standard
-      modelId = videoModel === "kling-standard" ? KLING_STANDARD : KLING_PRO;
-      input = {
-        image_url:    promptImage,
-        prompt:       safePrompt.slice(0, 2500),
-        duration:     "5",
-        aspect_ratio: aspectRatio,
-      };
-    }
-
-    const { request_id } = await fal.queue.submit(modelId, { input });
+      },
+    });
     return NextResponse.json({ taskId: request_id, videoModel });
   } catch (err: unknown) {
     // Refund bij submit failure (video is nooit gestart)

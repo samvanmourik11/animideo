@@ -48,15 +48,16 @@ export type ProjectStatus =
   | "Done"
   | "Error";
 
+// Stijl wordt nu bepaald door referentiebeelden, niet door promptmodifiers.
+// Zie lib/style-packs.ts voor de URLs en metadata van elk pack. Oude waarden
+// (Cinematic, 2D SaaS, etc.) worden via remapLegacyStyle() opgevangen bij het
+// laden van bestaande projecten.
 export type VisualStyle =
-  | "Cinematic"
+  | "Kurzgezagt"
   | "Realistic"
-  | "Whiteboard"
-  | "2D Cartoon"
-  | "2D SaaS"
-  | "Motion Graphic"
-  | "3D Pixar"
-  | "3D Animatie";
+  | "Cartoon"
+  | "3D Animatie"
+  | "3D Pixar";
 
 export type TransitionType =
   | "cut"
@@ -110,6 +111,9 @@ export interface PlaygroundNode {
   video_url: string | null;
   in_video: boolean;            // zit deze node in de eindmontage
   sort_order: number | null;
+  voiceover_text: string | null;
+  duration_sec: number | null;
+  transition_out: TransitionType | null;
   meta: Record<string, unknown>;
   created_at: string;
 }

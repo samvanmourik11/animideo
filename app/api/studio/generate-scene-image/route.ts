@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fal } from "@fal-ai/client";
 import { createClient } from "@/lib/supabase/server";
-import { Scene } from "@/lib/types";
+import { Scene, VisualStyle } from "@/lib/types";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
-
-fal.config({ credentials: process.env.FAL_KEY });
-
-type FalImageResult = { images?: { url: string }[] };
+import { generateImageWithStyle } from "@/lib/image-gen";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -39,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     const { data: project } = await supabase
       .from("projects")
-      .select("scenes, format, style_reference_url, character_reference_urls, main_character_id, supporting_character_id")
+      .select("scenes, format, style_reference_url, character_reference_urls, main_character_id, supporting_character_id, visual_style")
       .eq("id", projectId)
       .eq("user_id", userId)
       .single();
@@ -77,42 +73,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Scene heeft geen image prompt" }, { status: 400 });
     }
 
-    const refs: string[] = [
-      ...(project.style_reference_url ? [project.style_reference_url] : []),
+    // Character refs (hoofdpersoon + bijfiguur) en de studio-specifieke
+    // style_reference + character_reference_urls als ingredients. Het
+    // image-gen helper voegt de algemene pack-refs er nog vooraan aan toe.
+    const characterRefs: string[] = [
       ...charImageUrls,
       ...(project.character_reference_urls ?? []),
+    ];
+    const ingredientRefs: string[] = [
+      ...(project.style_reference_url ? [project.style_reference_url] : []),
     ];
 
     const aspectRatio: "16:9" | "9:16" = project.format === "9:16" ? "9:16" : "16:9";
 
-    let result;
-    if (refs.length > 0) {
-      result = await fal.subscribe("fal-ai/nano-banana-pro/edit", {
-        input: {
-          prompt:        scene.image_prompt.slice(0, 4000),
-          image_urls:    refs,
-          aspect_ratio:  aspectRatio,
-          resolution:    "2K",
-          num_images:    1,
-          output_format: "jpeg",
-        },
+    let tempUrl: string;
+    try {
+      const out = await generateImageWithStyle({
+        prompt: scene.image_prompt,
+        format: aspectRatio,
+        visualStyle: (project.visual_style as VisualStyle | null) ?? null,
+        characterUrls: characterRefs,
+        ingredientUrls: ingredientRefs,
       });
-    } else {
-      result = await fal.subscribe("fal-ai/nano-banana-pro", {
-        input: {
-          prompt:        scene.image_prompt.slice(0, 4000),
-          aspect_ratio:  aspectRatio,
-          resolution:    "2K",
-          num_images:    1,
-          output_format: "jpeg",
-        },
-      });
-    }
-
-    const tempUrl = (result.data as FalImageResult).images?.[0]?.url;
-    if (!tempUrl) {
+      tempUrl = out.imageUrl;
+    } catch (e) {
       await refund();
-      return NextResponse.json({ error: "Geen afbeelding ontvangen van Nano Banana Pro" }, { status: 500 });
+      const msg = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ error: msg }, { status: 500 });
     }
 
     const imgResponse = await fetch(tempUrl);
@@ -155,7 +142,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       imageUrl:    cacheBustedUrl,
       scenes:      updatedScenes,
-      refsUsed:    refs.length,
+      refsUsed:    characterRefs.length + ingredientRefs.length,
     });
   } catch (err: unknown) {
     await refund();

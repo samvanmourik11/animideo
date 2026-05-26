@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fal } from "@fal-ai/client";
 import { createClient } from "@/lib/supabase/server";
-import { Character } from "@/lib/types";
+import { Character, VisualStyle } from "@/lib/types";
 import { removeBackground } from "@/lib/bg-remove";
 import { describeCharacter } from "@/lib/character-describe";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
-
-fal.config({ credentials: process.env.FAL_KEY });
-
-type FalImageResult = { images?: { url: string }[] };
+import { generateImageWithStyle } from "@/lib/image-gen";
 
 async function authGuard() {
   const supabase = await createClient();
@@ -97,25 +93,18 @@ export async function POST(req: NextRequest) {
         await refund();
         return NextResponse.json({ error: "Beschrijving is verplicht voor genereren" }, { status: 400 });
       }
-      const stylePart = style ? ` Style: ${style}.` : "";
       const genderPart = gender ? ` ${gender}.` : "";
       const agePart = ageRange ? ` Approximate age ${ageRange}.` : "";
-      const prompt = `Portrait of a single character on a plain neutral background. ${description}.${genderPart}${agePart}${stylePart} Centered framing, head and upper body visible, looking at camera. Clean, no other people, no text, no logos.`;
+      const prompt = `Portrait of a single character on a plain neutral background. ${description}.${genderPart}${agePart} Centered framing, head and upper body visible, looking at camera. Clean, no other people, no text, no logos.`;
 
-      const result = await fal.subscribe("fal-ai/nano-banana-pro", {
-        input: {
-          prompt:        prompt.slice(0, 4000),
-          aspect_ratio:  aspectRatio === "9:16" || aspectRatio === "16:9" ? aspectRatio : "1:1",
-          resolution:    "2K",
-          num_images:    1,
-          output_format: "jpeg",
-        },
+      // Via de helper zodat de style-refs van het gekozen pack als
+      // image_urls meegaan — anders blijft een gegenereerd karakter
+      // hangen in een generieke cartoon-look ongeacht de gekozen stijl.
+      const { imageUrl: tempUrl } = await generateImageWithStyle({
+        prompt,
+        format: aspectRatio === "9:16" || aspectRatio === "16:9" ? aspectRatio : "16:9",
+        visualStyle: (style || null) as VisualStyle | null,
       });
-      const tempUrl = (result.data as FalImageResult).images?.[0]?.url;
-      if (!tempUrl) {
-        await refund();
-        return NextResponse.json({ error: "Geen afbeelding ontvangen" }, { status: 500 });
-      }
       // Mirror to our storage so it stays available
       const imgRes = await fetch(tempUrl);
       if (!imgRes.ok) {
@@ -140,30 +129,30 @@ export async function POST(req: NextRequest) {
       try {
         const genderHint = gender ? ` ${gender}` : "";
         const ageHint    = ageRange ? ` (around ${ageRange} years old)` : "";
-        const stylePrompt = `Transform the${genderHint} person${ageHint} in this photo into a ${style} portrait illustration. Preserve the EXACT same facial features, hairstyle, expression, body shape and outfit colors. Centered headshot, head and upper body, looking at camera, plain neutral background. No text, no logos, no other people. Render fully in ${style} style.`;
+        // De source-foto gaat als ingredient mee (identiteit), de style-refs
+        // van het pack komen er als image_urls bij — de helper voegt ook de
+        // benadrukte prompt toe ("character ref = identiteit, render in de
+        // stijl van de style refs"). Resultaat: een character daadwerkelijk
+        // in de gekozen pack-stijl, niet meer in generieke cartoon-look.
+        const stylePrompt = `Transform the${genderHint} person${ageHint} in the source photo into a portrait illustration. Preserve the EXACT same facial features, hairstyle, expression, body shape, and outfit colors. Centered headshot, head and upper body, looking at camera, plain neutral background. No text, no logos, no other people.`;
 
-        const result = await fal.subscribe("fal-ai/nano-banana-pro/edit", {
-          input: {
-            prompt:        stylePrompt.slice(0, 4000),
-            image_urls:    [initialImageUrl],
-            aspect_ratio:  aspectRatio === "9:16" || aspectRatio === "16:9" ? aspectRatio : "1:1",
-            resolution:    "2K",
-            num_images:    1,
-            output_format: "jpeg",
-          },
+        const { imageUrl: tempUrl } = await generateImageWithStyle({
+          prompt: stylePrompt,
+          format: aspectRatio === "9:16" || aspectRatio === "16:9" ? aspectRatio : "16:9",
+          visualStyle: style as VisualStyle,
+          // Source foto als character-ref zodat de identiteit behouden blijft
+          // en de helper's character-instructie automatisch wordt meegestuurd.
+          characterUrls: [initialImageUrl],
         });
-        const tempUrl = (result.data as FalImageResult).images?.[0]?.url;
-        if (tempUrl) {
-          const stylizedRes = await fetch(tempUrl);
-          if (stylizedRes.ok) {
-            const buf = new Uint8Array(await stylizedRes.arrayBuffer());
-            const path = `${user.id}/characters/${Date.now()}-styled.jpg`;
-            const { error: upErr } = await supabase.storage
-              .from("scene-assets")
-              .upload(path, buf, { contentType: "image/jpeg", upsert: false });
-            if (!upErr) {
-              stylizedUrl = supabase.storage.from("scene-assets").getPublicUrl(path).data.publicUrl;
-            }
+        const stylizedRes = await fetch(tempUrl);
+        if (stylizedRes.ok) {
+          const buf = new Uint8Array(await stylizedRes.arrayBuffer());
+          const path = `${user.id}/characters/${Date.now()}-styled.jpg`;
+          const { error: upErr } = await supabase.storage
+            .from("scene-assets")
+            .upload(path, buf, { contentType: "image/jpeg", upsert: false });
+          if (!upErr) {
+            stylizedUrl = supabase.storage.from("scene-assets").getPublicUrl(path).data.publicUrl;
           }
         }
       } catch (err) {

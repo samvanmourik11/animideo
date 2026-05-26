@@ -2,50 +2,15 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Project } from "@/lib/types";
+import { Project, VisualStyle } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
+import StylePicker from "@/components/StylePicker";
 
-const VISUAL_STYLES: { value: string; label: string; tip?: string }[] = [
-  { value: "Cinematic",      label: "Cinematic" },
-  { value: "Realistic",      label: "Realistic" },
-  { value: "3D Animatie",    label: "3D Animatie" },
-  { value: "3D Pixar",       label: "3D Pixar" },
-  { value: "2D Cartoon",     label: "2D Cartoon",     tip: "Minder betrouwbaar" },
-  { value: "Motion Graphic", label: "Motion Graphic", tip: "Minder betrouwbaar" },
-  { value: "Whiteboard",     label: "Whiteboard",     tip: "Minder betrouwbaar" },
-];
-
-const VIDEO_MODELS = [
-  {
-    value: "seedance-lite-t2v",
-    label: "Seedance Lite",
-    badge: "Goedkoop",
-    badgeColor: "bg-cyan-500/15 text-cyan-400",
-    description: "ByteDance, snel en betaalbaar",
-  },
-  {
-    value: "kling-standard-t2v",
-    label: "Kling Standard",
-    badge: "Snel",
-    badgeColor: "bg-emerald-500/15 text-emerald-400",
-    description: "Goede kwaliteit — ~25s",
-  },
-  {
-    value: "seedance-pro-t2v",
-    label: "Seedance Pro",
-    badge: "Sterk",
-    badgeColor: "bg-indigo-500/15 text-indigo-400",
-    description: "Sterk in mensen en beweging",
-  },
-  {
-    value: "kling-pro-t2v",
-    label: "Kling Pro",
-    badge: "Beste kwaliteit",
-    badgeColor: "bg-purple-500/15 text-purple-400",
-    description: "Vloeiendste beweging — ~90s",
-  },
-];
+// T2V draait sinds de refactor altijd op Seedance Lite t2v — geen UI-keuze
+// meer. We sturen de waarde nog mee zodat de bestaande backend routes blijven
+// werken.
+const FORCED_VIDEO_MODEL = "seedance-lite-t2v";
 
 interface Props {
   initialProject: Project;
@@ -57,8 +22,8 @@ export default function T2VWizard({ initialProject, plan }: Props) {
 
   const [idea, setIdea]           = useState("");
   const [prompt, setPrompt]       = useState("");
-  const [visualStyle, setVisualStyle] = useState("Cinematic");
-  const [videoModel, setVideoModel] = useState("seedance-lite-t2v");
+  const [visualStyle, setVisualStyle] = useState<VisualStyle>("Realistic");
+  const videoModel = FORCED_VIDEO_MODEL;
   const [format, setFormat]       = useState<"16:9" | "9:16">(initialProject.format ?? "16:9");
   const [videoUrl, setVideoUrl]   = useState<string | null>(null);
 
@@ -100,7 +65,7 @@ export default function T2VWizard({ initialProject, plan }: Props) {
     setGeneratingVideo(true);
     setError("");
     setVideoUrl(null);
-    setStatusMsg(`Indienen bij ${VIDEO_MODELS.find((m) => m.value === videoModel)?.label ?? "video model"}…`);
+    setStatusMsg("Indienen bij Seedance Lite…");
 
     try {
       const supabase = createClient();
@@ -209,30 +174,7 @@ export default function T2VWizard({ initialProject, plan }: Props) {
               disabled={generatingPrompt || generatingVideo}
             />
             <div className="mt-3">
-              <label className="label">Visuele stijl</label>
-              <div className="flex flex-wrap gap-2">
-                {VISUAL_STYLES.map((s) => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => !generatingPrompt && !generatingVideo && setVisualStyle(s.value)}
-                    disabled={generatingPrompt || generatingVideo}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
-                      visualStyle === s.value
-                        ? "border-blue-500 bg-blue-500/10 text-blue-300"
-                        : "border-white/10 text-slate-400 hover:border-white/20 hover:text-slate-200"
-                    }`}
-                  >
-                    {s.label}
-                    {s.tip && <span className="text-slate-400 font-normal">⚠</span>}
-                  </button>
-                ))}
-              </div>
-              {VISUAL_STYLES.find((s) => s.value === visualStyle)?.tip && (
-                <p className="text-xs text-amber-500/70 mt-1.5">
-                  ⚠ {visualStyle} werkt minder betrouwbaar in text-to-video — Kling is getraind op realistisch beeldmateriaal.
-                </p>
-              )}
+              <StylePicker value={visualStyle} onChange={setVisualStyle} label="Visuele stijl" />
             </div>
 
             <button
@@ -271,31 +213,6 @@ export default function T2VWizard({ initialProject, plan }: Props) {
           {/* Stap 3 — Model & Formaat */}
           {prompt && !generatingPrompt && (
             <>
-              <div>
-                <label className="label">Video model</label>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  {VIDEO_MODELS.map((m) => (
-                    <button
-                      key={m.value}
-                      type="button"
-                      onClick={() => !generatingVideo && setVideoModel(m.value)}
-                      disabled={generatingVideo}
-                      className={`text-left p-3 rounded-xl border transition-all ${
-                        videoModel === m.value
-                          ? "border-blue-500 bg-blue-500/10"
-                          : "border-white/10 hover:border-white/20"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-semibold text-white">{m.label}</p>
-                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${m.badgeColor}`}>{m.badge}</span>
-                      </div>
-                      <p className="text-xs text-slate-500">{m.description}</p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div>
                 <label className="label">Formaat</label>
                 <div className="flex gap-3">

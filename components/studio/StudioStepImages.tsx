@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Project, Scene } from "@/lib/types";
 import { buildOutroImage } from "@/lib/outro-overlay";
+import SceneEditModal from "@/components/SceneEditModal";
 
 interface Props {
   project: Project;
@@ -28,6 +29,7 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack }: 
   const [outroStatus, setOutroStatus] = useState<OutroStatus>("idle");
   const [outroError, setOutroError] = useState("");
   const outroAppliedRef = useRef(false);
+  const [editScene, setEditScene] = useState<Scene | null>(null);
 
   const anchorCount =
     (project.style_reference_url ? 1 : 0) +
@@ -246,6 +248,16 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack }: 
                         {outroStatus === "running" ? "Outro..." : "Outro overlay"}
                       </button>
                     )}
+                    {status === "done" && scene.image_url && (
+                      <button
+                        onClick={() => setEditScene(scene)}
+                        disabled={batchRunning}
+                        className="text-xs bg-purple-600/20 border border-purple-500/40 hover:bg-purple-600/30 text-purple-200 px-2.5 py-1 rounded-md disabled:opacity-40"
+                        title="Geef een korte instructie om dit beeld bij te sturen"
+                      >
+                        ✎ Bewerk
+                      </button>
+                    )}
                     <button
                       onClick={() => generateOne(scene.id)}
                       disabled={status === "running" || batchRunning}
@@ -303,6 +315,31 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack }: 
           Naar beweging →
         </button>
       </div>
+
+      {editScene && editScene.image_url && (
+        <SceneEditModal
+          open
+          onClose={() => setEditScene(null)}
+          projectId={project.id}
+          sceneId={editScene.id}
+          currentImageUrl={editScene.image_url}
+          clientScenes={scenesRef.current}
+          onUpdated={(newUrl, updatedScenes) => {
+            // Server geeft de hele scenes-array terug (na de DB-update) —
+            // pakken die zodat we niet ergens out-of-sync raken met edits
+            // die de gebruiker had open staan.
+            if (updatedScenes && updatedScenes.length > 0) {
+              pushScenes(updatedScenes);
+            } else {
+              pushScenes(
+                scenesRef.current.map((s) =>
+                  s.id === editScene.id ? { ...s, image_url: newUrl } : s
+                )
+              );
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

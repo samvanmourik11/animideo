@@ -2,40 +2,14 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Project, Scene, VideoModel } from "@/lib/types";
+import { Project, Scene } from "@/lib/types";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 import { createClient } from "@/lib/supabase/client";
 
-const VIDEO_MODELS: { value: VideoModel; label: string; badge: string; badgeColor: string; description: string }[] = [
-  {
-    value:       "seedance-lite",
-    label:       "Seedance Lite",
-    badge:       "Goedkoop",
-    badgeColor:  "bg-cyan-500/15 text-cyan-400",
-    description: "ByteDance, snel en betaalbaar — ~30s",
-  },
-  {
-    value:       "kling-standard",
-    label:       "Kling 1.6 Standard",
-    badge:       "Snel & goed",
-    badgeColor:  "bg-emerald-500/15 text-emerald-400",
-    description: "Goede kwaliteit, sneller klaar — ~25s",
-  },
-  {
-    value:       "seedance-pro",
-    label:       "Seedance Pro",
-    badge:       "Sterk",
-    badgeColor:  "bg-indigo-500/15 text-indigo-400",
-    description: "ByteDance, sterk in mensen en beweging — ~60s",
-  },
-  {
-    value:       "kling-pro",
-    label:       "Kling 1.6 Pro",
-    badge:       "Beste kwaliteit",
-    badgeColor:  "bg-purple-500/15 text-purple-400",
-    description: "Vloeiendste beweging, meeste detail — ~2min",
-  },
-];
+// Video-model is sinds de refactor altijd Seedance Lite (i2v). De picker
+// is uit de UI verwijderd; we sturen de waarde nog mee zodat de bestaande
+// generate-motion route gewoon blijft werken.
+const FORCED_VIDEO_MODEL = "seedance-lite";
 
 interface Props {
   project: Project;
@@ -52,7 +26,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
     const firstPending = (project.scenes ?? []).findIndex((s) => !s.video_url);
     return firstPending === -1 ? 0 : firstPending;
   });
-  const [videoModel, setVideoModel] = useState<VideoModel>("kling-pro");
+  const videoModel = FORCED_VIDEO_MODEL;
   const [generating, setGenerating] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState(false);
   const [promptDraft, setPromptDraft] = useState("");
@@ -242,31 +216,6 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
         <p className="text-slate-500 text-sm mt-1">
           Genereer een 5-seconden videoclip per scene.
         </p>
-      </div>
-
-      {/* Video model selector */}
-      <div className="mb-6">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Video model</p>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {VIDEO_MODELS.map((m) => (
-            <button
-              key={m.value}
-              onClick={() => !generating && setVideoModel(m.value)}
-              disabled={generating}
-              className={`text-left p-3 rounded-xl border transition-all ${
-                videoModel === m.value
-                  ? "border-blue-500 bg-blue-500/10"
-                  : "border-white/10 hover:border-white/20"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm font-semibold text-white">{m.label}</p>
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${m.badgeColor}`}>{m.badge}</span>
-              </div>
-              <p className="text-xs text-slate-500">{m.description}</p>
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Progress bar */}

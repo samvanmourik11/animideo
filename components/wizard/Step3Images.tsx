@@ -3,18 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { Project, Scene, ImageModel } from "@/lib/types";
+import { Project, Scene } from "@/lib/types";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 import InpaintModal from "@/components/InpaintModal";
+import SceneEditModal from "@/components/SceneEditModal";
 import { createClient } from "@/lib/supabase/client";
-
-const IMAGE_MODELS: { value: ImageModel; label: string; badge: string; badgeColor: string; description: string }[] = [
-  { value: "flux-schnell", label: "Flux Schnell", badge: "Snel",      badgeColor: "bg-emerald-500/15 text-emerald-400", description: "Snel & goedkoop" },
-  { value: "flux-pro",     label: "Flux Pro",     badge: "Kwaliteit", badgeColor: "bg-purple-500/15 text-purple-400",   description: "Maximale kwaliteit" },
-  { value: "seedream",     label: "Seedream 4.0", badge: "Tekst",     badgeColor: "bg-cyan-500/15 text-cyan-400",       description: "Kan tekst renderen in beeld" },
-  { value: "recraft",      label: "Recraft v3",   badge: "Top",       badgeColor: "bg-pink-500/15 text-pink-400",       description: "Midjourney-niveau" },
-  { value: "dall-e-3",     label: "DALL·E 3",     badge: "OpenAI",    badgeColor: "bg-blue-500/15 text-blue-400",       description: "Sterke promptopvolging" },
-];
 
 interface Props {
   project: Project;
@@ -30,7 +23,6 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
     const firstPending = (project.scenes ?? []).findIndex((s) => !s.image_url);
     return firstPending === -1 ? 0 : firstPending;
   });
-  const [imageModel, setImageModel] = useState<ImageModel>((project.image_model as ImageModel) ?? "flux-schnell");
   const router = useRouter();
   const [generating, setGenerating] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState(false);
@@ -40,16 +32,7 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
   const [creditModal, setCreditModal] = useState<{ credits: number; required: number } | null>(null);
   const [upscaling, setUpscaling] = useState(false);
   const [inpaintOpen, setInpaintOpen] = useState(false);
-
-  async function saveImageModel(model: ImageModel) {
-    setImageModel(model);
-    onUpdate({ image_model: model });
-    await fetch("/api/save-project", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: project.id, image_model: model }),
-    });
-  }
+  const [editOpen, setEditOpen] = useState(false);
 
   const scene = scenes[currentIndex];
   const totalScenes = scenes.length;
@@ -76,7 +59,6 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
           imagePrompt: prompt,
           visualStyle: project.visual_style,
           brandKitId: project.brand_kit_id ?? null,
-          imageModel,
           format: project.format,
         }),
       });
@@ -245,37 +227,35 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
           }}
         />
       )}
+      {editOpen && scene.image_url && (
+        <SceneEditModal
+          open
+          onClose={() => setEditOpen(false)}
+          projectId={project.id}
+          sceneId={scene.id}
+          currentImageUrl={scene.image_url}
+          clientScenes={scenes}
+          onUpdated={(newUrl, updatedScenes) => {
+            if (updatedScenes && updatedScenes.length > 0) {
+              setScenes(updatedScenes);
+              onUpdate({ scenes: updatedScenes });
+            } else {
+              const next = scenes.map((s) =>
+                s.id === scene.id ? { ...s, image_url: newUrl } : s
+              );
+              setScenes(next);
+              onUpdate({ scenes: next });
+            }
+            setCacheBust((prev) => ({ ...prev, [scene.id]: Date.now() }));
+          }}
+        />
+      )}
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-white">Afbeeldingen</h2>
         <p className="text-slate-300 text-sm mt-1">
           Bekijk en keur de afbeeldingen per scene goed voordat je verder gaat naar motion.
         </p>
-      </div>
-
-      {/* Image model selector */}
-      <div className="mb-6">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Beeldgeneratie model</p>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {IMAGE_MODELS.map((m) => (
-            <button
-              key={m.value}
-              onClick={() => !generating && saveImageModel(m.value)}
-              disabled={generating}
-              className={`text-left p-3 rounded-xl border transition-all ${
-                imageModel === m.value
-                  ? "border-blue-500 bg-blue-500/10"
-                  : "border-white/10 hover:border-white/20"
-              }`}
-            >
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-sm font-semibold text-white">{m.label}</p>
-                <span className={`text-xs px-1.5 py-0.5 rounded-full ${m.badgeColor}`}>{m.badge}</span>
-              </div>
-              <p className="text-xs text-slate-500">{m.description}</p>
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* Progress bar */}
@@ -408,10 +388,18 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
                 {generating ? "Genereren…" : "Opnieuw genereren"}
               </button>
               <button
+                onClick={() => setEditOpen(true)}
+                disabled={generating || upscaling}
+                className="text-sm px-3 py-1.5 rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition-colors flex items-center gap-1"
+                title="Geef een korte instructie om dit beeld bij te sturen"
+              >
+                <span>✎</span> Pas aan
+              </button>
+              <button
                 onClick={() => setInpaintOpen(true)}
                 disabled={generating || upscaling}
                 className="text-sm px-3 py-1.5 rounded-xl border border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 transition-colors flex items-center gap-1"
-                title="Deel van afbeelding bewerken (inpainting)"
+                title="Deel van afbeelding bewerken (inpainting met masker)"
               >
                 <span>🎨</span> Bewerk deel
               </button>

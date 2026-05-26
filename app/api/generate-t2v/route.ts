@@ -5,10 +5,10 @@ import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
-const KLING_PRO_T2V      = "fal-ai/kling-video/v1.6/pro/text-to-video";
-const KLING_STANDARD_T2V = "fal-ai/kling-video/v1.6/standard/text-to-video";
-const SEEDANCE_PRO_T2V   = "fal-ai/bytedance/seedance/v1/pro/text-to-video";
-const SEEDANCE_LITE_T2V  = "fal-ai/bytedance/seedance/v1/lite/text-to-video";
+// T2V draait sinds de refactor altijd op Seedance Lite t2v. Kling- en
+// Seedance-Pro varianten zijn weggehaald; runway-status accepteert nog wel
+// de oude videoModel-strings voor backward compatibility.
+const SEEDANCE_LITE_T2V = "fal-ai/bytedance/seedance/v1/lite/text-to-video";
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -32,32 +32,20 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { videoPrompt, format, videoModel = "kling-standard-t2v" } = await req.json();
+  const { videoPrompt, format } = await req.json();
   const safePrompt = (videoPrompt || "Cinematic scene with smooth motion").slice(0, 950);
   const aspectRatio = format === "9:16" ? "9:16" : "16:9";
+  const videoModel = "seedance-lite-t2v";
 
   try {
-    let modelId: string;
-    let input: Record<string, unknown>;
-
-    if (videoModel === "seedance-pro-t2v" || videoModel === "seedance-lite-t2v") {
-      modelId = videoModel === "seedance-pro-t2v" ? SEEDANCE_PRO_T2V : SEEDANCE_LITE_T2V;
-      input = {
+    const { request_id } = await fal.queue.submit(SEEDANCE_LITE_T2V, {
+      input: {
         prompt:       safePrompt,
         aspect_ratio: aspectRatio,
         duration:     "5",
         resolution:   "720p",
-      };
-    } else {
-      modelId = videoModel === "kling-pro-t2v" ? KLING_PRO_T2V : KLING_STANDARD_T2V;
-      input = {
-        prompt:       safePrompt,
-        duration:     "5",
-        aspect_ratio: aspectRatio,
-      };
-    }
-
-    const { request_id } = await fal.queue.submit(modelId, { input });
+      },
+    });
     return NextResponse.json({ taskId: request_id, videoModel });
   } catch (err: unknown) {
     try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: video submit mislukt"); } catch {}

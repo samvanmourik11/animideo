@@ -4,22 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { BrandKit, Character, OutroContact, VisualStyle } from "@/lib/types";
+import StylePicker from "@/components/StylePicker";
 
 const FORMATS = [
   { value: "16:9", label: "Liggend (16:9) - YouTube, presentaties" },
   { value: "9:16", label: "Staand (9:16) - TikTok, Reels, Shorts" },
 ] as const;
-
-const VISUAL_STYLES: VisualStyle[] = [
-  "Cinematic",
-  "Realistic",
-  "Whiteboard",
-  "2D Cartoon",
-  "2D SaaS",
-  "Motion Graphic",
-  "3D Pixar",
-  "3D Animatie",
-];
 
 const SCENE_COUNTS = [3, 4, 5, 6, 7, 8, 9, 10, 12, 15] as const;
 
@@ -145,9 +135,8 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
   const [idea, setIdea] = useState("");
   const [format, setFormat] = useState<"16:9" | "9:16">("16:9");
   const [sceneCount, setSceneCount] = useState<number>(5);
-  const [visualStyle, setVisualStyle] = useState<VisualStyle>("Cinematic");
+  const [visualStyle, setVisualStyle] = useState<VisualStyle>("Realistic");
   const [brandKitId, setBrandKitId] = useState<string>("");
-  const [styleRef, setStyleRef] = useState<Preview | null>(null);
   const [mainCharacterId, setMainCharacterId] = useState<string>("");
   const [supportingCharacterId, setSupportingCharacterId] = useState<string>("");
   const [outroLogo, setOutroLogo] = useState<Preview | null>(null);
@@ -340,23 +329,11 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
     }
   }
 
-  function handleStyleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setStyleRef({ file, previewUrl: URL.createObjectURL(file) });
-    e.target.value = "";
-  }
-
   function handleOutroLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setOutroLogo({ file, previewUrl: URL.createObjectURL(file) });
     e.target.value = "";
-  }
-
-  function removeStyle() {
-    if (styleRef) URL.revokeObjectURL(styleRef.previewUrl);
-    setStyleRef(null);
   }
 
   function removeOutroLogo() {
@@ -416,21 +393,11 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
         .single();
       if (insertErr || !project) throw new Error(insertErr?.message ?? "Kon project niet aanmaken");
 
+      // Stijl wordt nu door de visuele StylePicker bepaald (style-refs in
+      // Supabase bucket), niet meer door een per-project upload.
       const updates: {
-        style_reference_url?: string;
         outro_logo_url?: string;
       } = {};
-
-      if (styleRef) {
-        setProgress("Style reference uploaden...");
-        const blob = await resizeToBlob(styleRef.file, 1280);
-        const path = `${userId}/${project.id}/style-ref.jpg`;
-        const { error: upErr } = await supabase.storage
-          .from("scene-assets")
-          .upload(path, blob, { contentType: "image/jpeg", upsert: true });
-        if (upErr) throw new Error(`Style upload: ${upErr.message}`);
-        updates.style_reference_url = supabase.storage.from("scene-assets").getPublicUrl(path).data.publicUrl;
-      }
 
       if (outroLogo) {
         setProgress("Logo uploaden...");
@@ -796,15 +763,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-200 mb-2">Visuele stijl</label>
-            <select
-              value={visualStyle}
-              onChange={e => setVisualStyle(e.target.value as VisualStyle)}
-              className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
-            >
-              {VISUAL_STYLES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-            <p className="text-xs text-slate-500 mt-1.5">Wordt meegestuurd in elk image-prompt</p>
+            <StylePicker value={visualStyle} onChange={setVisualStyle} label="Visuele stijl" />
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-200 mb-2">
@@ -866,32 +825,6 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-200 mb-2">
-            Style reference {styleRef ? "(1)" : "(optioneel)"}
-          </label>
-          {styleRef ? (
-            <div className="relative inline-block">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={styleRef.previewUrl} alt="style" className="w-32 h-32 object-cover rounded-md border border-white/10" />
-              <button
-                type="button"
-                onClick={removeStyle}
-                disabled={submitting}
-                className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded"
-              >x</button>
-            </div>
-          ) : (
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleStyleFile}
-              disabled={submitting}
-              className="block w-full text-sm text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-cyan-600 file:text-white hover:file:bg-cyan-700"
-            />
-          )}
-          <p className="text-xs text-slate-500 mt-1.5">Bepaalt de visuele look (kleurpalet, brushwork, sfeer)</p>
-        </div>
       </div>
 
       <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-5">

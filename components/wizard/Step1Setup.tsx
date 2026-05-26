@@ -3,23 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Project, VisualStyle, BrandKit, ImageModel } from "@/lib/types";
+import { Project, BrandKit } from "@/lib/types";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
+import StylePicker from "@/components/StylePicker";
 
 const LANGUAGES = [
   "English", "Dutch", "Spanish", "French", "German",
   "Portuguese", "Italian", "Japanese", "Chinese",
-];
-
-const VISUAL_STYLES: VisualStyle[] = [
-  "Cinematic",
-  "Realistic",
-  "Whiteboard",
-  "2D Cartoon",
-  "2D SaaS",
-  "Motion Graphic",
-  "3D Pixar",
-  "3D Animatie",
 ];
 
 const TONES = [
@@ -73,10 +63,6 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
   const [selectedBrandKitId, setSelectedBrandKitId] = useState<string>(project.brand_kit_id ?? "");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [advanced, setAdvanced] = useState<AdvancedOptions>(emptyAdvanced);
-  const [imageModel, setImageModel] = useState<ImageModel>(
-    (project.image_model as ImageModel) ?? "flux-schnell"
-  );
-
   useEffect(() => {
     fetch("/api/brand-kits")
       .then((r) => r.json())
@@ -89,7 +75,7 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
     target_audience: project.target_audience ?? "",
     language: project.language,
     format: project.format,
-    visual_style: project.visual_style ?? "Cinematic",
+    visual_style: project.visual_style ?? "Realistic",
   };
 
   function set(key: string, value: string) {
@@ -110,17 +96,17 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
     setError("");
     setLoading(true);
     try {
-      // Sla brand kit + image model op
+      // Sla brand kit op (image model is altijd Nano Banana Pro sinds de
+      // stijl-refactor; geen keuze meer in de UI).
       await fetch("/api/save-project", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId: project.id,
           brand_kit_id: selectedBrandKitId || null,
-          image_model: imageModel,
         }),
       });
-      onUpdate({ brand_kit_id: selectedBrandKitId || null, image_model: imageModel });
+      onUpdate({ brand_kit_id: selectedBrandKitId || null });
 
       const res = await fetch("/api/generate-script", {
         method: "POST",
@@ -252,74 +238,13 @@ export default function Step1Setup({ project, onUpdate, onNext }: Props) {
                 <option value="9:16">9:16 — Portret</option>
               </select>
             </div>
-            <div>
-              <label className="label">Visuele stijl</label>
-              <select className="input" value={fields.visual_style} onChange={(e) => set("visual_style", e.target.value)}>
-                {VISUAL_STYLES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
           </div>
 
-          {/* Beeldgeneratie model */}
-          <div>
-            <label className="label">Beeldgeneratie model</label>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {([
-                {
-                  value: "flux-schnell" as ImageModel,
-                  label: "Flux Schnell",
-                  badge: "Snel",
-                  badgeColor: "bg-emerald-500/15 text-emerald-400",
-                  description: "Snel & goedkoop, goed voor prototypen",
-                },
-                {
-                  value: "flux-pro" as ImageModel,
-                  label: "Flux Pro Ultra",
-                  badge: "Kwaliteit",
-                  badgeColor: "bg-purple-500/15 text-purple-400",
-                  description: "Maximale beeldkwaliteit, meer detail",
-                },
-                {
-                  value: "seedream" as ImageModel,
-                  label: "Seedream 4.0",
-                  badge: "Tekst",
-                  badgeColor: "bg-cyan-500/15 text-cyan-400",
-                  description: "Kan tekst in beeld renderen, ByteDance",
-                },
-                {
-                  value: "recraft" as ImageModel,
-                  label: "Recraft v3",
-                  badge: "Top",
-                  badgeColor: "bg-pink-500/15 text-pink-400",
-                  description: "Midjourney-niveau kwaliteit, rijke stijlen",
-                },
-                {
-                  value: "dall-e-3" as ImageModel,
-                  label: "DALL·E 3",
-                  badge: "OpenAI",
-                  badgeColor: "bg-blue-500/15 text-blue-400",
-                  description: "Uitstekende promptopvolging, consistente stijl",
-                },
-              ] as const).map((m) => (
-                <button
-                  key={m.value}
-                  type="button"
-                  onClick={() => setImageModel(m.value)}
-                  className={`text-left p-3 rounded-xl border transition-all ${
-                    imageModel === m.value
-                      ? "border-blue-500 bg-blue-500/10"
-                      : "border-white/10 hover:border-white/20"
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm font-semibold text-white">{m.label}</p>
-                    <span className={`text-xs px-1.5 py-0.5 rounded-full ${m.badgeColor}`}>{m.badge}</span>
-                  </div>
-                  <p className="text-xs text-slate-500">{m.description}</p>
-                </button>
-              ))}
-            </div>
-          </div>
+          <StylePicker
+            value={fields.visual_style}
+            onChange={(v) => set("visual_style", v)}
+            label="Visuele stijl"
+          />
 
           {/* Geavanceerde opties toggle */}
           <button
