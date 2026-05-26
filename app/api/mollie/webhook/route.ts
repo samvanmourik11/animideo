@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
   const isGuest         = metadata?.isGuest         as boolean | undefined;
   const guestCheckoutId = metadata?.guestCheckoutId as string | undefined;
   const isCursus        = metadata?.isCursus        as boolean | undefined;
+  const isTrial         = metadata?.isTrial         as boolean | undefined;
 
   const supabase = createServiceClient();
 
@@ -82,7 +83,11 @@ export async function POST(req: NextRequest) {
         metadata: { planId, guestCheckoutId, isGuest: true },
       };
       if (resolvedMandateId) subBody.mandateId = resolvedMandateId;
-      if (isCursus) {
+      if (isTrial) {
+        // €1 trial: full €49/m starts 7 days later
+        const start = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        subBody.startDate = start.toISOString().slice(0, 10);
+      } else if (isCursus) {
         // First month was €1; recurring billing of full price starts 30 days later
         const start = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
         subBody.startDate = start.toISOString().slice(0, 10);
