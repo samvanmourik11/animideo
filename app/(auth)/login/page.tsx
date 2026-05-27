@@ -55,7 +55,12 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="label">Wachtwoord</label>
+              <div className="flex items-baseline justify-between mb-1">
+                <label className="label mb-0">Wachtwoord</label>
+                <Link href="/wachtwoord-vergeten" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                  Wachtwoord vergeten?
+                </Link>
+              </div>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
