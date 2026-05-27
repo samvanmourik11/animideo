@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Project, PlaygroundNode, TransitionType, Character } from "@/lib/types";
 import StoryboardPanel from "@/components/playground/StoryboardPanel";
+import { createClient } from "@/lib/supabase/client";
 
 const VARIATION_INSTRUCTION =
   "Genereer een nieuwe variatie van dit beeld: behoud het onderwerp, de compositie en de stijl, maar varieer subtiel in details, belichting en sfeer.";
@@ -44,6 +45,8 @@ export default function PlaygroundCanvas({
   const [autosyncBusy, setAutosyncBusy] = useState(false);
   const [autosyncMsg, setAutosyncMsg] = useState("");
   const [autosyncError, setAutosyncError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [activeIngredients, setActiveIngredients] = useState<Set<string>>(
     () => new Set(initialNodes.filter((n) => n.meta?.is_ingredient === true).map((n) => n.id))
@@ -165,6 +168,60 @@ export default function PlaygroundCanvas({
       setError("Er ging iets mis. Probeer het opnieuw.");
     } finally {
       setGenerating(false);
+    }
+  }
+
+  async function uploadReference(file: File) {
+    if (uploading || generating) return;
+    setError("");
+    if (!file.type.startsWith("image/")) {
+      setError("Alleen afbeeldingen kunnen geüpload worden.");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setError("Bestand is groter dan 15 MB.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user.id;
+      if (!userId) {
+        setError("Sessie ongeldig, log opnieuw in.");
+        return;
+      }
+
+      const assetId = crypto.randomUUID();
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const fileName = `${userId}/${proj.id}/playground/${assetId}-upload.${ext || "jpg"}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("scene-assets")
+        .upload(fileName, file, { contentType: file.type, upsert: false });
+      if (uploadErr) {
+        setError("Upload mislukt: " + uploadErr.message);
+        return;
+      }
+
+      const { data: urlData } = supabase.storage.from("scene-assets").getPublicUrl(fileName);
+
+      const res = await fetch("/api/playground/upload-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: proj.id, imageUrl: urlData.publicUrl }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(errText(data, "Opslaan van referentiebeeld mislukt."));
+        return;
+      }
+      addNode(data.node);
+    } catch {
+      setError("Er ging iets mis. Probeer het opnieuw.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
@@ -735,6 +792,36 @@ export default function PlaygroundCanvas({
               }}
               rows={1}
             />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) uploadReference(f);
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || generating}
+              className="shrink-0 px-3 h-[44px] rounded-xl border border-white/10 bg-white/[0.04] text-slate-300 hover:text-white hover:bg-white/[0.08] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+              title="Upload een eigen foto als referentie"
+            >
+              {uploading ? (
+                <span className="text-xs">Uploaden…</span>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  <span className="text-xs hidden sm:inline">Upload foto</span>
+                </>
+              )}
+            </button>
             <button
               type="button"
               onClick={generate}
