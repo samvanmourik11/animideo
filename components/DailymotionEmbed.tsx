@@ -2,7 +2,7 @@ export default function DailymotionEmbed({ videoId, title }: { videoId: string; 
   return (
     <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-white/[0.07]">
       <iframe
-        src={`https://www.dailymotion.com/embed/video/${videoId}`}
+        src={`https://geo.dailymotion.com/player.html?video=${videoId}`}
         title={title}
         allow="autoplay; fullscreen; picture-in-picture"
         allowFullScreen

@@ -9,11 +9,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Required for ffmpeg.wasm SharedArrayBuffer support
+  // Required for ffmpeg.wasm SharedArrayBuffer support.
+  // /leren wordt uitgesloten omdat COEP de Dailymotion iframe-embeds blokkeert.
   async headers() {
     return [
       {
-        source: "/(.*)",
+        source: "/((?!leren).*)",
         headers: [
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
