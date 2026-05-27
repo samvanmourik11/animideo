@@ -15,9 +15,8 @@ type Lesson = {
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  "aan-de-slag": "Aan de slag",
   "brand-setup": "Brand setup",
-  "pro-tools": "Pro tools",
+  "tools": "Tools",
 };
 
 export default async function LessonPage({ params }: { params: Promise<{ slug: string }> }) {

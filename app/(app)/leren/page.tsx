@@ -14,9 +14,8 @@ type Lesson = {
 type Progress = { lesson_id: string };
 
 const CATEGORIES: { key: string; label: string; subtitle: string }[] = [
-  { key: "aan-de-slag", label: "Aan de slag", subtitle: "Start met je eerste video's." },
   { key: "brand-setup", label: "Brand setup", subtitle: "Personages en huisstijl klaarzetten." },
-  { key: "pro-tools", label: "Pro tools", subtitle: "Verder bewerken in Studio en Playground." },
+  { key: "tools", label: "Tools", subtitle: "Video's maken in de Wizard, Studio en Playground." },
 ];
 
 export default async function LerenPage() {
