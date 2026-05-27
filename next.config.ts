@@ -9,17 +9,18 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Required for ffmpeg.wasm SharedArrayBuffer support.
-  // /leren wordt uitgesloten omdat COEP de Dailymotion iframe-embeds blokkeert.
+  // COOP/COEP zijn nodig voor ffmpeg.wasm SharedArrayBuffer in de wizards
+  // (Step6Editor). Alleen op die routes zetten — anders blokkeert COEP de
+  // Dailymotion iframes op /leren.
   async headers() {
+    const isolation = [
+      { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+      { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
+    ];
     return [
-      {
-        source: "/((?!leren).*)",
-        headers: [
-          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-          { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
-        ],
-      },
+      { source: "/studio/:path*", headers: isolation },
+      { source: "/project/:path*", headers: isolation },
+      { source: "/playground/:path*", headers: isolation },
     ];
   },
   // Turbopack is the default in Next.js 16; no custom webpack config needed
