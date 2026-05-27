@@ -1,10 +1,24 @@
 {
   "headers": [
     {
-      "source": "/(.*)",
+      "source": "/studio/(.*)",
       "headers": [
         { "key": "Cross-Origin-Opener-Policy",   "value": "same-origin" },
-        { "key": "Cross-Origin-Embedder-Policy",  "value": "credentialless" }
+        { "key": "Cross-Origin-Embedder-Policy", "value": "credentialless" }
+      ]
+    },
+    {
+      "source": "/project/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy",   "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "credentialless" }
+      ]
+    },
+    {
+      "source": "/playground/(.*)",
+      "headers": [
+        { "key": "Cross-Origin-Opener-Policy",   "value": "same-origin" },
+        { "key": "Cross-Origin-Embedder-Policy", "value": "credentialless" }
       ]
     }
   ]
