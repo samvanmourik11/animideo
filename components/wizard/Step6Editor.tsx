@@ -139,12 +139,6 @@ function computeBoundaries(scenes: Scene[]) {
   });
 }
 
-async function fetchAsBytes(url: string): Promise<Uint8Array> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch ${url}: HTTP ${res.status} ${res.statusText}`);
-  return new Uint8Array(await res.arrayBuffer());
-}
-
 interface Props {
   project: Project;
   onUpdate: (updates: Partial<Project>) => void;
@@ -167,6 +161,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
   const [musicVol,          setMusicVol]          = useState(0.5);
   const [exporting,         setExporting]         = useState(false);
   const [exportPct,         setExportPct]         = useState(0);
+  const [exportPhase,       setExportPhase]       = useState("");
   const [exportUrl,         setExportUrl]         = useState("");
   const [exportError,       setExportError]       = useState("");
   const [uploadingMusic,    setUploadingMusic]    = useState(false);
@@ -624,376 +619,75 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
   }
 
   // ── Export MP4 ────────────────────────────────────────────────────────────
+  // Server-side render via /api/export. Streamt progress events via SSE
+  // zodat de progress bar reageert op echte ffmpeg-tijd, niet op fake stappen.
   async function handleExport() {
     setExporting(true);
     setExportError("");
     setExportUrl("");
     setExportPct(0);
-
-    // Kwaliteit per plan — hoe hoger het plan, hoe betere kwaliteit
-    const EXPORT_QUALITY: Record<string, { width: number; height: number; crf: string; preset: string }> = {
-      free:    { width: 1280, height: 720,  crf: "30", preset: "ultrafast" },
-      starter: { width: 1920, height: 1080, crf: "24", preset: "ultrafast" },
-      pro:     { width: 1920, height: 1080, crf: "18", preset: "fast" },
-      agency:  { width: 1920, height: 1080, crf: "15", preset: "fast" },
-    };
-    const quality = EXPORT_QUALITY[plan] ?? EXPORT_QUALITY.free;
-
-    const writtenFiles: string[] = [];
+    setExportPhase("Verbinden");
 
     try {
-      if (typeof SharedArrayBuffer === "undefined") {
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        throw new Error(
-          isIOS
-            ? "Exporteren werkt nog niet in Safari op iPhone/iPad. Gebruik Chrome op je computer om de video te exporteren."
-            : "Export niet mogelijk in deze browser. Probeer Chrome of Firefox op je computer."
-        );
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: project.id,
+          voiceVol,
+          voiceSpeed,
+          musicVol,
+          bgMusicUrl: bgMusicUrl || undefined,
+        }),
+      });
+
+      if (!res.ok || !res.body) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `Export mislukt (HTTP ${res.status})`);
       }
 
-      const { FFmpeg } = await import("@ffmpeg/ffmpeg");
-      const { toBlobURL } = await import("@ffmpeg/util");
-      const ffmpeg = new FFmpeg();
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let finalUrl = "";
 
-      // ── Load ffmpeg.wasm core from CDN ───────────────────────────────
-      setExportPct(2);
-      const base = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
-      try {
-        await ffmpeg.load({
-          coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript"),
-          wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm"),
-        });
-      } catch (loadErr) {
-        throw new Error(
-          `Failed to load ffmpeg.wasm: ${loadErr instanceof Error ? loadErr.message : String(loadErr)}`
-        );
-      }
-      setExportPct(10);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
 
-      // ── Validate ─────────────────────────────────────────────────────
-      const videoScenes = scenes.filter((s) => s.video_url);
-      if (videoScenes.length === 0) {
-        throw new Error("No video clips found. Complete Motion Review (Step 4) first.");
-      }
+        // SSE frames are separated by \n\n
+        let sepIdx: number;
+        while ((sepIdx = buf.indexOf("\n\n")) !== -1) {
+          const frame = buf.slice(0, sepIdx);
+          buf = buf.slice(sepIdx + 2);
+          const line = frame.split("\n").find((l) => l.startsWith("data:"));
+          if (!line) continue;
+          const payload = line.slice(5).trim();
+          if (!payload) continue;
+          let event: { type?: string; pct?: number; phase?: string; url?: string; message?: string };
+          try { event = JSON.parse(payload); } catch { continue; }
 
-      // ── Fetch each clip and write to ffmpeg FS ───────────────────────
-      for (let i = 0; i < videoScenes.length; i++) {
-        const name = `clip${i}.mp4`;
-        setExportPct(10 + Math.round(((i + 1) / videoScenes.length) * 15));
-        const bytes = await fetchAsBytes(videoScenes[i].video_url!);
-        await ffmpeg.writeFile(name, bytes);
-        writtenFiles.push(name);
-      }
-
-      // ── Probe source durations for any scenes not yet cached ─────────
-      // The preview caches sourceDurRef on loadedmetadata, but user may
-      // not have visited every scene. Probe missing ones so export matches.
-      for (const vs of videoScenes) {
-        if (sourceDurRef.current[vs.video_url!]) continue;
-        try {
-          const probe = document.createElement("video");
-          probe.src = vs.video_url!;
-          probe.muted = true;
-          probe.preload = "metadata";
-          await new Promise<void>((resolve) => {
-            const done = () => { probe.removeEventListener("loadedmetadata", done); probe.removeEventListener("error", done); resolve(); };
-            probe.addEventListener("loadedmetadata", done);
-            probe.addEventListener("error", done);
-            setTimeout(resolve, 4000); // safety timeout
-          });
-          if (isFinite(probe.duration) && probe.duration > 0) {
-            sourceDurRef.current[vs.video_url!] = probe.duration;
+          if (typeof event.pct === "number") setExportPct(event.pct);
+          if (event.type === "phase" && event.phase) setExportPhase(event.phase);
+          if (event.type === "complete" && event.url) {
+            finalUrl = event.url;
+            setExportPhase("Klaar");
           }
-        } catch { /* ignore probe failures, export will fall back */ }
-      }
-
-      // ── Stretch/compress each clip to the user-edited scene duration ──
-      // Matches preview: preview slows down (playbackRate), export uses setpts filter.
-      // This ensures the export is exactly what the user sees in the preview.
-      const scaleFilter =
-        `scale=${quality.width}:${quality.height}:force_original_aspect_ratio=decrease,` +
-        `pad=${quality.width}:${quality.height}:(ow-iw)/2:(oh-ih)/2:color=black`;
-
-      const trimmedNames: string[] = [];
-      let totalExpectedDuration = 0;
-      // Trim duration per clip: scene duration + trailing transition (if non-last + non-cut)
-      const trimDurs: number[] = [];
-      for (let i = 0; i < videoScenes.length; i++) {
-        const sceneDur = videoScenes[i].duration;
-        totalExpectedDuration += sceneDur;
-
-        const isLast = i === videoScenes.length - 1;
-        const trans = videoScenes[i].transition_out ?? "cut";
-        const transDur = !isLast && trans !== "cut"
-          ? Math.min(TRANS_DUR, sceneDur * 0.4, videoScenes[i+1].duration * 0.4)
-          : 0;
-        const trimDur = sceneDur + transDur;
-        trimDurs.push(trimDur);
-
-        const srcName = `clip${i}.mp4`;
-        const dstName = `clip${i}_trimmed.mp4`;
-        setExportPct(25 + Math.round(((i + 1) / videoScenes.length) * 20));
-
-        // Lookup the source duration cached during preview
-        const srcDur = sourceDurRef.current[videoScenes[i].video_url!];
-        const speedRatio = srcDur && srcDur > 0 ? sceneDur / srcDur : 1;
-
-        await ffmpeg.exec([
-          "-i", srcName,
-          "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
-          "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
-          // setpts stretches timing; tpad clones last frame to pad for transition overlap; -t trims exact
-          "-vf", `setpts=${speedRatio.toFixed(4)}*PTS,tpad=stop_mode=clone:stop_duration=2,${scaleFilter}`,
-          "-t", String(trimDur),
-          "-an",
-          "-y",
-          dstName,
-        ]);
-        writtenFiles.push(dstName);
-        trimmedNames.push(dstName);
-      }
-
-      // ── Fetch voiceover ──────────────────────────────────────────────
-      let hasVoice = false;
-      if (project.voice_audio_url) {
-        try {
-          const voiceBytes = await fetchAsBytes(project.voice_audio_url);
-          await ffmpeg.writeFile("voiceover.mp3", voiceBytes);
-          writtenFiles.push("voiceover.mp3");
-          hasVoice = true;
-        } catch (e) {
-          console.warn("[Export] Voice audio fetch failed — exporting without audio:", e);
-        }
-      }
-
-      // ── Fetch background music ───────────────────────────────────────
-      let hasBgMusic = false;
-      if (bgMusicUrl) {
-        try {
-          const musicBytes = await fetchAsBytes(bgMusicUrl);
-          await ffmpeg.writeFile("bgmusic.mp3", musicBytes);
-          writtenFiles.push("bgmusic.mp3");
-          hasBgMusic = true;
-        } catch (e) {
-          console.warn("[Export] Background music fetch failed — exporting without bg music:", e);
-        }
-      }
-
-      setExportPct(50);
-
-      // ── Determine if any non-cut transitions are used ────────────────
-      const xfadeMap: Record<string, string> = {
-        "fade":        "fadeblack",
-        "dissolve":    "dissolve",
-        "slide-left":  "slideleft",
-        "slide-right": "slideright",
-        "zoom-in":     "zoomin",
-      };
-      const hasNonCutTransition = videoScenes.length > 1 &&
-        videoScenes.slice(0, -1).some(s => (s.transition_out ?? "cut") !== "cut");
-
-      // ── Build ffmpeg command ─────────────────────────────────────────
-      let cmd: string[];
-
-      if (hasNonCutTransition) {
-        // ── xfade path: chain transitions between clips ──────────────
-        // All trimmed clips are inputs; chain xfade filters for non-cut transitions.
-        const videoInputs: string[] = [];
-        for (const name of trimmedNames) videoInputs.push("-i", name);
-
-        // Each trimmed clip has sceneDur + transDur length (extension padding with last frame).
-        // xfade offset = cumulative scene end, so transition happens AT the scene boundary in
-        // the extended tail, NOT by cutting into scene time. Total output = sum(sceneDurations).
-        let vFilter = "";
-        let prevLabel = "[0:v]";
-        let cumSceneEnd = 0; // cumulative scene duration so far
-        for (let i = 0; i < videoScenes.length - 1; i++) {
-          const trans = videoScenes[i].transition_out ?? "cut";
-          const td = trans !== "cut"
-            ? Math.min(TRANS_DUR, videoScenes[i].duration * 0.4, videoScenes[i+1].duration * 0.4)
-            : 0.001;
-          const xType = trans !== "cut" ? (xfadeMap[trans] ?? "dissolve") : "fade";
-          cumSceneEnd += videoScenes[i].duration;
-          // Transition starts at scene boundary. Scene i+1 begins fading in from cumSceneEnd.
-          const offset = cumSceneEnd;
-          const outLabel = i === videoScenes.length - 2 ? "[vout]" : `[xv${i}]`;
-          vFilter += `${prevLabel}[${i + 1}:v]xfade=transition=${xType}:duration=${td}:offset=${offset}${outLabel};`;
-          prevLabel = outLabel;
-        }
-        vFilter = vFilter.replace(/;$/, "");
-
-        // Total duration now equals sum of scene durations (matches the preview)
-        const xfadeTotalDur = totalExpectedDuration;
-
-        const n = videoScenes.length; // first audio input index
-        const voiceTempo = voiceSpeed !== 1 ? `atempo=${voiceSpeed.toFixed(2)},` : "";
-        if (hasBgMusic && hasVoice) {
-          // apad pads both tracks with silence so they don't cut the video short
-          const af = `[${n}:a]volume=${musicVol.toFixed(2)},apad=whole_dur=999[bg];[${n+1}:a]${voiceTempo}volume=${voiceVol.toFixed(2)},apad=whole_dur=999[vo];[bg][vo]amix=inputs=2:duration=longest[aout]`;
-          cmd = [...videoInputs, "-i", "bgmusic.mp3", "-i", "voiceover.mp3",
-            "-filter_complex", `${vFilter};${af}`,
-            "-map", "[vout]", "-map", "[aout]",
-            "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
-            "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
-            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
-        } else if (hasBgMusic) {
-          cmd = [...videoInputs, "-i", "bgmusic.mp3",
-            "-filter_complex", `${vFilter};[${n}:a]volume=${musicVol.toFixed(2)},apad=whole_dur=999[aout]`,
-            "-map", "[vout]", "-map", "[aout]",
-            "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
-            "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
-            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
-        } else if (hasVoice) {
-          cmd = [...videoInputs, "-i", "voiceover.mp3",
-            "-filter_complex", `${vFilter};[${n}:a]${voiceTempo}volume=${voiceVol.toFixed(2)},apad=whole_dur=999[aout]`,
-            "-map", "[vout]", "-map", "[aout]",
-            "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
-            "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
-            "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
-        } else {
-          cmd = [...videoInputs,
-            "-filter_complex", vFilter,
-            "-map", "[vout]",
-            "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
-            "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
-            "-movflags", "+faststart", "-t", String(xfadeTotalDur), "output.mp4"];
-        }
-      } else {
-        // ── Simple concat path (all cuts — faster, no re-encode) ─────
-        const concatContent = trimmedNames.map(n => `file '${n}'`).join("\n");
-        await ffmpeg.writeFile("concat.txt", new TextEncoder().encode(concatContent));
-        writtenFiles.push("concat.txt");
-
-        const voiceTempoSimple = voiceSpeed !== 1 ? `atempo=${voiceSpeed.toFixed(2)},` : "";
-        if (hasBgMusic && hasVoice) {
-          cmd = [
-            "-f", "concat", "-safe", "0", "-i", "concat.txt",
-            "-i", "bgmusic.mp3", "-i", "voiceover.mp3",
-            "-filter_complex", `[1:a]volume=${musicVol.toFixed(2)},apad=whole_dur=999[bg];[2:a]${voiceTempoSimple}volume=${voiceVol.toFixed(2)},apad=whole_dur=999[vo];[bg][vo]amix=inputs=2:duration=longest[aout]`,
-            "-map", "0:v", "-map", "[aout]",
-            "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart",
-            "-t", String(totalExpectedDuration), "output.mp4",
-          ];
-        } else if (hasBgMusic) {
-          cmd = [
-            "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", "bgmusic.mp3",
-            "-filter_complex", `[1:a]volume=${musicVol.toFixed(2)},apad=whole_dur=999[aout]`,
-            "-map", "0:v", "-map", "[aout]",
-            "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart",
-            "-t", String(totalExpectedDuration), "output.mp4",
-          ];
-        } else if (hasVoice) {
-          cmd = [
-            "-f", "concat", "-safe", "0", "-i", "concat.txt", "-i", "voiceover.mp3",
-            "-filter_complex", `[1:a]${voiceTempoSimple}volume=${voiceVol.toFixed(2)},apad=whole_dur=999[aout]`,
-            "-map", "0:v", "-map", "[aout]",
-            "-c:v", "copy", "-c:a", "aac", "-movflags", "+faststart",
-            "-t", String(totalExpectedDuration), "output.mp4",
-          ];
-        } else {
-          cmd = [
-            "-f", "concat", "-safe", "0", "-i", "concat.txt",
-            "-c:v", "copy", "-movflags", "+faststart",
-            "-t", String(totalExpectedDuration), "output.mp4",
-          ];
-        }
-      }
-
-      await ffmpeg.exec(cmd);
-      writtenFiles.push("output.mp4");
-
-      // ── Watermark for free plan (Canvas PNG overlay — no CDN deps) ──────
-      let finalOutputFile = "output.mp4";
-      if (plan === "free") {
-        setExportPct(88);
-        try {
-          // Generate watermark PNG using browser Canvas API
-          const wmCanvas = document.createElement("canvas");
-          wmCanvas.width = 480; wmCanvas.height = 56;
-          const ctx = wmCanvas.getContext("2d")!;
-          ctx.fillStyle = "rgba(0,0,0,0.35)";
-          ctx.beginPath();
-          if (ctx.roundRect) {
-            ctx.roundRect(0, 0, wmCanvas.width, wmCanvas.height, 10);
-          } else {
-            ctx.rect(0, 0, wmCanvas.width, wmCanvas.height);
+          if (event.type === "error") {
+            throw new Error(event.message || "Onbekende fout op server");
           }
-          ctx.fill();
-          ctx.fillStyle = "rgba(255,255,255,0.55)";
-          ctx.font = "bold 26px Arial, Helvetica, sans-serif";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
-          ctx.fillText("JouwAnimatieVideo A.I.", wmCanvas.width / 2, wmCanvas.height / 2);
-
-          const wmBlob = await new Promise<Blob>((resolve) =>
-            wmCanvas.toBlob((b) => resolve(b!), "image/png")
-          );
-          const wmBytes = new Uint8Array(await wmBlob.arrayBuffer());
-          await ffmpeg.writeFile("watermark.png", wmBytes);
-          writtenFiles.push("watermark.png");
-
-          await ffmpeg.exec([
-            "-i", "output.mp4",
-            "-i", "watermark.png",
-            "-filter_complex", "[0:v][1:v]overlay=(W-w)/2:(H-h)/2",
-            "-c:a", "copy",
-            "-c:v", "libx264", "-preset", "fast",
-            "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
-            "-movflags", "+faststart",
-            "watermarked.mp4",
-          ]);
-          writtenFiles.push("watermarked.mp4");
-          finalOutputFile = "watermarked.mp4";
-        } catch (wmErr) {
-          console.warn("[Export] Watermark pass failed:", wmErr);
         }
-        setExportPct(95);
       }
 
-      // ── Read output ──────────────────────────────────────────────────
-      const raw = await ffmpeg.readFile(finalOutputFile);
-      const blob = new Blob(
-        [(raw as Uint8Array).buffer as ArrayBuffer],
-        { type: "video/mp4" }
-      );
-      const exportedUrl = URL.createObjectURL(blob);
-      setExportUrl(exportedUrl);
+      if (!finalUrl) throw new Error("Geen video-URL ontvangen — probeer opnieuw.");
+      setExportUrl(finalUrl);
       setExportPct(100);
 
-      // ── Duration sanity check ────────────────────────────────────────
-      try {
-        const checkVid = document.createElement("video");
-        checkVid.src = exportedUrl;
-        await new Promise<void>((resolve) => {
-          checkVid.onloadedmetadata = () => resolve();
-          setTimeout(resolve, 3000); // fallback timeout
-        });
-        const exportedDuration = checkVid.duration;
-        if (isFinite(exportedDuration) && Math.abs(exportedDuration - totalExpectedDuration) > 0.5) {
-          console.warn(
-            `[Export] Duration mismatch: exported ${exportedDuration.toFixed(2)}s, ` +
-            `expected ${totalExpectedDuration.toFixed(2)}s ` +
-            `(diff: ${Math.abs(exportedDuration - totalExpectedDuration).toFixed(2)}s)`
-          );
-        }
-        checkVid.src = "";
-      } catch (durationCheckErr) {
-        console.warn("[Export] Could not verify output duration:", durationCheckErr);
-      }
+      // Project status is al door de server bijgewerkt; lokaal spiegelen.
+      onUpdate({ status: "Done", video_url: finalUrl });
 
-      // ── Save project status ──────────────────────────────────────────
-      await fetch("/api/save-project", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: project.id, status: "Done" }),
-      });
-      onUpdate({ status: "Done" });
-
-      // Show upgrade prompt for free users after export
-      if (plan === "free") {
-        setShowUpgradeModal(true);
-      }
-
+      if (plan === "free") setShowUpgradeModal(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setExportError(msg);
@@ -1003,10 +697,8 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     }
   }
 
-  // ── Derived ───────────────────────────────────────────────────────────────
   const currentScene = scenes[selectedIdx];
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#0f0f0f] text-white overflow-hidden">
 
@@ -1069,7 +761,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
               disabled={exporting}
               className="bg-[#3b82f6] hover:bg-[#2563eb] disabled:opacity-60 text-white text-sm font-semibold px-5 py-1.5 rounded-lg transition-colors"
             >
-                {exporting ? `Exporting… ${exportPct}%` : "Export MP4"}
+                {exporting ? `${exportPhase || "Exporting"}… ${exportPct}%` : "Export MP4"}
             </button>
           )}
         </div>

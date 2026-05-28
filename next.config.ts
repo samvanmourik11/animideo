@@ -9,21 +9,16 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // COOP/COEP zijn nodig voor ffmpeg.wasm SharedArrayBuffer in de wizards
-  // (Step6Editor). Alleen op die routes zetten — anders blokkeert COEP de
-  // Dailymotion iframes op /leren.
-  async headers() {
-    const isolation = [
-      { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
-      { key: "Cross-Origin-Embedder-Policy", value: "credentialless" },
-    ];
-    return [
-      { source: "/studio/:path*", headers: isolation },
-      { source: "/project/:path*", headers: isolation },
-      { source: "/playground/:path*", headers: isolation },
-    ];
+  // ffmpeg-static ships a platform binary. Mark it external so Next/Turbopack
+  // don't try to bundle it, and trace-include the binary so it's deployed
+  // alongside the export route.
+  serverExternalPackages: ["ffmpeg-static"],
+  outputFileTracingIncludes: {
+    "/api/export": [
+      "./node_modules/ffmpeg-static/ffmpeg",
+      "./lib/export/Inter-Bold.ttf",
+    ],
   },
-  // Turbopack is the default in Next.js 16; no custom webpack config needed
   turbopack: {},
 };
 
