@@ -139,6 +139,24 @@ function computeBoundaries(scenes: Scene[]) {
   });
 }
 
+// Cross-origin URL ('?download=' header is set on Supabase but the browser
+// still navigates instead of triggering a save). Fetch the bytes ourselves,
+// stuff into a blob, and click a hidden <a download> — blob URLs are
+// same-origin so the download attribute is honoured.
+async function downloadVideo(url: string, title: string): Promise<void> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Download mislukt (HTTP ${res.status})`);
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = `${title.replace(/\s+/g, "-")}.mp4`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}
+
 interface Props {
   project: Project;
   onUpdate: (updates: Partial<Project>) => void;
@@ -687,6 +705,12 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
       // Project status is al door de server bijgewerkt; lokaal spiegelen.
       onUpdate({ status: "Done", video_url: finalUrl });
 
+      // Auto-download — gebruiker hoeft niet alsnog op de Download knop te klikken.
+      // Failures niet fataal: de Download knop blijft staan voor een tweede poging.
+      downloadVideo(finalUrl, project.title).catch((err) =>
+        console.warn("[Export] Auto-download failed:", err)
+      );
+
       if (plan === "free") setShowUpgradeModal(true);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -748,13 +772,12 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
         </div>
         <div className="flex items-center gap-2">
           {exportUrl ? (
-            <a
-              href={exportUrl}
-              download={`${project.title.replace(/\s+/g, "-")}.mp4`}
+            <button
+              onClick={() => downloadVideo(exportUrl, project.title)}
               className="bg-green-600 hover:bg-green-500 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors"
             >
               ↓ Download MP4
-            </a>
+            </button>
           ) : (
             <button
               onClick={handleExport}

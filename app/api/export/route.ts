@@ -232,8 +232,14 @@ export async function POST(req: NextRequest) {
           .upload(storagePath, fileBytes, { contentType: "video/mp4", upsert: true });
         if (uploadErr) throw new Error(`Upload mislukt: ${uploadErr.message}`);
 
-        const { data: urlData } = supabase.storage.from("scene-assets").getPublicUrl(storagePath);
-        const finalUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+        // `download: filename` zorgt dat Supabase een Content-Disposition: attachment
+        // header meegeeft. Dat is een safety-net voor als de URL ooit elders wordt
+        // geopend — primair gaat de download via een client-side fetch+blob.
+        const downloadName = `${(project.title as string).replace(/\s+/g, "-")}.mp4`;
+        const { data: urlData } = supabase.storage
+          .from("scene-assets")
+          .getPublicUrl(storagePath, { download: downloadName });
+        const finalUrl = `${urlData.publicUrl}${urlData.publicUrl.includes("?") ? "&" : "?"}t=${Date.now()}`;
 
         await supabase
           .from("projects")
