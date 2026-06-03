@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Character, VisualStyle } from "@/lib/types";
 import StylePicker from "@/components/StylePicker";
+import { compressImage } from "@/lib/compress-image";
 
 interface Props {
   characters: Character[];
@@ -71,12 +72,25 @@ export default function CharacterStudio({ characters, onAdd, onRemove }: Props) 
       form.append("remove_bg", removeBg ? "true" : "false");
       form.append("auto_describe", autoDescribe ? "true" : "false");
       form.append("transform_style", transformStyle ? "true" : "false");
-      if (mode === "upload" && file) form.append("file", file);
+      if (mode === "upload" && file) {
+        // Verklein/comprimeer de foto zodat de upload onder de serverlimiet blijft.
+        const compressed = await compressImage(file);
+        form.append("file", compressed);
+      }
 
       const res = await fetch("/api/characters", { method: "POST", body: form });
-      const data = await res.json();
-      if (!res.ok || !data.character) {
-        setError(data.error ?? "Aanmaken mislukt");
+
+      // De server geeft niet altijd JSON terug. Een te grote upload wordt door
+      // het platform met platte tekst ("Request Entity Too Large") afgewezen,
+      // dus alleen JSON parsen als de response dat ook echt is.
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      const data = isJson ? await res.json() : null;
+      if (!res.ok || !data?.character) {
+        if (res.status === 413) {
+          setError("De foto is te groot. Kies een kleinere foto en probeer opnieuw.");
+        } else {
+          setError(data?.error ?? "Aanmaken mislukt. Probeer het opnieuw.");
+        }
         return;
       }
       onAdd(data.character as Character);
