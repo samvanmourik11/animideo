@@ -30,6 +30,7 @@ export interface Profile {
   mollie_subscription_id: string | null;
   subscription_status: string | null;
   credits_reset_date: string | null;
+  hide_leren: boolean;
   created_at: string;
 }
 
@@ -54,7 +55,7 @@ export async function getProfile(userId: string): Promise<Profile> {
 
   return (created ?? { id: userId, credits: 100, plan: "free", email: null, name: null,
     mollie_customer_id: null, mollie_subscription_id: null,
-    subscription_status: "active", credits_reset_date: null,
+    subscription_status: "active", credits_reset_date: null, hide_leren: false,
     created_at: new Date().toISOString() }) as Profile;
 }
 

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import LessonCard from "@/components/LessonCard";
 
@@ -21,6 +22,14 @@ const CATEGORIES: { key: string; label: string; subtitle: string }[] = [
 export default async function LerenPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  // Klanten met de cursus afgeschermd: geen toegang tot de e-learning.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("hide_leren")
+    .eq("id", user!.id)
+    .single();
+  if (profile?.hide_leren) redirect("/dashboard");
 
   const [{ data: lessons }, { data: progress }] = await Promise.all([
     supabase

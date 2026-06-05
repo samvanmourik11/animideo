@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import DailymotionEmbed from "@/components/DailymotionEmbed";
 import MarkWatchedButton from "./MarkWatchedButton";
@@ -23,6 +23,14 @@ export default async function LessonPage({ params }: { params: Promise<{ slug: s
   const { slug } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
+
+  // Klanten met de cursus afgeschermd: geen toegang tot de e-learning.
+  const { data: viewer } = await supabase
+    .from("profiles")
+    .select("hide_leren")
+    .eq("id", user!.id)
+    .single();
+  if (viewer?.hide_leren) redirect("/dashboard");
 
   const { data: lesson } = await supabase
     .from("lessons")

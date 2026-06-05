@@ -10,9 +10,10 @@ interface NavBarProps {
   credits: number;
   plan: string;
   creditsResetDate: string | null;
+  hideLeren: boolean;
 }
 
-export default function NavBar({ email, credits, plan, creditsResetDate }: NavBarProps) {
+export default function NavBar({ email, credits, plan, creditsResetDate, hideLeren }: NavBarProps) {
   const router = useRouter();
   const [showCreditsMenu, setShowCreditsMenu] = useState(false);
 
@@ -49,9 +50,11 @@ export default function NavBar({ email, credits, plan, creditsResetDate }: NavBa
           <Link href="/brand" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
             Huisstijlen
           </Link>
-          <Link href="/leren" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
-            Leren
-          </Link>
+          {!hideLeren && (
+            <Link href="/leren" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
+              Leren
+            </Link>
+          )}
           <Link href="/account" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
             Account
           </Link>
