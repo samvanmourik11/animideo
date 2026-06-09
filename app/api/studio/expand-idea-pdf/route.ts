@@ -6,8 +6,10 @@ import { createClient } from "@/lib/supabase/server";
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
+  try {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -75,4 +77,12 @@ Schrijf in het Nederlands, 4-7 zinnen, briefing-stijl die een scriptwriter kan g
   if (!idea) return NextResponse.json({ error: "Geen idee teruggekomen van AI" }, { status: 500 });
 
   return NextResponse.json({ idea });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("expand-idea-pdf failed:", msg);
+    return NextResponse.json(
+      { error: "PDF verwerken mislukt, probeer het opnieuw." },
+      { status: 500 }
+    );
+  }
 }

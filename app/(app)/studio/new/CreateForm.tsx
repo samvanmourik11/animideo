@@ -6,6 +6,13 @@ import { createClient } from "@/lib/supabase/client";
 import { BrandKit, Character, OutroContact, VisualStyle } from "@/lib/types";
 import StylePicker from "@/components/StylePicker";
 
+/** Lees een fetch-respons veilig als JSON, ook als de body leeg of geen JSON is. */
+async function readJson(res: Response): Promise<{ idea?: string; error?: string }> {
+  const text = await res.text();
+  if (!text) return {};
+  try { return JSON.parse(text); } catch { return {}; }
+}
+
 const FORMATS = [
   { value: "16:9", label: "Liggend (16:9) - YouTube, presentaties" },
   { value: "9:16", label: "Staand (9:16) - TikTok, Reels, Shorts" },
@@ -184,7 +191,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
           brandKitId: brandKitId || null,
         }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok || !data.idea) {
         setIdeaError(data.error ?? "Uitwerken mislukt");
         return;
@@ -221,7 +228,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
           brandKitId: brandKitId || null,
         }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok || !data.idea) {
         setIdeaError(data.error ?? "Genereren mislukt");
         return;
@@ -247,7 +254,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
       form.append("file", pdfFile);
       if (brandKitId) form.append("brandKitId", brandKitId);
       const res = await fetch("/api/studio/expand-idea-pdf", { method: "POST", body: form });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok || !data.idea) {
         setIdeaError(data.error ?? "PDF lezen mislukt");
         return;
@@ -281,7 +288,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
           brandKitId: brandKitId || null,
         }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok || !data.idea) {
         setIdeaError(data.error ?? "Website lezen mislukt");
         return;
@@ -315,7 +322,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
           brandKitId: brandKitId || null,
         }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!res.ok || !data.idea) {
         setIdeaError(data.error ?? "Genereren mislukt");
         return;
