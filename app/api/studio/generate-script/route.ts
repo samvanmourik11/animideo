@@ -6,7 +6,11 @@ import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
+  try {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -211,4 +215,12 @@ Respond with only the JSON array, starting with [ and ending with ].`;
     .eq("user_id", user.id);
 
   return NextResponse.json({ scenes });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("generate-script failed:", msg);
+    return NextResponse.json(
+      { error: "Script genereren mislukt, probeer het opnieuw.", detail: msg },
+      { status: 500 }
+    );
+  }
 }

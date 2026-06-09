@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   // ffmpeg-static ships a platform binary. Mark it external so Next/Turbopack
   // don't try to bundle it, and trace-include the binary so it's deployed
   // alongside the export route.
-  serverExternalPackages: ["ffmpeg-static"],
+  serverExternalPackages: ["ffmpeg-static", "playwright", "playwright-core"],
   outputFileTracingIncludes: {
     "/api/export": [
       "./node_modules/ffmpeg-static/ffmpeg",

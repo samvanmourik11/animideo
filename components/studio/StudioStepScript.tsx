@@ -30,9 +30,11 @@ export default function StudioStepScript({ project, targetScenes, onUpdate, onNe
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId: project.id, targetScenes }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Script genereren mislukt");
+      const text = await res.text();
+      let data: { error?: string; scenes?: Scene[] } = {};
+      try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
+      if (!res.ok || !data.scenes) {
+        setError(data.error ?? "Script genereren mislukt, probeer het opnieuw.");
         return;
       }
       onUpdate({ scenes: data.scenes, status: "ScriptReady" });

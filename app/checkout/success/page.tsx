@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -10,13 +10,46 @@ const PLAN_LABELS: Record<string, string> = {
   agency: "Agency",
 };
 
+const FB_PIXEL_ID = "7827964890555370";
+
 function SuccessContent() {
   const searchParams = useSearchParams();
-  const email   = searchParams.get("email") ?? "";
-  const plan    = searchParams.get("plan")  ?? "pro";
-  const planLabel = PLAN_LABELS[plan] ?? plan;
+  const email      = searchParams.get("email") ?? "";
+  const plan       = searchParams.get("plan")  ?? "pro";
+  const checkoutId = searchParams.get("checkout_id") ?? "";
+  const planLabel  = PLAN_LABELS[plan] ?? plan;
 
   const signupUrl = `/signup?guest_email=${encodeURIComponent(email)}&plan=${plan}`;
+
+  // Meta Pixel: Purchase-event na geslaagde €1 proefbetaling.
+  // eventID = checkout_id, zodat een server-side Conversions API event (webhook)
+  // later automatisch gededupliceerd wordt tegen dit browser-event.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const w = window as unknown as { fbq?: (...args: unknown[]) => void; _fbq?: unknown };
+
+    if (!w.fbq) {
+      /* eslint-disable */
+      (function (f: any, b: any, e: any, v: any, n?: any, t?: any, s?: any) {
+        if (f.fbq) return;
+        n = f.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments); };
+        if (!f._fbq) f._fbq = n;
+        n.push = n; n.loaded = !0; n.version = "2.0"; n.queue = [];
+        t = b.createElement(e); t.async = !0; t.src = v;
+        s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s);
+      })(window, document, "script", "https://connect.facebook.net/en_US/fbevents.js");
+      /* eslint-enable */
+      w.fbq!("init", FB_PIXEL_ID);
+    }
+
+    w.fbq!("track", "PageView");
+    w.fbq!(
+      "track",
+      "Purchase",
+      { value: 1.0, currency: "EUR", content_name: `Trial ${planLabel}` },
+      checkoutId ? { eventID: checkoutId } : undefined
+    );
+  }, [checkoutId, planLabel]);
 
   return (
     <div className="min-h-screen bg-[#060d1f] flex items-center justify-center px-4"
