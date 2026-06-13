@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Project } from "@/lib/types";
 import Stepper from "@/components/wizard/Stepper";
 import StudioStepScript from "./StudioStepScript";
@@ -38,6 +38,28 @@ export default function StudioWizard({
   const [project, setProject] = useState<Project>(initialProject);
   const [step, setStep] = useState(() => statusToStep(initialProject.status));
   const saveState = useProjectAutosave(project);
+
+  // Restore the furthest step the user actually reached. The persisted `status`
+  // lags behind the visible step (it only advances when a step's action
+  // completes), so without this a reload or remount drops the user back on an
+  // earlier tab. Done in an effect (not the initializer) to avoid an SSR
+  // hydration mismatch. Never moves the user behind what `status` already implies.
+  useEffect(() => {
+    try {
+      const stored = Number(window.localStorage.getItem(`studio-step-${initialProject.id}`));
+      if (Number.isFinite(stored) && stored > 0) {
+        setStep(prev => Math.max(prev, Math.min(stored, STEPS.length - 1)));
+      }
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist the current position so a reload or remount keeps the user in place.
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(`studio-step-${project.id}`, String(step));
+    } catch {}
+  }, [step, project.id]);
 
   function updateProject(updates: Partial<Project>) {
     setProject(prev => ({ ...prev, ...updates }));

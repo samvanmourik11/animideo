@@ -27,6 +27,7 @@ const PERSIST_FIELDS = [
   "character_reference_urls",
   "outro_logo_url",
   "outro_contact",
+  "infographic_spec",
 ] as const;
 
 function pickPersistable(project: Project): Partial<Project> {
@@ -55,41 +56,87 @@ export function useProjectAutosave(project: Project): AutosaveState {
   // Monotonic save sequence so an in-flight slow save's response can never
   // clobber a newer save's state, and a stale PATCH cannot overwrite the DB.
   const seqRef = useRef(0);
+  // Is there an edit that has not yet been confirmed saved?
+  const dirtyRef = useRef(false);
+  // Always-current project so the unmount / tab-close flush writes the latest edit.
+  const latestRef = useRef(project);
+  latestRef.current = project;
 
+  // Kept in a ref so the mount-once flush effect always calls the latest closure
+  // instead of capturing a stale project.
+  const runSaveRef = useRef<(p: Project, opts?: { keepalive?: boolean }) => void>(() => {});
+  runSaveRef.current = async (p: Project, opts?: { keepalive?: boolean }) => {
+    const mySeq = ++seqRef.current;
+    // Abort the *previous* in-flight save: it carries older data and could land
+    // after this one and overwrite the DB with stale content.
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setState("saving");
+    try {
+      const res = await fetch("/api/save-project", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: p.id, ...pickPersistable(p) }),
+        signal: controller.signal,
+        // Lets the request finish even when the page is unloading.
+        keepalive: opts?.keepalive,
+      });
+      if (mySeq !== seqRef.current) return; // a newer save already started/finished
+      dirtyRef.current = false;
+      setState(res.ok ? "saved" : "error");
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (mySeq !== seqRef.current) return;
+      setState("error");
+    }
+  };
+
+  // Debounced save on every change.
   useEffect(() => {
     if (skipFirstRef.current) {
       skipFirstRef.current = false;
       return;
     }
+    dirtyRef.current = true;
     if (timerRef.current) clearTimeout(timerRef.current);
-    // Abort any save still in flight from a previous (now-stale) project state.
-    if (abortRef.current) abortRef.current.abort();
-
-    timerRef.current = setTimeout(async () => {
-      const controller = new AbortController();
-      abortRef.current = controller;
-      const mySeq = ++seqRef.current;
-      setState("saving");
-      try {
-        const res = await fetch("/api/save-project", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ projectId: project.id, ...pickPersistable(project) }),
-          signal: controller.signal,
-        });
-        if (mySeq !== seqRef.current) return; // a newer save already started/finished
-        setState(res.ok ? "saved" : "error");
-      } catch (err: unknown) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-        if (mySeq !== seqRef.current) return;
-        setState("error");
-      }
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      runSaveRef.current(project);
     }, 800);
+    // IMPORTANT: cleanup only cancels the pending debounce timer. We deliberately
+    // do NOT abort an in-flight save on unmount/navigation here. Aborting on
+    // unmount is exactly what made the user's last edit silently disappear.
+    // Superseded saves are aborted inside runSave when a newer save starts.
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      if (abortRef.current) abortRef.current.abort();
     };
   }, [project]);
+
+  // Safety net: if the wizard unmounts (step remount / internal navigation) or the
+  // tab is hidden or closed while an edit is still inside the 800ms debounce window,
+  // flush it immediately so "automatisch opgeslagen" is actually true.
+  useEffect(() => {
+    function flush() {
+      if (!dirtyRef.current) return;
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      runSaveRef.current(latestRef.current, { keepalive: true });
+    }
+    function onVisibility() {
+      if (document.visibilityState === "hidden") flush();
+    }
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibility);
+      flush();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return state;
 }

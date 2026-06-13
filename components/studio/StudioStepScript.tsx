@@ -47,7 +47,13 @@ export default function StudioStepScript({ project, targetScenes, onUpdate, onNe
   }
 
   useEffect(() => {
-    if (scenes.length === 0 && !triggeredRef.current) {
+    // Only auto-generate for a brand-new draft that has never had a script.
+    // Without the status guard this re-fires on every remount: if scenes were
+    // briefly empty (e.g. a save that had not landed yet) it would burn credits
+    // and overwrite the script the user already had. When scenes are empty but
+    // the project is past Draft, we show the editor and let the user regenerate
+    // manually instead of silently spending credits.
+    if (scenes.length === 0 && project.status === "Draft" && !triggeredRef.current) {
       triggeredRef.current = true;
       generate();
     }
