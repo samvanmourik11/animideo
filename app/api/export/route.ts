@@ -295,19 +295,32 @@ function buildFinalCommand(a: FinalCmdArgs): string[] {
     const videoInputs: string[] = [];
     for (const p of a.trimmedPaths) videoInputs.push("-i", p);
 
+    // xfade-keten over de getrimde clips. Elke clip is exact `duration + transDur`
+    // lang (zie trim-stap). De offset is de tijd in de TOT NU TOE samengevoegde
+    // video waar de transitie start; dat is de lopende ketenlengte minus de
+    // overlap. De vorige versie telde alleen scene-duren op (zonder overlap af te
+    // trekken), waardoor de offsets wegliepen en de videolaag inklapte terwijl de
+    // audio doorliep (scene 1 sprong naar de laatste scene).
+    const scenes = a.videoScenes;
+    const tdOf = (i: number): number => {
+      if (i >= scenes.length - 1) return 0;
+      const tr = scenes[i].transition_out ?? "cut";
+      return tr !== "cut" ? Math.min(TRANS_DUR, scenes[i].duration * 0.4, scenes[i + 1].duration * 0.4) : 0;
+    };
+    const clipLen = (i: number): number => scenes[i].duration + tdOf(i);
+
     let vFilter = "";
     let prevLabel = "[0:v]";
-    let cumSceneEnd = 0;
-    for (let i = 0; i < a.videoScenes.length - 1; i++) {
-      const trans = a.videoScenes[i].transition_out ?? "cut";
-      const td = trans !== "cut"
-        ? Math.min(TRANS_DUR, a.videoScenes[i].duration * 0.4, a.videoScenes[i + 1].duration * 0.4)
-        : 0.001;
-      const xType = trans !== "cut" ? (XFADE_MAP[trans] ?? "dissolve") : "fade";
-      cumSceneEnd += a.videoScenes[i].duration;
-      const outLabel = i === a.videoScenes.length - 2 ? "[vout]" : `[xv${i}]`;
-      vFilter += `${prevLabel}[${i + 1}:v]xfade=transition=${xType}:duration=${td}:offset=${cumSceneEnd}${outLabel};`;
+    let acc = clipLen(0);
+    for (let i = 0; i < scenes.length - 1; i++) {
+      const tr = scenes[i].transition_out ?? "cut";
+      const xType = tr !== "cut" ? (XFADE_MAP[tr] ?? "dissolve") : "fade";
+      const ov = tr !== "cut" ? tdOf(i) : 0.001; // zichtbare transitieduur + overlap
+      const offset = Math.max(0, acc - ov);
+      const outLabel = i === scenes.length - 2 ? "[vout]" : `[xv${i}]`;
+      vFilter += `${prevLabel}[${i + 1}:v]xfade=transition=${xType}:duration=${ov}:offset=${offset.toFixed(4)}${outLabel};`;
       prevLabel = outLabel;
+      acc = acc + clipLen(i + 1) - ov;
     }
     vFilter = vFilter.replace(/;$/, "");
 
