@@ -27,7 +27,6 @@ const PERSIST_FIELDS = [
   "character_reference_urls",
   "outro_logo_url",
   "outro_contact",
-  "infographic_spec",
 ] as const;
 
 function pickPersistable(project: Project): Partial<Project> {
