@@ -78,7 +78,7 @@ ${hasCharacter ? `- ${characterCount} CHARACTER REFERENCE image${characterCount 
 - For every image_prompt, EXPLICITLY specify (in this order):
   1. Setting / location (e.g., "in a sunlit kitchen", "on a busy office floor", "at a forest path during golden hour")
   2. Camera framing (e.g., "wide establishing shot", "close-up of the hands", "over-the-shoulder medium shot")
-  3. Action and emotion of the character
+  3. Action and emotion of the subject (the character, if a person appears in this scene)
   4. Lighting and mood specific to this scene
 - The ${sceneCount} scenes together should form a visual journey across DIFFERENT environments, not the same location every time. Vary indoor/outdoor, day/night, wide/close, calm/active.` : "";
 
@@ -87,25 +87,17 @@ ${hasCharacter ? `- ${characterCount} CHARACTER REFERENCE image${characterCount 
 VISUAL STYLE: Every image_prompt must reflect "${visualStyle}" as the rendering style. Append a short style descriptor that fits this style to each image_prompt.`;
 
   const characterContext = (() => {
+    // Personages zijn een hulpmiddel voor VISUELE consistentie, GEEN verplicht
+    // verhaalstramien. Zonder gekozen personages verzinnen we dus géén standaard
+    // "hoofdpersoon met een probleem"; de scriptvorm volgt de briefing.
+    if (!mainChar && !supportChar) {
+      return `\n\nPERSONAGES: er zijn geen vaste personages gekozen. Verzin GEEN standaard hoofdpersoon-met-een-probleem en open NIET met "Dit is [naam]...". Laat de SCRIPTVORM (zie hieronder) het script bepalen. Mensen in beeld mag alleen als de gekozen vorm daar baat bij heeft; houd diezelfde persoon dan visueel consistent en forceer geen tweede personage.`;
+    }
     const lines: string[] = [];
-    if (mainChar) {
-      lines.push(`MAIN CHARACTER (eigenaar / hoofdpersoon): ${charLabel(mainChar)}${mainChar.description ? ` — ${mainChar.description}` : ""}`);
-    } else if (supportChar) {
-      lines.push(`MAIN CHARACTER: not specified — verzin een hoofdpersoon die DUIDELIJK contrasteert met de ${charLabel(supportChar)} (verschillende leeftijd, ander geslacht, andere uitstraling).`);
-    } else {
-      lines.push(`MAIN CHARACTER: not specified — verzin een passende hoofdpersoon voor dit verhaal.`);
-    }
-
-    if (supportChar) {
-      lines.push(`SUPPORTING CHARACTER (klant / bijpersoon): ${charLabel(supportChar)}${supportChar.description ? ` — ${supportChar.description}` : ""}`);
-    } else if (mainChar) {
-      lines.push(`SUPPORTING CHARACTER: not specified — verzin een bijpersoon die DUIDELIJK contrasteert met ${charLabel(mainChar)} (verschillende leeftijd OF ander geslacht OF andere uitstraling). Nooit twee gelijke personen tegen elkaar.`);
-    } else {
-      lines.push(`SUPPORTING CHARACTER: not specified — verzin een bijpersoon die contrasteert met de hoofdpersoon (andere leeftijd, geslacht of look). Nooit twee gelijke personen tegen elkaar.`);
-    }
-
-    lines.push(`In elke image_prompt waarin een persoon voorkomt, MOET je expliciet vermelden of het de main character of de supporting character is, en hun kerneigenschappen herhalen (geslacht, leeftijdsindicatie, kledingkleur) zodat consistency bewaard blijft.`);
-    return `\n\nCHARACTERS:\n${lines.join("\n")}`;
+    if (mainChar) lines.push(`HOOFDPERSONAGE (vast, voor visuele consistentie): ${charLabel(mainChar)}${mainChar.description ? ` — ${mainChar.description}` : ""}`);
+    if (supportChar) lines.push(`TWEEDE PERSONAGE (vast, voor visuele consistentie): ${charLabel(supportChar)}${supportChar.description ? ` — ${supportChar.description}` : ""}`);
+    lines.push(`Deze personages zijn gekozen voor VISUELE consistentie tussen scenes. Gebruik ze waar ze passen, maar ze dwingen GEEN vast verhaalstramien af: kies nog steeds de scriptvorm die het beste bij de briefing past, en open niet standaard met "Dit is [naam]...". Vermeld in elke image_prompt met een persoon of het het hoofdpersonage of het tweede personage is, met kerneigenschappen (geslacht, leeftijdsindicatie, kledingkleur) voor consistentie.`);
+    return `\n\nPERSONAGES:\n${lines.join("\n")}`;
   })();
 
   const brandContext = brandKit ? `
@@ -140,7 +132,7 @@ ${project.outro_logo_url ? "- A LOGO image is provided and will be composited in
 
   const MOTION_RULES = `MOTION RULES: Base movement on the emotional tone of the voiceover_text. Calm explanation = slow gentle camera. Exciting reveal = dynamic push or zoom. Subtle parallax or drift is valid. Every motion must feel like a natural response to what the narrator is saying.`;
 
-  const prompt = `You are an expert scriptwriter for premium animated story videos.
+  const prompt = `You are an expert scriptwriter for premium animated brand, explainer and story videos. You write the script that best fits THIS brief, never a fixed template.
 
 Create a video script for the following project:
 - Title: ${project.title}
@@ -169,10 +161,20 @@ CRITICAL RULES for image_prompt:
 - Each scene's image_prompt should be 1 to 3 sentences focused on THIS moment.
 - NEVER describe abstract concepts. Translate them into concrete filmable visuals.
 
-STORY ARC:
-1. OPENING scene: a strong hook that immediately grabs attention.
-2. MIDDLE scenes: develop the story or explain the message with concrete visuals.
-3. ${hasOutro ? "OUTRO scene (last): branded call-to-action with negative space for logo and contact." : "CLOSING scene (last): emotional payoff or call to action."}
+SCRIPT FORMAT — pick what fits THIS brief, never default to one template:
+Choose the structure that best matches the idea/brief. Common formats:
+- Direct brand/service explainer: address the viewer or introduce the company ("Bij <bedrijf> helpen we je met...").
+- Educational / listicle: explain a concept or list points ("Er zijn vijf...").
+- How-to / steps: sequential instructions.
+- Mission / values: who we are and what we stand for.
+- Customer testimonial: a real customer's experience.
+- Problem -> solution with a person: ONLY when the brief clearly calls for a personal story.
+HARD RULE: Do NOT open with "Dit is <naam>, <naam> heeft moeite met..." or any variant that introduces a named person with a problem, UNLESS the brief explicitly asks for a personal story. Vary the opening line and structure per brief. The voiceover must read as if written specifically for THIS brief, not a reusable template. Match the tone to the subject (professional, warm, instructional, etc.).
+
+STRUCTURE (adapt to the chosen format):
+1. OPENING: a hook that fits the format (a question, a bold claim, a relatable situation, or a direct brand intro).
+2. BODY: develop the message with concrete visuals.
+3. ${hasOutro ? "OUTRO (last): branded call-to-action with negative space for logo and contact." : "CLOSING (last): a fitting payoff or call to action."}
 
 Voiceover rules:
 - voiceover_text in ${project.language}, natural narration, no stage directions.
