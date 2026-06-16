@@ -12,6 +12,14 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const TRANS_DUR = 0.5;
+// "cut" gaat in de xfade-keten ook via een xfade; die moet een korte maar
+// frame-veilige duur hebben. Een xfade korter dan ~2 frames produceert niets en
+// laat de hele keten na die overgang wegvallen (alles na de cut verdwijnt).
+const CUT_DUR = 0.1;
+// Forceer een vaste framerate in de trim-stap. Zonder dit maakt setpts (de
+// speed-aanpassing per scene) clips met een lage, wisselende effectieve fps,
+// waardoor een korte cut-transitie onder één frame valt en de xfade-keten breekt.
+const EXPORT_FPS = 30;
 const FONT_PATH = join(process.cwd(), "lib/export/Inter-Bold.ttf");
 
 // Per-plan kwaliteit — exact dezelfde tabel als de oude browser-export had.
@@ -136,13 +144,20 @@ export async function POST(req: NextRequest) {
           `scale=${quality.width}:${quality.height}:force_original_aspect_ratio=decrease,` +
           `pad=${quality.width}:${quality.height}:(ow-iw)/2:(oh-ih)/2:color=black`;
 
+        // Bepaal vooraf of we de xfade-keten gebruiken: alleen dan krijgen ook
+        // cut-overgangen een korte overlap (CUT_DUR). In het pure concat-pad
+        // blijven cuts exact 0 zodat de totale lengte niet wegloopt.
+        const hasNonCutTransition = videoScenes.length > 1 &&
+          videoScenes.slice(0, -1).some((s) => (s.transition_out ?? "cut") !== "cut");
+
         const trimmedPaths: string[] = [];
         for (let i = 0; i < videoScenes.length; i++) {
           const sceneDur = videoScenes[i].duration;
           const isLast = i === videoScenes.length - 1;
           const trans = videoScenes[i].transition_out ?? "cut";
-          const transDur = !isLast && trans !== "cut"
-            ? Math.min(TRANS_DUR, sceneDur * 0.4, videoScenes[i + 1].duration * 0.4)
+          const baseTrans = trans !== "cut" ? TRANS_DUR : (hasNonCutTransition ? CUT_DUR : 0);
+          const transDur = !isLast
+            ? Math.min(baseTrans, sceneDur * 0.4, videoScenes[i + 1].duration * 0.4)
             : 0;
           const trimDur = sceneDur + transDur;
 
@@ -154,7 +169,7 @@ export async function POST(req: NextRequest) {
             "-i", clipPaths[i],
             "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
             "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
-            "-vf", `setpts=${speedRatio.toFixed(4)}*PTS,tpad=stop_mode=clone:stop_duration=2,${scaleFilter}`,
+            "-vf", `setpts=${speedRatio.toFixed(4)}*PTS,tpad=stop_mode=clone:stop_duration=2,${scaleFilter},fps=${EXPORT_FPS}`,
             "-t", String(trimDur),
             "-an",
             "-y",
@@ -166,9 +181,7 @@ export async function POST(req: NextRequest) {
 
         emit({ type: "phase", phase: "Video renderen", pct: 50 });
 
-        // ── Decide xfade vs concat path ────────────────────────────────
-        const hasNonCutTransition = videoScenes.length > 1 &&
-          videoScenes.slice(0, -1).some((s) => (s.transition_out ?? "cut") !== "cut");
+        // ── xfade vs concat path ───────────────────────────────────────
         const hasVoice = !!voicePath;
         const hasBgMusic = !!musicPath;
 
@@ -305,7 +318,8 @@ function buildFinalCommand(a: FinalCmdArgs): string[] {
     const tdOf = (i: number): number => {
       if (i >= scenes.length - 1) return 0;
       const tr = scenes[i].transition_out ?? "cut";
-      return tr !== "cut" ? Math.min(TRANS_DUR, scenes[i].duration * 0.4, scenes[i + 1].duration * 0.4) : 0;
+      const base = tr !== "cut" ? TRANS_DUR : CUT_DUR;
+      return Math.min(base, scenes[i].duration * 0.4, scenes[i + 1].duration * 0.4);
     };
     const clipLen = (i: number): number => scenes[i].duration + tdOf(i);
 
@@ -315,7 +329,7 @@ function buildFinalCommand(a: FinalCmdArgs): string[] {
     for (let i = 0; i < scenes.length - 1; i++) {
       const tr = scenes[i].transition_out ?? "cut";
       const xType = tr !== "cut" ? (XFADE_MAP[tr] ?? "dissolve") : "fade";
-      const ov = tr !== "cut" ? tdOf(i) : 0.001; // zichtbare transitieduur + overlap
+      const ov = tdOf(i); // overlap = zichtbare transitieduur (ook voor cut, frame-veilig)
       const offset = Math.max(0, acc - ov);
       const outLabel = i === scenes.length - 2 ? "[vout]" : `[xv${i}]`;
       vFilter += `${prevLabel}[${i + 1}:v]xfade=transition=${xType}:duration=${ov}:offset=${offset.toFixed(4)}${outLabel};`;
