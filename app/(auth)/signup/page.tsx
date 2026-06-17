@@ -37,6 +37,42 @@ function SignupForm() {
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
     const supabase = createClient();
+
+    // Betalende guest-checkout (o.a. webinar): account direct bevestigd
+    // aanmaken en meteen inloggen — geen wachten op een bevestigingsmail.
+    if (guestEmail) {
+      try {
+        const res = await fetch("/api/auth/guest-signup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+          if (signInError) {
+            setError(signInError.message);
+            setLoading(false);
+            return;
+          }
+          router.push("/dashboard");
+          router.refresh();
+          return;
+        }
+
+        if (res.status === 409 || data.error === "exists") {
+          setError("Dit e-mailadres heeft al een account. Log hieronder in of herstel je wachtwoord.");
+          setLoading(false);
+          return;
+        }
+        // 422 (betaling nog niet verwerkt) of andere fout: val hieronder
+        // terug op de normale signUp-flow met mailbevestiging.
+      } catch {
+        // Netwerkfout: val terug op de normale signUp-flow hieronder.
+      }
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
