@@ -5,6 +5,9 @@ import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
+// Trage externe inpainting; zonder dit kapt Vercel na ~15s af (opaque 504).
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
 

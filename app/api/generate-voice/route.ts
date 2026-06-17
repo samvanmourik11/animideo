@@ -6,6 +6,9 @@ import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
+// Trage externe TTS-generatie; zonder dit kapt Vercel na ~15s af (opaque 504).
+export const maxDuration = 300;
+
 type FalAudioResult = { audio?: { url: string } };
 
 const ALLOWED_VOICES = new Set([
