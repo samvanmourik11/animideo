@@ -147,8 +147,16 @@ export async function POST(req: NextRequest) {
         // Bepaal vooraf of we de xfade-keten gebruiken: alleen dan krijgen ook
         // cut-overgangen een korte overlap (CUT_DUR). In het pure concat-pad
         // blijven cuts exact 0 zodat de totale lengte niet wegloopt.
-        const hasNonCutTransition = videoScenes.length > 1 &&
-          videoScenes.slice(0, -1).some((s) => (s.transition_out ?? "cut") !== "cut");
+        // TIJDELIJK (pre-webinar, 2026-06-17): forceer het robuuste concat/cut-pad.
+        // De xfade-keten voor fade-overgangen raakt op de Vercel-ffmpeg corrupt
+        // (zwart beeld na scene 1, audio loopt door), en de input-normalisatie-
+        // poging brak de filtergraph daar volledig ("could not open encoder /
+        // received no packets"). Het concat-pad gebruikt -c:v copy (geen video-
+        // filtergraph) en is bewezen robuust met de echte clips. Overgangen
+        // renderen zo als harde cut. Echte cross-versie xfade-fix = na het webinar.
+        // Zet terug op de detectie hieronder zodra dat is opgelost:
+        //   videoScenes.length > 1 && videoScenes.slice(0,-1).some(s => (s.transition_out ?? "cut") !== "cut")
+        const hasNonCutTransition = false;
 
         const trimmedPaths: string[] = [];
         for (let i = 0; i < videoScenes.length; i++) {
@@ -323,17 +331,8 @@ function buildFinalCommand(a: FinalCmdArgs): string[] {
     };
     const clipLen = (i: number): number => scenes[i].duration + tdOf(i);
 
-    // Normaliseer elke video-input vóór de xfade-keten: vaste timebase (settb),
-    // constante framerate, pixelformaat en een naar 0 gereset PTS. Zonder dit
-    // levert de Linux-ffmpeg op Vercel een keten die ná de eerste overgang
-    // corrupt raakt (zwart beeld terwijl audio + container-duur volledig zijn).
-    // Lokaal (ffmpeg 6.1.1) viel dat niet op; ffmpeg-static levert per platform
-    // een andere build. settb=AVTB+setpts=PTS-STARTPTS is de bekende xfade-fix.
     let vFilter = "";
-    for (let i = 0; i < scenes.length; i++) {
-      vFilter += `[${i}:v]settb=AVTB,fps=${EXPORT_FPS},format=yuv420p,setpts=PTS-STARTPTS[nv${i}];`;
-    }
-    let prevLabel = "[nv0]";
+    let prevLabel = "[0:v]";
     let acc = clipLen(0);
     for (let i = 0; i < scenes.length - 1; i++) {
       const tr = scenes[i].transition_out ?? "cut";
@@ -341,7 +340,7 @@ function buildFinalCommand(a: FinalCmdArgs): string[] {
       const ov = tdOf(i); // overlap = zichtbare transitieduur (ook voor cut, frame-veilig)
       const offset = Math.max(0, acc - ov);
       const outLabel = i === scenes.length - 2 ? "[vout]" : `[xv${i}]`;
-      vFilter += `${prevLabel}[nv${i + 1}]xfade=transition=${xType}:duration=${ov}:offset=${offset.toFixed(4)}${outLabel};`;
+      vFilter += `${prevLabel}[${i + 1}:v]xfade=transition=${xType}:duration=${ov}:offset=${offset.toFixed(4)}${outLabel};`;
       prevLabel = outLabel;
       acc = acc + clipLen(i + 1) - ov;
     }
