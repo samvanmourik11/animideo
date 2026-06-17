@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 interface NavBarProps {
@@ -17,6 +17,32 @@ export default function NavBar({ email, credits, plan, creditsResetDate, hideLer
   const router = useRouter();
   const [showCreditsMenu, setShowCreditsMenu] = useState(false);
 
+  // Het saldo komt server-side binnen via de prop, maar credit-verbruik
+  // (beeld genereren, karakter, voice, ...) gebeurt in losse client-acties die
+  // niet allemaal de layout herrenderen. Daarom houden we het saldo hier live:
+  // sync met de server-prop, en ververs periodiek + bij terugkeer naar het tab.
+  const [liveCredits, setLiveCredits] = useState(credits);
+  useEffect(() => setLiveCredits(credits), [credits]);
+  useEffect(() => {
+    let active = true;
+    async function fetchCredits() {
+      try {
+        const res = await fetch("/api/account/credits", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (active && typeof data.credits === "number") setLiveCredits(data.credits);
+      } catch {}
+    }
+    fetchCredits();
+    const interval = setInterval(fetchCredits, 8000);
+    window.addEventListener("focus", fetchCredits);
+    return () => {
+      active = false;
+      clearInterval(interval);
+      window.removeEventListener("focus", fetchCredits);
+    };
+  }, []);
+
   async function signOut() {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -24,7 +50,7 @@ export default function NavBar({ email, credits, plan, creditsResetDate, hideLer
     router.refresh();
   }
 
-  const lowCredits = credits < 20;
+  const lowCredits = liveCredits < 20;
   const resetDate = creditsResetDate
     ? new Date(creditsResetDate).toLocaleDateString("nl-NL", { day: "numeric", month: "long" })
     : null;
@@ -79,7 +105,7 @@ export default function NavBar({ email, credits, plan, creditsResetDate, hideLer
               ) : (
                 <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
               )}
-              <span>{credits} credits</span>
+              <span>{liveCredits} credits</span>
             </button>
 
             {showCreditsMenu && (
@@ -97,7 +123,7 @@ export default function NavBar({ email, credits, plan, creditsResetDate, hideLer
                     <div className="flex justify-between items-center">
                       <span className="text-sm text-slate-400">Credits over</span>
                       <span className={`text-sm font-bold ${lowCredits ? "text-red-400" : "text-white"}`}>
-                        {credits}
+                        {liveCredits}
                       </span>
                     </div>
                     {resetDate && (
