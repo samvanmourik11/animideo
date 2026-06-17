@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/credits";
 import Link from "next/link";
 import CancelSubscriptionButton from "./CancelSubscriptionButton";
+import PaymentsSection from "./PaymentsSection";
 
 const PLAN_INFO: Record<string, {
   label: string;
@@ -117,6 +118,9 @@ export default async function BillingPage() {
           </div>
         )}
       </div>
+
+      {/* Betaalbewijzen */}
+      <PaymentsSection />
 
       {/* Cancel subscription */}
       {isPaid && profile.subscription_status === "active" && (
