@@ -10,6 +10,9 @@ import { generateImageWithStyle } from "@/lib/image-gen";
 // context blijft als tekst-aanvulling (kleuren, omgeving, do-nots) zodat
 // huisstijl-projecten consistent blijven.
 
+// Trage externe beeldgeneratie; zonder dit kapt Vercel na ~15s af (opaque 504).
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
 

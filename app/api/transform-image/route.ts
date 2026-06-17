@@ -11,6 +11,9 @@ import { generateImageWithStyle } from "@/lib/image-gen";
 // ControlNet branches zijn weggehaald — model wordt niet meer door de
 // gebruiker gekozen.
 
+// Trage externe beeldtransformatie; zonder dit kapt Vercel na ~15s af (opaque 504).
+export const maxDuration = 300;
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();

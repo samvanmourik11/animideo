@@ -6,6 +6,12 @@ import { describeCharacter } from "@/lib/character-describe";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 import { generateImageWithStyle } from "@/lib/image-gen";
 
+// De character-flow doet meerdere trage externe calls achter elkaar (stijl-
+// transform, achtergrond verwijderen, AI-beschrijving). Zonder deze regel valt
+// Vercel terug op ~15s en wordt de functie afgekapt met een opaque 504 -> de UI
+// toonde dan "Aanmaken mislukt". Gelijkgetrokken met de andere zware AI-routes.
+export const maxDuration = 300;
+
 async function authGuard() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -52,16 +58,6 @@ export async function POST(req: NextRequest) {
   // Reserve credits — bij generate ALTIJD, bij upload alleen als we styliseren
   const willCharge = mode === "generate" || (mode === "upload" && transformStyle && !!style);
   let chargedCredits = 0;
-  if (willCharge) {
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Karakter genereren");
-    if (!credit.success) {
-      return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
-        { status: 402 },
-      );
-    }
-    chargedCredits = CREDIT_COSTS.IMAGE_GENERATION;
-  }
   async function refund() {
     if (chargedCredits > 0) {
       try { await addCredits(user.id, chargedCredits, "Refund: karakter genereren"); } catch {}
@@ -69,6 +65,20 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Binnen de try zodat een fout in de credit-aftrek ook een nette JSON-
+    // foutmelding teruggeeft i.p.v. een opaque 500 (admin omzeilt dit pad via
+    // UNLIMITED_ACCOUNTS, een gewone gebruiker niet).
+    if (willCharge) {
+      const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Karakter genereren");
+      if (!credit.success) {
+        return NextResponse.json(
+          { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+          { status: 402 },
+        );
+      }
+      chargedCredits = CREDIT_COSTS.IMAGE_GENERATION;
+    }
+
     let initialImageUrl: string;
 
     if (mode === "upload") {
