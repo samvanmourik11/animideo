@@ -30,17 +30,17 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Voice-over");
+  const credit = await deductCredits(user.id, CREDIT_COSTS.VOICE, "Voice-over");
   if (!credit.success) {
     return NextResponse.json(
-      { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+      { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.VOICE },
       { status: 402 }
     );
   }
 
   const userId = user.id;
   async function refund() {
-    try { await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Refund: voice-over"); } catch {}
+    try { await addCredits(userId, CREDIT_COSTS.VOICE, "Refund: voice-over"); } catch {}
   }
 
   try {

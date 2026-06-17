@@ -22,17 +22,17 @@ export async function POST(req: NextRequest) {
   }
   if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
 
-  const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Inpainting");
+  const credit = await deductCredits(user.id, CREDIT_COSTS.INPAINT, "Inpainting");
   if (!credit.success) {
     return NextResponse.json(
-      { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+      { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.INPAINT },
       { status: 402 }
     );
   }
 
   const userId = user.id;
   async function refund() {
-    try { await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Refund: inpainting mislukt"); } catch {}
+    try { await addCredits(userId, CREDIT_COSTS.INPAINT, "Refund: inpainting mislukt"); } catch {}
   }
 
   try {

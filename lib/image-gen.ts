@@ -14,8 +14,11 @@ fal.config({ credentials: process.env.FAL_KEY });
 // Recraft/Seedream uit het hot path; die zijn na deze refactor niet meer in
 // gebruik en kunnen later opgeruimd worden.
 
-const BASE_MODEL = "fal-ai/nano-banana-pro";
-const EDIT_MODEL = "fal-ai/nano-banana-pro/edit";
+// Nano Banana (niet-Pro, Gemini 2.5 Flash Image, ~$0,039/beeld). Bewust de
+// goedkopere variant voor toegankelijkheid; ~4x goedkoper dan Pro. Minder sterke
+// karakterconsistentie over scenes dan Pro, maar veel meer beelden per credit.
+const BASE_MODEL = "fal-ai/nano-banana";
+const EDIT_MODEL = "fal-ai/nano-banana/edit";
 
 // De edit-variant accepteert tot 8 image_urls. We reserveren bewust ruimte
 // voor character + ingredients zodat ze samen kunnen werken met de stijl.
@@ -131,7 +134,7 @@ export async function generateImageWithStyle(input: NanoBananaInput): Promise<Na
   const result = await fal.subscribe(usedModel, { input: fal_input as never });
   const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
   if (!tempUrl) {
-    throw new Error("Geen afbeelding ontvangen van Nano Banana Pro");
+    throw new Error("Geen afbeelding ontvangen van Nano Banana");
   }
 
   return {
@@ -152,6 +155,40 @@ export interface EditImageInput {
   instruction: string;
   format?: string;
   characterUrls?: (string | null | undefined)[] | null;
+}
+
+// Tweede pass voor story-illustraties: Nano Banana (Gemini) verzint bij flat-
+// illustraties hardnekkig sfeer-decoratie (rook, wolken, hoekplanten, bubbels),
+// ook als de prompt het verbiedt. Op het al gegenereerde beeld een gerichte
+// "schoonveeg"-edit doen werkt veel betrouwbaarder dan het in één keer schoon
+// proberen te genereren: het model behoudt het onderwerp en haalt alleen de
+// rommel weg. Anders dan editImage zeggen we hier NIET "houd de achtergrond
+// gelijk", want juist die moet egaal worden.
+export async function cleanupIllustration(sourceImageUrl: string, format?: string): Promise<NanoBananaResult> {
+  const aspect = aspectFor(format);
+  const fullPrompt = [
+    "Edit the reference image.",
+    "Keep the main subject, people, objects, their poses, the composition, the colors and the flat vector illustration style exactly the same.",
+    "Change ONLY the background and remove clutter: make the background one single flat, solid off-white color, completely plain and empty.",
+    "Remove every decorative element that is not part of the main subject: remove all smoke, steam, vapor, mist, fog, clouds, sky, plants, leaves, branches, foliage, flowers, bubbles, sparkles, dots and floating shapes.",
+    "The corners and all empty areas must be completely bare and empty.",
+    "No text, no numbers, no letters, no labels. No watermarks, no logos.",
+  ].join(" ").slice(0, 4000);
+
+  const result = await fal.subscribe(EDIT_MODEL, {
+    input: {
+      prompt: fullPrompt,
+      image_urls: [sourceImageUrl],
+      aspect_ratio: aspect,
+      resolution: "2K",
+      num_images: 1,
+      output_format: "jpeg",
+    } as never,
+  });
+  const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
+  if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Nano Banana (cleanup)");
+
+  return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: fullPrompt, refsUsed: [sourceImageUrl] };
 }
 
 export async function editImage(input: EditImageInput): Promise<NanoBananaResult> {
@@ -185,7 +222,7 @@ export async function editImage(input: EditImageInput): Promise<NanoBananaResult
   });
   const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
   if (!tempUrl) {
-    throw new Error("Geen afbeelding ontvangen van Nano Banana Pro");
+    throw new Error("Geen afbeelding ontvangen van Nano Banana");
   }
 
   return {

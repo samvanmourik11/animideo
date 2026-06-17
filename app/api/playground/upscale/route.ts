@@ -34,10 +34,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Node heeft geen afbeelding" }, { status: 400 });
   }
 
-  const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Playground: upscalen");
+  const credit = await deductCredits(user.id, CREDIT_COSTS.UPSCALE, "Playground: upscalen");
   if (!credit.success) {
     return NextResponse.json(
-      { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+      { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.UPSCALE },
       { status: 402 }
     );
   }
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
   const userId = user.id;
   async function refund() {
     try {
-      await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Refund: playground upscale mislukt");
+      await addCredits(userId, CREDIT_COSTS.UPSCALE, "Refund: playground upscale mislukt");
     } catch {}
   }
 

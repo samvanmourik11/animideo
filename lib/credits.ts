@@ -7,10 +7,16 @@ const UNLIMITED_ACCOUNTS = new Set([
   "nohaila@jouwanimatievideo.nl",
 ]);
 
+// Credits zijn zo geprijsd dat 500 credits nooit meer dan ~$12,50 aan externe
+// API-kosten kunnen veroorzaken (max ~$0,025 per credit). Bedragen tussen haakjes
+// zijn de echte providerkosten per call.
 export const CREDIT_COSTS = {
-  SCRIPT_GENERATION: 1,
-  IMAGE_GENERATION: 1,
-  VIDEO_GENERATION: 5,
+  SCRIPT_GENERATION: 1, // GPT-4o tekst: script, analyses, infographic-spec, AI-regisseur (~$0,02-0,04)
+  IMAGE_GENERATION: 2,  // Nano Banana (niet-Pro): beeld genereren/bewerken/karakter (~$0,039). 2 = laagste die de $12,50-cap heel houdt (250 beelden = $9,75).
+  VOICE: 4,             // ElevenLabs v3 voice-over (~$0,10)
+  UPSCALE: 2,           // Clarity upscaler (~$0,04)
+  INPAINT: 2,           // Flux Pro Fill inpainting (~$0,05)
+  VIDEO_GENERATION: 10, // Seedance Lite 5s 720p (~$0,18)
 } as const;
 
 export const PLAN_CREDITS: Record<string, number> = {
