@@ -22,7 +22,9 @@ const SECS_PER_SCENE = 6;
 function apiError(d: { error?: string; detail?: string; required?: number; credits?: number } | undefined, fallback: string): string {
   if (d?.error === "insufficient_credits")
     return `Onvoldoende credits: deze stap kost ${d.required} credits en je hebt er ${d.credits ?? 0}. Vul je saldo aan via Prijzen.`;
-  return d?.error || d?.detail || fallback;
+  const base = d?.error || fallback;
+  // Toon ook de technische detail (helpt bij diagnose van export-fouten e.d.).
+  return d?.detail && d.detail !== d.error ? `${base} — ${d.detail}` : base;
 }
 
 // Nederlandse basiskleuren -> RGB. Langere/specifiekere namen (bijv. nachtblauw)
