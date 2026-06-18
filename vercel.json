@@ -3,6 +3,10 @@
     "app/api/export/route.ts": {
       "maxDuration": 300,
       "memory": 3008
+    },
+    "app/api/infographics/export-story/route.ts": {
+      "maxDuration": 300,
+      "memory": 3008
     }
   }
 }

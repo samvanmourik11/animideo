@@ -17,6 +17,8 @@ export const CREDIT_COSTS = {
   UPSCALE: 2,           // Clarity upscaler (~$0,04)
   INPAINT: 2,           // Flux Pro Fill inpainting (~$0,05)
   VIDEO_GENERATION: 10, // Seedance Lite 5s 720p (~$0,18)
+  MUSIC: 1,             // CassetteAI muziekbed (~$0,02/min)
+  SYNC: 1,              // Whisper word-timestamps voor autosync (~$0,01)
 } as const;
 
 export const PLAN_CREDITS: Record<string, number> = {

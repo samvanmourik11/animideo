@@ -1,4 +1,4 @@
-export type ProjectMode = "wizard" | "free" | "photo" | "t2v" | "studio" | "playground";
+export type ProjectMode = "wizard" | "free" | "photo" | "t2v" | "studio" | "playground" | "infographics" | "explainer" | "story";
 export type ImageModel = "flux-schnell" | "flux-pro" | "dall-e-3" | "controlnet" | "recraft" | "seedream";
 export type VideoModel = "kling-pro" | "kling-standard" | "seedance-pro" | "seedance-lite";
 
@@ -155,6 +155,111 @@ export interface Project {
   main_character_id: string | null;
   supporting_character_id: string | null;
   status: ProjectStatus;
+  infographic_spec: InfographicSpec | null;
+  explainer_spec: import("./explainer/spec").ExplainerSpec | null;
+  story_spec: import("./infographics/story-schema").StorySpec | null;
   created_at: string;
   updated_at: string;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Infographics: gestructureerde spec die deterministisch wordt gerenderd.
+// De AI levert de inhoud als JSON (geen pixels); wij tekenen het zelf in SVG,
+// zodat tekst, getallen en uitlijning altijd scherp en correct zijn.
+// ─────────────────────────────────────────────────────────────────────────
+
+export type InfographicFormat = "9:16" | "16:9";
+
+export interface InfographicTheme {
+  primary: string;     // hex — hoofdkleur (titels, accenten, balken)
+  secondary: string;   // hex — secundaire datakleur
+  accent: string;      // hex — opvallend accent / highlight
+  background: string;  // hex — canvasachtergrond
+  textColor: string;   // hex — lichaamstekst
+  fontFamily?: string; // optioneel; default Inter/sans-serif
+}
+
+export interface ChartDataPoint {
+  label: string;
+  value: number;
+  color?: string;      // optionele override per punt
+}
+
+export interface StatBlock {
+  type: "stat";
+  id: string;
+  // 1–6 kerngetallen. icon = keyword voor de icoon-badge, sub = korte context
+  // (bijv. "was 8.500"). Beide optioneel; dragen de flat explainer-journey.
+  items: { value: string; label: string; prefix?: string; suffix?: string; icon?: string; sub?: string }[];
+}
+
+export interface BarChartBlock {
+  type: "barChart";
+  id: string;
+  title?: string;
+  orientation?: "vertical" | "horizontal";
+  unit?: string;
+  data: ChartDataPoint[]; // 2–8 punten
+}
+
+export interface PieChartBlock {
+  type: "pieChart";
+  id: string;
+  title?: string;
+  variant?: "pie" | "donut";
+  data: ChartDataPoint[]; // 2–6 segmenten (waarden zijn relatieve gewichten)
+}
+
+export interface LineChartBlock {
+  type: "lineChart";
+  id: string;
+  title?: string;
+  unit?: string;
+  data: ChartDataPoint[]; // geordende x-as punten
+}
+
+export interface ProcessBlock {
+  type: "process";
+  id: string;
+  title?: string;
+  variant?: "steps" | "timeline"; // steps = proces, timeline = gedateerde mijlpalen
+  steps: { label: string; description?: string; date?: string }[]; // 2–6
+}
+
+export interface ComparisonBlock {
+  type: "comparison";
+  id: string;
+  title?: string;
+  columns: [string, string];                              // precies twee kolomkoppen
+  rows: { label: string; left: string; right: string }[]; // 2–6
+}
+
+export interface ListBlock {
+  type: "list";
+  id: string;
+  title?: string;
+  variant?: "bullets" | "numbered" | "iconGrid";
+  items: { text: string; icon?: string }[]; // icon = keyword uit de ingebouwde iconenset
+}
+
+export type InfographicBlock =
+  | StatBlock
+  | BarChartBlock
+  | PieChartBlock
+  | LineChartBlock
+  | ProcessBlock
+  | ComparisonBlock
+  | ListBlock;
+
+export type InfographicBlockType = InfographicBlock["type"];
+
+export interface InfographicSpec {
+  version: 1;
+  title: string;
+  subtitle?: string;
+  source?: string;             // databron / attributie in de footer
+  format: InfographicFormat;
+  theme: InfographicTheme;
+  blocks: InfographicBlock[];  // geordend van boven naar onder (3–7 typisch)
+  logoUrl?: string | null;     // uit de brandkit
 }

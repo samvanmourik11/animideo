@@ -33,6 +33,16 @@ export default async function ProjectPage({
     redirect(`/studio/${id}`);
   }
 
+  // Infographic-projecten horen op de /infographics pagina
+  if (project.mode === "infographics") {
+    redirect(`/infographics/${id}`);
+  }
+
+  // Story-infographic-projecten horen op de story-pagina (via query-param).
+  if (project.mode === "story") {
+    redirect(`/infographics/story?project=${id}`);
+  }
+
   // Free-mode projecten horen op de /free pagina
   if (project.mode === "free") {
     redirect(`/project/${id}/free`);
