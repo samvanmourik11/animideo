@@ -7,7 +7,7 @@ import path from "node:path";
 import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
 import { storyCanvasSize } from "@/lib/infographics/canvas-size";
-import { storyWindows, STORY_CROSS, STORY_FPS } from "@/lib/infographics/story-layout";
+import { storyWindows, STORY_FPS } from "@/lib/infographics/story-layout";
 import { buildSceneSvg } from "@/lib/infographics/story-svg";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 
@@ -71,7 +71,6 @@ export async function POST(req: NextRequest) {
     const { width: W, height: H } = storyCanvasSize(spec.format);
     const { windows, total } = storyWindows(spec.scenes);
     const N = spec.scenes.length;
-    const clipLen = (i: number) => windows[i].duration + (i < N - 1 ? STORY_CROSS : 0);
 
     dir = await mkdtemp(path.join(tmpdir(), "story-"));
 
@@ -124,62 +123,62 @@ export async function POST(req: NextRequest) {
       if (!(await download(spec.musicUrl, musicPath))) musicPath = null;
     }
 
-    // ── 4. ffmpeg: achtergrond (video loop / still zoompan) + tekst + xfade ──
-    const inputs: string[] = [];
+    // ── 4. ffmpeg: per scene een genormaliseerd segment + concat ──────
+    // Géén xfade-keten: die maakt de Vercel-ffmpeg-build corrupt ("Error
+    // reinitializing filters", -22). We renderen elke scene los naar een mp4 met
+    // identieke parameters (resolutie, fps, pixfmt, SAR) en plakken ze daarna met
+    // de concat-demuxer (harde cuts). Robuust op Vercel; de tekst-overlay zit per
+    // segment gebakken. De voice-over loopt er als doorlopend spoor onder, dus de
+    // harde cut valt visueel nauwelijks op.
+    const segPaths: string[] = [];
     for (let i = 0; i < N; i++) {
-      // Geen -stream_loop meer: lange scenes worden in de filter vertraagd
-      // (setpts) i.p.v. herhaald, zodat de clip de hele scene vult zonder loop.
-      inputs.push("-i", media[i].file);
-    }
-    for (let i = 0; i < N; i++) inputs.push("-i", texts[i]);
-    if (voicePath) inputs.push("-i", voicePath);
-    if (musicPath) inputs.push("-i", musicPath);
-    // Audio-inputindexen (na de N media + N tekst-overlays).
-    const voiceIdx = voicePath ? 2 * N : -1;
-    const musicIdx = musicPath ? 2 * N + (voicePath ? 1 : 0) : -1;
-
-    let fg = "";
-    for (let i = 0; i < N; i++) {
+      const segDur = windows[i].duration;
+      let segFilter: string;
       if (media[i].isVideo) {
-        // Vertraag de clip zodat hij precies de scene vult (alleen vertragen,
-        // nooit versnellen), trim op de exacte sceneduur en reset de PTS naar 0
-        // zodat de xfade-offsets blijven kloppen.
-        const factor = Math.max(1, clipLen(i) / (media[i].clipDur || 5));
-        fg += `[${i}:v]setpts=PTS*${factor.toFixed(4)},scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${STORY_FPS},trim=duration=${clipLen(i).toFixed(3)},setpts=PTS-STARTPTS,setsar=1,format=yuv420p[bg${i}];`;
+        // Alleen vertragen (nooit versnellen) zodat de clip de scene vult.
+        const factor = Math.max(1, segDur / (media[i].clipDur || 5));
+        segFilter = `[0:v]setpts=PTS*${factor.toFixed(4)},scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${STORY_FPS},trim=duration=${segDur.toFixed(3)},setpts=PTS-STARTPTS,setsar=1,format=yuv420p[bg];`;
       } else {
-        const df = Math.round(clipLen(i) * STORY_FPS);
+        const df = Math.round(segDur * STORY_FPS);
         const z = i % 2 === 0 ? "min(1.001+0.0010*on,1.12)" : "max(1.12-0.0010*on,1.0)";
-        fg += `[${i}:v]scale=${W * 2}:${H * 2}:flags=lanczos,zoompan=z='${z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${df}:s=${W}x${H}:fps=${STORY_FPS},setsar=1,format=yuv420p[bg${i}];`;
+        segFilter = `[0:v]scale=${W * 2}:${H * 2}:flags=lanczos,zoompan=z='${z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${df}:s=${W}x${H}:fps=${STORY_FPS},setsar=1,format=yuv420p[bg];`;
       }
-      fg += `[bg${i}][${N + i}:v]overlay=0:0,format=yuv420p[c${i}];`;
+      segFilter += `[bg][1:v]overlay=0:0,format=yuv420p[v]`;
+      const segPath = path.join(dir, `seg-${String(i).padStart(3, "0")}.mp4`);
+      await runFfmpeg([
+        "-i", media[i].file, "-i", texts[i],
+        "-filter_complex", segFilter, "-map", "[v]", "-an",
+        "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p",
+        "-r", String(STORY_FPS), "-video_track_timescale", String(STORY_FPS * 1000),
+        "-t", segDur.toFixed(3), "-y", segPath,
+      ]);
+      segPaths.push(segPath);
     }
-    let prev = "[c0]";
-    for (let i = 0; i < N - 1; i++) {
-      const out = i === N - 2 ? "[vout]" : `[x${i}]`;
-      fg += `${prev}[c${i + 1}]xfade=transition=fade:duration=${STORY_CROSS}:offset=${windows[i + 1].start.toFixed(3)}${out};`;
-      prev = out;
-    }
-    fg = fg.replace(/;$/, "");
-    const vLabel = N > 1 ? "[vout]" : "[c0]";
 
-    // Audio: voice op vol niveau, muziekbed zacht eronder (volume 0.18). normalize=0
-    // houdt de voice op sterkte; duration=longest laat de muziek doorlopen als de
-    // voice eerder klaar is (de -t hieronder kapt op de videolengte). Zonder voice
-    // staat de muziek wat luider.
-    let aLabel: string | null = null;
-    if (voiceIdx >= 0 && musicIdx >= 0) {
-      fg += `;[${voiceIdx}:a]aresample=44100[vo];[${musicIdx}:a]aresample=44100,volume=0.18[mu];[vo][mu]amix=inputs=2:duration=longest:normalize=0[aout]`;
-      aLabel = "[aout]";
-    } else if (musicIdx >= 0) {
-      fg += `;[${musicIdx}:a]aresample=44100,volume=0.30[aout]`;
-      aLabel = "[aout]";
-    }
+    // Concat-lijst (de demuxer plakt de identiek-gecodeerde segmenten zonder
+    // her-encoderen van het beeld).
+    const concatTxt = path.join(dir, "concat.txt");
+    await writeFile(concatTxt, segPaths.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"));
+
+    // Audio: voice op vol niveau, muziekbed zacht eronder (volume 0.18).
+    const audioInputs: string[] = [];
+    if (voicePath) audioInputs.push("-i", voicePath);
+    if (musicPath) audioInputs.push("-i", musicPath);
+    const voiceIdx = voicePath ? 1 : -1;          // 0 = concat-video
+    const musicIdx = musicPath ? (voicePath ? 2 : 1) : -1;
 
     const outPath = path.join(dir, "out.mp4");
-    const cmd: string[] = [...inputs, "-filter_complex", fg, "-map", vLabel];
-    if (aLabel) cmd.push("-map", aLabel, "-c:a", "aac", "-b:a", "192k");
-    else if (voiceIdx >= 0) cmd.push("-map", `${voiceIdx}:a`, "-c:a", "aac", "-b:a", "192k", "-shortest");
-    cmd.push("-c:v", "libx264", "-pix_fmt", "yuv420p", "-r", String(STORY_FPS), "-movflags", "+faststart", "-t", total.toFixed(3), "-y", outPath);
+    const cmd: string[] = ["-f", "concat", "-safe", "0", "-i", concatTxt, ...audioInputs];
+    if (voiceIdx >= 0 && musicIdx >= 0) {
+      cmd.push("-filter_complex", `[${voiceIdx}:a]aresample=44100[vo];[${musicIdx}:a]aresample=44100,volume=0.18[mu];[vo][mu]amix=inputs=2:duration=longest:normalize=0[aout]`, "-map", "0:v", "-map", "[aout]", "-c:a", "aac", "-b:a", "192k");
+    } else if (musicIdx >= 0) {
+      cmd.push("-filter_complex", `[${musicIdx}:a]aresample=44100,volume=0.30[aout]`, "-map", "0:v", "-map", "[aout]", "-c:a", "aac", "-b:a", "192k");
+    } else if (voiceIdx >= 0) {
+      cmd.push("-map", "0:v", "-map", `${voiceIdx}:a`, "-c:a", "aac", "-b:a", "192k");
+    } else {
+      cmd.push("-map", "0:v");
+    }
+    cmd.push("-c:v", "copy", "-movflags", "+faststart", "-t", total.toFixed(3), "-y", outPath);
     await runFfmpeg(cmd);
 
     // ── 5. Uploaden ─────────────────────────────────────────────────
