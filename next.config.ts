@@ -9,20 +9,18 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // ffmpeg-static ships a platform binary. Mark it external so Next/Turbopack
-  // don't try to bundle it, and trace-include the binary so it's deployed
-  // alongside the export route. (PDF-tekst gaat via unpdf, dat serverless-proof
-  // bundelt en dus niet extern hoeft.)
-  serverExternalPackages: ["ffmpeg-static", "playwright", "playwright-core", "@sparticuz/chromium"],
+  // Native binaries niet bundelen maar als extern pakket laten staan: ffmpeg-static
+  // (video) en @resvg/resvg-js (SVG->PNG voor de tekst-overlay van de story-export).
+  // PDF-tekst gaat via unpdf (serverless-proof, hoeft niet extern).
+  serverExternalPackages: ["ffmpeg-static", "@resvg/resvg-js"],
   outputFileTracingIncludes: {
     "/api/export": [
       "./node_modules/ffmpeg-static/ffmpeg",
       "./lib/export/Inter-Bold.ttf",
     ],
-    // De story-export schiet per scene een tekst-screenshot (chromium) en mixt
-    // met ffmpeg; de voice-route meet de audioduur met ffmpeg. Beide hebben de
-    // ffmpeg-binary nodig op Vercel.
-    "/api/infographics/export-story": ["./node_modules/ffmpeg-static/ffmpeg"],
+    // De story-export mixt met ffmpeg en rastert de tekst-overlay met resvg in
+    // het Inter-font; de voice-route meet de audioduur met ffmpeg.
+    "/api/infographics/export-story": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Inter-Bold.ttf"],
     "/api/infographics/scene-voice": ["./node_modules/ffmpeg-static/ffmpeg"],
   },
   turbopack: {},

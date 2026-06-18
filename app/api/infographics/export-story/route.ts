@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Browser } from "playwright-core";
+import { Resvg } from "@resvg/resvg-js";
 import { spawn } from "node:child_process";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,34 +8,17 @@ import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
 import { storyCanvasSize } from "@/lib/infographics/canvas-size";
 import { storyWindows, STORY_CROSS, STORY_FPS } from "@/lib/infographics/story-layout";
+import { buildSceneSvg } from "@/lib/infographics/story-svg";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-// Op Vercel/Lambda draait geen volledige Playwright-chromium. Daar gebruiken we
-// @sparticuz/chromium (een serverless-chromium binnen de groottelimiet) via
-// playwright-core. Lokaal pakken we de normale, geïnstalleerde browser.
-async function launchBrowser(): Promise<Browser> {
-  const onVercel = !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
-  if (onVercel) {
-    const sparticuz = (await import("@sparticuz/chromium")).default;
-    const { chromium } = await import("playwright-core");
-    return await chromium.launch({
-      args: sparticuz.args,
-      executablePath: await sparticuz.executablePath(),
-      headless: true,
-    });
-  }
-  const { chromium } = await import("playwright");
-  // Cast: de lokale playwright kan een iets ander playwright-core-type bundelen
-  // dan de prod-dependency; structureel is het dezelfde Browser.
-  try {
-    return (await chromium.launch({ channel: "chrome", args: ["--no-sandbox", "--headless=new"] })) as unknown as Browser;
-  } catch {
-    return (await chromium.launch({ args: ["--no-sandbox", "--use-gl=swiftshader"] })) as unknown as Browser;
-  }
-}
+// De tekst-overlay is pure SVG (zie StoryScene); we rasteren die server-side met
+// resvg i.p.v. een headless browser. Dat werkt betrouwbaar op Vercel (geen
+// chromium) en is snel. Het Inter-font (op schijf, meegetraced) zorgt voor de
+// juiste typografie.
+const INTER_FONT_PATH = path.join(process.cwd(), "lib/export/Inter-Bold.ttf");
 
 function runFfmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -74,7 +57,6 @@ async function download(url: string, dest: string): Promise<boolean> {
 }
 
 export async function POST(req: NextRequest) {
-  let browser: Browser | null = null;
   let dir: string | null = null;
   try {
     const supabase = await createClient();
@@ -115,31 +97,20 @@ export async function POST(req: NextRequest) {
       media.push({ file: f, isVideo: false, clipDur: 0 });
     }
 
-    // ── 2. Transparante tekst-overlay per scene (Playwright) ────────
-    const b64 = Buffer.from(JSON.stringify(spec), "utf-8").toString("base64");
-    const host = req.headers.get("host");
-    const proto = req.headers.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
-    const appUrl = host ? `${proto}://${host}` : new URL(req.url).origin;
-    const renderUrl = `${appUrl}/story-video-render?textonly=1&spec=${encodeURIComponent(b64)}&navy=${encodeURIComponent(body.navy ?? "#16243f")}&accent=${encodeURIComponent(body.accent ?? "#e8643c")}`;
-
-    browser = await launchBrowser();
-    const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
-    await page.goto(renderUrl, { waitUntil: "networkidle", timeout: 60000 });
-    await page.waitForFunction("window.__storyReady === true", null, { timeout: 30000 });
-
+    // ── 2. Transparante tekst-overlay per scene (resvg, geen browser) ──
+    const navy = body.navy ?? "#16243f";
+    const accent = body.accent ?? "#e8643c";
     const texts: string[] = [];
     for (let i = 0; i < N; i++) {
-      await page.evaluate((sceneIdx) =>
-        new Promise<void>((resolve) => {
-          (window as unknown as { __storySetScene: (n: number) => void }).__storySetScene(sceneIdx);
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-        }), i);
+      const svg = buildSceneSvg(spec.scenes[i], spec.format, navy, accent);
+      const png = new Resvg(svg, {
+        fitTo: { mode: "width", value: W },
+        font: { fontFiles: [INTER_FONT_PATH], defaultFontFamily: "Inter", loadSystemFonts: false },
+      }).render().asPng();
       const p = path.join(dir, `text-${String(i).padStart(3, "0")}.png`);
-      await page.screenshot({ path: p, clip: { x: 0, y: 0, width: W, height: H }, omitBackground: true });
+      await writeFile(p, png);
       texts.push(p);
     }
-    await browser.close();
-    browser = null;
 
     // ── 3. Voice-over + muziekbed downloaden (optioneel) ────────────
     let voicePath: string | null = null;
@@ -224,7 +195,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: urlData.publicUrl, scenes: N, duration: total });
   } catch (err: unknown) {
-    if (browser) await browser.close().catch(() => {});
     if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {});
     const msg = err instanceof Error ? err.message : String(err);
     console.error("export-story failed:", msg);
