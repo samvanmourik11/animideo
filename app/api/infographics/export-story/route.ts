@@ -160,7 +160,9 @@ export async function POST(req: NextRequest) {
     const concatTxt = path.join(dir, "concat.txt");
     await writeFile(concatTxt, segPaths.map((p) => `file '${p.replace(/'/g, "'\\''")}'`).join("\n"));
 
-    // Audio: voice op vol niveau, muziekbed zacht eronder (volume 0.18).
+    // Audio: voice op vol niveau, muziekbed eronder op het ingestelde volume
+    // (slider; default 0.18). Zonder voice klinkt de muziek wat luider.
+    const musicVol = typeof spec.musicVolume === "number" ? spec.musicVolume : 0.18;
     const audioInputs: string[] = [];
     if (voicePath) audioInputs.push("-i", voicePath);
     if (musicPath) audioInputs.push("-i", musicPath);
@@ -170,9 +172,9 @@ export async function POST(req: NextRequest) {
     const outPath = path.join(dir, "out.mp4");
     const cmd: string[] = ["-f", "concat", "-safe", "0", "-i", concatTxt, ...audioInputs];
     if (voiceIdx >= 0 && musicIdx >= 0) {
-      cmd.push("-filter_complex", `[${voiceIdx}:a]aresample=44100[vo];[${musicIdx}:a]aresample=44100,volume=0.18[mu];[vo][mu]amix=inputs=2:duration=longest:normalize=0[aout]`, "-map", "0:v", "-map", "[aout]", "-c:a", "aac", "-b:a", "192k");
+      cmd.push("-filter_complex", `[${voiceIdx}:a]aresample=44100[vo];[${musicIdx}:a]aresample=44100,volume=${musicVol.toFixed(3)}[mu];[vo][mu]amix=inputs=2:duration=longest:normalize=0[aout]`, "-map", "0:v", "-map", "[aout]", "-c:a", "aac", "-b:a", "192k");
     } else if (musicIdx >= 0) {
-      cmd.push("-filter_complex", `[${musicIdx}:a]aresample=44100,volume=0.30[aout]`, "-map", "0:v", "-map", "[aout]", "-c:a", "aac", "-b:a", "192k");
+      cmd.push("-filter_complex", `[${musicIdx}:a]aresample=44100,volume=${Math.min(1, musicVol * 1.6).toFixed(3)}[aout]`, "-map", "0:v", "-map", "[aout]", "-c:a", "aac", "-b:a", "192k");
     } else if (voiceIdx >= 0) {
       cmd.push("-map", "0:v", "-map", `${voiceIdx}:a`, "-c:a", "aac", "-b:a", "192k");
     } else {

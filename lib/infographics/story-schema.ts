@@ -87,4 +87,6 @@ export interface StorySpec {
   // gemixt in player en export. musicPrompt bewaart de gekozen stijl.
   musicUrl?: string | null;
   musicPrompt?: string | null;
+  // Volume van het muziekbed (0..1), instelbaar via de slider. Default 0.18.
+  musicVolume?: number | null;
 }

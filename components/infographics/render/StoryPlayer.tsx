@@ -57,7 +57,7 @@ export default function StoryPlayer({
     const a = audioRef.current;
     if (a && a.src) { try { a.currentTime = t; } catch {} a.play().catch(() => {}); }
     const m = musicRef.current;
-    if (m && m.src) { m.volume = 0.18; try { m.currentTime = t; } catch {} m.play().catch(() => {}); }
+    if (m && m.src) { m.volume = spec.musicVolume ?? 0.18; try { m.currentTime = t; } catch {} m.play().catch(() => {}); }
     const tick = () => {
       const now = (performance.now() - startRef.current) / 1000;
       if (now >= total) { setT(total); setPlaying(false); audioRef.current?.pause(); musicRef.current?.pause(); return; }
@@ -68,6 +68,11 @@ export default function StoryPlayer({
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing]);
+
+  // Volume live bijregelen terwijl de slider beweegt (ook tijdens het afspelen).
+  useEffect(() => {
+    if (musicRef.current) musicRef.current.volume = spec.musicVolume ?? 0.18;
+  }, [spec.musicVolume]);
 
   function toggle() {
     if (t >= total) { setT(0); setPlaying(true); return; }

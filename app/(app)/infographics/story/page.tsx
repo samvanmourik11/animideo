@@ -611,6 +611,22 @@ export default function StoryPage() {
                   {musicBusy ? "Muziek…" : spec.musicUrl ? "Muziek opnieuw" : "Genereer muziekbed"}
                 </button>
                 {spec.musicUrl ? <span className="text-xs text-emerald-400">muziekbed klaar</span> : null}
+                <label className="flex items-center gap-2" title="Volume van het muziekbed onder de voice-over (geldt in de preview en de export)">
+                  <span className="text-[11px] text-slate-400">Muziekvolume</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={spec.musicVolume ?? 0.18}
+                    onChange={(e) => {
+                      const v = Number(e.target.value);
+                      setSpec((prev) => (prev ? { ...prev, musicVolume: v } : prev));
+                    }}
+                    className="w-28 accent-blue-500"
+                  />
+                  <span className="text-[11px] text-slate-500 w-9 text-right tabular-nums">{Math.round((spec.musicVolume ?? 0.18) * 100)}%</span>
+                </label>
               </div>
             </div>
 
