@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PDFParse } from "pdf-parse";
+import { extractText, getDocumentProxy } from "unpdf";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -30,16 +30,17 @@ export async function POST(req: NextRequest) {
     }
 
     const buf = Buffer.from(await file.arrayBuffer());
-    const parser = new PDFParse({ data: buf });
     let text: string;
     try {
-      const parsed = await parser.getText();
-      text = (parsed.text ?? "").replace(/\s+/g, " ").trim();
+      // unpdf is serverless-vriendelijk (bundelt pdfjs zonder los worker-bestand),
+      // werkt zo zowel lokaal als op Vercel.
+      const pdf = await getDocumentProxy(new Uint8Array(buf));
+      const parsed = await extractText(pdf, { mergePages: true });
+      const raw = Array.isArray(parsed.text) ? parsed.text.join(" ") : parsed.text;
+      text = (raw ?? "").replace(/\s+/g, " ").trim();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return NextResponse.json({ error: `PDF parsen mislukt: ${msg}` }, { status: 400 });
-    } finally {
-      await parser.destroy().catch(() => {});
     }
 
     if (text.length < 30) {

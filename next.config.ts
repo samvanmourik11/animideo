@@ -11,10 +11,9 @@ const nextConfig: NextConfig = {
   },
   // ffmpeg-static ships a platform binary. Mark it external so Next/Turbopack
   // don't try to bundle it, and trace-include the binary so it's deployed
-  // alongside the export route.
-  // pdf-parse (via pdfjs-dist) laadt een worker-module relatief uit node_modules.
-  // Bundelen breekt dat pad ("Cannot find module pdf.worker.mjs"), dus extern houden.
-  serverExternalPackages: ["ffmpeg-static", "playwright", "playwright-core", "@sparticuz/chromium", "pdf-parse", "pdfjs-dist"],
+  // alongside the export route. (PDF-tekst gaat via unpdf, dat serverless-proof
+  // bundelt en dus niet extern hoeft.)
+  serverExternalPackages: ["ffmpeg-static", "playwright", "playwright-core", "@sparticuz/chromium"],
   outputFileTracingIncludes: {
     "/api/export": [
       "./node_modules/ffmpeg-static/ffmpeg",
