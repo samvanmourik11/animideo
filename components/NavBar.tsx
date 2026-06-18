@@ -70,9 +70,6 @@ export default function NavBar({ email, credits, plan, creditsResetDate, hideLer
           <Link href="/dashboard" className="font-bold text-lg bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent">
             JouwAnimatieVideo A.I.
           </Link>
-          <Link href="/infographics/story" className="text-sm text-slate-300 hover:text-white font-medium transition-colors">
-            Storytelling
-          </Link>
           <Link href="/characters" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
             Personages
           </Link>

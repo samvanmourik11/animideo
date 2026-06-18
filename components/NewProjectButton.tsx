@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 export default function NewProjectButton({ userId }: { userId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState<"wizard" | "free" | "photo" | "t2v" | "studio" | "playground" | null>(null);
+  const [loading, setLoading] = useState<"wizard" | "free" | "photo" | "t2v" | "studio" | "playground" | "story" | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   // Sluit dropdown bij klik buiten het component
@@ -31,6 +31,12 @@ export default function NewProjectButton({ userId }: { userId: string }) {
     setLoading("playground");
     setOpen(false);
     router.push("/playground");
+  }
+
+  function openStorytelling() {
+    setLoading("story");
+    setOpen(false);
+    router.push("/infographics/story");
   }
 
   async function createWizard() {
@@ -174,6 +180,17 @@ export default function NewProjectButton({ userId }: { userId: string }) {
                 Creator Studio
               </p>
               <p className="text-xs text-slate-500 mt-0.5">Karakter en stijl consistent door alle scenes</p>
+            </div>
+          </button>
+          <div className="h-px bg-white/[0.06] mx-3" />
+          <button
+            onClick={openStorytelling}
+            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-violet-500/10 to-transparent"
+          >
+            <span className="text-lg leading-none mt-0.5">📖</span>
+            <div>
+              <p className="text-sm font-medium text-white">Storytelling-infographic</p>
+              <p className="text-xs text-slate-500 mt-0.5">AI-verhaalvideo uit tekst of PDF, met voice-over</p>
             </div>
           </button>
           <div className="h-px bg-white/[0.06] mx-3" />
