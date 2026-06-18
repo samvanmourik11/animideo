@@ -7,18 +7,21 @@ const UNLIMITED_ACCOUNTS = new Set([
   "nohaila@jouwanimatievideo.nl",
 ]);
 
-// Credits zijn zo geprijsd dat 500 credits nooit meer dan ~$12,50 aan externe
-// API-kosten kunnen veroorzaken (max ~$0,025 per credit). Bedragen tussen haakjes
-// zijn de echte providerkosten per call.
+// Credit-tarieven, bewust GEHALVEERD t.o.v. de oude prijzen (2026-06-18) zodat een
+// credit-bundel veel langer meegaat — vooral video/animatie ging te hard. We laten
+// hiermee de oude "~$0,025 per credit"-cap los (500 credits kan nu boven ~$12,50
+// aan API-kosten uitkomen); de aanname is dat lang niet iedereen al z'n credits
+// gebruikt. Bedragen tussen haakjes zijn de echte providerkosten per call.
+// Credits zijn hele getallen (INTEGER), dus posten van 1 blijven 1 (minimum).
 export const CREDIT_COSTS = {
-  SCRIPT_GENERATION: 1, // GPT-4o tekst: script, analyses, infographic-spec, AI-regisseur (~$0,02-0,04)
-  IMAGE_GENERATION: 2,  // Nano Banana (niet-Pro): beeld genereren/bewerken/karakter (~$0,039). 2 = laagste die de $12,50-cap heel houdt (250 beelden = $9,75).
-  VOICE: 4,             // ElevenLabs v3 voice-over (~$0,10)
-  UPSCALE: 2,           // Clarity upscaler (~$0,04)
-  INPAINT: 2,           // Flux Pro Fill inpainting (~$0,05)
-  VIDEO_GENERATION: 10, // Seedance Lite 5s 720p (~$0,18)
-  MUSIC: 1,             // CassetteAI muziekbed (~$0,02/min)
-  SYNC: 1,              // Whisper word-timestamps voor autosync (~$0,01)
+  SCRIPT_GENERATION: 1, // GPT-4o tekst: script, analyses, infographic-spec, AI-regisseur (~$0,02-0,04) — al minimaal, blijft 1
+  IMAGE_GENERATION: 1,  // Nano Banana (niet-Pro): beeld genereren/bewerken/karakter (~$0,039)
+  VOICE: 2,             // ElevenLabs v3 voice-over (~$0,10)
+  UPSCALE: 1,           // Clarity upscaler (~$0,04)
+  INPAINT: 1,           // Flux Pro Fill inpainting (~$0,05)
+  VIDEO_GENERATION: 5,  // Seedance Lite 5s 720p (~$0,18) — grootste kostenpost, gehalveerd van 10
+  MUSIC: 1,             // CassetteAI muziekbed (~$0,02/min) — al minimaal, blijft 1
+  SYNC: 1,              // Whisper word-timestamps voor autosync (~$0,01) — al minimaal, blijft 1
 } as const;
 
 export const PLAN_CREDITS: Record<string, number> = {
