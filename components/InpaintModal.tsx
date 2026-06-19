@@ -293,7 +293,7 @@ export default function InpaintModal({
               Annuleren
             </button>
             <button onClick={generate} disabled={generating} className="btn-primary">
-              {generating ? "Genereren…" : "Genereer (1 credit)"}
+              {generating ? "Genereren…" : "Genereer (2 credits)"}
             </button>
           </div>
         </div>

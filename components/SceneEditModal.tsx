@@ -138,7 +138,7 @@ export default function SceneEditModal({
             disabled={busy || instruction.trim().length < 2}
             className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {busy ? "Bewerken…" : "Pas aan (1 credit)"}
+            {busy ? "Bewerken…" : "Pas aan (2 credits)"}
           </button>
         </div>
       </div>

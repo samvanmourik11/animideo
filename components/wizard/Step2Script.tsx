@@ -107,7 +107,10 @@ export default function Step2Script({ project, onUpdate, onNext, onBack }: Props
                         max={30}
                         className="w-14 bg-[#060d1f] border border-white/10 rounded-lg px-2 py-1 text-sm text-white text-center focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                         value={scene.duration}
-                        onChange={(e) => updateScene(i, "duration", parseInt(e.target.value) || 5)}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value);
+                          updateScene(i, "duration", Number.isNaN(v) ? scene.duration : Math.min(30, Math.max(1, v)));
+                        }}
                       />
                       <span className="text-slate-500 text-xs">sec</span>
                     </div>

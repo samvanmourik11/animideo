@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 export default function NewProjectButton({ userId }: { userId: string }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState<"wizard" | "free" | "photo" | "t2v" | "studio" | "playground" | "story" | null>(null);
+  const [loading, setLoading] = useState<"wizard" | "free" | "photo" | "t2v" | "studio" | "playground" | "story" | "infographics" | "explainer" | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   // Sluit dropdown bij klik buiten het component
@@ -37,6 +37,18 @@ export default function NewProjectButton({ userId }: { userId: string }) {
     setLoading("story");
     setOpen(false);
     router.push("/infographics/story");
+  }
+
+  function openInfographics() {
+    setLoading("infographics");
+    setOpen(false);
+    router.push("/infographics/new");
+  }
+
+  function openExplainer() {
+    setLoading("explainer");
+    setOpen(false);
+    router.push("/explainer/new");
   }
 
   async function createWizard() {
@@ -235,6 +247,28 @@ export default function NewProjectButton({ userId }: { userId: string }) {
             <div>
               <p className="text-sm font-medium text-white">Text to Video</p>
               <p className="text-xs text-slate-500 mt-0.5">Direct video van tekst, geen afbeeldingen</p>
+            </div>
+          </button>
+          <div className="h-px bg-white/[0.06] mx-3" />
+          <button
+            onClick={openInfographics}
+            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
+          >
+            <span className="text-lg leading-none mt-0.5">📊</span>
+            <div>
+              <p className="text-sm font-medium text-white">Infographic</p>
+              <p className="text-xs text-slate-500 mt-0.5">Zakelijk: data, cijfers en grafieken, geen poppetjes</p>
+            </div>
+          </button>
+          <div className="h-px bg-white/[0.06] mx-3" />
+          <button
+            onClick={openExplainer}
+            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-amber-500/10 to-transparent"
+          >
+            <span className="text-lg leading-none mt-0.5">🎞️</span>
+            <div>
+              <p className="text-sm font-medium text-white">Explainer-video</p>
+              <p className="text-xs text-slate-500 mt-0.5">Flat animated uitleg-video met voice-over, geen poppetjes</p>
             </div>
           </button>
           <div className="h-px bg-white/[0.06] mx-3" />

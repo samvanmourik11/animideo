@@ -171,7 +171,10 @@ export default function StudioStepScript({ project, targetScenes, onUpdate, onNe
                         min={1}
                         max={30}
                         value={scene.duration}
-                        onChange={e => updateScene(i, "duration", parseInt(e.target.value) || 5)}
+                        onChange={e => {
+                          const v = parseInt(e.target.value);
+                          updateScene(i, "duration", Number.isNaN(v) ? scene.duration : Math.min(30, Math.max(1, v)));
+                        }}
                         className="w-12 bg-slate-950 border border-white/10 rounded-md px-1.5 py-1 text-sm text-white text-center"
                       />
                       <span className="text-slate-500 text-xs">s</span>

@@ -1182,7 +1182,10 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                   max={30}
                   className="w-full bg-[#222] border border-[#2a2a2a] rounded px-2 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-[#3b82f6]"
                   value={currentScene.duration}
-                  onChange={(e) => updateScene(selectedIdx, "duration", parseInt(e.target.value) || currentScene.duration)}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value);
+                    updateScene(selectedIdx, "duration", Number.isNaN(v) ? currentScene.duration : Math.min(30, Math.max(1, v)));
+                  }}
                 />
               </div>
             </section>

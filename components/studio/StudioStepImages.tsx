@@ -211,7 +211,7 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack }: 
           <p className="text-slate-500 text-sm mt-0.5">
             {doneCount}/{scenes.length} klaar.{" "}
             {anchorCount > 0
-              ? `Elke scene gebruikt ${anchorCount} anchor reference${anchorCount === 1 ? "" : "s"} via Nano Banana Pro.`
+              ? `Elke scene gebruikt ${anchorCount} anchor reference${anchorCount === 1 ? "" : "s"} via Nano Banana.`
               : "Geen anchors. Elke scene wordt text-to-image gegenereerd."}
           </p>
         </div>

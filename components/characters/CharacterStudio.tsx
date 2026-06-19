@@ -231,7 +231,7 @@ export default function CharacterStudio({ characters, onAdd, onRemove }: Props) 
             {mode === "upload" && (
               <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer" title="Een gestyleerde versie van je foto met dezelfde persoon, in de gekozen stijl">
                 <input type="checkbox" checked={transformStyle} onChange={e => setTransformStyle(e.target.checked)} />
-                Transformeer naar {style} <span className="text-slate-500">(+1 credit)</span>
+                Transformeer naar {style} <span className="text-slate-500">(+2 credits)</span>
               </label>
             )}
             <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">

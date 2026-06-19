@@ -25,8 +25,8 @@ const PLANS: Plan[] = [
     features: [
       "100 credits per maand",
       "Script genereren (1 credit)",
-      "Afbeelding genereren (1 credit)",
-      "Video beweging (5 credits)",
+      "Afbeelding genereren (2 credits)",
+      "Video beweging (10 credits)",
       "720p export met watermark",
     ],
     highlight: false,
@@ -40,8 +40,8 @@ const PLANS: Plan[] = [
     features: [
       "500 credits per maand",
       "Script genereren (1 credit)",
-      "Afbeelding genereren (1 credit)",
-      "Video beweging (5 credits)",
+      "Afbeelding genereren (2 credits)",
+      "Video beweging (10 credits)",
       "Geen watermark",
       "1080p export",
       "Email support",
@@ -58,8 +58,8 @@ const PLANS: Plan[] = [
     features: [
       "1.500 credits per maand",
       "Script genereren (1 credit)",
-      "Afbeelding genereren (1 credit)",
-      "Video beweging (5 credits)",
+      "Afbeelding genereren (2 credits)",
+      "Video beweging (10 credits)",
       "Geen watermark",
       "1080p HD export (hogere kwaliteit)",
       "Prioriteit support",
@@ -75,8 +75,8 @@ const PLANS: Plan[] = [
     features: [
       "5.000 credits per maand",
       "Script genereren (1 credit)",
-      "Afbeelding genereren (1 credit)",
-      "Video beweging (5 credits)",
+      "Afbeelding genereren (2 credits)",
+      "Video beweging (10 credits)",
       "Geen watermark",
       "1080p HD export (maximale kwaliteit)",
       "Dedicated support",
@@ -269,8 +269,8 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
         <div className="grid grid-cols-3 gap-4">
           {[
             { action: "Script genereren", cost: "1 credit", icon: "📝" },
-            { action: "Afbeelding genereren", cost: "1 credit", icon: "🎨" },
-            { action: "Video beweging (Kling)", cost: "5 credits", icon: "🎬" },
+            { action: "Afbeelding genereren", cost: "2 credits", icon: "🎨" },
+            { action: "Video beweging", cost: "10 credits", icon: "🎬" },
           ].map((item) => (
             <div key={item.action} className="text-center bg-white/[0.03] rounded-xl p-4">
               <div className="text-2xl mb-2">{item.icon}</div>
