@@ -17,12 +17,16 @@ export default function EditorShell({
   title,
   ratio,
   initialTimeline,
+  backHref = "/editor",
 }: {
   projectId: string;
   userId: string;
   title: string;
   ratio: Ratio;
   initialTimeline: TimelineDoc;
+  // Waar de ←-knop naartoe gaat. Vanuit de Studio terug naar het Studio-project
+  // (stap 5), anders naar de editor-projectenlijst.
+  backHref?: string;
 }) {
   // Store eenmalig aanmaken, met een persist-functie die naar Supabase schrijft.
   const storeRef = useRef<EditorStore | null>(null);
@@ -131,7 +135,7 @@ export default function EditorShell({
     <div className="flex flex-col h-full min-h-0">
       <header className="flex items-center justify-between px-4 h-12 border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href="/editor" className="text-slate-400 hover:text-white text-sm">
+          <Link href={backHref} className="text-slate-400 hover:text-white text-sm">
             ←
           </Link>
           <span className="text-sm font-semibold truncate">{title}</span>

@@ -158,7 +158,7 @@ export default function StudioStepEditor({
             💬 Ondertiteling
           </button>
           <Link
-            href={`/editor/${data.id}`}
+            href={`/editor/${data.id}?studio=${project.id}`}
             className="text-sm text-cyan-300 hover:text-cyan-200"
           >
             Op volledig scherm openen ↗

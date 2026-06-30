@@ -5,10 +5,13 @@ import EditorShell from "@/components/editor/EditorShell";
 
 export default async function EditorProjectPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ studio?: string }>;
 }) {
   const { id } = await params;
+  const { studio } = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -33,6 +36,7 @@ export default async function EditorProjectPage({
       title={project.title}
       ratio={project.ratio}
       initialTimeline={timeline}
+      backHref={studio ? `/studio/${studio}` : "/editor"}
     />
   );
 }
