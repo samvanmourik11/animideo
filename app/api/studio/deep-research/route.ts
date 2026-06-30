@@ -7,7 +7,6 @@
 // zodat ze stabiel zijn en in de beeldgeneratie gebruikt kunnen worden.
 
 import { NextRequest, NextResponse } from "next/server";
-import { chromium, type Browser } from "playwright";
 import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { deductCredits, addCredits } from "@/lib/credits";
@@ -197,7 +196,6 @@ export async function POST(req: NextRequest) {
   }
   const refund = async () => { try { await addCredits(user.id, RESEARCH_COST, "Refund: website-onderzoek"); } catch {} };
 
-  let browser: Browser | null = null;
   try {
     const body = (await req.json()) as { url?: string; urls?: string[] };
     // Eén of meerdere URL's. De gebruiker kan extra pagina's opgeven (bijv. een
@@ -244,14 +242,10 @@ export async function POST(req: NextRequest) {
     }
     text = text.slice(0, MAX_TEXT);
 
-    // 2) Screenshot van de homepage (bovenste deel) voor visuele merkanalyse.
-    let shot: string | null = null;
-    try {
-      browser = await chromium.launch({ channel: "chrome", args: ["--no-sandbox", "--headless=new"] }).catch(() => chromium.launch({ args: ["--no-sandbox"] }));
-      const page = await browser.newPage({ viewport: { width: 1280, height: 1600 }, deviceScaleFactor: 1 });
-      await page.goto(home.toString(), { waitUntil: "networkidle", timeout: 30000 }).catch(() => {});
-      shot = (await page.screenshot({ type: "jpeg", quality: 70, clip: { x: 0, y: 0, width: 1280, height: 1600 } })).toString("base64");
-    } catch {} finally { if (browser) { await browser.close().catch(() => {}); browser = null; } }
+    // 2) Geen homepage-screenshot meer: playwright/chromium draait niet op Vercel
+    // serverless (en blaast de functie-bundle op). Het merkonderzoek draait op de
+    // websitetekst + de echte foto's; GPT-4o leidt de kleuren uit de foto's af.
+    const shot: string | null = null;
 
     // 3) Kandidaat-foto's PARALLEL downloaden (snel, ook met veel kandidaten),
     // daarna de eerste MAX_VISION_IMAGES bruikbare in volgorde nemen.
@@ -394,7 +388,5 @@ ${text}
     const msg = err instanceof Error ? err.message : String(err);
     console.error("deep-research failed:", msg);
     return NextResponse.json({ error: `Onderzoek mislukt: ${msg}` }, { status: 500 });
-  } finally {
-    if (browser) await browser.close().catch(() => {});
   }
 }
