@@ -119,6 +119,9 @@ export async function renderTimeline(
       if (await probeHasAudio(f)) {
         audio.push(audioCandidates[k]);
         audioFiles.push(f);
+      } else {
+        // Stille clip (AI-video zonder audiospoor): meteen opruimen, scheelt /tmp.
+        await rm(f, { force: true }).catch(() => {});
       }
     }
 

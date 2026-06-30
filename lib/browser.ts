@@ -19,8 +19,19 @@ export async function launchBrowser(): Promise<Browser> {
       import("@sparticuz/chromium"),
       import("playwright-core"),
     ]);
+    // Chromium's schijf-cache hard begrenzen: bij een lange frame-render seekt het
+    // de videoclips duizenden keren en zou het anders een groeiende media-/disk-
+    // cache naar de beperkte Vercel-/tmp (512MB) schrijven → ENOSPC. Met een
+    // minimale cache gaat het decoderen via RAM (daar is ruim geheugen).
     return chromium.launch({
-      args: [...sparticuz.args, "--no-sandbox"],
+      args: [
+        ...sparticuz.args,
+        "--no-sandbox",
+        "--disk-cache-size=1",
+        "--media-cache-size=1",
+        "--disable-gpu-shader-disk-cache",
+        "--disable-application-cache",
+      ],
       executablePath: await sparticuz.executablePath(),
       headless: true,
     });
