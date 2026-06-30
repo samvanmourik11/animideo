@@ -8,7 +8,7 @@ import StudioStepScript from "./StudioStepScript";
 import StudioStepImages from "./StudioStepImages";
 import Step4Motion from "@/components/wizard/Step4Motion";
 import Step5Voiceover from "@/components/wizard/Step5Voiceover";
-import StudioStepEditor from "./StudioStepEditor";
+import Step6Editor from "@/components/wizard/Step6Editor";
 import StudioChatPanel, { type RegenResult } from "./StudioChatPanel";
 import { useProjectAutosave, AutosaveIndicator } from "@/lib/use-project-autosave";
 import { computeProjectUpdate } from "@/lib/studio/chat-context";
@@ -278,7 +278,7 @@ export default function StudioWizard({
           />
         )}
         {step === 4 && (
-          <StudioStepEditor project={project} onBack={goBack} />
+          <Step6Editor project={project} onUpdate={updateProject} onBack={goBack} plan={plan} />
         )}
       </div>
 
