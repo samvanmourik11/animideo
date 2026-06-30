@@ -1,4 +1,4 @@
-import { chromium, type Browser } from "playwright";
+import { launchBrowser, type Browser } from "@/lib/browser";
 import ffmpegPath from "ffmpeg-static";
 import { spawn } from "child_process";
 import { mkdtemp, writeFile, rm, readFile } from "fs/promises";
@@ -86,32 +86,8 @@ function probeHasAudio(file: string): Promise<boolean> {
   });
 }
 
-async function launchBrowser(): Promise<Browser> {
-  // Echte Chrome met GPU (new-headless) is veruit het snelst voor het afspelen.
-  // Val terug op bundled Chromium met software-rendering als Chrome ontbreekt.
-  try {
-    return await chromium.launch({
-      channel: "chrome",
-      args: [
-        "--no-sandbox",
-        "--ignore-gpu-blocklist",
-        "--headless=new",
-        "--use-angle=metal",
-        "--enable-gpu",
-      ],
-    });
-  } catch {
-    return await chromium.launch({
-      args: [
-        "--no-sandbox",
-        "--use-gl=angle",
-        "--use-angle=swiftshader",
-        "--ignore-gpu-blocklist",
-        "--enable-unsafe-swiftshader",
-      ],
-    });
-  }
-}
+// launchBrowser: gedeelde helper in @/lib/browser (lokaal volledige playwright,
+// op Vercel playwright-core + @sparticuz/chromium).
 
 export async function renderTimeline(
   doc: TimelineDoc,

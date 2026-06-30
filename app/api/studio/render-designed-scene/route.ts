@@ -5,7 +5,7 @@
 // houden tot de scèneduur. Geen credits — het kost geen externe API-calls.
 
 import { NextRequest, NextResponse } from "next/server";
-import { chromium, type Browser } from "playwright";
+import { launchBrowser, type Browser } from "@/lib/browser";
 import { spawn } from "node:child_process";
 import { mkdtemp, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -27,13 +27,7 @@ const FFMPEG = (ffmpegPath as unknown as string) || "ffmpeg";
 const FPS = 30;
 const ANIM_FRAMES = 34;
 
-async function launchBrowser(): Promise<Browser> {
-  try {
-    return await chromium.launch({ channel: "chrome", args: ["--no-sandbox", "--headless=new"] });
-  } catch {
-    return await chromium.launch({ args: ["--no-sandbox", "--use-gl=swiftshader"] });
-  }
-}
+// launchBrowser: gedeelde helper in @/lib/browser (Vercel-proof via @sparticuz/chromium).
 function runFfmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(FFMPEG, args);

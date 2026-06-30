@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chromium, type Browser } from "playwright";
+import { launchBrowser, type Browser } from "@/lib/browser";
 import { createClient } from "@/lib/supabase/server";
 import { canvasSize } from "@/lib/infographics/canvas-size";
 import type { InfographicSpec } from "@/lib/types";
@@ -7,17 +7,7 @@ import type { InfographicSpec } from "@/lib/types";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-async function launchBrowser(): Promise<Browser> {
-  // Echte Chrome eerst (sneller), val terug op bundled Chromium met software-rendering.
-  try {
-    return await chromium.launch({
-      channel: "chrome",
-      args: ["--no-sandbox", "--headless=new"],
-    });
-  } catch {
-    return await chromium.launch({ args: ["--no-sandbox", "--use-gl=swiftshader"] });
-  }
-}
+// launchBrowser: gedeelde helper in @/lib/browser (Vercel-proof via @sparticuz/chromium).
 
 export async function POST(req: NextRequest) {
   let browser: Browser | null = null;

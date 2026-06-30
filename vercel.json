@@ -7,6 +7,30 @@
     "app/api/infographics/export-story/route.ts": {
       "maxDuration": 300,
       "memory": 3008
+    },
+    "app/api/editor/render/route.ts": {
+      "maxDuration": 300,
+      "memory": 3008
+    },
+    "app/api/studio/render-designed-scene/route.ts": {
+      "maxDuration": 300,
+      "memory": 3008
+    },
+    "app/api/infographics/export-video/route.ts": {
+      "maxDuration": 300,
+      "memory": 3008
+    },
+    "app/api/infographics/export/route.ts": {
+      "maxDuration": 120,
+      "memory": 3008
+    },
+    "app/api/explainer/export-to-editor/route.ts": {
+      "maxDuration": 300,
+      "memory": 3008
+    },
+    "app/api/explainer/export/route.ts": {
+      "maxDuration": 300,
+      "memory": 3008
     }
   }
 }

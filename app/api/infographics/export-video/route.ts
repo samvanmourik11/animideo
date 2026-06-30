@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { chromium, type Browser } from "playwright";
+import { launchBrowser, type Browser } from "@/lib/browser";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -13,13 +13,7 @@ import type { InfographicSpec } from "@/lib/types";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-async function launchBrowser(): Promise<Browser> {
-  try {
-    return await chromium.launch({ channel: "chrome", args: ["--no-sandbox", "--headless=new"] });
-  } catch {
-    return await chromium.launch({ args: ["--no-sandbox", "--use-gl=swiftshader"] });
-  }
-}
+// launchBrowser: gedeelde helper in @/lib/browser (Vercel-proof via @sparticuz/chromium).
 
 function runFfmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
