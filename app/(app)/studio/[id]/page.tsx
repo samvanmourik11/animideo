@@ -21,8 +21,9 @@ export default async function StudioProjectPage({
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  // Tijdelijk: Creator Studio alleen voor toegestane account(s) tijdens soft-launch.
-  if (!canUseStudio(user.email)) redirect("/dashboard");
+  // De Creator Studio blijft open voor alle huidige gebruikers; alleen de nieuwe
+  // AI-buddy is tijdens de soft-launch beperkt tot toegestane account(s).
+  const buddyEnabled = canUseStudio(user.email);
 
   const [{ data: project }, profile, { data: characters }] = await Promise.all([
     supabase
@@ -50,6 +51,7 @@ export default async function StudioProjectPage({
       plan={profile.plan}
       targetScenes={targetScenes}
       characters={(characters ?? []) as Character[]}
+      buddyEnabled={buddyEnabled}
     />
   );
 }

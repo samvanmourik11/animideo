@@ -35,11 +35,15 @@ export default function StudioWizard({
   plan,
   targetScenes,
   characters = [],
+  buddyEnabled = false,
 }: {
   initialProject: Project;
   plan: string;
   targetScenes: number;
   characters?: Character[];
+  // De AI-buddy is tijdens de soft-launch alleen voor toegestane account(s); de
+  // Studio zelf blijft open voor alle huidige gebruikers.
+  buddyEnabled?: boolean;
 }) {
   const [project, setProject] = useState<Project>(initialProject);
   const [step, setStep] = useState(() => statusToStep(initialProject.status));
@@ -278,7 +282,7 @@ export default function StudioWizard({
         )}
       </div>
 
-      {(project.scenes?.length ?? 0) > 0 && (
+      {buddyEnabled && (project.scenes?.length ?? 0) > 0 && (
         <button
           type="button"
           onClick={() => setChatOpen(o => !o)}
@@ -289,7 +293,7 @@ export default function StudioWizard({
           {chatOpen ? "✕" : "🤖"}
         </button>
       )}
-      {chatOpen && (project.scenes?.length ?? 0) > 0 && (
+      {buddyEnabled && chatOpen && (project.scenes?.length ?? 0) > 0 && (
         <StudioChatPanel
           project={project}
           applyAction={applyChatAction}
