@@ -56,19 +56,6 @@ async function download(url: string, dest: string): Promise<void> {
   await writeFile(dest, buf);
 }
 
-function runFfmpeg(args: string[]): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const bin = ffmpegPath as unknown as string;
-    const p = spawn(bin, args);
-    let err = "";
-    p.stderr.on("data", (d) => (err += d.toString()));
-    p.on("error", reject);
-    p.on("close", (code) =>
-      code === 0 ? resolve() : reject(new Error("ffmpeg faalde: " + err.slice(-800)))
-    );
-  });
-}
-
 // Heeft een bestand een audiospoor? AI-videoclips (Seedance) zijn stil; die
 // mogen NIET in de audiomix, anders faalt ffmpeg op "[idx:a] matches no streams".
 function probeHasAudio(file: string): Promise<boolean> {
@@ -109,77 +96,49 @@ export async function renderTimeline(
     await page.goto(`${appUrl}/editor-render`, { waitUntil: "load", timeout: 60000 });
     await page.waitForFunction("window.__editorReady === true", null, { timeout: 60000 });
 
-    // Realtime opname: de compositor speelt de compositie af op de GPU en een
-    // MediaRecorder neemt het canvas op. Veel sneller dan frame-voor-frame.
-    onProgress?.(5, "Opnemen");
-    let finished = false;
-    const recPromise = page
-      .evaluate(
-        (d) =>
-          (window as unknown as { __editorRecord: (x: unknown) => Promise<string> }).__editorRecord(
-            d
-          ),
-        doc as unknown as Record<string, unknown>
-      )
-      .then((r) => {
-        finished = true;
-        return r;
-      });
+    // Deterministische frame-voor-frame render: voor elk frame zetten we de
+    // compositie exact op tijd t (en wachten op de video-seeks), dan een
+    // screenshot. Zo is de export hardware-ONAFHANKELIJK en exact gelijk aan de
+    // preview — geen hapering meer doordat realtime afspelen op trage (Vercel-)
+    // hardware frames laat vallen.
+    onProgress?.(5, "Media voorbereiden");
+    await page.evaluate(
+      (d) =>
+        (window as unknown as { __editorRenderInit: (x: unknown) => Promise<unknown> }).__editorRenderInit(d),
+      doc as unknown as Record<string, unknown>
+    );
 
-    while (!finished) {
-      const p = (await page
-        .evaluate(() => (window as unknown as { __editorProgress?: number }).__editorProgress ?? 0)
-        .catch(() => 0)) as number;
-      onProgress?.(5 + Math.round(p * 0.7), "Opnemen");
-      await new Promise((r) => setTimeout(r, 500));
-    }
-
-    const b64 = await recPromise;
-    await browser.close();
-    const webm = path.join(dir, "recording.webm");
-    await writeFile(webm, Buffer.from(b64, "base64"));
-
-    // FFmpeg: opname (webm) → H.264 MP4, met de audiomix erbij.
-    onProgress?.(80, "Audio mixen");
-    // Kandidaat-audiobronnen (audio- én videoclips). Stille clips (AI-video zonder
-    // audiospoor) filteren we eruit, anders crasht de filtergraph. We voegen alleen
-    // bronnen MÉT audio toe als ffmpeg-input, in volgorde, zodat [k+1:a] klopt.
+    // Audiobronnen (audio- én videoclips) vooraf downloaden; stille AI-clips
+    // (zonder audiospoor) eruit filteren, anders crasht de filtergraph.
     const audioCandidates = collectAudio(doc);
-    const args = ["-y", "-i", webm];
     const audio: AudioSource[] = [];
+    const audioFiles: string[] = [];
     for (let k = 0; k < audioCandidates.length; k++) {
       const f = path.join(dir, `a${k}`);
       await download(audioCandidates[k].src, f);
       if (await probeHasAudio(f)) {
-        args.push("-i", f);
         audio.push(audioCandidates[k]);
+        audioFiles.push(f);
       }
     }
 
-    onProgress?.(88, "Video coderen");
+    // FFmpeg leest de frames via een pipe (image2pipe) — geen duizenden PNG's
+    // naar de beperkte /tmp. Input 0 = de framestroom; daarna de audio-inputs.
     const final = path.join(dir, "final.mp4");
+    const args = ["-y", "-f", "image2pipe", "-framerate", String(fps), "-i", "pipe:0"];
+    for (const f of audioFiles) args.push("-i", f);
+
     if (audio.length === 0) {
       args.push(
-        "-map",
-        "0:v:0",
-        "-c:v",
-        "libx264",
-        "-pix_fmt",
-        "yuv420p",
-        "-crf",
-        "20",
-        "-r",
-        String(fps),
-        "-t",
-        String(duration),
-        "-movflags",
-        "+faststart",
+        "-map", "0:v:0",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "veryfast",
+        "-r", String(fps), "-movflags", "+faststart",
         final
       );
     } else {
       const filters: string[] = [];
       audio.forEach((a, k) => {
-        const idx = k + 1; // input 0 = de opgenomen video
+        const idx = k + 1; // input 0 = de framestroom
         const startMs = Math.max(0, Math.round(a.start * 1000));
         let f = `[${idx}:a]atrim=start=${a.trimIn}:end=${a.trimIn + a.duration},asetpts=PTS-STARTPTS,volume=${a.volume}`;
         if (a.fadeIn > 0) f += `,afade=t=in:st=0:d=${a.fadeIn}`;
@@ -191,33 +150,58 @@ export async function renderTimeline(
       const labels = audio.map((_, k) => `[a${k}]`).join("");
       filters.push(`${labels}amix=inputs=${audio.length}:normalize=0:dropout_transition=0[aout]`);
       args.push(
-        "-filter_complex",
-        filters.join(";"),
-        "-map",
-        "0:v:0",
-        "-map",
-        "[aout]",
-        "-c:v",
-        "libx264",
-        "-pix_fmt",
-        "yuv420p",
-        "-crf",
-        "20",
-        "-r",
-        String(fps),
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
-        "-t",
-        String(duration),
-        "-shortest",
-        "-movflags",
-        "+faststart",
+        "-filter_complex", filters.join(";"),
+        "-map", "0:v:0", "-map", "[aout]",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18", "-preset", "veryfast",
+        "-r", String(fps), "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart",
         final
       );
     }
-    await runFfmpeg(args);
+
+    // FFmpeg starten; we pipen de frames erin terwijl ze gerenderd worden.
+    const bin = ffmpegPath as unknown as string;
+    const ff = spawn(bin, args);
+    let ffErr = "";
+    ff.stderr.on("data", (d) => (ffErr += d.toString()));
+    const ffDone = new Promise<void>((resolve, reject) => {
+      ff.on("error", reject);
+      ff.on("close", (code) =>
+        code === 0 ? resolve() : reject(new Error("ffmpeg faalde: " + ffErr.slice(-800)))
+      );
+    });
+    ff.stdin.on("error", () => {}); // EPIPE negeren als ffmpeg vroegtijdig stopt
+
+    onProgress?.(8, "Frames renderen");
+    const totalFrames = Math.max(1, Math.round(duration * fps));
+    for (let f = 0; f < totalFrames; f++) {
+      const t = Math.min(duration, f / fps);
+      await page.evaluate(
+        (tt) =>
+          (window as unknown as { __editorRenderFrame: (n: number) => Promise<void> }).__editorRenderFrame(
+            tt as number
+          ),
+        t
+      );
+      const png = (await page.screenshot({
+        type: "png",
+        clip: { x: 0, y: 0, width: doc.width, height: doc.height },
+      })) as Buffer;
+      if (!ff.stdin.write(png)) {
+        await new Promise<void>((r) => ff.stdin.once("drain", () => r()));
+      }
+      if (f % 4 === 0) onProgress?.(8 + Math.round((f / totalFrames) * 82), "Frames renderen");
+    }
+    ff.stdin.end();
+
+    try {
+      await page.evaluate(() =>
+        (window as unknown as { __editorRenderDestroy?: () => void }).__editorRenderDestroy?.()
+      );
+    } catch { /* niet kritiek */ }
+    await browser.close();
+
+    onProgress?.(94, "Video afronden");
+    await ffDone;
 
     onProgress?.(98, "Afronden");
     return await readFile(final);

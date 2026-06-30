@@ -11,7 +11,13 @@ import { computeDuration, type TimelineDoc } from "@/lib/editor/timeline";
 type RenderWindow = {
   __editorReady?: boolean;
   __editorProgress?: number;
-  __editorRecord?: (doc: TimelineDoc) => Promise<string>; // base64 webm
+  __editorRecord?: (doc: TimelineDoc) => Promise<string>; // base64 webm (oud, realtime)
+  // Deterministische frame-voor-frame export: init laadt de media, frame(t) zet
+  // de compositie exact op tijd t (wacht op video-seeks). Hardware-onafhankelijk,
+  // dus identiek soepel op localhost én Vercel.
+  __editorRenderInit?: (doc: TimelineDoc) => Promise<{ duration: number; fps: number }>;
+  __editorRenderFrame?: (t: number) => Promise<void>;
+  __editorRenderDestroy?: () => void;
 };
 
 function pickMime(): string {
@@ -29,6 +35,27 @@ function pickMime(): string {
 export default function EditorRenderPage() {
   useEffect(() => {
     const w = window as unknown as RenderWindow;
+    let exportComp: Compositor | null = null;
+
+    // ── Deterministische frame-voor-frame export ──────────────────────────────
+    w.__editorRenderInit = async (doc) => {
+      const host = document.getElementById("render-host");
+      if (!host) throw new Error("Geen render-host");
+      try { exportComp?.destroy(); } catch {}
+      const comp = await Compositor.createForExport(host, doc);
+      await comp.preloadAll();
+      await comp.renderAt(0);
+      exportComp = comp;
+      return { duration: computeDuration(doc), fps: doc.fps || 30 };
+    };
+    w.__editorRenderFrame = async (t) => {
+      if (!exportComp) throw new Error("Compositor niet geïnitialiseerd");
+      await exportComp.renderAt(t);
+    };
+    w.__editorRenderDestroy = () => {
+      try { exportComp?.destroy(); } catch {}
+      exportComp = null;
+    };
 
     w.__editorRecord = async (doc) => {
       const host = document.getElementById("render-host");
