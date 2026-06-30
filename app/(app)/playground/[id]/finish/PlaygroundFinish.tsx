@@ -95,7 +95,7 @@ export default function PlaygroundFinish({
           <div className="min-w-0">
             <p className="text-sm text-white font-medium">Voice-over nog niet gegenereerd</p>
             <p className="text-xs text-slate-400 mt-0.5">
-              Klik om de voice-over te maken met stem <span className="text-slate-200">{project.selected_voice ?? "Charlotte"}</span>. Kost 1 credit.
+              Klik om de voice-over te maken met stem <span className="text-slate-200">{project.selected_voice ?? "Charlotte"}</span>. Kost 4 credits.
             </p>
           </div>
           <button

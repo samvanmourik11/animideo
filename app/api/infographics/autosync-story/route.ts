@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
-import { toFile } from "openai/uploads";
+import { transcribeWords } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { StorySpec } from "@/lib/infographics/story-schema";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -50,16 +47,9 @@ export async function POST(req: NextRequest) {
     let words: WordTimestamp[] = [];
     let audioDuration = 0;
     try {
-      const tr = await openai.audio.transcriptions.create({
-        file: await toFile(audioBuf, "voice.mp3", { type: "audio/mpeg" }),
-        model: "whisper-1",
-        response_format: "verbose_json",
-        timestamp_granularities: ["word"],
-        language: "nl",
-      });
-      const t = tr as unknown as { words?: WordTimestamp[]; duration?: number };
-      words = t.words ?? [];
-      audioDuration = t.duration ?? 0;
+      const t = await transcribeWords(audioBuf, { language: "nl" });
+      words = t.words;
+      audioDuration = t.duration;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       return NextResponse.json({ error: `Whisper transcriptie mislukt: ${msg}` }, { status: 500 });

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // AI-regisseur: stelt op basis van de huidige playground-beelden een
 // compleet videoconcept voor (volgorde, voice-over per shot, overgangen,

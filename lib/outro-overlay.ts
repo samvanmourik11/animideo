@@ -158,3 +158,54 @@ export async function buildOutroImage({ baseImageUrl, logoUrl, contact, format }
     canvas.toBlob(b => b ? resolve(b) : reject(new Error("Canvas toBlob mislukt")), "image/jpeg", 0.92);
   });
 }
+
+interface CornerLogoInput {
+  baseImageUrl: string;
+  logoUrl:      string;
+  format:       "16:9" | "9:16";
+  corner?:      "br" | "bl" | "tr" | "tl";
+}
+
+// Plakt een subtiel logo in een hoek van een (schone) scène-afbeelding. Wordt
+// alleen gebruikt als de gebruiker "logo op scènes" aanzet. Altijd vanaf de
+// schone basis renderen (regenereren maakt een nieuwe basis) → geen dubbel logo.
+export async function buildCornerLogo({ baseImageUrl, logoUrl, format, corner = "br" }: CornerLogoInput): Promise<Blob> {
+  const base = await loadImage(baseImageUrl);
+  const logo = await loadImage(logoUrl);
+
+  const targetW = format === "9:16" ? 1080 : 1920;
+  const targetH = format === "9:16" ? 1920 : 1080;
+
+  const canvas = document.createElement("canvas");
+  canvas.width  = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas context niet beschikbaar");
+
+  // Base scene (cover-fit).
+  const baseRatio   = base.width / base.height;
+  const targetRatio = targetW / targetH;
+  let drawW: number, drawH: number, drawX: number, drawY: number;
+  if (baseRatio > targetRatio) {
+    drawH = targetH; drawW = baseRatio * drawH; drawX = (targetW - drawW) / 2; drawY = 0;
+  } else {
+    drawW = targetW; drawH = drawW / baseRatio; drawX = 0; drawY = (targetH - drawH) / 2;
+  }
+  ctx.drawImage(base, drawX, drawY, drawW, drawH);
+
+  // Logo: ~11% van de breedte, met wat marge en een subtiele schaduw.
+  const { w: lw, h: lh } = fitContain(logo.width, logo.height, targetW * 0.12, targetH * 0.12);
+  const pad = targetW * 0.035;
+  const lx = corner.includes("l") ? pad : targetW - lw - pad;
+  const ly = corner.includes("t") ? pad : targetH - lh - pad;
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = targetW * 0.012;
+  ctx.shadowOffsetY = 2;
+  ctx.drawImage(logo, lx, ly, lw, lh);
+  ctx.restore();
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(b => b ? resolve(b) : reject(new Error("Canvas toBlob mislukt")), "image/jpeg", 0.92);
+  });
+}

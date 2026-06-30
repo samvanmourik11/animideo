@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     }
     if (statusResult.status !== "COMPLETED") {
       // Refund: video generatie is definitief mislukt
-      try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: Kling generatie mislukt"); } catch {}
+      try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: video generatie mislukt"); } catch {}
       return NextResponse.json({ status: "FAILED", error: `Kling status: ${statusResult.status}` });
     }
 

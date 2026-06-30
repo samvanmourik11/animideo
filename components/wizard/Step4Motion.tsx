@@ -11,6 +11,13 @@ import { createClient } from "@/lib/supabase/client";
 // generate-motion route gewoon blijft werken.
 const FORCED_VIDEO_MODEL = "seedance-lite";
 
+// Standaard-bewegingsinstructie: het beeld komt logisch/subtiel tot leven op
+// basis van wat er te zien is. De per-scène motion-prompt is hiermee verborgen;
+// de gebruiker hoeft niets in te vullen. Een optionele globale instructie wordt
+// hieraan toegevoegd (zie effectiveMotion).
+const DEFAULT_MOTION =
+  "Bring this still image to life with subtle, natural motion that fits its content: gentle cinematic camera movement (a slow push-in, pan or parallax) and small, lifelike movements. Stay faithful to the image — keep the same subjects, composition and style, with no abrupt changes or new elements.";
+
 interface Props {
   project: Project;
   onUpdate: (updates: Partial<Project>) => void;
@@ -28,8 +35,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
   });
   const videoModel = FORCED_VIDEO_MODEL;
   const [generating, setGenerating] = useState(false);
-  const [editingPrompt, setEditingPrompt] = useState(false);
-  const [promptDraft, setPromptDraft] = useState("");
+  const [globalInstruction, setGlobalInstruction] = useState("");
   const [error, setError] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
   const [cacheBust, setCacheBust] = useState<Record<string, number>>({});
@@ -40,6 +46,11 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
   const totalScenes = scenes.length;
   const doneCount = scenes.filter((s) => s.video_url).length;
   const allDone = doneCount === totalScenes;
+
+  // Effectieve motion-prompt: vaste logische default + optionele globale
+  // instructie. Per-scène prompts worden niet meer getoond of bewerkt.
+  const effectiveMotion = () =>
+    [DEFAULT_MOTION, globalInstruction.trim()].filter(Boolean).join(" ");
 
   useEffect(() => {
     return () => {
@@ -139,7 +150,6 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
               body: JSON.stringify({ projectId: project.id, scenes: persistedScenes }),
             }).catch(() => {});
             router.refresh(); // update credits in navbar
-            setEditingPrompt(false);
             setGenerating(false);
           } else if (statusData.status === "FAILED") {
             clearInterval(pollIntervalRef.current!);
@@ -212,9 +222,30 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
       )}
     <div className="max-w-2xl mx-auto">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-white">Motion Review</h2>
+        <h2 className="text-2xl font-bold text-white">Beweging</h2>
         <p className="text-slate-500 text-sm mt-1">
-          Genereer een 5-seconden videoclip per scene.
+          Elke afbeelding komt automatisch en logisch tot leven. Druk per scène op
+          de knop om de clip te genereren.
+        </p>
+      </div>
+
+      {/* Optionele globale bewegingsinstructie — geldt voor alle scènes. Vul dit
+          in vóór je genereert, zodat je geen credits verspilt aan opnieuw doen. */}
+      <div className="card mb-6">
+        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          Bewegingsinstructie (optioneel)
+        </label>
+        <textarea
+          className="input resize-none text-sm mt-2"
+          rows={2}
+          placeholder="Bijv. 'rustige, langzame camerabeweging' of 'lichte parallax, geen zoom'. Laat leeg voor automatische, logische beweging."
+          value={globalInstruction}
+          onChange={(e) => setGlobalInstruction(e.target.value)}
+          disabled={generating}
+        />
+        <p className="text-[11px] text-slate-600 mt-1">
+          Geldt voor alle scènes en wordt toegevoegd aan de automatische beweging.
+          Vul dit in vóór je de eerste clip genereert om credits te besparen.
         </p>
       </div>
 
@@ -253,35 +284,6 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
       </div>
 
       <div className="card space-y-4">
-        {/* Motion prompt */}
-        <div>
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Motion instructie</span>
-          {editingPrompt ? (
-            <div className="mt-2 space-y-2">
-              <textarea
-                className="input resize-none text-sm"
-                rows={3}
-                value={promptDraft}
-                onChange={(e) => setPromptDraft(e.target.value)}
-              />
-              <div className="flex gap-2">
-                <button
-                  className="btn-primary text-sm"
-                  onClick={() => generateMotion(promptDraft)}
-                  disabled={generating}
-                >
-                  {generating ? "Generating…" : "Regenerate with New Prompt"}
-                </button>
-                <button className="btn-secondary text-sm" onClick={() => setEditingPrompt(false)}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : (
-            <p className="mt-1 text-sm text-slate-300 leading-relaxed">{scene.motion_prompt}</p>
-          )}
-        </div>
-
         {/* Source image */}
         <div>
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -343,7 +345,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
             <p className="text-sm text-red-400">{error}</p>
             <button
-              onClick={() => generateMotion(scene.motion_prompt)}
+              onClick={() => generateMotion(effectiveMotion())}
               className="mt-2 btn-primary text-sm"
             >
               Opnieuw proberen
@@ -352,20 +354,31 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
         )}
 
         {/* Actions */}
-        <div className="flex flex-wrap gap-2 pt-2">
-          {!scene.video_url && !generating && !editingPrompt && (
-            <button onClick={() => generateMotion(scene.motion_prompt)} className="btn-primary">
-              Generate Video Clip
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          {scene.designed ? (
+            <>
+              <p className="text-sm text-slate-400 flex-1">
+                Ontworpen scène — automatisch geanimeerd in de huisstijl.
+              </p>
+              <button onClick={acceptScene} disabled={generating} className="btn-primary text-sm">
+                {currentIndex < totalScenes - 1 ? "Goedkeuren → volgende" : "Goedkeuren"}
+              </button>
+            </>
+          ) : (
+          <>
+          {!scene.video_url && !generating && (
+            <button onClick={() => generateMotion(effectiveMotion())} className="btn-primary">
+              Genereer videoclip
             </button>
           )}
-          {scene.video_url && !editingPrompt && (
+          {scene.video_url && (
             <>
               <button
-                onClick={() => generateMotion(scene.motion_prompt)}
+                onClick={() => generateMotion(effectiveMotion())}
                 disabled={generating}
                 className="btn-secondary text-sm"
               >
-                {generating ? "Generating…" : "Regenerate"}
+                {generating ? "Genereren…" : "Opnieuw genereren"}
               </button>
               <button
                 onClick={deleteVideo}
@@ -376,26 +389,18 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
-                Delete
-              </button>
-              <button
-                onClick={() => {
-                  setPromptDraft(scene.motion_prompt);
-                  setEditingPrompt(true);
-                }}
-                disabled={generating}
-                className="btn-secondary text-sm"
-              >
-                Edit Motion Prompt + Regenerate
+                Verwijderen
               </button>
               <button
                 onClick={acceptScene}
                 disabled={generating}
                 className="btn-primary text-sm"
               >
-                {currentIndex < totalScenes - 1 ? "Accept → Next Scene" : "Accept"}
+                {currentIndex < totalScenes - 1 ? "Goedkeuren → volgende" : "Goedkeuren"}
               </button>
             </>
+          )}
+          </>
           )}
         </div>
       </div>

@@ -274,7 +274,7 @@ export default function StoryboardPanel({
                               </button>
                             )}
                             {!isAnimating && !hasVideo && (
-                              <span className="text-[10px] text-amber-300/80">5 credits</span>
+                              <span className="text-[10px] text-amber-300/80">10 credits</span>
                             )}
                           </div>
                         </div>

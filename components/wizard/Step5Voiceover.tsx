@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Project } from "@/lib/types";
+import { Project, Scene } from "@/lib/types";
 
 interface Props {
   project: Project;
@@ -150,11 +150,34 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
         return;
       }
       onUpdate({ scenes: data.scenes });
+
+      // Opsommingsscènes opnieuw renderen met de zojuist berekende per-bullet
+      // timings, zodat elke bullet exact invliegt wanneer de stem 'm noemt.
+      const bulletScenes = (data.scenes as Scene[]).filter(s => s.designed?.kind === "bullets");
+      if (bulletScenes.length > 0) {
+        setAlignResult({ ok: true, message: "Opsommingen synchroniseren met de stem…" });
+        let latest = data.scenes as Scene[];
+        for (const bs of bulletScenes) {
+          try {
+            const r = await fetch("/api/studio/render-designed-scene", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ projectId: project.id, sceneId: bs.id, clientScenes: latest }),
+            });
+            const d = await r.json();
+            if (r.ok && Array.isArray(d.scenes)) {
+              latest = d.scenes as Scene[];
+              onUpdate({ scenes: latest });
+            }
+          } catch { /* best-effort; sync van overige scènes gaat door */ }
+        }
+      }
+
       setAlignResult({
         ok:      true,
         message: data.fallbackUsed
           ? "Synchroon op tekstlengte (Whisper miste woorden)"
-          : `Scenes gesynchroniseerd op stem (${data.wordsMatched} woorden)`,
+          : `Scenes gesynchroniseerd op stem (${data.wordsMatched} woorden)${bulletScenes.length ? `, opsommingen synced` : ""}`,
       });
     } catch (err: unknown) {
       setAlignResult({ ok: false, message: err instanceof Error ? err.message : String(err) });

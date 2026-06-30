@@ -1,16 +1,19 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Project, Scene } from "@/lib/types";
+import { Project, Scene, DesignedSceneContent, Character, CastRole } from "@/lib/types";
+import { toBulletsScene, toNormalScene } from "@/lib/studio/scene-type";
+import PromptEditor from "@/components/studio/PromptEditor";
 
 interface Props {
   project: Project;
   targetScenes: number;
   onUpdate: (updates: Partial<Project>) => void;
   onNext: () => void;
+  characters?: Character[];
 }
 
-export default function StudioStepScript({ project, targetScenes, onUpdate, onNext }: Props) {
+export default function StudioStepScript({ project, targetScenes, onUpdate, onNext, characters = [] }: Props) {
   const scenes = project.scenes ?? [];
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState("");
@@ -25,19 +28,25 @@ export default function StudioStepScript({ project, targetScenes, onUpdate, onNe
     setError("");
     setGenerating(true);
     try {
+      // Idee eerst opslaan zodat generate-script de laatste tekst gebruikt.
+      await fetch("/api/save-project", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, notes: project.notes ?? "" }),
+      }).catch(() => {});
       const res = await fetch("/api/studio/generate-script", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId: project.id, targetScenes }),
       });
       const text = await res.text();
-      let data: { error?: string; scenes?: Scene[] } = {};
+      let data: { error?: string; scenes?: Scene[]; cast_roles?: CastRole[] } = {};
       try { data = text ? JSON.parse(text) : {}; } catch { data = {}; }
       if (!res.ok || !data.scenes) {
         setError(data.error ?? "Script genereren mislukt, probeer het opnieuw.");
         return;
       }
-      onUpdate({ scenes: data.scenes, status: "ScriptReady" });
+      onUpdate({ scenes: data.scenes, status: "ScriptReady", ...(Array.isArray(data.cast_roles) ? { cast_roles: data.cast_roles } : {}) });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
@@ -46,19 +55,9 @@ export default function StudioStepScript({ project, targetScenes, onUpdate, onNe
     }
   }
 
-  useEffect(() => {
-    // Only auto-generate for a brand-new draft that has never had a script.
-    // Without the status guard this re-fires on every remount: if scenes were
-    // briefly empty (e.g. a save that had not landed yet) it would burn credits
-    // and overwrite the script the user already had. When scenes are empty but
-    // the project is past Draft, we show the editor and let the user regenerate
-    // manually instead of silently spending credits.
-    if (scenes.length === 0 && project.status === "Draft" && !triggeredRef.current) {
-      triggeredRef.current = true;
-      generate();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Geen auto-generatie meer: het idee is nu de eerste stap. De gebruiker ziet
+  // en bewerkt het idee en klikt zelf op "Genereer script" — zo wordt er geen
+  // script (en credits) verspild voordat het idee klopt.
 
   function updateScene(index: number, field: keyof Scene, value: string | number) {
     setScenes(scenes.map((s, i) => i === index ? { ...s, [field]: value } : s));
@@ -79,6 +78,43 @@ export default function StudioStepScript({ project, targetScenes, onUpdate, onNe
         canvas_json: null,
       },
     ]);
+  }
+
+  // Expliciete overschrijf-save (geen merge) zodat bij type-omzetting het oude
+  // beeld/video echt gewist wordt en niet door de autosave-merge teruggezet.
+  async function persistScenes(newScenes: Scene[]) {
+    try {
+      await fetch("/api/save-project", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, scenes: newScenes }),
+      });
+    } catch {}
+  }
+
+  function convertScene(index: number, target: "designed" | "normal") {
+    const next = scenes.map((s, i) => i === index ? (target === "designed" ? toBulletsScene(s) : toNormalScene(s)) : s);
+    setScenes(next);
+    persistScenes(next);
+  }
+
+  function updateDesigned(index: number, patch: Partial<DesignedSceneContent>) {
+    setScenes(scenes.map((s, i) => i === index && s.designed ? { ...s, designed: { ...s.designed, ...patch } } : s));
+  }
+
+  function updateBullet(index: number, bi: number, text: string) {
+    setScenes(scenes.map((s, i) => {
+      if (i !== index || !s.designed?.bullets) return s;
+      return { ...s, designed: { ...s.designed, bullets: s.designed.bullets.map((b, k) => k === bi ? { ...b, text } : b) } };
+    }));
+  }
+
+  function addBullet(index: number) {
+    setScenes(scenes.map((s, i) => {
+      if (i !== index || s.designed?.kind !== "bullets") return s;
+      const bullets = [...(s.designed.bullets ?? []), { text: "", icon: "check" }].slice(0, 6);
+      return { ...s, designed: { ...s.designed, bullets } };
+    }));
   }
 
   function deleteScene(index: number) {
@@ -118,28 +154,28 @@ export default function StudioStepScript({ project, targetScenes, onUpdate, onNe
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h2 className="text-xl font-bold text-white">Script editor</h2>
-          <p className="text-slate-500 text-sm mt-0.5">
-            {scenes.length} scenes, {totalDuration}s totaal. Wijzigingen worden automatisch opgeslagen.
-          </p>
-        </div>
-        <div className="flex gap-2">
+      {/* Stap 1: het idee. Bewerkbaar en bewaard; vormt de basis voor het script. */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-5 mb-5">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-xl font-bold text-white">Idee</h2>
           <button
             onClick={generate}
-            disabled={generating}
-            className="text-xs bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md disabled:opacity-50"
+            disabled={generating || !(project.notes ?? "").trim()}
+            className="btn-primary text-sm disabled:opacity-50"
           >
-            {generating ? "Genereren..." : "Opnieuw genereren"}
-          </button>
-          <button
-            onClick={addScene}
-            className="text-xs bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md"
-          >
-            + Scene
+            {generating ? "Genereren..." : scenes.length > 0 ? "Script opnieuw genereren" : "Genereer script →"}
           </button>
         </div>
+        <p className="text-slate-500 text-sm mb-2">
+          Dit is de basis voor je script. Pas het aan en (her)genereer het script.
+        </p>
+        <textarea
+          value={project.notes ?? ""}
+          onChange={e => onUpdate({ notes: e.target.value })}
+          rows={5}
+          placeholder="Beschrijf je idee of het verhaal..."
+          className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500"
+        />
       </div>
 
       {error && (
@@ -147,6 +183,24 @@ export default function StudioStepScript({ project, targetScenes, onUpdate, onNe
           {error}
         </div>
       )}
+
+      {scenes.length === 0 ? (
+        <div className="bg-white/5 border border-white/10 rounded-xl p-10 text-center text-slate-400 text-sm">
+          Nog geen script. Klik op <span className="text-white font-medium">Genereer script</span> hierboven om het uit je idee te maken.
+        </div>
+      ) : (
+      <>
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-slate-500 text-sm">
+          {scenes.length} scenes, {totalDuration}s totaal. Wijzigingen worden automatisch opgeslagen.
+        </p>
+        <button
+          onClick={addScene}
+          className="text-xs bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md"
+        >
+          + Scene
+        </button>
+      </div>
 
       <div className="overflow-x-auto rounded-xl border border-white/10">
         <table className="w-full text-sm">
@@ -171,7 +225,10 @@ export default function StudioStepScript({ project, targetScenes, onUpdate, onNe
                         min={1}
                         max={30}
                         value={scene.duration}
-                        onChange={e => updateScene(i, "duration", parseInt(e.target.value) || 5)}
+                        onChange={e => {
+                          const v = parseInt(e.target.value);
+                          updateScene(i, "duration", Number.isNaN(v) ? scene.duration : Math.min(30, Math.max(1, v)));
+                        }}
                         className="w-12 bg-slate-950 border border-white/10 rounded-md px-1.5 py-1 text-sm text-white text-center"
                       />
                       <span className="text-slate-500 text-xs">s</span>
@@ -180,6 +237,11 @@ export default function StudioStepScript({ project, targetScenes, onUpdate, onNe
                       <button onClick={() => moveScene(i, -1)} disabled={i === 0} className="text-slate-500 hover:text-slate-300 disabled:opacity-20 text-xs">↑</button>
                       <button onClick={() => moveScene(i, 1)} disabled={i === scenes.length - 1} className="text-slate-500 hover:text-slate-300 disabled:opacity-20 text-xs">↓</button>
                     </div>
+                    {scene.designed?.kind === "cta" ? null : scene.designed ? (
+                      <button onClick={() => convertScene(i, "normal")} className="text-[10px] text-cyan-300 hover:text-cyan-200 mt-1 text-left">→ normale scène</button>
+                    ) : (
+                      <button onClick={() => convertScene(i, "designed")} className="text-[10px] text-cyan-300 hover:text-cyan-200 mt-1 text-left">→ opsomming</button>
+                    )}
                   </div>
                 </td>
                 <td className="px-3 py-3 align-top">
@@ -190,22 +252,60 @@ export default function StudioStepScript({ project, targetScenes, onUpdate, onNe
                     className="w-full bg-slate-950 border border-white/10 rounded-md px-2 py-1.5 text-sm text-white"
                   />
                 </td>
-                <td className="px-3 py-3 align-top">
-                  <textarea
-                    rows={5}
-                    value={scene.image_prompt}
-                    onChange={e => updateScene(i, "image_prompt", e.target.value)}
-                    className="w-full bg-slate-950 border border-white/10 rounded-md px-2 py-1.5 text-sm text-white"
-                  />
-                </td>
-                <td className="px-3 py-3 align-top">
-                  <textarea
-                    rows={5}
-                    value={scene.motion_prompt}
-                    onChange={e => updateScene(i, "motion_prompt", e.target.value)}
-                    className="w-full bg-slate-950 border border-white/10 rounded-md px-2 py-1.5 text-sm text-white"
-                  />
-                </td>
+                {scene.designed ? (
+                  <td className="px-3 py-3 align-top" colSpan={2}>
+                    {scene.designed.kind === "cta" ? (
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.06] p-3">
+                        <span className="text-xs font-semibold text-amber-200">📣 Eindscène (call-to-action)</span>
+                        <p className="text-xs text-slate-400 mt-1">Wordt automatisch in de huisstijl gemaakt, met je logo en contactgegevens. Geen AI-beeld nodig.</p>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/[0.06] p-3 space-y-2">
+                        <span className="text-xs font-semibold text-cyan-200">📊 Opsommingsscène — wordt als ontworpen grafiek in de huisstijl gemaakt (geen AI-beeld)</span>
+                        <input
+                          value={scene.designed.title}
+                          onChange={e => updateDesigned(i, { title: e.target.value })}
+                          placeholder="Titel van de opsomming"
+                          className="w-full bg-slate-950 border border-white/10 rounded-md px-2 py-1.5 text-sm text-white"
+                        />
+                        <div className="space-y-1">
+                          {(scene.designed.bullets ?? []).map((b, bi) => (
+                            <input
+                              key={bi}
+                              value={b.text}
+                              onChange={e => updateBullet(i, bi, e.target.value)}
+                              placeholder={`Punt ${bi + 1}`}
+                              className="w-full bg-slate-950 border border-white/10 rounded-md px-2 py-1 text-xs text-white"
+                            />
+                          ))}
+                          {(scene.designed.bullets?.length ?? 0) < 6 && (
+                            <button onClick={() => addBullet(i)} className="text-[11px] text-cyan-300 hover:text-cyan-200">+ punt</button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </td>
+                ) : (
+                  <>
+                    <td className="px-3 py-3 align-top">
+                      <PromptEditor
+                        rows={5}
+                        value={scene.image_prompt}
+                        onChange={v => updateScene(i, "image_prompt", v)}
+                        characters={characters}
+                        className="w-full bg-slate-950 border border-white/10 rounded-md px-2 py-1.5 text-sm text-white"
+                      />
+                    </td>
+                    <td className="px-3 py-3 align-top">
+                      <textarea
+                        rows={5}
+                        value={scene.motion_prompt}
+                        onChange={e => updateScene(i, "motion_prompt", e.target.value)}
+                        className="w-full bg-slate-950 border border-white/10 rounded-md px-2 py-1.5 text-sm text-white"
+                      />
+                    </td>
+                  </>
+                )}
                 <td className="px-3 py-3 align-top text-center">
                   <button onClick={() => deleteScene(i)} className="text-slate-500 hover:text-red-400 text-lg leading-none">×</button>
                 </td>
@@ -214,6 +314,8 @@ export default function StudioStepScript({ project, targetScenes, onUpdate, onNe
           </tbody>
         </table>
       </div>
+      </>
+      )}
 
       <div className="flex justify-end mt-6">
         <button

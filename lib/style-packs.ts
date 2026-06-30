@@ -38,6 +38,17 @@ export interface StylePack {
 
 export const STYLE_PACKS: StylePack[] = [
   {
+    id: "Schilderachtig",
+    slug: "schilderachtig",
+    name: "Schilderachtige animatie",
+    description:
+      "Warme, semi-realistische 2D-illustratie met filmisch licht en consistente personages — onze bureaustijl.",
+    refIndices: [1, 2, 3],
+    coverIndex: 1,
+    promptHint:
+      "Warm, semi-realistic painterly 2D illustration: soft cinematic lighting, rich hand-painted detail, consistent characters, editorial storybook feel. NOT CGI, NOT flat vector, NOT photorealistic.",
+  },
+  {
     id: "Kurzgezagt",
     slug: "kurzgezagt",
     name: "Kurzgezagt",

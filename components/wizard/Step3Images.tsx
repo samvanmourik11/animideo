@@ -370,13 +370,25 @@ export default function Step3Images({ project, onUpdate, onNext, onBack, plan = 
 
         {/* Actions */}
         <div className="flex flex-wrap gap-2 pt-2">
-          {!scene.image_url && !generating && (
-            <button
-              onClick={() => generateImage(scene.image_prompt)}
-              className="btn-primary"
-            >
-              Genereer afbeelding
-            </button>
+          {!scene.image_url && !generating && !editingPrompt && (
+            <>
+              <button
+                onClick={() => generateImage(scene.image_prompt)}
+                className="btn-primary"
+              >
+                Genereer afbeelding
+              </button>
+              <button
+                onClick={() => {
+                  setPromptDraft(scene.image_prompt);
+                  setEditingPrompt(true);
+                }}
+                className="btn-secondary text-sm"
+                title="Pas de prompt aan vóór je genereert, zodat je geen credits verspilt"
+              >
+                Prompt aanpassen
+              </button>
+            </>
           )}
           {scene.image_url && (
             <>

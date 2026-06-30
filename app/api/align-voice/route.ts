@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
-import { toFile } from "openai/uploads";
+import { transcribeWords } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { Scene } from "@/lib/types";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 interface WordTimestamp { word: string; start: number; end: number }
 
@@ -48,16 +45,9 @@ export async function POST(req: NextRequest) {
   let words: WordTimestamp[] = [];
   let totalAudioDuration = 0;
   try {
-    const transcription = await openai.audio.transcriptions.create({
-      file:                     await toFile(audioBuf, "voice.mp3", { type: "audio/mpeg" }),
-      model:                    "whisper-1",
-      response_format:          "verbose_json",
-      timestamp_granularities:  ["word"],
-      ...(lang ? { language: lang } : {}),
-    });
-    const t = transcription as unknown as { words?: WordTimestamp[]; duration?: number };
-    words = t.words ?? [];
-    totalAudioDuration = t.duration ?? 0;
+    const t = await transcribeWords(audioBuf, { language: lang });
+    words = t.words;
+    totalAudioDuration = t.duration;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: `Whisper transcriptie mislukt: ${msg}` }, { status: 500 });
@@ -105,11 +95,53 @@ export async function POST(req: NextRequest) {
   // wegvallen en de durations niet tot totale audio optellen).
   if (sceneStarts.length > 0) sceneStarts[0] = 0;
 
+  // Per bullet het moment bepalen waarop de stem 'm noemt, binnen het tijdvenster
+  // van die scène. We zoeken de eerste gesproken woord-match op de kenmerkende
+  // woorden van de bullet; geen match → gelijkmatige spreiding (fallback).
+  const cleanWord = (w: string) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, "");
+  function bulletReveals(
+    bullets: { text: string }[],
+    sceneStart: number,
+    sceneEnd: number,
+    sceneDur: number,
+  ): number[] {
+    const win = words.filter(w => w.start >= sceneStart - 0.05 && w.start < sceneEnd);
+    const out: number[] = [];
+    let pointer = 0;
+    let last = 0;
+    for (let k = 0; k < bullets.length; k++) {
+      let toks = tokenize(bullets[k].text).filter(t => t.length >= 4);
+      if (toks.length === 0) toks = tokenize(bullets[k].text).filter(t => t.length >= 2);
+      let foundIdx = -1;
+      for (let w = pointer; w < win.length; w++) {
+        const wt = cleanWord(win[w].word);
+        if (wt && toks.some(tk => wt === tk || wt.startsWith(tk) || tk.startsWith(wt))) { foundIdx = w; break; }
+      }
+      let rel: number;
+      if (foundIdx >= 0) {
+        rel = Math.max(0, win[foundIdx].start - sceneStart);
+        pointer = foundIdx + 1;
+      } else {
+        rel = (k + 0.4) * (sceneDur / Math.max(1, bullets.length));
+      }
+      rel = Math.min(Math.max(rel, last), Math.max(0, sceneDur - 0.3));
+      last = rel;
+      out.push(Math.round(rel * 100) / 100);
+    }
+    return out;
+  }
+
   const updatedScenes = scenes.map((s, i) => {
     const start = sceneStarts[i];
     const end   = i < scenes.length - 1 ? sceneStarts[i + 1] : totalAudioDuration;
     const raw   = Math.max(2, end - start);
     const dur   = Math.round(raw * 10) / 10;
+
+    if (s.designed?.kind === "bullets" && (s.designed.bullets?.length ?? 0) > 0) {
+      const reveals = bulletReveals(s.designed.bullets!, start, end, dur);
+      const bullets = s.designed.bullets!.map((b, k) => ({ ...b, revealAt: reveals[k] }));
+      return { ...s, duration: dur, designed: { ...s.designed, bullets } };
+    }
     return { ...s, duration: dur };
   });
 
