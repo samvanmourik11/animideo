@@ -24,12 +24,38 @@ const nextConfig: NextConfig = {
     // het Inter-font; de voice-route meet de audioduur met ffmpeg.
     "/api/infographics/export-story": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Inter-Bold.ttf"],
     "/api/infographics/scene-voice": ["./node_modules/ffmpeg-static/ffmpeg"],
-    // Chromium-render-routes die de frames met ffmpeg tot video samenvoegen.
-    "/api/editor/render": ["./node_modules/ffmpeg-static/ffmpeg"],
-    "/api/studio/render-designed-scene": ["./node_modules/ffmpeg-static/ffmpeg"],
-    "/api/infographics/export-video": ["./node_modules/ffmpeg-static/ffmpeg"],
-    "/api/explainer/export": ["./node_modules/ffmpeg-static/ffmpeg"],
-    "/api/explainer/export-to-editor": ["./node_modules/ffmpeg-static/ffmpeg"],
+    // Chromium-render-routes: naast ffmpeg ook de VOLLEDIGE playwright-core
+    // (incl. browsers.json) en de @sparticuz/chromium-binary meetracen — anders
+    // faalt de launch op Vercel met "Cannot find module .../browsers.json".
+    "/api/editor/render": [
+      "./node_modules/ffmpeg-static/ffmpeg",
+      "./node_modules/playwright-core/**",
+      "./node_modules/@sparticuz/chromium/**",
+    ],
+    "/api/studio/render-designed-scene": [
+      "./node_modules/ffmpeg-static/ffmpeg",
+      "./node_modules/playwright-core/**",
+      "./node_modules/@sparticuz/chromium/**",
+    ],
+    "/api/infographics/export-video": [
+      "./node_modules/ffmpeg-static/ffmpeg",
+      "./node_modules/playwright-core/**",
+      "./node_modules/@sparticuz/chromium/**",
+    ],
+    "/api/infographics/export": [
+      "./node_modules/playwright-core/**",
+      "./node_modules/@sparticuz/chromium/**",
+    ],
+    "/api/explainer/export": [
+      "./node_modules/ffmpeg-static/ffmpeg",
+      "./node_modules/playwright-core/**",
+      "./node_modules/@sparticuz/chromium/**",
+    ],
+    "/api/explainer/export-to-editor": [
+      "./node_modules/ffmpeg-static/ffmpeg",
+      "./node_modules/playwright-core/**",
+      "./node_modules/@sparticuz/chromium/**",
+    ],
   },
   turbopack: {},
 };
