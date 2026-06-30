@@ -263,6 +263,36 @@ export default function Timeline({ store }: { store: EditorStore }) {
                     </div>
                   );
                 })}
+
+                {/* Overgang-bolletjes op de grens tussen twee aansluitende clips */}
+                {track.kind !== "audio" &&
+                  [...track.clips]
+                    .sort((a, b) => a.start - b.start)
+                    .map((cur, i, arr) => {
+                      const next = arr[i + 1];
+                      if (!next) return null;
+                      if (Math.abs(next.start - (cur.start + cur.duration)) > 0.06) return null;
+                      const active = !!cur.transitionOut;
+                      return (
+                        <button
+                          key={`tr-${cur.id}`}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            store.setBoundaryTransition(cur.id, next.id, !active);
+                          }}
+                          title={active ? "Overgang verwijderen" : "Overgang toevoegen (fade)"}
+                          style={{ left: next.start * pxPerSec - 9, top: ROW_H / 2 - 9 }}
+                          className={`absolute z-10 w-[18px] h-[18px] rounded-full border flex items-center justify-center text-[10px] leading-none transition-colors ${
+                            active
+                              ? "bg-amber-400 border-amber-300 text-black"
+                              : "bg-slate-800 border-white/40 text-white/80 hover:bg-slate-700"
+                          }`}
+                        >
+                          {active ? "✓" : "⇄"}
+                        </button>
+                      );
+                    })}
               </div>
             ))}
 

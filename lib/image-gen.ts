@@ -19,12 +19,21 @@ fal.config({ credentials: process.env.FAL_KEY });
 // karakterconsistentie over scenes dan Pro, maar veel meer beelden per credit.
 const BASE_MODEL = "fal-ai/nano-banana";
 const EDIT_MODEL = "fal-ai/nano-banana/edit";
+// Pro-varianten (Gemini Nano Banana Pro, ~$0,15/2K): scherper, betere karakter-
+// én merk-object-consistentie en compositie. Achter een kwaliteitskeuze.
+const BASE_MODEL_PRO = "fal-ai/nano-banana-pro";
+const EDIT_MODEL_PRO = "fal-ai/nano-banana-pro/edit";
+// Flux Kontext: instructie-bewerking die de rest van het beeld exact behoudt —
+// ideaal voor gericht bijsturen ("maak de vaten kunststof") én objecten/personen
+// verwijderen ("haal de man op de achtergrond weg").
+const FLUX_KONTEXT = "fal-ai/flux-pro/kontext";
 
 // De edit-variant accepteert tot 8 image_urls. We reserveren bewust ruimte
 // voor character + ingredients zodat ze samen kunnen werken met de stijl.
 const MAX_TOTAL_REFS = 8;
 const MAX_STYLE_REFS = 3;
-const MAX_CHARACTER_REFS = 2;
+const MAX_CHARACTER_REFS = 3; // tot 2 karakter-ankers + 1 vorige-scène (chaining)
+const MAX_BRAND_REFS = 3;     // échte merk-objecten (boot, kleding, locatie, …)
 
 export interface NanoBananaInput {
   // Plain-language wat er in het beeld moet komen (script-zin, scene-prompt).
@@ -43,6 +52,14 @@ export interface NanoBananaInput {
   // (variatie-bron, prop, omgeving). Komen achter character maar voor
   // overige slots — die zijn altijd schaars.
   ingredientUrls?: (string | null | undefined)[] | null;
+  // Échte merk-objecten die EXACT nagebootst moeten worden (de specifieke boot,
+  // werkkleding, locatie, product). Hoogste prioriteit + vooraan geplaatst zodat
+  // Nano Banana ze het zwaarst weegt, en consistent over alle scènes heen.
+  brandUrls?: (string | null | undefined)[] | null;
+  // "pro" = Nano Banana Pro (scherper/consistenter, duurder). Default standaard.
+  quality?: "standard" | "pro" | null;
+  // Vaste seed → reproduceerbaar/consistente look bij "Opnieuw" en tussen scènes.
+  seed?: number | null;
 }
 
 export interface NanoBananaResult {
@@ -73,17 +90,25 @@ function cleanList(urls: (string | null | undefined)[] | null | undefined): stri
 
 export async function generateImageWithStyle(input: NanoBananaInput): Promise<NanoBananaResult> {
   const aspect = aspectFor(input.format);
-  const styleRefs = styleRefUrls(input.visualStyle).slice(0, MAX_STYLE_REFS);
+  const brandRefs = cleanList(input.brandUrls).slice(0, MAX_BRAND_REFS);
+  const hasBrand = brandRefs.length > 0;
+  // Met merk-objecten herbalanceren we het 8-slot budget: merk-refs krijgen 3
+  // gereserveerde plekken (en staan vooraan = zwaarst gewogen), stijl zakt naar 2
+  // (de stijl wordt ook via de tekst-hint geankerd). Zonder merk-objecten blijft
+  // alles bij het oude (3 stijl / 3 character / ingredients).
+  const styleRefs = styleRefUrls(input.visualStyle).slice(0, hasBrand ? 2 : MAX_STYLE_REFS);
   const characterRefs = cleanList(input.characterUrls).slice(0, MAX_CHARACTER_REFS);
   const ingredientRefs = cleanList(input.ingredientUrls);
 
-  // Volgorde van prioriteit bij dedup en cap:
-  // 1. stijl (essentieel om de look juist te krijgen)
-  // 2. character (consistentie)
-  // 3. ingredients (specifieke beelden door de gebruiker gekozen)
+  // Volgorde van prioriteit bij dedup en cap. Met merk-objecten: merk → stijl →
+  // character → ingredients (merk-fidelity is hier het hoofddoel). Zonder:
+  // stijl → character → ingredients (ongewijzigd).
+  const priority = hasBrand
+    ? [...brandRefs, ...styleRefs, ...characterRefs, ...ingredientRefs]
+    : [...styleRefs, ...characterRefs, ...ingredientRefs];
   const allRefs: string[] = [];
   const seen = new Set<string>();
-  for (const url of [...styleRefs, ...characterRefs, ...ingredientRefs]) {
+  for (const url of priority) {
     if (allRefs.length >= MAX_TOTAL_REFS) break;
     if (seen.has(url)) continue;
     seen.add(url);
@@ -106,7 +131,15 @@ export async function generateImageWithStyle(input: NanoBananaInput): Promise<Na
     // style refs — anders trekt de character ref de generatie weg van
     // de gekozen stijl naar zijn eigen look.
     promptParts.push(
-      "Use the character reference image(s) ONLY for the person's identity — their face, hair, build, age, and signature features. Do NOT copy the rendering style, line weight, color treatment, or technique of the character reference. Re-render the character entirely in the visual style of the style references."
+      "Use the character reference image(s) ONLY for the person's identity — their face, hair, build, age, and signature features. Do NOT copy the rendering style, line weight, color treatment, or technique of the character reference. Re-render the character entirely in the visual style of the style references. " +
+      "The reference is a neutral portrait: do NOT reproduce its centered, head-on, looking-at-camera pose or close-up framing. Place the person inside THIS scene exactly as the scene describes — their position, size in the frame, pose, action, gaze and camera distance. They may be in a wide shot, seen from the side or behind, small in the background, or not present at all if the scene has no person. Composition and context come from the scene; only the identity comes from the reference."
+    );
+  }
+  if (hasBrand) {
+    // Disambigueer de merk-refs van de stijl-/character-refs: ze tonen ECHTE
+    // objecten die exact (en identiek over scènes) overgenomen moeten worden.
+    promptParts.push(
+      "Some reference images show REAL brand objects (a specific vehicle/boat, product, uniform or location). Replicate those objects exactly — same shape, colours and branding — and keep them identical to how they appear in the other scenes. They define real-world objects to reproduce, NOT the rendering style."
     );
   }
   promptParts.push(input.prompt.trim());
@@ -117,7 +150,10 @@ export async function generateImageWithStyle(input: NanoBananaInput): Promise<Na
 
   const fullPrompt = promptParts.join(" ").slice(0, 4000);
 
-  const usedModel = allRefs.length > 0 ? EDIT_MODEL : BASE_MODEL;
+  const pro = input.quality === "pro";
+  const usedModel = allRefs.length > 0
+    ? (pro ? EDIT_MODEL_PRO : EDIT_MODEL)
+    : (pro ? BASE_MODEL_PRO : BASE_MODEL);
   const fal_input: Record<string, unknown> = {
     prompt: fullPrompt,
     aspect_ratio: aspect,
@@ -127,6 +163,9 @@ export async function generateImageWithStyle(input: NanoBananaInput): Promise<Na
   };
   if (allRefs.length > 0) {
     fal_input.image_urls = allRefs;
+  }
+  if (typeof input.seed === "number" && Number.isFinite(input.seed)) {
+    fal_input.seed = input.seed;
   }
 
   // fal-client typt input per modelnaam streng, en wij wisselen tussen base
@@ -193,42 +232,37 @@ export async function cleanupIllustration(sourceImageUrl: string, format?: strin
 
 export async function editImage(input: EditImageInput): Promise<NanoBananaResult> {
   const aspect = aspectFor(input.format);
-  const characterRefs = cleanList(input.characterUrls).slice(0, MAX_CHARACTER_REFS);
 
-  // Source vooraan zodat Nano Banana hem als hoofd-referentie behandelt.
-  const allRefs: string[] = [input.sourceImageUrl, ...characterRefs].slice(0, MAX_TOTAL_REFS);
+  // Flux Kontext bewerkt het bronbeeld in-place: het houdt compositie, personages,
+  // achtergrond, belichting en stijl exact gelijk en past ALLEEN de instructie toe
+  // (ook objecten/personen verwijderen). Daardoor zijn character-refs niet nodig —
+  // het bronbeeld bevat het personage al.
+  const prompt = [
+    input.instruction.trim() + ".",
+    "Change ONLY what is asked. Keep the composition, framing, all people and their identity, the background, lighting, colour palette and the visual/illustration style identical to the source.",
+    "No text, letters, watermarks or logos.",
+  ].join(" ").slice(0, 4000);
 
-  const instructionParts: string[] = [
-    "Edit the first reference image with the following change:",
-    input.instruction.trim(),
-    "Keep every other element identical to the source: composition, camera angle, framing, all characters, background, lighting, color palette, and visual style. Change ONLY what the instruction explicitly asks for. No text overlays, no watermarks, no logos.",
-  ];
-  if (characterRefs.length > 0) {
-    instructionParts.splice(2, 0,
-      "Additional reference images show the main character — use them to keep the person's identity consistent."
-    );
-  }
-  const fullPrompt = instructionParts.join(" ").slice(0, 4000);
-
-  const result = await fal.subscribe(EDIT_MODEL, {
+  const result = await fal.subscribe(FLUX_KONTEXT, {
     input: {
-      prompt: fullPrompt,
-      image_urls: allRefs,
+      prompt,
+      image_url: input.sourceImageUrl,
       aspect_ratio: aspect,
-      resolution: "2K",
+      guidance_scale: 3.5,
       num_images: 1,
       output_format: "jpeg",
+      safety_tolerance: "5",
     } as never,
   });
   const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
   if (!tempUrl) {
-    throw new Error("Geen afbeelding ontvangen van Nano Banana");
+    throw new Error("Geen afbeelding ontvangen van Flux Kontext");
   }
 
   return {
     imageUrl: tempUrl,
-    usedModel: EDIT_MODEL,
-    promptUsed: fullPrompt,
-    refsUsed: allRefs,
+    usedModel: FLUX_KONTEXT,
+    promptUsed: prompt,
+    refsUsed: [input.sourceImageUrl],
   };
 }

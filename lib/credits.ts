@@ -1,4 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
+import { CREDIT_COSTS } from "@/lib/credit-costs";
+
+// Her-exporteren zodat bestaande server-imports (@/lib/credits) blijven werken.
+export { CREDIT_COSTS };
 
 /** Accounts that never consume credits — for internal testing & demos. */
 const UNLIMITED_ACCOUNTS = new Set([
@@ -13,17 +17,6 @@ const UNLIMITED_ACCOUNTS = new Set([
 // aan API-kosten uitkomen); de aanname is dat lang niet iedereen al z'n credits
 // gebruikt. Bedragen tussen haakjes zijn de echte providerkosten per call.
 // Credits zijn hele getallen (INTEGER), dus posten van 1 blijven 1 (minimum).
-export const CREDIT_COSTS = {
-  SCRIPT_GENERATION: 1, // GPT-4o tekst: script, analyses, infographic-spec, AI-regisseur (~$0,02-0,04) — al minimaal, blijft 1
-  IMAGE_GENERATION: 1,  // Nano Banana (niet-Pro): beeld genereren/bewerken/karakter (~$0,039)
-  VOICE: 2,             // ElevenLabs v3 voice-over (~$0,10)
-  UPSCALE: 1,           // Clarity upscaler (~$0,04)
-  INPAINT: 1,           // Flux Pro Fill inpainting (~$0,05)
-  VIDEO_GENERATION: 5,  // Seedance Lite 5s 720p (~$0,18) — grootste kostenpost, gehalveerd van 10
-  MUSIC: 1,             // CassetteAI muziekbed (~$0,02/min) — al minimaal, blijft 1
-  SYNC: 1,              // Whisper word-timestamps voor autosync (~$0,01) — al minimaal, blijft 1
-} as const;
-
 export const PLAN_CREDITS: Record<string, number> = {
   free: 100,
   starter: 500,

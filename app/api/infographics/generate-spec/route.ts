@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import { buildInfographicPrompt } from "@/lib/infographics/build-prompt";
 import { INFOGRAPHIC_SPEC_SCHEMA } from "@/lib/infographics/spec-schema";
 import { validateAndNormalizeSpec } from "@/lib/infographics/validate-spec";
 import type { InfographicFormat } from "@/lib/types";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export const runtime = "nodejs";
 export const maxDuration = 120;

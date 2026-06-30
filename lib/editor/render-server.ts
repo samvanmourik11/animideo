@@ -39,8 +39,10 @@ function collectAudio(doc: TimelineDoc): AudioSource[] {
         trimIn: clip.trimIn ?? 0,
         duration: clip.duration,
         volume,
-        fadeIn: clip.fadeIn ?? 0,
-        fadeOut: clip.fadeOut ?? 0,
+        // Een overgang telt mee als audio-fade van die lengte, net als in de
+        // compositor — zo blijft de export gelijk aan de preview.
+        fadeIn: Math.max(clip.fadeIn ?? 0, clip.transitionIn?.duration ?? 0),
+        fadeOut: Math.max(clip.fadeOut ?? 0, clip.transitionOut?.duration ?? 0),
       });
     }
   }
@@ -64,6 +66,23 @@ function runFfmpeg(args: string[]): Promise<void> {
     p.on("close", (code) =>
       code === 0 ? resolve() : reject(new Error("ffmpeg faalde: " + err.slice(-800)))
     );
+  });
+}
+
+// Heeft een bestand een audiospoor? AI-videoclips (Seedance) zijn stil; die
+// mogen NIET in de audiomix, anders faalt ffmpeg op "[idx:a] matches no streams".
+function probeHasAudio(file: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const bin = ffmpegPath as unknown as string;
+      const p = spawn(bin, ["-hide_banner", "-i", file]);
+      let err = "";
+      p.stderr.on("data", (d) => (err += d.toString()));
+      p.on("error", () => resolve(false));
+      p.on("close", () => resolve(/Stream #\d+:\d+.*:\s*Audio:/i.test(err)));
+    } catch {
+      resolve(false);
+    }
   });
 }
 
@@ -146,12 +165,19 @@ export async function renderTimeline(
 
     // FFmpeg: opname (webm) → H.264 MP4, met de audiomix erbij.
     onProgress?.(80, "Audio mixen");
-    const audio = collectAudio(doc);
+    // Kandidaat-audiobronnen (audio- én videoclips). Stille clips (AI-video zonder
+    // audiospoor) filteren we eruit, anders crasht de filtergraph. We voegen alleen
+    // bronnen MÉT audio toe als ffmpeg-input, in volgorde, zodat [k+1:a] klopt.
+    const audioCandidates = collectAudio(doc);
     const args = ["-y", "-i", webm];
-    for (let k = 0; k < audio.length; k++) {
+    const audio: AudioSource[] = [];
+    for (let k = 0; k < audioCandidates.length; k++) {
       const f = path.join(dir, `a${k}`);
-      await download(audio[k].src, f);
-      args.push("-i", f);
+      await download(audioCandidates[k].src, f);
+      if (await probeHasAudio(f)) {
+        args.push("-i", f);
+        audio.push(audioCandidates[k]);
+      }
     }
 
     onProgress?.(88, "Video coderen");

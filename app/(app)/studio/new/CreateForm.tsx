@@ -1,8 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+
+// localStorage-sleutel voor het lopende concept-project. Zo hergebruikt het
+// idee-formulier hetzelfde project bij terug-navigeren i.p.v. een nieuw (leeg)
+// project te maken — anders ben je je gegenereerde werk kwijt.
+const DRAFT_KEY = "studio-draft-id";
 import { createClient } from "@/lib/supabase/client";
+import CharacterPicker from "@/components/studio/CharacterPicker";
 import { BrandKit, Character, OutroContact, VisualStyle } from "@/lib/types";
 import StylePicker from "@/components/StylePicker";
 
@@ -85,50 +91,6 @@ async function resizeToBlob(file: File, maxDim = 1280, format: "jpeg" | "png" = 
 
 type Preview = { file: File; previewUrl: string };
 
-function CharacterPicker({
-  label, value, characters, excludeId, onChange, placeholder,
-}: {
-  label:        string;
-  value:        string;
-  characters:   Character[];
-  excludeId?:   string;
-  onChange:     (id: string) => void;
-  placeholder:  string;
-}) {
-  const available = characters.filter(c => !excludeId || c.id !== excludeId);
-  const selected = characters.find(c => c.id === value);
-  return (
-    <div>
-      <label className="block text-sm font-medium text-slate-200 mb-2">{label}</label>
-      <div className="flex items-center gap-3">
-        <div className="w-16 h-16 rounded-md border border-white/10 bg-slate-950 overflow-hidden flex items-center justify-center shrink-0">
-          {selected?.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={selected.image_url} alt={selected.name} className="w-full h-full object-cover" />
-          ) : (
-            <span className="text-2xl">🎭</span>
-          )}
-        </div>
-        <select
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="flex-1 bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
-        >
-          <option value="">{placeholder}</option>
-          {available.map(c => (
-            <option key={c.id} value={c.id}>
-              {c.name}{[c.gender, c.age_range].filter(Boolean).length > 0 ? ` (${[c.gender, c.age_range].filter(Boolean).join(", ")})` : ""}
-            </option>
-          ))}
-        </select>
-      </div>
-      {selected?.description && (
-        <p className="text-[11px] text-slate-500 mt-1.5 line-clamp-2">{selected.description}</p>
-      )}
-    </div>
-  );
-}
-
 interface CreateFormProps {
   userId:                 string;
   brandKits:              BrandKit[];
@@ -142,7 +104,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
   const [idea, setIdea] = useState("");
   const [format, setFormat] = useState<"16:9" | "9:16">("16:9");
   const [sceneCount, setSceneCount] = useState<number>(5);
-  const [visualStyle, setVisualStyle] = useState<VisualStyle>("Realistic");
+  const [visualStyle, setVisualStyle] = useState<VisualStyle>("Schilderachtig");
   const [brandKitId, setBrandKitId] = useState<string>("");
   const [mainCharacterId, setMainCharacterId] = useState<string>("");
   const [supportingCharacterId, setSupportingCharacterId] = useState<string>("");
@@ -152,7 +114,23 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
 
-  type IdeaMode = "smart" | "self" | "templates" | "wizard" | "expand" | "website" | "pdf";
+  type IdeaMode = "smart" | "self" | "templates" | "wizard" | "expand" | "website" | "pdf" | "research";
+
+  interface ResearchResult {
+    company_name: string;
+    tagline: string;
+    idea_brief: string;
+    tone_of_voice: string;
+    communication_style: string;
+    brand_values: string[];
+    do_nots: string;
+    colors: { primary?: string; secondary?: string; accent?: string; background?: string };
+    fonts: { primary?: string; secondary?: string };
+    environment: string;
+    logo_url?: string | null;
+    workPhotos: { url: string; description: string; id?: string; role?: string; element?: string }[];
+    sourceUrl: string;
+  }
   const [ideaMode, setIdeaMode] = useState<IdeaMode>("smart");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [ideaAudience, setIdeaAudience] = useState("");
@@ -161,8 +139,160 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
   const [ideaCharacter, setIdeaCharacter] = useState("");
   const [ideaSeed, setIdeaSeed] = useState("");
   const [ideaUrl, setIdeaUrl] = useState("");
-  const [ideaLoading, setIdeaLoading] = useState<"" | "expand" | "wizard" | "website" | "smart" | "pdf">("");
+  const [ideaLoading, setIdeaLoading] = useState<"" | "expand" | "wizard" | "website" | "smart" | "pdf" | "research">("");
   const [ideaError, setIdeaError] = useState("");
+
+  // Diepgaand website-onderzoek (review-flow).
+  const [research, setResearch] = useState<ResearchResult | null>(null);
+  const [researchBrief, setResearchBrief] = useState("");
+  const [researchPhotos, setResearchPhotos] = useState<string[]>([]); // geselecteerde foto-URLs
+  const [applyingResearch, setApplyingResearch] = useState(false);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [extraKits, setExtraKits] = useState<BrandKit[]>([]);
+
+  // Concept-project: hergebruik hetzelfde project bij terug-navigeren, en vul de
+  // eerder ingevulde velden terug. "Nieuw project" (?new) start expliciet vers.
+  const [draftId, setDraftId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") !== null) {
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
+      // URL opschonen zodat 'terug' later het concept hervat i.p.v. opnieuw te wissen.
+      window.history.replaceState(null, "", "/studio/new");
+      return;
+    }
+    let id: string | null = null;
+    try { id = localStorage.getItem(DRAFT_KEY); } catch {}
+    if (!id) return;
+    (async () => {
+      const supabase = createClient();
+      const { data: p } = await supabase
+        .from("projects")
+        .select("title, notes, format, visual_style, brand_kit_id, main_character_id, supporting_character_id, outro_contact, mode")
+        .eq("id", id)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (!p || p.mode !== "studio") { try { localStorage.removeItem(DRAFT_KEY); } catch {} return; }
+      setDraftId(id);
+      setTitle(p.title ?? "");
+      setIdea(p.notes ?? "");
+      if (p.format === "16:9" || p.format === "9:16") setFormat(p.format);
+      if (p.visual_style) setVisualStyle(p.visual_style as VisualStyle);
+      setBrandKitId(p.brand_kit_id ?? "");
+      setMainCharacterId(p.main_character_id ?? "");
+      setSupportingCharacterId(p.supporting_character_id ?? "");
+      setOutro((p.outro_contact ?? {}) as OutroContact);
+      if ((p.notes ?? "").trim()) setIdeaMode("self");
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  function startFresh() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch {}
+    window.location.href = "/studio/new?new=1";
+  }
+
+  async function runDeepResearch() {
+    const urls = ideaUrl.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+    if (urls.length === 0) { setIdeaError("Vul een URL in"); return; }
+    setIdeaError("");
+    setResearch(null);
+    setIdeaLoading("research");
+    try {
+      const res = await fetch("/api/studio/deep-research", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setIdeaError(data.error ?? "Onderzoek mislukt"); return; }
+      const r = data.research as ResearchResult;
+      setResearch(r);
+      setResearchBrief(r.idea_brief ?? "");
+      setResearchPhotos((r.workPhotos ?? []).map(p => p.url)); // standaard alle gevonden foto's aan
+    } catch (err: unknown) {
+      setIdeaError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIdeaLoading("");
+    }
+  }
+
+  // Eigen werkfoto's handmatig toevoegen als referentie (bijv. foto's die niet op
+  // de website staan). Worden naar storage geüpload en aan de selectie toegevoegd.
+  async function handleManualPhotos(files: FileList) {
+    if (!research || files.length === 0) return;
+    setUploadingPhotos(true);
+    setIdeaError("");
+    try {
+      const supabase = createClient();
+      const stamp = Date.now();
+      const added: ResearchResult["workPhotos"] = [];
+      let i = 0;
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith("image/")) continue;
+        const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 4) || "jpg";
+        const path = `${userId}/research-manual/${stamp}-${i}.${ext}`;
+        const { error } = await supabase.storage.from("scene-assets").upload(path, file, { contentType: file.type, upsert: true });
+        if (error) { setIdeaError(`Upload mislukt: ${error.message}`); continue; }
+        const url = supabase.storage.from("scene-assets").getPublicUrl(path).data.publicUrl;
+        added.push({ url, description: "Eigen foto", id: `manual-${stamp}-${i}`, role: "other", element: "" });
+        i++;
+      }
+      if (added.length > 0) {
+        setResearch(prev => prev ? { ...prev, workPhotos: [...prev.workPhotos, ...added] } : prev);
+        setResearchPhotos(prev => [...prev, ...added.map(a => a.url)]);
+      }
+    } finally {
+      setUploadingPhotos(false);
+    }
+  }
+
+  // Bijschrift van een eigen foto bijwerken (wordt het 'element' dat de Ai nabootst).
+  function setManualCaption(url: string, text: string) {
+    setResearch(prev => prev ? {
+      ...prev,
+      workPhotos: prev.workPhotos.map(p => p.url === url ? { ...p, element: text, description: text.trim() || "Eigen foto" } : p),
+    } : prev);
+  }
+
+  async function applyResearch() {
+    if (!research) return;
+    setApplyingResearch(true);
+    setIdeaError("");
+    try {
+      const photos = (research.workPhotos ?? []).filter(p => researchPhotos.includes(p.url));
+      const domain = (() => { try { return new URL(research.sourceUrl).hostname.replace(/^www\./, ""); } catch { return "Huisstijl"; } })();
+      const res = await fetch("/api/brand-kits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: research.company_name?.trim() || domain,
+          description: [research.tagline, research.communication_style ? `Communicatiestijl: ${research.communication_style}` : ""].filter(Boolean).join(" — "),
+          tone_of_voice: research.tone_of_voice || null,
+          brand_values: research.brand_values ?? [],
+          colors: research.colors ?? {},
+          fonts: research.fonts ?? {},
+          environment: research.environment || null,
+          do_nots: research.do_nots || null,
+          logo_url: research.logo_url || null,
+          reference_images: photos,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.brandKit) { setIdeaError(data.error ?? "Huisstijl aanmaken mislukt"); return; }
+      const kit = data.brandKit as BrandKit;
+      setExtraKits(prev => [kit, ...prev]);
+      setBrandKitId(kit.id);
+      setIdea(researchBrief || research.idea_brief || "");
+      setIdeaMode("self");
+      setResearch(null);
+    } catch (err: unknown) {
+      setIdeaError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setApplyingResearch(false);
+    }
+  }
 
   const [smartUrl, setSmartUrl] = useState("");
   const [smartGenre, setSmartGenre] = useState<string>("");
@@ -379,32 +509,44 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
     ) as OutroContact;
 
     try {
-      setProgress("Project aanmaken...");
-      const { data: project, error: insertErr } = await supabase
-        .from("projects")
-        .insert({
-          user_id:                  userId,
-          title:                    projectTitle,
-          language:                 "Dutch",
-          format,
-          visual_style:             visualStyle,
-          notes:                    idea,
-          status:                   "Draft",
-          mode:                     "studio",
-          brand_kit_id:             brandKitId || null,
-          main_character_id:        mainCharacterId || null,
-          supporting_character_id:  supportingCharacterId || null,
-          outro_contact:            cleanedOutro,
-        })
-        .select()
-        .single();
-      if (insertErr || !project) throw new Error(insertErr?.message ?? "Kon project niet aanmaken");
+      // Gedeelde velden voor zowel aanmaken als bijwerken van het concept.
+      const fields = {
+        title:                    projectTitle,
+        language:                 "Dutch",
+        format,
+        visual_style:             visualStyle,
+        notes:                    idea,
+        mode:                     "studio",
+        brand_kit_id:             brandKitId || null,
+        main_character_id:        mainCharacterId || null,
+        supporting_character_id:  supportingCharacterId || null,
+        outro_contact:            cleanedOutro,
+      };
 
-      // Stijl wordt nu door de visuele StylePicker bepaald (style-refs in
-      // Supabase bucket), niet meer door een per-project upload.
-      const updates: {
-        outro_logo_url?: string;
-      } = {};
+      // Hergebruik het bestaande concept-project (terug-navigatie) i.p.v. een
+      // nieuw project te maken — zo blijft al je gegenereerde werk behouden.
+      let projectId: string;
+      if (draftId) {
+        setProgress("Project bijwerken...");
+        const { error: updErr } = await supabase
+          .from("projects")
+          .update(fields)
+          .eq("id", draftId)
+          .eq("user_id", userId);
+        if (updErr) throw new Error(updErr.message);
+        projectId = draftId;
+      } else {
+        setProgress("Project aanmaken...");
+        const { data: project, error: insertErr } = await supabase
+          .from("projects")
+          .insert({ user_id: userId, status: "Draft", ...fields })
+          .select("id")
+          .single();
+        if (insertErr || !project) throw new Error(insertErr?.message ?? "Kon project niet aanmaken");
+        projectId = project.id;
+        try { localStorage.setItem(DRAFT_KEY, projectId); } catch {}
+        setDraftId(projectId);
+      }
 
       if (outroLogo) {
         setProgress("Logo uploaden...");
@@ -412,24 +554,19 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
         const blob = await resizeToBlob(outroLogo.file, 1024, isPng ? "png" : "jpeg");
         const ext = isPng ? "png" : "jpg";
         const contentType = isPng ? "image/png" : "image/jpeg";
-        const path = `${userId}/${project.id}/outro-logo.${ext}`;
+        const path = `${userId}/${projectId}/outro-logo.${ext}`;
         const { error: upErr } = await supabase.storage
           .from("scene-assets")
           .upload(path, blob, { contentType, upsert: true });
         if (upErr) throw new Error(`Logo upload: ${upErr.message}`);
-        updates.outro_logo_url = supabase.storage.from("scene-assets").getPublicUrl(path).data.publicUrl;
+        const outro_logo_url = supabase.storage.from("scene-assets").getPublicUrl(path).data.publicUrl;
+        await supabase.from("projects").update({ outro_logo_url }).eq("id", projectId).eq("user_id", userId);
       }
 
-      if (Object.keys(updates).length > 0) {
-        setProgress("Project opslaan...");
-        const { error: updErr } = await supabase
-          .from("projects")
-          .update(updates)
-          .eq("id", project.id);
-        if (updErr) throw new Error(`Project update: ${updErr.message}`);
-      }
-
-      router.push(`/studio/${project.id}?scenes=${sceneCount}`);
+      // replace (niet push): zo komt browser-terug nooit meer op deze aanmaak-
+      // pagina uit (die anders een duplicaat-project zou maken). Het idee bewerk
+      // je vanaf nu binnen de wizard zelf.
+      router.replace(`/studio/${projectId}?scenes=${sceneCount}`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
@@ -440,6 +577,16 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {draftId && (
+        <div className="flex items-center justify-between gap-3 bg-cyan-500/10 border border-cyan-500/30 rounded-lg px-4 py-2.5">
+          <p className="text-xs text-cyan-200">
+            Je werkt verder aan een bestaand project — je idee en instellingen zijn bewaard.
+          </p>
+          <button type="button" onClick={startFresh} className="text-xs text-cyan-300 hover:text-white underline whitespace-nowrap">
+            Nieuw project starten
+          </button>
+        </div>
+      )}
       <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-4">
         <div>
           <label className="block text-sm font-medium text-slate-200 mb-2">
@@ -465,6 +612,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
               { id: "wizard",    label: "Vragenlijst",        emoji: "❓" },
               { id: "expand",    label: "Korte zin → AI",     emoji: "✨" },
               { id: "website",   label: "Website lezen",      emoji: "🌐" },
+              { id: "research",  label: "Diepgaand onderzoek", emoji: "🔍" },
               { id: "pdf",       label: "PDF lezen",          emoji: "📄" },
             ] as { id: IdeaMode; label: string; emoji: string }[]).map(tab => (
               <button
@@ -732,6 +880,146 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
             </div>
           )}
 
+          {ideaMode === "research" && (
+            <div className="bg-slate-950/60 border border-cyan-500/20 rounded-lg p-3 mb-2 space-y-3">
+              <p className="text-xs text-slate-400">
+                AI onderzoekt de héle website: kernverhaal, tone of voice, communicatiestijl,
+                huisstijlkleuren, het logo én echte werkfoto&apos;s. Maakt automatisch een huisstijl aan en
+                gebruikt de foto&apos;s als referentie, zodat het meteen jouw bedrijf is. (3 credits)
+                <br />
+                <span className="text-slate-500">Tip: zet er extra pagina&apos;s bij (één URL per regel) — bijv. een
+                galerij- of werk-pagina — zodat ook foto&apos;s die niet op de homepage staan worden meegenomen.</span>
+              </p>
+              <div className="flex gap-2 items-start">
+                <textarea
+                  value={ideaUrl}
+                  onChange={e => setIdeaUrl(e.target.value)}
+                  rows={2}
+                  placeholder={"https://www.jouwbedrijf.nl\nhttps://www.jouwbedrijf.nl/galerij"}
+                  className="flex-1 bg-slate-900/60 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white placeholder:text-slate-500 resize-y"
+                />
+                <button
+                  type="button"
+                  onClick={runDeepResearch}
+                  disabled={ideaLoading !== "" || !ideaUrl.trim()}
+                  className="text-xs bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 text-white font-medium px-3 py-1.5 rounded-md whitespace-nowrap"
+                >
+                  {ideaLoading === "research" ? "Onderzoeken…" : "🔍 Onderzoek"}
+                </button>
+              </div>
+
+              {research && (
+                <div className="space-y-3 border-t border-white/10 pt-3">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{research.company_name || "Onderzoeksresultaat"}</p>
+                    {research.tagline && <p className="text-xs text-slate-400">{research.tagline}</p>}
+                  </div>
+
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Brief</span>
+                    <textarea
+                      value={researchBrief}
+                      onChange={e => setResearchBrief(e.target.value)}
+                      rows={4}
+                      className="mt-1 w-full bg-slate-900/60 border border-white/10 rounded-md px-2 py-1.5 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Kleuren</span>
+                      <div className="flex gap-1.5 mt-1">
+                        {(["primary", "secondary", "accent", "background"] as const).map(k => {
+                          const c = research.colors?.[k];
+                          return c ? (
+                            <div key={k} title={`${k}: ${c}`} className="w-6 h-6 rounded border border-white/20" style={{ background: c }} />
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Tone of voice</span>
+                      <p className="text-slate-300 mt-1">{research.tone_of_voice || "—"}</p>
+                    </div>
+                  </div>
+
+                  {research.brand_values?.length > 0 && (
+                    <p className="text-xs text-slate-400"><span className="text-slate-500">Waarden:</span> {research.brand_values.join(", ")}</p>
+                  )}
+                  {research.do_nots && (
+                    <p className="text-xs text-slate-400"><span className="text-slate-500">Do-nots:</span> {research.do_nots}</p>
+                  )}
+
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                        Werkfoto&apos;s ({researchPhotos.length} geselecteerd als referentie)
+                      </span>
+                      <label className={`text-[11px] px-2 py-1 rounded-md border border-cyan-500/40 text-cyan-200 cursor-pointer ${uploadingPhotos ? "opacity-50" : "hover:bg-cyan-600/20"}`}>
+                        {uploadingPhotos ? "Uploaden…" : "+ Eigen foto's"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          disabled={uploadingPhotos}
+                          onChange={e => { if (e.target.files) handleManualPhotos(e.target.files); e.currentTarget.value = ""; }}
+                        />
+                      </label>
+                    </div>
+                    {research.workPhotos.length === 0 ? (
+                      <p className="text-[11px] text-slate-500 mt-1.5">Nog geen foto&apos;s gevonden — voeg hierboven je eigen werkfoto&apos;s toe.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2 mt-1.5">
+                        {research.workPhotos.map(p => {
+                          const on = researchPhotos.includes(p.url);
+                          const manual = (p.id ?? "").startsWith("manual-");
+                          return (
+                            <div key={p.url} className="w-20">
+                              <button
+                                type="button"
+                                onClick={() => setResearchPhotos(prev => on ? prev.filter(u => u !== p.url) : [...prev, p.url])}
+                                className={`relative w-20 h-14 rounded overflow-hidden border-2 ${on ? "border-cyan-400" : "border-transparent opacity-50"}`}
+                                title={on ? "Klik om uit te sluiten" : "Klik om te gebruiken"}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={p.url} alt="werkfoto" className="w-full h-full object-cover" />
+                                {on && <span className="absolute top-0.5 right-0.5 bg-cyan-400 text-black text-[9px] px-1 rounded">✓</span>}
+                              </button>
+                              {manual && (
+                                <input
+                                  type="text"
+                                  value={p.element ?? ""}
+                                  onChange={e => setManualCaption(p.url, e.target.value)}
+                                  placeholder="wat staat erop?"
+                                  className="w-20 mt-1 bg-slate-900/60 border border-white/10 rounded px-1 py-0.5 text-[10px] text-white placeholder:text-slate-600"
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button type="button" onClick={() => setResearch(null)} className="text-xs text-slate-400 hover:text-white px-3 py-1.5">
+                      Verwerpen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={applyResearch}
+                      disabled={applyingResearch}
+                      className="text-xs bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 text-white font-medium px-3 py-1.5 rounded-md"
+                    >
+                      {applyingResearch ? "Toepassen…" : "Toepassen → huisstijl + brief"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <textarea
             value={idea}
             onChange={e => setIdea(e.target.value)}
@@ -782,7 +1070,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
               className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white"
             >
               <option value="">Geen huisstijl</option>
-              {brandKits.map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
+              {[...extraKits, ...brandKits].map(k => <option key={k.id} value={k.id}>{k.name}</option>)}
             </select>
             <p className="text-xs text-slate-500 mt-1.5">
               {brandKits.length === 0

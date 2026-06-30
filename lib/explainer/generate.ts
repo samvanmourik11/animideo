@@ -1,10 +1,8 @@
-import OpenAI from "openai";
+import { openai } from "@/lib/openai";
 import { buildExplainerPrompt, type BuildExplainerArgs } from "./build-prompt";
 import { EXPLAINER_SPEC_SCHEMA } from "./schema";
 import { validateExplainerSpec } from "./validate";
 import type { ExplainerSpec } from "./spec";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Genereert een explainer-spec uit broninfo of een script. Gedeeld door de
 // echte route en testbaar los van auth.

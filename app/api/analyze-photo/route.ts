@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { VisualStyle } from "@/lib/types";
 import { deductCredits } from "@/lib/credits";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const styleDescriptions: Record<string, string> = {
   "Whiteboard":     "whiteboard animation (RSA Animate style, white background, black hand-drawn marker lines, simple sketch)",

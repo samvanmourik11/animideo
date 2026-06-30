@@ -490,7 +490,52 @@ export class EditorStore {
   }
 
   moveClip(id: string, newStart: number) {
-    this.setDoc(this.mapClip(id, (c) => ({ ...c, start: Math.max(0, newStart) })));
+    const doc = this.state.doc;
+    // Contentgrens: het verste eindpunt van alle ANDERE clips (in de praktijk de
+    // doorlopende voice-over). Een clip mag niet voorbij die lengte gesleept
+    // worden — geen oneindig slepen in lege ruimte.
+    let bound = 0;
+    let dur = 0;
+    for (const tr of doc.tracks) {
+      for (const c of tr.clips) {
+        if (c.id === id) dur = c.duration;
+        else bound = Math.max(bound, c.start + c.duration);
+      }
+    }
+    const maxStart = Math.max(0, bound - dur);
+    const clamped = Math.max(0, Math.min(newStart, maxStart));
+    this.setDoc(this.mapClip(id, (c) => ({ ...c, start: clamped })));
+  }
+
+  /** Zet of verwijdert een overgang (fade) op de grens tussen twee clips:
+   *  fade-out op de linker, fade-in op de rechter. De compositor rendert dit als
+   *  opacity-fade, en omdat de export de compositor opneemt, wordt het identiek
+   *  geëxporteerd. */
+  setBoundaryTransition(leftId: string, rightId: string, on: boolean) {
+    const doc = this.state.doc;
+    let leftDur = 0;
+    let rightDur = 0;
+    for (const tr of doc.tracks) {
+      for (const c of tr.clips) {
+        if (c.id === leftId) leftDur = c.duration;
+        if (c.id === rightId) rightDur = c.duration;
+      }
+    }
+    const d = Math.max(0.1, Math.min(0.5, leftDur / 2, rightDur / 2));
+    const trans = on ? { kind: "fade" as const, duration: d } : undefined;
+    this.setDoc({
+      ...doc,
+      tracks: doc.tracks.map((tr) => ({
+        ...tr,
+        clips: tr.clips.map((c) =>
+          c.id === leftId
+            ? { ...c, transitionOut: trans }
+            : c.id === rightId
+            ? { ...c, transitionIn: trans }
+            : c
+        ),
+      })),
+    });
   }
 
   /** Linker trim-handle: verschuift start + bronpositie, behoudt eindpunt. */

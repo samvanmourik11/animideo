@@ -29,6 +29,7 @@ const PERSIST_FIELDS = [
   "outro_contact",
   "infographic_spec",
   "explainer_spec",
+  "cast_roles",
 ] as const;
 
 function pickPersistable(project: Project): Partial<Project> {
@@ -78,7 +79,9 @@ export function useProjectAutosave(project: Project): AutosaveState {
       const res = await fetch("/api/save-project", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: p.id, ...pickPersistable(p) }),
+        // _merge: deze achtergrond-save mag een door de server opgeslagen
+        // image_url/video_url NOOIT met leeg overschrijven (clobber-preventie).
+        body: JSON.stringify({ projectId: p.id, _merge: true, ...pickPersistable(p) }),
         signal: controller.signal,
         // Lets the request finish even when the page is unloading.
         keepalive: opts?.keepalive,

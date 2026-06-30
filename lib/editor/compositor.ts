@@ -28,6 +28,17 @@ interface Resource {
   effectsKey?: string; // detecteert wijzigingen in effecten
 }
 
+// Als de bronvideo (vanaf trimIn) korter is dan de clip op de timeline, speel 'm
+// evenredig LANGZAMER zodat de beweging de hele clip vult i.p.v. te bevriezen op
+// het laatste frame (bv. een 5s AI-clip in een 7s scène → ~0,71x). Een handmatig
+// ingestelde snelheid (≠ 1) heeft voorrang.
+function fitSpeed(clipDuration: number, trimIn: number, videoDuration: number, manualSpeed?: number): number {
+  if (manualSpeed && manualSpeed !== 1) return manualSpeed;
+  const avail = (videoDuration || 0) - (trimIn || 0);
+  if (avail > 0.1 && clipDuration > avail + 0.05) return avail / clipDuration;
+  return 1;
+}
+
 export class Compositor {
   private app: Application;
   private getState: () => EditorState;
@@ -183,7 +194,7 @@ export class Compositor {
         if (!active) continue;
         const v = this.resources.get(clip.id)?.video;
         if (!v) continue;
-        const speed = clip.speed ?? 1;
+        const speed = fitSpeed(clip.duration, clip.trimIn ?? 0, v.duration, clip.speed);
         const target = (clip.trimIn ?? 0) + (t - clip.start) * speed;
         if (Math.abs(v.currentTime - target) > 0.02) {
           seeks.push(
@@ -269,13 +280,16 @@ export class Compositor {
     return r;
   }
 
-  /** Fade-in/out factor (0..1) op basis van clip-positie in de tijd. */
+  /** Fade-in/out factor (0..1) op basis van clip-positie in de tijd. Een
+   *  overgang (transitionIn/Out) telt mee als een fade van die lengte, zodat een
+   *  toegevoegde overgang meteen zichtbaar is in preview én export. */
   private fadeFactor(clip: Clip, t: number): number {
     let f = 1;
     const local = t - clip.start;
-    if (clip.fadeIn && local < clip.fadeIn) f *= Math.max(0, local / clip.fadeIn);
-    if (clip.fadeOut && clip.duration - local < clip.fadeOut)
-      f *= Math.max(0, (clip.duration - local) / clip.fadeOut);
+    const fin = Math.max(clip.fadeIn ?? 0, clip.transitionIn?.duration ?? 0);
+    const fout = Math.max(clip.fadeOut ?? 0, clip.transitionOut?.duration ?? 0);
+    if (fin && local < fin) f *= Math.max(0, local / fin);
+    if (fout && clip.duration - local < fout) f *= Math.max(0, (clip.duration - local) / fout);
     return f;
   }
 
@@ -390,8 +404,8 @@ export class Compositor {
 
         if (r.kind === "video" && r.video) {
           const v = r.video;
-          const speed = clip.type === "video" ? clip.speed ?? 1 : 1;
           const trimIn = ("trimIn" in clip ? clip.trimIn : 0) ?? 0;
+          const speed = clip.type === "video" ? fitSpeed(clip.duration, trimIn, v.duration, clip.speed) : 1;
           const target = trimIn + (currentTime - clip.start) * speed;
           if (clip.type === "video") {
             v.volume = clip.volume ?? 1;

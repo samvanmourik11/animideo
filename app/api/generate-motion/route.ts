@@ -8,6 +8,8 @@ fal.config({ credentials: process.env.FAL_KEY });
 // Sinds de model-consolidatie draait video-generatie altijd op Seedance Lite.
 // De Kling- en Seedance-Pro constants zijn weg; runway-status accepteert
 // "seedance-lite" en mapt nog naar dezelfde fal-slug.
+// Beeldbeweging draait ALTIJD op Seedance Lite (720p, 5s). Bewust geen Pro/
+// eindframe: dat gaf een storende inzoom + overgang naar de volgende scène.
 const SEEDANCE_LITE = "fal-ai/bytedance/seedance/v1/lite/image-to-video";
 
 export async function POST(req: NextRequest) {
@@ -45,9 +47,6 @@ export async function POST(req: NextRequest) {
     if (signed?.signedUrl) promptImage = signed.signedUrl;
   }
 
-  // Vanaf de model-refactor draait alle motion op Seedance Lite. De
-  // videoModel-parameter is uit de UI verdwenen, maar de polling-route
-  // (/api/runway-status) verwacht hem nog wel, dus we geven hem terug.
   const videoModel = "seedance-lite";
 
   try {
@@ -61,7 +60,6 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ taskId: request_id, videoModel });
   } catch (err: unknown) {
-    // Refund bij submit failure (video is nooit gestart)
     try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: video submit mislukt"); } catch {}
     const message = err instanceof Error ? err.message : String(err);
     console.error("[generate-motion] Fout:", message);

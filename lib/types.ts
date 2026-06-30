@@ -14,9 +14,15 @@ export interface BrandFonts {
   secondary?: string;
 }
 
+export type BrandAssetRole = "logo" | "vehicle" | "product" | "team" | "location" | "other";
+
 export interface BrandReferenceImage {
   url: string;
   description: string;
+  // Gestructureerde merk-asset-velden (optioneel; ontbreken op oudere kits).
+  id?: string;              // stabiele slug, bv. "vehicle-oranje-zeiljacht"
+  role?: BrandAssetRole;    // ontbreekt op legacy → behandelen als "other"
+  element?: string;         // canoniek over te nemen element, bv. "wit zeiljacht met fel-oranje zeilen"
 }
 
 export interface BrandKit {
@@ -53,6 +59,7 @@ export type ProjectStatus =
 // (Cinematic, 2D SaaS, etc.) worden via remapLegacyStyle() opgevangen bij het
 // laden van bestaande projecten.
 export type VisualStyle =
+  | "Schilderachtig"
   | "Kurzgezagt"
   | "Realistic"
   | "Cartoon"
@@ -67,6 +74,27 @@ export type TransitionType =
   | "slide-right"
   | "zoom-in";
 
+/** Eén bullet op een presentatiescène: tekst + icoon-keyword (uit EXPLAINER_ICONS). */
+export interface DesignedBullet {
+  text: string;
+  icon: string;
+  // Onthul-tijd in seconden t.o.v. het begin van de scène, gevuld door
+  // align-voice zodat de bullet exact invliegt wanneer de stem 'm noemt.
+  revealAt?: number;
+}
+
+/**
+ * Inhoud van een "ontworpen" (niet-AI) scène, zoals de AI die in de planning
+ * bepaalt. Vorm/kleuren/logo/contact worden bij het renderen uit de huisstijl en
+ * het project afgeleid; hier staat alleen de tekstuele inhoud.
+ */
+export interface DesignedSceneContent {
+  kind: "cta" | "bullets";
+  title: string;
+  subtitle?: string;
+  bullets?: DesignedBullet[]; // alleen voor "bullets"
+}
+
 export interface Scene {
   id: string;
   number: number;
@@ -79,6 +107,48 @@ export interface Scene {
   canvas_json: string | null;
   transition_out?: TransitionType; // transition applied after this scene
   source_image_url?: string | null; // original uploaded photo (photo mode only)
+  // Aanwezig => dit is een ontworpen scène (geen AI-beeld/motion). De renderer
+  // (DesignedSceneStage) maakt er deterministisch een geanimeerde clip van.
+  designed?: DesignedSceneContent | null;
+  // Welke merk-assets (brand kit reference-id's) in deze scène voorkomen. Door
+  // dezelfde id telkens te hergebruiken blijft b.v. "de boot" identiek over alle
+  // scènes. Door het script gevuld; door generate-scene-image gebruikt als
+  // deterministische img2img-referentie.
+  brand_asset_ids?: string[];
+  // Eigen, per-scène geüploade referentiefoto's (handmatig toegevoegd tijdens het
+  // maken) — gaan als extra img2img-referentie mee om de AI bij te sturen.
+  ref_image_urls?: string[];
+  // Welke cast-rollen in deze scène voorkomen (id's uit project.cast).
+  cast_ids?: string[];
+  // Per-scène afwijking: roleId → characterId (of null = forceer AI voor déze scène).
+  // Sparse; afwezig = gebruik de projectkoppeling van de rol.
+  cast_overrides?: Record<string, string | null>;
+  // Welke referenties bij de laatste generatie zijn gebruikt (voor UI-transparantie).
+  refs_used?: SceneRefsUsed | null;
+  // Bewaarde AI-inhoud bij het omzetten naar een opsommingsscène, zodat terug-
+  // schakelen naar AI-beeld de oorspronkelijke prompt/beeld herstelt i.p.v. een
+  // generieke startprompt. Leeg/afwezig bij een gewone AI-scène.
+  saved_image_prompt?: string;
+  saved_motion_prompt?: string;
+  saved_image_url?: string | null;
+  saved_video_url?: string | null;
+}
+
+export interface SceneRefsUsed {
+  brand: { id: string; element: string; url: string }[];
+  characters: { name: string; url: string }[];
+  style: boolean;
+  chaining: string[];
+}
+
+// Eén rol in de cast van een project. Wordt gekoppeld aan een gemaakt character
+// (characterId → image_url = anker) of door AI gegenereerd (anchorUrl, 1x gemaakt).
+export interface CastRole {
+  id: string;                  // stabiele slug, bv. "role-barman"
+  name: string;                // naam in de prompts, bv. "Barman" / "Lisa"
+  appearance: string;          // vaste visuele beschrijving
+  characterId: string | null;  // gekoppeld saved character | null = AI
+  anchorUrl: string | null;    // AI-anker (1x gegenereerd, hergebruikt) | null
 }
 
 export interface Character {
@@ -154,6 +224,17 @@ export interface Project {
   outro_contact: OutroContact;
   main_character_id: string | null;
   supporting_character_id: string | null;
+  // Gestructureerde cast (rollen ↔ gemaakte characters of AI). Migratie 033.
+  // Kolomnaam cast_roles ('cast' is een gereserveerd SQL-keyword).
+  cast_roles?: CastRole[];
+  // Studio merk-schakelaars (migratie 031): subtiel hoek-logo op AI-scènes /
+  // automatische kwaliteitscheck + hergeneren per merk-scène.
+  logo_on_scenes?: boolean;
+  hq_brand_verify?: boolean;
+  // Kwaliteit (migratie 032): 'pro' = Nano Banana Pro + Seedance 1.5 Pro
+  // (scherper/soepeler, evenredig meer credits). gen_seed = optionele vaste seed.
+  quality?: "standard" | "pro";
+  gen_seed?: number | null;
   status: ProjectStatus;
   infographic_spec: InfographicSpec | null;
   explainer_spec: import("./explainer/spec").ExplainerSpec | null;

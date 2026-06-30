@@ -10,10 +10,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Mollie niet geconfigureerd" }, { status: 500 });
   }
 
-  const { email } = await req.json() as { email?: string };
+  const { email, acceptedTerms, acceptedSubscription, newsletter } = await req.json() as {
+    email?: string;
+    acceptedTerms?: boolean;
+    acceptedSubscription?: boolean;
+    newsletter?: boolean;
+  };
   if (!email || !email.includes("@")) {
     return NextResponse.json({ error: "Ongeldig e-mailadres" }, { status: 400 });
   }
+  // Consent verplicht: voorkomt chargebacks doordat akkoord (voorwaarden +
+  // abonnement-begrip) aantoonbaar is afgedwongen, niet alleen client-side.
+  if (acceptedTerms !== true || acceptedSubscription !== true) {
+    return NextResponse.json({ error: "Akkoord met de voorwaarden en het abonnement is verplicht." }, { status: 400 });
+  }
+  const consentAt = new Date().toISOString();
 
   const supabase = createServiceClient();
   const { data: pending, error: insertError } = await supabase
@@ -53,7 +64,14 @@ export async function POST(req: NextRequest) {
       customerId,
       redirectUrl: `${appUrl}/checkout/success?checkout_id=${pending.id}&email=${encodeURIComponent(pending.email)}&plan=${pending.plan}`,
       webhookUrl: `${appUrl}/api/mollie/webhook`,
-      metadata: { planId: pending.plan, guestCheckoutId: pending.id, isGuest: true, isCursus: true },
+      metadata: {
+        planId: pending.plan,
+        guestCheckoutId: pending.id,
+        isGuest: true,
+        isCursus: true,
+        // Consent-bewijs bij de betaling (handig bij chargeback-disputes).
+        consent: { terms: true, subscription: true, newsletter: newsletter === true, at: consentAt },
+      },
     }),
   });
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import {
@@ -10,8 +10,6 @@ import {
 } from "@/lib/explainer/schema";
 import { normalizeScene } from "@/lib/explainer/validate";
 import type { ExplainerSpec } from "@/lib/explainer/spec";
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
