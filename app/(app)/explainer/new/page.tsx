@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { canUseStudio } from "@/lib/studio/access";
 import ExplainerCreateForm from "@/components/explainer/ExplainerCreateForm";
 
 export default async function ExplainerNewPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // Tijdelijk: nieuwe tool nog niet live voor iedereen (soft-launch).
+  if (!canUseStudio(user.email)) redirect("/dashboard");
 
   return (
     <div className="space-y-6">

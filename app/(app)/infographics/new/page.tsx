@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { canUseStudio } from "@/lib/studio/access";
 import { BrandKit } from "@/lib/types";
 import InfographicCreateForm from "@/components/infographics/InfographicCreateForm";
 
@@ -7,6 +8,8 @@ export default async function InfographicNewPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // Tijdelijk: nieuwe tool nog niet live voor iedereen (soft-launch).
+  if (!canUseStudio(user.email)) redirect("/dashboard");
 
   const { data: brandKits } = await supabase
     .from("brand_kits")

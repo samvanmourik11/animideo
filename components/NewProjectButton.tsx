@@ -262,28 +262,32 @@ export default function NewProjectButton({ userId }: { userId: string }) {
             </div>
           </button>
           <div className="h-px bg-white/[0.06] mx-3" />
-          <button
-            onClick={openInfographics}
-            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
-          >
-            <span className="text-lg leading-none mt-0.5">📊</span>
-            <div>
-              <p className="text-sm font-medium text-white">Infographic</p>
-              <p className="text-xs text-slate-500 mt-0.5">Zakelijk: data, cijfers en grafieken, geen poppetjes</p>
-            </div>
-          </button>
-          <div className="h-px bg-white/[0.06] mx-3" />
-          <button
-            onClick={openExplainer}
-            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-amber-500/10 to-transparent"
-          >
-            <span className="text-lg leading-none mt-0.5">🎞️</span>
-            <div>
-              <p className="text-sm font-medium text-white">Explainer-video</p>
-              <p className="text-xs text-slate-500 mt-0.5">Flat animated uitleg-video met voice-over, geen poppetjes</p>
-            </div>
-          </button>
-          <div className="h-px bg-white/[0.06] mx-3" />
+          {studioAllowed && (
+            <>
+              <button
+                onClick={openInfographics}
+                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
+              >
+                <span className="text-lg leading-none mt-0.5">📊</span>
+                <div>
+                  <p className="text-sm font-medium text-white">Infographic</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Zakelijk: data, cijfers en grafieken, geen poppetjes</p>
+                </div>
+              </button>
+              <div className="h-px bg-white/[0.06] mx-3" />
+              <button
+                onClick={openExplainer}
+                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-amber-500/10 to-transparent"
+              >
+                <span className="text-lg leading-none mt-0.5">🎞️</span>
+                <div>
+                  <p className="text-sm font-medium text-white">Explainer-video</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Flat animated uitleg-video met voice-over, geen poppetjes</p>
+                </div>
+              </button>
+              <div className="h-px bg-white/[0.06] mx-3" />
+            </>
+          )}
           <button
             onClick={openPlayground}
             className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
