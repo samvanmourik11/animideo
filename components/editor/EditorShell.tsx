@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { EditorStore } from "@/lib/editor/store";
@@ -28,6 +28,17 @@ export default function EditorShell({
   // (stap 5), anders naar de editor-projectenlijst.
   backHref?: string;
 }) {
+  const router = useRouter();
+
+  // ←-knop: een expliciete Studio-bestemming (?studio=) heeft voorrang; anders
+  // gewoon terug naar de vorige pagina (bv. de Studio-wizard, die stap 5 herstelt),
+  // met de projectenlijst als laatste vangnet.
+  function goBack() {
+    if (backHref !== "/editor") { router.push(backHref); return; }
+    if (typeof window !== "undefined" && window.history.length > 1) { router.back(); return; }
+    router.push("/editor");
+  }
+
   // Store eenmalig aanmaken, met een persist-functie die naar Supabase schrijft.
   const storeRef = useRef<EditorStore | null>(null);
   if (!storeRef.current) {
@@ -135,9 +146,9 @@ export default function EditorShell({
     <div className="flex flex-col h-full min-h-0">
       <header className="flex items-center justify-between px-4 h-12 border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href={backHref} className="text-slate-400 hover:text-white text-sm">
+          <button type="button" onClick={goBack} className="text-slate-400 hover:text-white text-sm">
             ←
-          </Link>
+          </button>
           <span className="text-sm font-semibold truncate">{title}</span>
           <span className="text-xs text-slate-500 px-2 py-0.5 rounded bg-white/5">
             {ratio}
