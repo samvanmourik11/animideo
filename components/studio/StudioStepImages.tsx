@@ -209,6 +209,7 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack, ch
       form.append("projectId", project.id);
       form.append("sceneId", sceneId);
       form.append("file", blob, "outro.jpg");
+      form.append("clientScenes", JSON.stringify(scenesRef.current));
       const res = await fetch("/api/studio/apply-outro", { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok || !data.imageUrl) {
@@ -216,11 +217,11 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack, ch
         setOutroStatus("error");
         return false;
       }
-      if (Array.isArray(data.scenes)) {
-        pushScenes(data.scenes);
-      } else {
-        pushScenes(scenesRef.current.map(s => s.id === sceneId ? { ...s, image_url: data.imageUrl } : s));
-      }
+      // ALLEEN het doel-scène-beeld in de LIVE ref patchen — nooit de hele array
+      // uit data.scenes overnemen. Deze call stuurt geen clientScenes mee, dus
+      // data.scenes komt uit de (mogelijk achterlopende) DB; dat zou tijdens een
+      // batch een net gegenereerd beeld van een ándere scène kunnen wissen.
+      pushScenes(scenesRef.current.map(s => s.id === sceneId ? { ...s, image_url: data.imageUrl } : s));
       setOutroStatus("done");
       outroAppliedRef.current = true;
       return true;
@@ -449,10 +450,12 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack, ch
       form.append("projectId", project.id);
       form.append("sceneId", sceneId);
       form.append("file", blob, "logo.jpg");
+      form.append("clientScenes", JSON.stringify(scenesRef.current));
       const res = await fetch("/api/studio/apply-outro", { method: "POST", body: form });
       const data = await res.json();
-      if (res.ok && Array.isArray(data.scenes)) pushScenes(data.scenes);
-      else if (res.ok && data.imageUrl) pushScenes(scenesRef.current.map(s => s.id === sceneId ? { ...s, image_url: data.imageUrl } : s));
+      // Alleen het doel-scène-beeld in de LIVE ref patchen (zie applyOutro): de
+      // DB-afgeleide data.scenes zou tijdens een batch andere verse beelden wissen.
+      if (res.ok && data.imageUrl) pushScenes(scenesRef.current.map(s => s.id === sceneId ? { ...s, image_url: data.imageUrl } : s));
     } catch { /* best-effort; scène blijft gewoon zonder logo */ }
   }
 

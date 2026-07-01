@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
   const projectId = String(form.get("projectId") ?? "");
   const sceneId   = String(form.get("sceneId") ?? "");
   const file      = form.get("file");
+  const clientScenesRaw = form.get("clientScenes");
 
   if (!projectId || !sceneId || !(file instanceof Blob)) {
     return NextResponse.json({ error: "projectId, sceneId en file zijn verplicht" }, { status: 400 });
@@ -24,7 +25,16 @@ export async function POST(req: NextRequest) {
     .single();
   if (!project) return NextResponse.json({ error: "Project niet gevonden" }, { status: 404 });
 
-  const scenes: Scene[] = (project.scenes ?? []) as Scene[];
+  // Basis = de meegestuurde live client-scènes (bevatten net gegenereerde beelden
+  // van andere scènes die nog niet in de DB staan). Zonder dit zou een DB-read-
+  // modify-write tijdens een batch verse beelden van andere scènes wissen.
+  let clientScenes: Scene[] | null = null;
+  if (typeof clientScenesRaw === "string" && clientScenesRaw) {
+    try { const p = JSON.parse(clientScenesRaw); if (Array.isArray(p)) clientScenes = p as Scene[]; } catch {}
+  }
+  const scenes: Scene[] = clientScenes && clientScenes.length > 0
+    ? clientScenes
+    : ((project.scenes ?? []) as Scene[]);
   if (!scenes.find(s => s.id === sceneId)) {
     return NextResponse.json({ error: "Scene niet gevonden" }, { status: 404 });
   }
