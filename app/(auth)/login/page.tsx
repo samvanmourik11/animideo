@@ -95,8 +95,8 @@ export default function LoginPage() {
 
         <p className="text-center text-sm text-slate-500 mt-5">
           Nog geen account?{" "}
-          <Link href="/signup" className="text-blue-400 hover:text-blue-300 transition-colors font-medium">
-            Maak er één aan
+          <Link href="/checkout/webinar" className="text-blue-400 hover:text-blue-300 transition-colors font-medium">
+            Start voor €1
           </Link>
         </p>
       </div>

@@ -32,7 +32,7 @@ export default function LandingPage() {
     if (!idea.trim()) return;
     setLoading(true);
     localStorage.setItem("pending_idea", idea.trim());
-    router.push("/signup");
+    router.push("/checkout/webinar");
   }
 
   return (
@@ -47,8 +47,8 @@ export default function LandingPage() {
           <Link href="/login" className="text-sm text-slate-400 hover:text-white transition-colors px-4 py-2">
             Inloggen
           </Link>
-          <Link href="/signup" className="btn-primary text-sm px-4 py-2">
-            Gratis beginnen →
+          <Link href="/checkout/webinar" className="btn-primary text-sm px-4 py-2">
+            Start voor €1 →
           </Link>
         </div>
       </nav>
@@ -158,14 +158,13 @@ export default function LandingPage() {
       {/* Pricing */}
       <section className="max-w-5xl mx-auto px-6 py-16 border-t border-white/[0.06]">
         <h2 className="text-2xl font-bold text-white text-center mb-2">Kies jouw plan</h2>
-        <p className="text-slate-500 text-center text-sm mb-10">Begin gratis. Upgrade wanneer je wilt.</p>
+        <p className="text-slate-500 text-center text-sm mb-10">Start met je eerste maand voor €1. Daarna kies je een plan; opzeggen kan altijd.</p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           {[
-            { name: "Gratis", price: "€0", credits: "100 credits/maand", features: ["Script genereren", "Afbeeldingen genereren", "Video beweging", "Watermark op exports"], cta: "Begin gratis", href: "/signup", highlight: false },
-            { name: "Starter", price: "€49", period: "/maand", credits: "500 credits/maand", features: ["Script genereren", "Afbeeldingen genereren", "Video beweging", "Geen watermark", "Email support"], cta: "Probeer Starter", href: "/signup", highlight: false },
-            { name: "Pro", price: "€99", period: "/maand", credits: "1.500 credits/maand", badge: "MEEST GEKOZEN", features: ["Script genereren", "Afbeeldingen genereren", "Video beweging", "Geen watermark", "HD exports", "Prioriteit support"], cta: "Probeer Pro", href: "/signup", highlight: true },
-            { name: "Agency", price: "€249", period: "/maand", credits: "5.000 credits/maand", features: ["Script genereren", "Afbeeldingen genereren", "Video beweging", "Geen watermark", "4K exports", "Dedicated support"], cta: "Probeer Agency", href: "/signup", highlight: false },
+            { name: "Starter", price: "€49", period: "/maand", credits: "500 credits/maand", features: ["Script genereren", "Afbeeldingen genereren", "Video beweging", "Geen watermark", "Email support"], cta: "Start voor €1", href: "/checkout/webinar", highlight: false },
+            { name: "Pro", price: "€99", period: "/maand", credits: "1.500 credits/maand", badge: "MEEST GEKOZEN", features: ["Script genereren", "Afbeeldingen genereren", "Video beweging", "Geen watermark", "HD exports", "Prioriteit support"], cta: "Start voor €1", href: "/checkout/webinar", highlight: true },
+            { name: "Agency", price: "€249", period: "/maand", credits: "5.000 credits/maand", features: ["Script genereren", "Afbeeldingen genereren", "Video beweging", "Geen watermark", "4K exports", "Dedicated support"], cta: "Start voor €1", href: "/checkout/webinar", highlight: false },
           ].map((plan) => (
             <div key={plan.name} className={`relative flex flex-col rounded-2xl border p-6 ${plan.highlight ? "bg-gradient-to-b from-blue-600/10 to-blue-500/5 border-blue-500/40 shadow-[0_0_40px_rgba(59,130,246,0.15)]" : "bg-[#0c1428] border-white/[0.07]"}`}>
               {"badge" in plan && plan.badge && (
@@ -204,9 +203,9 @@ export default function LandingPage() {
         <h2 className="text-3xl font-extrabold text-white mb-4">
           Klaar om je eerste video te maken?
         </h2>
-        <p className="text-slate-400 mb-8">Gratis beginnen. Geen creditcard nodig.</p>
-        <Link href="/signup" className="btn-primary px-8 py-3 text-base">
-          Begin gratis →
+        <p className="text-slate-400 mb-8">Je eerste maand voor €1. Opzeggen kan altijd.</p>
+        <Link href="/checkout/webinar" className="btn-primary px-8 py-3 text-base">
+          Start voor €1 →
         </Link>
       </section>
 

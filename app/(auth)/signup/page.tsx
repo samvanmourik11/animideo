@@ -30,72 +30,58 @@ function SignupForm() {
     if (guestEmail) setEmail(guestEmail);
   }, [guestEmail]);
 
+  // Gratis registratie is afgeschaft: wie niet via een betaalde (€1-)checkout
+  // komt (geen guest_email), wordt doorgestuurd naar het €1-aanbod.
+  useEffect(() => {
+    if (!guestEmail) router.replace("/checkout/webinar");
+  }, [guestEmail, router]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     setLoading(true);
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
+    // Gratis accounts zijn afgeschaft: een account kan ALLEEN na een betaalde
+    // (€1-)checkout worden aangemaakt. Zonder guest_email hoort niemand hier;
+    // stuur die door naar het €1-aanbod.
+    if (!guestEmail) {
+      router.replace("/checkout/webinar");
+      return;
+    }
+
     const supabase = createClient();
+    try {
+      // guest-signup maakt alleen een account aan als er ÉCHT een betaalde
+      // pending_checkout voor dit e-mailadres bestaat. Geen betaling = geen account.
+      const res = await fetch("/api/auth/guest-signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json().catch(() => ({}));
 
-    // Betalende guest-checkout (o.a. webinar): account direct bevestigd
-    // aanmaken en meteen inloggen — geen wachten op een bevestigingsmail.
-    if (guestEmail) {
-      try {
-        const res = await fetch("/api/auth/guest-signup", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
-        });
-        const data = await res.json().catch(() => ({}));
-
-        if (res.ok) {
-          const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-          if (signInError) {
-            setError(signInError.message);
-            setLoading(false);
-            return;
-          }
-          router.push("/dashboard");
-          router.refresh();
-          return;
-        }
-
-        if (res.status === 409 || data.error === "exists") {
-          setError("Dit e-mailadres heeft al een account. Log hieronder in of herstel je wachtwoord.");
-          setLoading(false);
-          return;
-        }
-        // 422 (betaling nog niet verwerkt) of andere fout: val hieronder
-        // terug op de normale signUp-flow met mailbevestiging.
-      } catch {
-        // Netwerkfout: val terug op de normale signUp-flow hieronder.
+      if (res.ok) {
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) { setError(signInError.message); setLoading(false); return; }
+        router.push("/dashboard");
+        router.refresh();
+        return;
       }
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo: `${appUrl}/dashboard` },
-    });
-
-    if (error) {
-      setError(error.message);
+      if (res.status === 409 || data.error === "exists") {
+        setError("Dit e-mailadres heeft al een account. Log hieronder in of herstel je wachtwoord.");
+        setLoading(false);
+        return;
+      }
+      // 422 (no_paid_checkout): betaling (nog) niet gevonden. NOOIT een gratis
+      // account aanmaken — laat de gebruiker de betaling afronden of retryen.
+      setError("We konden je €1-betaling nog niet vinden. Net betaald? Wacht een paar seconden en klik nogmaals op “Account aanmaken”.");
+      setLoading(false);
+      return;
+    } catch {
+      setError("Er ging iets mis. Probeer het opnieuw.");
       setLoading(false);
       return;
     }
-
-    // Supabase stuurt geen mail en geeft geen fout als het e-mailadres al
-    // bestaat (bescherming tegen account-enumeratie). Je herkent dit aan een
-    // lege identities-array. Zonder deze check zien bestaande gebruikers
-    // onterecht "Check je inbox" terwijl er niets verstuurd is.
-    if (data.user && (data.user.identities?.length ?? 0) === 0) {
-      setError("Dit e-mailadres heeft al een account. Log hieronder in of herstel je wachtwoord.");
-      setLoading(false);
-      return;
-    }
-
-    setDone(true);
   }
 
   async function handleResend() {
@@ -114,6 +100,15 @@ function SignupForm() {
         : "Nieuwe bevestigingslink verstuurd."
     );
     setResending(false);
+  }
+
+  // Directe (gratis) bezoeker: toon niets, de effect stuurt door naar het €1-aanbod.
+  if (!guestEmail) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 text-slate-400 text-sm">
+        Een moment…
+      </div>
+    );
   }
 
   if (done) {
@@ -162,7 +157,7 @@ function SignupForm() {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent mb-1">
             JouwAnimatieVideo A.I.
           </h1>
-          <p className="text-slate-500 text-sm">Maak je account aan en begin gratis</p>
+          <p className="text-slate-500 text-sm">Rond je account af en ga direct aan de slag</p>
         </div>
 
         <div className="card shadow-[0_8px_40px_rgba(0,0,0,0.5)]">
