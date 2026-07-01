@@ -175,13 +175,15 @@ Generate EXACTLY ${sceneCount} scenes. Return ONLY a valid JSON OBJECT (no markd
 Each scene object must have exactly these fields:
 {
   "number": <integer starting at 1>,
-  "duration": <integer seconds, typically 4 to 8>,
+  "duration": <integer seconds, 3 to 5 — each scene becomes a ~5s AI-animated clip, so NEVER make a scene longer than 5s (a longer scene freezes on its last frame and looks static). Short scenes keep the video lively.>,
   "voiceover_text": "<narrator text for this scene in ${project.language}>",
   "image_prompt": "<wat er in deze scène GEBEURT, in ${project.language}. Actie, setting, kadrering, belichting, sfeer. Gaat naar Nano Banana Pro samen met de referentiebeelden.>",
   "motion_prompt": "<hoe de afbeelding moet bewegen, in ${project.language}>"${brandAssetBlock.ids.length > 0 ? `,
   "brand_asset_ids": [<de id('s) uit ECHTE MERK-ASSETS die in DEZE scène voorkomen; gebruik telkens DEZELFDE id voor hetzelfde object zodat het identiek blijft; [] als er geen merk-asset in beeld is>]` : ""},
   "cast_names": [<de namen uit "cast" die in DEZE scène in beeld zijn; gebruik telkens DEZELFDE naam voor dezelfde persoon; [] als er geen persoon in beeld is>]
 }
+
+PACING (important for a lively, professional feel): a great explainer has MANY short scenes with frequent cuts, NOT a few long shots. Keep every scene 3-5 seconds. If an idea would need a longer shot, split it into two short consecutive scenes (a different angle/action each) instead of one long one. Frequent, snappy cuts make the video dynamic and pleasant to watch.
 
 CHARACTER CONSISTENCY (critical): the people in "cast" are the SAME individuals throughout the whole video. In EVERY scene that shows a cast member, refer to them BY NAME and restate their FIXED appearance from "cast" (same face, hair, age, build, and the EXACT same clothing and colours). List that person's name in this scene's "cast_names". If two cast members appear together, describe BOTH with their fixed appearance. NEVER change a character's face, hair, age, build or clothing between scenes — only their setting, pose, action, expression and camera framing may change.
 ${anchorContext}${styleContext}${outroContext}${designedContext}
@@ -216,14 +218,15 @@ SCRIPT STRUCTURE — follow this proven narrative arc for EVERY video. This is t
 WRITING RULES (house voice):
 - Warm, direct, conversational ${project.language}. ALWAYS address the viewer as je/jij/jouw.
 - Open with a rhetorical question or a relatable statement; vary it every single time.
-- Natural spoken narration (voice-over), 1 to 3 short sentences per scene, no stage directions.
+- Natural spoken narration (voice-over): ONE short sentence per scene. Match the word count to the scene's duration at ~2.5 spoken words per second (≈150 words per minute): a 3s scene ≈ 7-8 words, a 4s scene ≈ 10 words, a 5s scene ≈ 12-13 words. NEVER exceed this — a too-long line forces the scene to stretch and breaks the pacing. Split a longer thought across two short consecutive scenes instead. No stage directions.
 - Benefit-driven and concrete — translate every abstract idea into something filmable.
 - End on the brand name + a short tagline + website/CTA.
 - HARD RULE: never open with "Dit is <naam>, <naam> heeft moeite met..." or any variant that introduces a named person with a problem, UNLESS the brief explicitly asks for a personal story.
 
 Voiceover rules:
 - voiceover_text in ${project.language}, natural narration, no stage directions.
-- Total duration should add up to roughly ${sceneCount * 5} to ${sceneCount * 7} seconds.
+- Total duration should add up to roughly ${sceneCount * 3} to ${sceneCount * 5} seconds (scenes are short, 3-5s each).
+- Word budget: the WHOLE voice-over should be about 2.5 words per second of total video (≈150 words per minute). For ${sceneCount} scenes that is roughly ${Math.round(sceneCount * 4 * 2.5)} words total — keep it tight and punchy, never wordy.
 
 Respond with only the JSON object, starting with { and ending with }.`;
 

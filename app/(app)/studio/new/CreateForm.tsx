@@ -103,7 +103,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
   const [title, setTitle] = useState("");
   const [idea, setIdea] = useState("");
   const [format, setFormat] = useState<"16:9" | "9:16">("16:9");
-  const [sceneCount, setSceneCount] = useState<number>(5);
+  const [sceneCount, setSceneCount] = useState<number>(8);
   const [visualStyle, setVisualStyle] = useState<VisualStyle>("Schilderachtig");
   const [brandKitId, setBrandKitId] = useState<string>("");
   const [mainCharacterId, setMainCharacterId] = useState<string>("");
