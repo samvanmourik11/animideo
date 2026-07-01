@@ -188,13 +188,17 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
 
   async function acceptScene() {
     const updatedScenes = [...scenes];
+    const isLast = currentIndex >= totalScenes - 1;
     await fetch("/api/save-project", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ projectId: project.id, scenes: updatedScenes }),
+      body: JSON.stringify({ projectId: project.id, scenes: updatedScenes, ...(isLast ? { status: "MotionReady" } : {}) }),
     });
-    onUpdate({ scenes: updatedScenes });
-    if (currentIndex < totalScenes - 1) {
+    onUpdate({ scenes: updatedScenes, ...(isLast ? { status: "MotionReady" } : {}) });
+    if (isLast) {
+      // Laatste scène goedgekeurd → door naar de volgende stap (voice-over).
+      onNext();
+    } else {
       setCurrentIndex(currentIndex + 1);
     }
   }

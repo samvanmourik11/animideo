@@ -44,11 +44,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { projectId, voice, stability, speed } = await req.json() as {
+    const { projectId, voice, stability, speed, script } = await req.json() as {
       projectId: string;
       voice?: string;
       stability?: number;
       speed?: number;
+      script?: string; // door de gebruiker bewerkte/ingevoerde voice-over-tekst
     };
 
     const { data: project } = await supabase
@@ -63,7 +64,10 @@ export async function POST(req: NextRequest) {
     }
 
     const scenes = (project.scenes ?? []) as Scene[];
-    const text = scenes.map(s => s.voiceover_text).filter(Boolean).join(" ").trim();
+    // Gebruik de meegestuurde (bewerkte) tekst; val terug op de scène-teksten.
+    const text = (typeof script === "string" && script.trim())
+      ? script.trim()
+      : scenes.map(s => s.voiceover_text).filter(Boolean).join(" ").trim();
     if (!text) {
       await refund();
       return NextResponse.json({ error: "Geen voice-over tekst gevonden in scenes" }, { status: 400 });

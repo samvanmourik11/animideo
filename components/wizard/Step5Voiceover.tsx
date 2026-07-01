@@ -40,6 +40,9 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
 
   const scenes = project.scenes ?? [];
   const fullScript = scenes.map(s => s.voiceover_text).filter(Boolean).join(" ");
+  // Bewerkbaar script: begint met de tekst uit de scènes, maar de gebruiker kan
+  // 'm hier zelf aanpassen of (als de scènes geen tekst hebben) helemaal intypen.
+  const [scriptText, setScriptText] = useState(fullScript);
   const totalVideoDuration = scenes.reduce((acc, s) => acc + (s.duration || 0), 0);
 
   useEffect(() => {
@@ -68,8 +71,8 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
   }, [audioUrl]);
 
   async function handleGenerate() {
-    if (!fullScript.trim()) {
-      setError("Geen voice-over tekst in scenes");
+    if (!scriptText.trim()) {
+      setError("Vul eerst de voice-over-tekst in.");
       return;
     }
     setError("");
@@ -80,7 +83,7 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
       const res = await fetch("/api/generate-voice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: project.id, voice, stability, speed }),
+        body: JSON.stringify({ projectId: project.id, voice, stability, speed, script: scriptText }),
       });
       const data = await res.json();
       if (!res.ok || !data.audioUrl) {
@@ -202,10 +205,12 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
         <div>
           <label className="block text-sm font-medium text-slate-200 mb-2">Volledig script ({project.language})</label>
           <textarea
-            readOnly
-            value={fullScript}
+            value={scriptText}
+            onChange={e => setScriptText(e.target.value)}
+            disabled={generating}
+            placeholder="Typ hier de voice-over-tekst voor je video…"
             rows={Math.min(12, Math.max(4, scenes.length * 2))}
-            className="w-full bg-slate-950/60 border border-white/10 rounded-md px-3 py-2 text-sm text-slate-300 font-mono leading-relaxed"
+            className="w-full bg-slate-950/60 border border-white/10 rounded-md px-3 py-2 text-sm text-white font-mono leading-relaxed disabled:opacity-60"
           />
         </div>
 
@@ -256,7 +261,7 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
 
         <button
           onClick={handleGenerate}
-          disabled={generating || !fullScript.trim()}
+          disabled={generating || !scriptText.trim()}
           className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 text-white font-medium py-2.5 rounded-lg"
         >
           {generating ? "Voice genereren..." : audioUrl ? "Opnieuw genereren" : "Genereer voice-over"}
