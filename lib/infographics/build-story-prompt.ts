@@ -61,7 +61,7 @@ PER SCENE LEVER JE:
 - "emphasis": precies één woord uit de headline dat de accentkleur krijgt (het belangrijkste woord), of null.
 - "bigNumber": een hard getal uit de brontekst als dat de scene versterkt (bijv. "5.500€", "170", "9,6 mln"), anders null. VERZIN NOOIT cijfers; gebruik alleen wat letterlijk in de bron staat.
 - "numberLabel": een kort label bij dat getal (bijv. "subsidie", "soorten"), of null.
-- "illustration": een ENGELSE briefing voor de platte vector-illustratie van deze scene. Beschrijf concrete objecten, omgeving en eventuele karakters die het verhaal tonen (bijv. "a worried family looking at a high energy bill in their living room"). Houd het beeldend en filmisch. GEEN tekst, cijfers of UI in het beeld. Laat ruimte voor een kop.
+- "illustration": een ENGELSE briefing voor de platte vector-illustratie van deze scene. Beschrijf ÉÉN concrete, letterlijke scène (wie, wat, waar, welke handeling) die precies toont wat de voice-over van deze scene zegt — specifiek voor dit onderwerp (bijv. "a worried family looking at a high energy bill in their living room"). GEEN tekst, cijfers of UI in het beeld. GEEN cliché-stockmetaforen (gloeilamp = idee, handdruk, tandwielen, zwevende vinkjes) en GEEN losse icoontjes/denkwolkjes/symboolverzamelingen. Teken abstracte begrippen niet letterlijk; kies een echte menselijke scène. Houd het simpel: één brandpunt, en laat ruimte voor een kop.
 
 HARDE REGELS:
 - Gebruik alleen feiten en cijfers die letterlijk in de brontekst staan.

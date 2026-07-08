@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { computeStoryLayout } from "@/lib/infographics/story-layout";
+import { computeStoryLayout, logoBox } from "@/lib/infographics/story-layout";
+import { storyFontStack } from "@/lib/infographics/story-fonts";
 import type { StoryScene as Scene } from "@/lib/infographics/story-schema";
 
 // Canva-stijl bewerkbare scene-overlay: de kop en het grote getal zijn los te
@@ -23,12 +24,16 @@ export default function EditableStoryScene({
   format,
   navy = "#16243f",
   accent = "#e8643c",
+  fontFamily,
+  logoUrl,
   onChange,
 }: {
   scene: Scene;
   format: "16:9" | "9:16";
   navy?: string;
   accent?: string;
+  fontFamily?: string | null;
+  logoUrl?: string | null;
   onChange: (patch: Partial<Scene>) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -37,6 +42,8 @@ export default function EditableStoryScene({
 
   const L = computeStoryLayout(scene, format);
   const { W, H, emph, lines, hx, hy, hSize, lineH, headW, headH, num, nx, ny, nSize, numW, numH } = L;
+  const font = storyFontStack(fontFamily);
+  const logo = logoUrl ? logoBox(format) : null;
 
   function toSvg(clientX: number, clientY: number) {
     const svg = svgRef.current;
@@ -104,11 +111,17 @@ export default function EditableStoryScene({
       onPointerDown={() => setSel(null)}
       style={{ touchAction: "none" }}
     >
+      {/* ── Merklogo (rechtsboven, niet-interactief) ──────────── */}
+      {logo && logoUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <image href={logoUrl} x={logo.x} y={logo.y} width={logo.w} height={logo.h} preserveAspectRatio="xMaxYMin meet" style={{ pointerEvents: "none" }} />
+      )}
+
       {/* ── Kop ───────────────────────────────────────────────── */}
       {lines.length > 0 && (
         <g>
           {lines.map((line, li) => (
-            <text key={li} x={hx} y={hy + hSize + li * lineH} fontFamily="Inter, system-ui, sans-serif" fontSize={hSize} fontWeight={800} fill={navy} style={{ pointerEvents: "none" }}>
+            <text key={li} x={hx} y={hy + hSize + li * lineH} fontFamily={font} fontSize={hSize} fontWeight={800} fill={navy} style={{ pointerEvents: "none" }}>
               {line.split(" ").map((w, wi, arr) => (
                 <tspan key={wi} fill={emph && w.toLowerCase().replace(/[.,:;!?]/g, "") === emph ? accent : navy}>
                   {w}{wi < arr.length - 1 ? " " : ""}
@@ -129,11 +142,11 @@ export default function EditableStoryScene({
       {/* ── Groot getal (+ label) ─────────────────────────────── */}
       {num && (
         <g>
-          <text x={nx} y={ny + nSize} fontFamily="Inter, system-ui, sans-serif" fontSize={nSize} fontWeight={800} fill={accent} style={{ pointerEvents: "none" }}>
+          <text x={nx} y={ny + nSize} fontFamily={font} fontSize={nSize} fontWeight={800} fill={accent} style={{ pointerEvents: "none" }}>
             {num}
           </text>
           {scene.numberLabel && (
-            <text x={nx} y={ny + nSize + 44} fontFamily="Inter, system-ui, sans-serif" fontSize={36} fontWeight={600} fill={navy} style={{ pointerEvents: "none" }}>
+            <text x={nx} y={ny + nSize + 44} fontFamily={font} fontSize={36} fontWeight={600} fill={navy} style={{ pointerEvents: "none" }}>
               {scene.numberLabel}
             </text>
           )}

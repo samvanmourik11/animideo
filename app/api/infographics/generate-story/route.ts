@@ -5,7 +5,8 @@ import { buildStoryPrompt } from "@/lib/infographics/build-story-prompt";
 import { STORY_SPEC_SCHEMA, type StorySpec, type StoryScene } from "@/lib/infographics/story-schema";
 import { generateImageWithStyle, cleanupIllustration } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
+import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint } from "@/lib/infographics/story-style";
+import { artDirectScenes } from "@/lib/infographics/art-direct";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
 
@@ -20,6 +21,8 @@ interface Body {
   // Gewenste videolengte in seconden. Stuurt het aantal scenes (hoe langer, hoe
   // meer scenes) en de voice-over-lengte per scene.
   targetSeconds?: number;
+  // Huisstijlkleuren (hex) voor het "zachte" illustratie-palet. Leeg = vrij palet.
+  brandColors?: { primary?: string; accent?: string };
 }
 
 // Gemiddeld spreektempo (woorden/sec) en richtlengte per scene (sec), waaruit we
@@ -77,7 +80,9 @@ export async function POST(req: NextRequest) {
     // 1. Script + scene-briefings via de LLM (gestructureerd).
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
-      temperature: 0.6,
+      // Lager dan voorheen (0.6): feitelijke content, minder creatieve elaboratie
+      // en minder kans op verzonnen cijfers.
+      temperature: 0.35,
       // Schaal de tokenruimte mee met het aantal scenes zodat lange video's niet
       // halverwege worden afgekapt (~350 tokens per scene + marge).
       max_tokens: clamp(sceneCount * 350 + 800, 4000, 16000),
@@ -103,36 +108,65 @@ export async function POST(req: NextRequest) {
     spec.format = format;
     spec.mode = mode;
 
-    // 2. Per scene de illustratie genereren (parallel). Een mislukte scene blijft
-    // zonder beeld i.p.v. de hele generatie te laten falen.
-    const scenes: StoryScene[] = await Promise.all(
-      spec.scenes.map(async (scene, i) => {
-        try {
-          const result = await generateImageWithStyle({
-            prompt: buildIllustrationPrompt(scene.illustration),
-            format,
-            visualStyle: null,
-          });
-          // Tweede pass: sfeer-decoratie (rook, wolken, hoekplanten, bubbels) van
-          // het beeld vegen. Lukt dat niet, dan val terug op het ruwe beeld.
-          let cleanUrl = result.imageUrl;
-          try {
-            cleanUrl = (await cleanupIllustration(result.imageUrl, format)).imageUrl;
-          } catch (e) {
-            console.error(`[generate-story] cleanup scene ${i} mislukt, ruw beeld behouden:`, e);
-          }
-          // Tijdelijke fal-URL meteen naar onze eigen bucket kopieren, zodat het
-          // verhaal zijn beelden houdt nadat de fal-link verloopt.
-          const imageUrl = await persistFalAssetSoft(supabase, user.id, cleanUrl, "image");
-          return { ...scene, id: scene.id || `scene-${i}`, imageUrl };
-        } catch (e) {
-          console.error(`[generate-story] illustratie scene ${i} mislukt:`, e);
-          return { ...scene, id: scene.id || `scene-${i}`, imageUrl: null };
-        }
-      })
-    );
+    // 2. Art-direction: de illustratie-briefings upgraden met begrip van het HELE
+    // verhaal + de bron, zodat de beelden bewust matchen met de voice-over (en
+    // niet generiek/random voelen). Mislukt dit, dan houden we de scriptbriefings.
+    const art = await artDirectScenes({
+      topic: body.topic ?? spec.title ?? "",
+      rawText,
+      scenes: spec.scenes.map((s) => ({ voiceover: s.voiceover, headline: s.headline, bigNumber: s.bigNumber, numberLabel: s.numberLabel })),
+    });
+    if (art) {
+      spec.scenes = spec.scenes.map((s, i) => (art.illustrations[i] ? { ...s, illustration: art.illustrations[i] } : s));
+    }
 
-    return NextResponse.json({ spec: { ...spec, scenes } });
+    // 3. Consistente look tussen scenes: vaste seed + een "anker"-beeld. We
+    // genereren scene 0 eerst en gebruiken die als stijl-/character-referentie
+    // voor alle overige scenes, zodat het hele verhaal als één set oogt. Lukt het
+    // anker niet, dan vallen we terug op alleen de gedeelde seed.
+    const seed = Math.floor(Math.random() * 2_000_000);
+    // Zacht huisstijl-palet: geldt voor het anker én alle scenes, zodat de hele
+    // set kleurtechnisch bij de huisstijl aansluit.
+    const paletteHint = brandPaletteHint(body.brandColors?.primary, body.brandColors?.accent);
+
+    const renderScene = async (scene: StoryScene, i: number, anchorUrl: string | null): Promise<StoryScene> => {
+      try {
+        const extraContext = [paletteHint, anchorUrl ? STYLE_MATCH_ANCHOR : ""].filter(Boolean).join(" ").trim() || undefined;
+        const result = await generateImageWithStyle({
+          prompt: buildIllustrationPrompt(scene.illustration),
+          format,
+          visualStyle: null,
+          seed,
+          ingredientUrls: anchorUrl ? [anchorUrl] : undefined,
+          extraContext,
+        });
+        // Tweede pass: sfeer-decoratie (rook, wolken, hoekplanten, bubbels) van het
+        // beeld vegen. Lukt dat niet, dan val terug op het ruwe beeld.
+        let cleanUrl = result.imageUrl;
+        try {
+          cleanUrl = (await cleanupIllustration(result.imageUrl, format)).imageUrl;
+        } catch (e) {
+          console.error(`[generate-story] cleanup scene ${i} mislukt, ruw beeld behouden:`, e);
+        }
+        // Tijdelijke fal-URL meteen naar onze eigen bucket kopieren, zodat het
+        // verhaal zijn beelden houdt nadat de fal-link verloopt.
+        const imageUrl = await persistFalAssetSoft(supabase, user.id, cleanUrl, "image");
+        return { ...scene, id: scene.id || `scene-${i}`, imageUrl };
+      } catch (e) {
+        console.error(`[generate-story] illustratie scene ${i} mislukt:`, e);
+        return { ...scene, id: scene.id || `scene-${i}`, imageUrl: null };
+      }
+    }
+
+    // Anker eerst (scene 0), daarna de rest parallel met het anker als referentie.
+    const first = await renderScene(spec.scenes[0], 0, null);
+    const anchorImageUrl = first.imageUrl ?? null;
+    const rest = await Promise.all(
+      spec.scenes.slice(1).map((scene, idx) => renderScene(scene, idx + 1, anchorImageUrl))
+    );
+    const scenes: StoryScene[] = [first, ...rest];
+
+    return NextResponse.json({ spec: { ...spec, scenes, seed, anchorImageUrl } });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("generate-story failed:", msg);

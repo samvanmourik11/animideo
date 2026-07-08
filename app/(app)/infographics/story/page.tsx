@@ -9,7 +9,10 @@ import { storyAspectRatio } from "@/lib/infographics/canvas-size";
 import { createClient } from "@/lib/supabase/client";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 import { STORY_VOICES, DEFAULT_VOICE, voicePreviewUrl } from "@/lib/infographics/story-voices";
+import { STORY_FONTS, DEFAULT_STORY_FONT, nearestStoryFont, STORY_FONTS_CSS_HREF } from "@/lib/infographics/story-fonts";
+import { CREDIT_COSTS } from "@/lib/credit-costs";
 import type { BrandKit } from "@/lib/types";
+import type { StoryScene } from "@/lib/infographics/story-schema";
 
 // Storytelling-infographic generator: onderwerp + brontekst in, AI schrijft een
 // verhaalboog en genereert per scene een platte illustratie; de typografie ligt
@@ -96,26 +99,43 @@ export default function StoryPage() {
   const [targetSeconds, setTargetSeconds] = useState(90);
   const [navy, setNavy] = useState("#16243f");
   const [accent, setAccent] = useState("#e8643c");
-  // Huisstijlen van de gebruiker; bij keuze worden de tekst- en accentkleur
-  // automatisch overgenomen uit de merkkleuren.
+  // Huisstijl-typografie (uit de brand kit; met keuze/override) en het logo, dat
+  // de gebruiker zelf uploadt (niet uit de website of brand kit).
+  const [fontFamily, setFontFamily] = useState<string>(DEFAULT_STORY_FONT);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoEnabled, setLogoEnabled] = useState(false);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
+  // Huisstijlen van de gebruiker; bij keuze worden de tekst-/accentkleur en het
+  // font automatisch overgenomen. Een huisstijl kan ook uit een website worden
+  // gehaald (AI-extractie) en wordt dan als brand kit toegevoegd.
   const [brandKits, setBrandKits] = useState<BrandKit[]>([]);
   const [brandKitId, setBrandKitId] = useState("");
+  const [brandUrl, setBrandUrl] = useState("");
+  const [brandBusy, setBrandBusy] = useState(false);
 
   const [spec, setSpec] = useState<StorySpec | null>(null);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [imgBusy, setImgBusy] = useState<Record<string, boolean>>({});
+  // Beeldhistorie per scene (vorige imageUrls) → "vorige versie" terugzetten.
+  const [imgHistory, setImgHistory] = useState<Record<string, string[]>>({});
   const [editInstr, setEditInstr] = useState<Record<string, string>>({});
   const [motionInstr, setMotionInstr] = useState<Record<string, string>>({});
   const [voiceBusy, setVoiceBusy] = useState(false);
   // Gekozen stem voor de voice-over + de stem die nu (als preview) speelt.
   const [voice, setVoice] = useState<string>(DEFAULT_VOICE);
+  // Spreeksnelheid van de voice-over (ElevenLabs); 1 = normaal.
+  const [voiceSpeed, setVoiceSpeed] = useState(1);
   const [previewVoice, setPreviewVoice] = useState<string | null>(null);
   const previewRef = useRef<HTMLAudioElement | null>(null);
   const [syncBusy, setSyncBusy] = useState(false);
   const [musicBusy, setMusicBusy] = useState(false);
   const [musicPrompt, setMusicPrompt] = useState("rustige, lichte corporate explainer-muziek");
   const [motionBusy, setMotionBusy] = useState<Record<string, boolean>>({});
+  // Scenes waarvan de animatie is overgeslagen omdat het beeld tekst bevat (blijft
+  // een still om vervorming te voorkomen; de gebruiker kan toch forceren).
+  const [motionSkipped, setMotionSkipped] = useState<Record<string, boolean>>({});
   const [animatingAll, setAnimatingAll] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
@@ -134,7 +154,7 @@ export default function StoryPage() {
       if (!spec) return null;
       if (!silent) setSaving(true);
       try {
-        const specToSave: StorySpec = { ...spec, navy, accent, voice };
+        const specToSave: StorySpec = { ...spec, navy, accent, voice, voiceSpeed, fontFamily, logoUrl, logoEnabled };
         const res = await fetch("/api/infographics/save-story", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -156,7 +176,7 @@ export default function StoryPage() {
         if (!silent) setSaving(false);
       }
     },
-    [spec, navy, accent, voice, projectId, topic]
+    [spec, navy, accent, voice, voiceSpeed, fontFamily, logoUrl, logoEnabled, projectId, topic]
   );
 
   // Een verhaal laden uit ?project=id (na een refresh of vanuit het overzicht).
@@ -181,6 +201,10 @@ export default function StoryPage() {
         if (loaded.navy) setNavy(loaded.navy);
         if (loaded.accent) setAccent(loaded.accent);
         if (loaded.voice) setVoice(loaded.voice);
+        if (loaded.voiceSpeed) setVoiceSpeed(loaded.voiceSpeed);
+        if (loaded.fontFamily) setFontFamily(loaded.fontFamily);
+        if (loaded.logoUrl) setLogoUrl(loaded.logoUrl);
+        if (typeof loaded.logoEnabled === "boolean") setLogoEnabled(loaded.logoEnabled);
       } catch (e) {
         setErr(e instanceof Error ? e.message : String(e));
       } finally {
@@ -197,7 +221,7 @@ export default function StoryPage() {
     if (firstSpec.current) { firstSpec.current = false; return; }
     const t = setTimeout(() => { void save(true); }, 1500);
     return () => clearTimeout(t);
-  }, [spec, navy, accent, voice, projectId, save]);
+  }, [spec, navy, accent, voice, voiceSpeed, fontFamily, logoUrl, logoEnabled, projectId, save]);
 
   // Huisstijlen van de gebruiker ophalen (voor de stem-/kleurkeuze in stap 1).
   useEffect(() => {
@@ -207,16 +231,69 @@ export default function StoryPage() {
       .catch(() => {});
   }, []);
 
-  // Kiest een huisstijl en neemt de merkkleuren over: tekstkleur ← primair (val
-  // terug op secundair), accent ← accent. Lege keuze laat de kleuren staan.
-  function applyBrandKit(id: string) {
-    setBrandKitId(id);
-    const kit = brandKits.find((k) => k.id === id);
-    if (!kit) return;
+  // Past een brand kit toe: tekstkleur ← primair (val terug op secundair),
+  // accent ← accent, font ← dichtstbijzijnde gebundelde keuze. Alles blijft daarna
+  // handmatig overschrijfbaar. Het logo komt NIET uit de kit maar uploadt de
+  // gebruiker zelf; een reeds geüpload logo laten we hier dus staan.
+  function applyKit(kit: BrandKit) {
     const text = toHex(kit.colors?.primary) || toHex(kit.colors?.secondary);
     const acc = toHex(kit.colors?.accent) || toHex(kit.colors?.secondary);
     if (text) setNavy(text);
     if (acc) setAccent(acc);
+    setFontFamily(nearestStoryFont(kit.fonts?.primary));
+  }
+
+  // Kiest een huisstijl uit de dropdown en neemt hem over. Lege keuze laat alles staan.
+  function applyBrandKit(id: string) {
+    setBrandKitId(id);
+    const kit = brandKits.find((k) => k.id === id);
+    if (kit) applyKit(kit);
+  }
+
+  // Haalt de huisstijl (kleuren, font, logo) uit een website via AI, maakt er een
+  // brand kit van, voegt die toe aan de lijst en past hem meteen toe.
+  async function extractFromWebsite() {
+    const url = brandUrl.trim();
+    if (!url) return;
+    setErr(null);
+    setBrandBusy(true);
+    try {
+      const res = await fetch("/api/brand-kits/from-website", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(apiError(d, "Huisstijl ophalen mislukt"));
+      const kit = d.brandKit as BrandKit;
+      setBrandKits((prev) => [kit, ...prev]);
+      setBrandKitId(kit.id);
+      applyKit(kit);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBrandBusy(false);
+    }
+  }
+
+  // Uploadt een zelfgekozen logobestand, host het en zet het als actief logo.
+  async function uploadLogo(file: File) {
+    setErr(null);
+    setLogoBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/infographics/upload-logo", { method: "POST", body: fd });
+      const d = await res.json();
+      if (!res.ok) throw new Error(apiError(d, "Logo uploaden mislukt"));
+      setLogoUrl(d.logoUrl as string);
+      setLogoEnabled(true);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLogoBusy(false);
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
   }
 
   // Speelt de ingebakken preview-mp3 van een stem af (kost niets; geen generatie).
@@ -235,6 +312,13 @@ export default function StoryPage() {
     void el.play().catch(() => setPreviewVoice(null));
   }
 
+  // Zacht huisstijl-palet voor de illustraties: actief zodra er een huisstijl is
+  // gekozen of de kleuren van de standaard afwijken (anders vrij AI-palet).
+  function brandColorsPayload(): { primary: string; accent: string } | undefined {
+    const active = !!brandKitId || navy.toLowerCase() !== "#16243f" || accent.toLowerCase() !== "#e8643c";
+    return active ? { primary: navy, accent } : undefined;
+  }
+
   async function generate() {
     setLoading(true);
     setErr(null);
@@ -243,7 +327,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/generate-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, text, mode, format, targetSeconds }),
+        body: JSON.stringify({ topic, text, mode, format, targetSeconds, brandColors: brandColorsPayload() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiError(data, "Verhaal genereren mislukt"));
@@ -278,20 +362,83 @@ export default function StoryPage() {
     );
   }
 
+  // ── Scene-beheer (toevoegen / verwijderen / dupliceren / verplaatsen) ──
+  function blankScene(): StoryScene {
+    return {
+      id: `scene-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      voiceover: "", headline: "", emphasis: null, bigNumber: null, numberLabel: null,
+      illustration: "", imageUrl: null,
+    };
+  }
+  function addScene(afterIndex: number) {
+    setSpec((prev) => {
+      if (!prev) return prev;
+      const scenes = [...prev.scenes];
+      scenes.splice(afterIndex + 1, 0, blankScene());
+      return { ...prev, scenes };
+    });
+  }
+  function deleteScene(i: number) {
+    setSpec((prev) => {
+      if (!prev || prev.scenes.length <= 1) return prev; // altijd minstens 1 scene
+      return { ...prev, scenes: prev.scenes.filter((_, idx) => idx !== i) };
+    });
+  }
+  function duplicateScene(i: number) {
+    setSpec((prev) => {
+      if (!prev) return prev;
+      const scenes = [...prev.scenes];
+      const copy = { ...scenes[i], id: `scene-${Date.now()}-${Math.random().toString(36).slice(2, 7)}` };
+      scenes.splice(i + 1, 0, copy);
+      return { ...prev, scenes };
+    });
+  }
+  function moveScene(i: number, dir: -1 | 1) {
+    setSpec((prev) => {
+      if (!prev) return prev;
+      const j = i + dir;
+      if (j < 0 || j >= prev.scenes.length) return prev;
+      const scenes = [...prev.scenes];
+      [scenes[i], scenes[j]] = [scenes[j], scenes[i]];
+      return { ...prev, scenes };
+    });
+  }
+  // Zet het vorige beeld van een scene terug (undo van een regeneratie/bewerking).
+  function revertImage(i: number) {
+    if (!spec) return;
+    const s = spec.scenes[i];
+    const hist = imgHistory[s.id];
+    if (!hist || hist.length === 0) return;
+    const prevUrl = hist[hist.length - 1];
+    setImgHistory((h) => ({ ...h, [s.id]: hist.slice(0, -1) }));
+    updateScene(i, { imageUrl: prevUrl });
+  }
+
   async function sceneImage(i: number, payload: Record<string, unknown>) {
     if (!spec) return;
     const s = spec.scenes[i];
+    const prevImage = s.imageUrl ?? null;
     setErr(null);
     setImgBusy((b) => ({ ...b, [s.id]: true }));
     try {
       const res = await fetch("/api/infographics/scene-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ format: spec.format, ...payload }),
+        body: JSON.stringify({
+          format: spec.format,
+          // Consistentie: verhaal-seed + anker (behalve voor de anker-scene zelf).
+          seed: spec.seed ?? undefined,
+          anchorImageUrl: spec.anchorImageUrl && spec.anchorImageUrl !== s.imageUrl ? spec.anchorImageUrl : undefined,
+          ...payload,
+        }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Beeld bijwerken mislukt"));
+      // Beeldhistorie: het vorige beeld bewaren zodat je terug kunt (undo).
+      if (prevImage) setImgHistory((h) => ({ ...h, [s.id]: [...(h[s.id] ?? []), prevImage].slice(-10) }));
       updateScene(i, { imageUrl: d.imageUrl });
+      // Nieuw beeld → tekst-status kan gewijzigd zijn; skip-melding wissen.
+      setMotionSkipped((m) => ({ ...m, [s.id]: false }));
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -309,7 +456,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/scene-voice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice }),
+        body: JSON.stringify({ text, voice, speed: voiceSpeed }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Voice-over mislukt"));
@@ -380,12 +527,13 @@ export default function StoryPage() {
     }
   }
 
-  async function animateScene(i: number) {
+  async function animateScene(i: number, force = false) {
     if (!spec) return;
     const s = spec.scenes[i];
     if (!s.imageUrl) return;
     // De vuistregel ("verzin niets bij") zit in de route; hier sturen we alleen
-    // de optionele bijsturing mee van wat er wél/niet moet bewegen.
+    // de optionele bijsturing mee van wat er wél/niet moet bewegen. force=true
+    // negeert de tekst-check (animeren ondanks tekst in beeld).
     const steer = (motionInstr[s.id] ?? "").trim();
     setErr(null);
     setMotionBusy((b) => ({ ...b, [s.id]: true }));
@@ -393,10 +541,13 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/scene-motion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: s.imageUrl, steer }),
+        body: JSON.stringify({ imageUrl: s.imageUrl, steer, force }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Animeren mislukt"));
+      // Beeld bevat tekst → route sloeg animatie over; als still houden.
+      if (d.skipped) { setMotionSkipped((m) => ({ ...m, [s.id]: true })); return; }
+      setMotionSkipped((m) => ({ ...m, [s.id]: false }));
       updateScene(i, { videoUrl: d.videoUrl });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -441,7 +592,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/export-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spec, navy, accent }),
+        body: JSON.stringify({ spec, navy, accent, fontFamily, logoUrl: logoEnabled ? logoUrl : null }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Export mislukt"));
@@ -455,6 +606,8 @@ export default function StoryPage() {
 
   return (
     <div className="max-w-[1200px] mx-auto p-6">
+      {/* Huisstijl-fonts voor de preview (dezelfde families als de export-TTF's). */}
+      <link rel="stylesheet" href={STORY_FONTS_CSS_HREF} />
       <h1 className="text-xl font-bold text-white mb-1">Storytelling-infographic</h1>
       <p className="text-sm text-slate-400 mb-6">AI schrijft een verhaalboog en genereert per scene een platte illustratie. Tekst ligt er in SVG overheen.</p>
       {loadingProject && <p className="text-sm text-blue-300 mb-4">Verhaal laden…</p>}
@@ -471,21 +624,97 @@ export default function StoryPage() {
           </div>
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Plak hier je bron: cijfers, feiten en kernpunten. De AI maakt er een verhaalboog van. (Of upload een PDF.)" className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-xs text-white" />
         </div>
+
+        {/* Huisstijl: kies een opgeslagen kit óf haal 'm uit een website; kleuren,
+            font en logo worden overgenomen en blijven handmatig overschrijfbaar. */}
+        <div className="rounded-lg border border-white/10 bg-slate-950/40 p-3 space-y-2">
+          <p className="text-[11px] uppercase tracking-wide text-slate-500">Huisstijl</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="block">
+              <span className="block text-[11px] text-slate-400 mb-0.5">Kies huisstijl</span>
+              <select
+                value={brandKitId}
+                onChange={(e) => applyBrandKit(e.target.value)}
+                title="Neemt kleuren, lettertype en logo van je huisstijl over."
+                className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white"
+              >
+                <option value="">Geen huisstijl</option>
+                {brandKits.map((k) => (<option key={k.id} value={k.id}>{k.name}</option>))}
+              </select>
+            </label>
+            <label className="block flex-1 min-w-[240px]">
+              <span className="block text-[11px] text-slate-400 mb-0.5">…of haal 'm uit je website</span>
+              <div className="flex gap-2">
+                <input
+                  value={brandUrl}
+                  onChange={(e) => setBrandUrl(e.target.value)}
+                  placeholder="https://www.jouwbedrijf.nl"
+                  className="flex-1 bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white"
+                />
+                <button
+                  onClick={extractFromWebsite}
+                  disabled={brandBusy || !brandUrl.trim()}
+                  title="AI leest je website en neemt kleuren, lettertype en logo over."
+                  className="text-sm bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md disabled:opacity-50 whitespace-nowrap"
+                >
+                  {brandBusy ? "Ophalen…" : "🌐 Uit website"}
+                </button>
+              </div>
+            </label>
+            <label className="block">
+              <span className="block text-[11px] text-slate-400 mb-0.5">Lettertype</span>
+              <select
+                value={fontFamily}
+                onChange={(e) => setFontFamily(e.target.value)}
+                className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white"
+                style={{ fontFamily: `${fontFamily}, system-ui, sans-serif` }}
+              >
+                {STORY_FONTS.map((f) => (<option key={f.id} value={f.family}>{f.label}{f.note ? ` — ${f.note}` : ""}</option>))}
+              </select>
+            </label>
+            <div className="flex flex-col gap-1 pb-1.5">
+              <span className="block text-[11px] text-slate-400">Logo</span>
+              <div className="flex items-center gap-2">
+                {logoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoUrl} alt="logo" className="h-7 w-7 rounded object-contain bg-white/90 p-0.5" />
+                )}
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); }}
+                />
+                <button
+                  type="button"
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={logoBusy}
+                  title="Upload je eigen logo (PNG, JPG, WEBP of SVG, max 5 MB). Verschijnt rechtsboven in elke scene."
+                  className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {logoBusy ? "Uploaden…" : logoUrl ? "Vervangen" : "⬆ Logo uploaden"}
+                </button>
+                {logoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => { setLogoUrl(null); setLogoEnabled(false); }}
+                    title="Logo verwijderen"
+                    className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-800"
+                  >
+                    Verwijderen
+                  </button>
+                )}
+              </div>
+              <label className="flex items-center gap-2 mt-0.5" title={logoUrl ? "Toont het logo rechtsboven in elke scene" : "Upload eerst een logo"}>
+                <input type="checkbox" checked={logoEnabled} disabled={!logoUrl} onChange={(e) => setLogoEnabled(e.target.checked)} className="accent-blue-500" />
+                <span className="text-[11px] text-slate-400">Logo tonen{logoUrl ? "" : " (geen logo)"}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-end gap-4">
-          <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Huisstijl</span>
-            <select
-              value={brandKitId}
-              onChange={(e) => applyBrandKit(e.target.value)}
-              title="Neemt automatisch de tekst- en accentkleur van je huisstijl over."
-              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white"
-            >
-              <option value="">Geen huisstijl</option>
-              {brandKits.map((k) => (
-                <option key={k.id} value={k.id}>{k.name}</option>
-              ))}
-            </select>
-          </label>
           <label className="block">
             <span className="block text-[11px] text-slate-400 mb-0.5">Modus</span>
             <select value={mode} onChange={(e) => setMode(e.target.value as "story" | "report")} className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white">
@@ -524,8 +753,9 @@ export default function StoryPage() {
             <span className="block text-[11px] text-slate-400 mb-0.5">Accent{brandKitId ? " · uit huisstijl" : ""}</span>
             <input type="color" value={accent} onChange={(e) => { setAccent(e.target.value); setBrandKitId(""); }} className="h-9 w-14 bg-transparent border border-white/10 rounded cursor-pointer" />
           </label>
-          <button onClick={generate} disabled={loading || !text.trim()} title={!text.trim() ? "Vul eerst een brontekst in" : undefined} className="btn-primary text-sm disabled:opacity-50">
+          <button onClick={generate} disabled={loading || !text.trim()} title={!text.trim() ? "Vul eerst een brontekst in" : `${CREDIT_COSTS.SCRIPT_GENERATION} credit script + ${CREDIT_COSTS.IMAGE_GENERATION} per scene`} className="btn-primary text-sm disabled:opacity-50">
             {loading ? "Genereren… (script + beelden)" : "Genereer verhaal"}
+            <span className="text-white/70 ml-1">· {CREDIT_COSTS.SCRIPT_GENERATION}+{CREDIT_COSTS.IMAGE_GENERATION}/scene cr.</span>
           </button>
         </div>
         {err && <p className="text-red-400 text-sm break-words">{err}</p>}
@@ -583,9 +813,20 @@ export default function StoryPage() {
                 })}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button onClick={genVoice} disabled={voiceBusy} className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50">
+                <button onClick={genVoice} disabled={voiceBusy} title={`Kost ${CREDIT_COSTS.VOICE} credits`} className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50">
                   {voiceBusy ? "Voice-over genereren…" : spec.voiceUrl ? "Voice-over opnieuw" : "Genereer voice-over"}
+                  <span className="text-slate-400 ml-1">· {CREDIT_COSTS.VOICE} cr.</span>
                 </button>
+                <label className="flex items-center gap-1.5" title="Spreeksnelheid van de voice-over (0,85–1,2×)">
+                  <span className="text-[11px] text-slate-400">Snelheid</span>
+                  <select value={voiceSpeed} onChange={(e) => setVoiceSpeed(Number(e.target.value))} className="bg-slate-900/60 border border-white/10 rounded px-1.5 py-1 text-xs text-white">
+                    <option value={0.85}>0,85×</option>
+                    <option value={0.9}>0,9×</option>
+                    <option value={1}>1× (normaal)</option>
+                    <option value={1.1}>1,1×</option>
+                    <option value={1.2}>1,2×</option>
+                  </select>
+                </label>
                 <button
                   onClick={autoSync}
                   disabled={syncBusy || !spec.voiceUrl}
@@ -593,6 +834,7 @@ export default function StoryPage() {
                   className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50"
                 >
                   {syncBusy ? "Autosync…" : "Autosync op voice"}
+                  <span className="text-slate-400 ml-1">· {CREDIT_COSTS.SYNC} cr.</span>
                 </button>
                 <span className="w-px self-stretch bg-white/10 mx-1" />
                 <input
@@ -609,6 +851,7 @@ export default function StoryPage() {
                   className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50"
                 >
                   {musicBusy ? "Muziek…" : spec.musicUrl ? "Muziek opnieuw" : "Genereer muziekbed"}
+                  <span className="text-slate-400 ml-1">· {CREDIT_COSTS.MUSIC} cr.</span>
                 </button>
                 {spec.musicUrl ? <span className="text-xs text-emerald-400">muziekbed klaar</span> : null}
                 <label className="flex items-center gap-2" title="Volume van het muziekbed onder de voice-over (geldt in de preview en de export)">
@@ -639,6 +882,7 @@ export default function StoryPage() {
                 className="text-sm bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 px-4 py-1.5 rounded-md disabled:opacity-50"
               >
                 {animatingAll ? "Alles animeren… (kan enkele minuten duren)" : "Maak alles bewegend"}
+                <span className="text-blue-300/70 ml-1">· {CREDIT_COSTS.VIDEO_GENERATION} cr./scene</span>
               </button>
             </div>
 
@@ -659,7 +903,7 @@ export default function StoryPage() {
 
           <div className="bg-white/5 border border-white/10 rounded-xl p-4">
             <p className="text-xs font-semibold text-white mb-3">Voorvertoning (video)</p>
-            <StoryPlayer spec={spec} navy={navy} accent={accent} />
+            <StoryPlayer spec={spec} navy={navy} accent={accent} fontFamily={fontFamily} logoUrl={logoEnabled ? logoUrl : null} />
           </div>
 
           <h3 className="text-sm font-semibold text-slate-300">Scenes bewerken</h3>
@@ -674,20 +918,27 @@ export default function StoryPage() {
                 ) : (
                   <div className="absolute inset-0 grid place-items-center text-slate-400 text-xs">geen illustratie</div>
                 )}
-                <EditableStoryScene scene={scene} format={spec.format} navy={navy} accent={accent} onChange={(patch) => updateScene(i, patch)} />
+                <EditableStoryScene scene={scene} format={spec.format} navy={navy} accent={accent} fontFamily={fontFamily} logoUrl={logoEnabled ? logoUrl : null} onChange={(patch) => updateScene(i, patch)} />
                 {(imgBusy[scene.id] || motionBusy[scene.id]) && (
                   <div className="absolute inset-0 z-10 grid place-items-center bg-black/40 text-white text-sm">{motionBusy[scene.id] ? "Animeren… (kan ~1 min duren)" : "Beeld bijwerken…"}</div>
                 )}
               </div>
               <div className="text-sm space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <p className="text-[11px] uppercase tracking-wide text-slate-500">Scene {i + 1}</p>
-                  <button
-                    onClick={() => updateScene(i, { hx: undefined, hy: undefined, hSize: undefined, nx: undefined, ny: undefined, nSize: undefined })}
-                    className="text-[10px] text-slate-500 hover:text-slate-300"
-                  >
-                    reset positie
-                  </button>
+                  <div className="flex items-center gap-0.5 text-sm text-slate-400">
+                    <button onClick={() => moveScene(i, -1)} disabled={i === 0} title="Scene omhoog" className="px-1.5 hover:text-white disabled:opacity-30">↑</button>
+                    <button onClick={() => moveScene(i, 1)} disabled={i === spec.scenes.length - 1} title="Scene omlaag" className="px-1.5 hover:text-white disabled:opacity-30">↓</button>
+                    <button onClick={() => duplicateScene(i)} title="Scene dupliceren" className="px-1.5 hover:text-white">⧉</button>
+                    <button onClick={() => addScene(i)} title="Nieuwe scene hieronder" className="px-1.5 hover:text-white">＋</button>
+                    <button onClick={() => deleteScene(i)} disabled={spec.scenes.length <= 1} title="Scene verwijderen" className="px-1.5 hover:text-red-300 disabled:opacity-30">🗑</button>
+                    <button
+                      onClick={() => updateScene(i, { hx: undefined, hy: undefined, hSize: undefined, nx: undefined, ny: undefined, nSize: undefined })}
+                      className="text-[10px] text-slate-500 hover:text-slate-300 ml-1"
+                    >
+                      reset positie
+                    </button>
+                  </div>
                 </div>
                 <SceneField label="Kop (in beeld)" value={scene.headline} onChange={(v) => updateScene(i, { headline: v })} />
                 <SceneField label="Accentwoord" value={scene.emphasis ?? ""} onChange={(v) => updateScene(i, { emphasis: v || null })} />
@@ -708,12 +959,18 @@ export default function StoryPage() {
                     <textarea value={scene.illustration} onChange={(e) => updateScene(i, { illustration: e.target.value })} rows={3} className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-slate-200" />
                   </label>
                   <button
-                    onClick={() => sceneImage(i, { mode: "generate", illustration: scene.illustration })}
+                    onClick={() => sceneImage(i, { mode: "generate", illustration: scene.illustration, brandColors: brandColorsPayload() })}
                     disabled={imgBusy[scene.id]}
+                    title={`Kost ${CREDIT_COSTS.IMAGE_GENERATION} credit`}
                     className="text-xs bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md disabled:opacity-50 w-full"
                   >
-                    Regenereer beeld
+                    Regenereer beeld <span className="text-slate-400">· {CREDIT_COSTS.IMAGE_GENERATION} cr.</span>
                   </button>
+                  {(imgHistory[scene.id]?.length ?? 0) > 0 && (
+                    <button onClick={() => revertImage(i)} title="Zet het vorige beeld terug" className="text-[11px] text-slate-400 hover:text-white underline">
+                      ↩ vorige versie terugzetten
+                    </button>
+                  )}
                   <label className="block">
                     <span className="block text-[11px] text-slate-400 mb-0.5">Of pas iets aan in dit beeld</span>
                     <input
@@ -724,11 +981,12 @@ export default function StoryPage() {
                     />
                   </label>
                   <button
-                    onClick={() => sceneImage(i, { mode: "edit", sourceImageUrl: scene.imageUrl, instruction: editInstr[scene.id] ?? "" })}
+                    onClick={() => sceneImage(i, { mode: "edit", sourceImageUrl: scene.imageUrl, instruction: editInstr[scene.id] ?? "", illustration: scene.illustration })}
                     disabled={imgBusy[scene.id] || !scene.imageUrl || !(editInstr[scene.id] ?? "").trim()}
+                    title={`Kost ${CREDIT_COSTS.IMAGE_GENERATION} credit`}
                     className="text-xs bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md disabled:opacity-50 w-full"
                   >
-                    Pas beeld aan
+                    Pas beeld aan <span className="text-slate-400">· {CREDIT_COSTS.IMAGE_GENERATION} cr.</span>
                   </button>
                   <label className="block">
                     <span className="block text-[11px] text-slate-400 mb-0.5">Beweging bijsturen (optioneel)</span>
@@ -745,12 +1003,26 @@ export default function StoryPage() {
                     className="text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 px-3 py-1.5 rounded-md disabled:opacity-50 w-full"
                   >
                     {motionBusy[scene.id] ? "Animeren…" : scene.videoUrl ? "Opnieuw animeren" : "Animeer beeld (proef, ~1 min)"}
+                    <span className="text-blue-300/60 ml-1">· {CREDIT_COSTS.VIDEO_GENERATION} cr.</span>
                   </button>
-                  <p className="text-[10px] text-slate-500">Vuistregel: het model voegt niks toe wat niet in het beeld staat, het maakt alleen het bestaande bewegend.</p>
+                  {motionSkipped[scene.id] && (
+                    <div className="text-[10px] text-amber-200/90 bg-amber-500/10 border border-amber-500/25 rounded px-2 py-1.5 space-y-1">
+                      <p>Dit beeld bevat tekst/cijfers en is als <b>stilstaand beeld</b> gehouden — zo vervormt de tekst niet. In de video beweegt de camera er subtiel overheen.</p>
+                      <button onClick={() => animateScene(i, true)} className="text-amber-200 underline hover:text-amber-100">Toch animeren (tekst kan vervormen)</button>
+                    </div>
+                  )}
+                  <p className="text-[10px] text-slate-500">Vuistregel: het model voegt niks toe wat niet in het beeld staat, het maakt alleen het bestaande bewegend. Beelden met tekst blijven automatisch stil.</p>
                 </div>
               </div>
             </div>
           ))}
+
+          <button
+            onClick={() => addScene(spec.scenes.length - 1)}
+            className="text-sm text-slate-300 hover:text-white border border-dashed border-white/15 hover:border-white/30 rounded-lg px-4 py-2.5 w-full"
+          >
+            ＋ Scene toevoegen
+          </button>
         </div>
       )}
     </div>

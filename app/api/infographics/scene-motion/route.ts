@@ -3,6 +3,7 @@ import { fal } from "@fal-ai/client";
 import { createClient } from "@/lib/supabase/server";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildMotionPrompt } from "@/lib/infographics/motion-prompt";
+import { imageHasText } from "@/lib/infographics/detect-text";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
 fal.config({ credentials: process.env.FAL_KEY });
@@ -26,12 +27,21 @@ export async function POST(req: NextRequest) {
     // `steer` = optionele bijsturing van de gebruiker (wat er wél/niet moet
     // bewegen). De vuistregel "verzin niets bij" zit vast in buildMotionPrompt;
     // `prompt` blijft geaccepteerd voor achterwaartse compatibiliteit.
-    const { imageUrl, steer, prompt } = (await req.json()) as {
+    const { imageUrl, steer, prompt, force } = (await req.json()) as {
       imageUrl?: string;
       steer?: string;
       prompt?: string;
+      force?: boolean;
     };
     if (!imageUrl) return NextResponse.json({ error: "Geen beeld" }, { status: 400 });
+
+    // Tekst-garantie: bevat het beeld leesbare tekst/cijfers, dan NIET animeren
+    // (video-modellen vervormen tekst onvermijdelijk). We houden het als still en
+    // laten de gebruiker desgewenst toch forceren (force=true). Check vóór de
+    // creditafschrijving, zodat een overgeslagen scene niets kost.
+    if (!force && (await imageHasText(imageUrl))) {
+      return NextResponse.json({ skipped: true, reason: "text" });
+    }
 
     const credit = await deductCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Story scene animeren");
     if (!credit.success) {

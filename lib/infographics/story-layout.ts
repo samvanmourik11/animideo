@@ -69,6 +69,17 @@ export function computeStoryLayout(scene: StoryScene, format: "16:9" | "9:16"): 
   return { W, H, padX, emph, lines, hx, hy, hSize, lineH, headW, headH, num, nx, ny, nSize, numW, numH };
 }
 
+// Positie/grootte van het merklogo (rechtsboven), gedeeld door preview, editor en
+// export. Met preserveAspectRatio="xMaxYMin meet" past het logo binnen deze box
+// zonder vervorming, uitgelijnd op de rechterbovenhoek.
+export function logoBox(format: "16:9" | "9:16"): { x: number; y: number; w: number; h: number } {
+  const { width: W } = storyCanvasSize(format);
+  const pad = format === "9:16" ? 50 : 70;
+  const h = format === "9:16" ? 96 : 84;
+  const w = format === "9:16" ? 300 : 340;
+  return { x: W - pad - w, y: pad, w, h };
+}
+
 // Crossfade-duur tussen scenes en de framerate voor de MP4-export.
 export const STORY_CROSS = 0.5;
 export const STORY_FPS = 24;

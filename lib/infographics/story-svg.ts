@@ -1,4 +1,5 @@
-import { computeStoryLayout } from "@/lib/infographics/story-layout";
+import { computeStoryLayout, logoBox } from "@/lib/infographics/story-layout";
+import { resolveStoryFont } from "@/lib/infographics/story-fonts";
 import type { StoryScene } from "@/lib/infographics/story-schema";
 
 // Server-side variant van components/infographics/render/StoryScene.tsx: bouwt
@@ -17,9 +18,11 @@ export function buildSceneSvg(
   scene: StoryScene,
   format: "16:9" | "9:16",
   navy = "#16243f",
-  accent = "#e8643c"
+  accent = "#e8643c",
+  opts?: { fontFamily?: string | null; logoDataUri?: string | null }
 ): string {
   const L = computeStoryLayout(scene, format);
+  const font = resolveStoryFont(opts?.fontFamily);
   let body = "";
 
   // Kop met accentwoord (zelfde regel-/woordlogica als StoryScene).
@@ -33,15 +36,21 @@ export function buildSceneSvg(
         return `<tspan fill="${isEmph ? accent : navy}">${txt}</tspan>`;
       })
       .join("");
-    body += `<text x="${L.hx}" y="${y}" font-family="Inter" font-size="${L.hSize}" font-weight="800" fill="${navy}" xml:space="preserve">${tspans}</text>`;
+    body += `<text x="${L.hx}" y="${y}" font-family="${font}" font-size="${L.hSize}" font-weight="800" fill="${navy}" xml:space="preserve">${tspans}</text>`;
   }
 
   // Groot getal + label.
   if (L.num) {
-    body += `<text x="${L.nx}" y="${L.ny + L.nSize}" font-family="Inter" font-size="${L.nSize}" font-weight="800" fill="${accent}">${esc(L.num)}</text>`;
+    body += `<text x="${L.nx}" y="${L.ny + L.nSize}" font-family="${font}" font-size="${L.nSize}" font-weight="800" fill="${accent}">${esc(L.num)}</text>`;
     if (scene.numberLabel) {
-      body += `<text x="${L.nx}" y="${L.ny + L.nSize + 44}" font-family="Inter" font-size="36" font-weight="600" fill="${navy}">${esc(scene.numberLabel)}</text>`;
+      body += `<text x="${L.nx}" y="${L.ny + L.nSize + 44}" font-family="${font}" font-size="36" font-weight="600" fill="${navy}">${esc(scene.numberLabel)}</text>`;
     }
+  }
+
+  // Merklogo rechtsboven (optioneel; als data-URI meegegeven).
+  if (opts?.logoDataUri) {
+    const b = logoBox(format);
+    body += `<image x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" href="${opts.logoDataUri}" preserveAspectRatio="xMaxYMin meet" />`;
   }
 
   return `<svg viewBox="0 0 ${L.W} ${L.H}" width="${L.W}" height="${L.H}" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;

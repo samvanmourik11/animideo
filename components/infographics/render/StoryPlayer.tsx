@@ -36,10 +36,14 @@ export default function StoryPlayer({
   spec,
   navy = "#16243f",
   accent = "#e8643c",
+  fontFamily,
+  logoUrl,
 }: {
   spec: StorySpec;
   navy?: string;
   accent?: string;
+  fontFamily?: string | null;
+  logoUrl?: string | null;
 }) {
   const aspect = storyAspectRatio(spec.format);
   const { total } = storyLayers(spec.scenes, 0);
@@ -111,7 +115,7 @@ export default function StoryPlayer({
                   style={{ transform: `scale(${kb.scale}) translate(${kb.tx}%, ${kb.ty}%)`, transformOrigin: "center" }}
                 />
               ) : null}
-              <StoryScene scene={scene} format={spec.format} navy={navy} accent={accent} enter={l.enter} />
+              <StoryScene scene={scene} format={spec.format} navy={navy} accent={accent} fontFamily={fontFamily} logoUrl={logoUrl} enter={l.enter} />
             </div>
           );
         })}

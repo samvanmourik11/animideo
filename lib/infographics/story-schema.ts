@@ -83,10 +83,22 @@ export interface StorySpec {
   // de AI gevuld; puur client-/persistentie-kant.)
   navy?: string | null;
   accent?: string | null;
+  // Huisstijl-typografie en -logo (client-/persistentie-kant, niet AI-gevuld).
+  // fontFamily is een van de gebundelde keuzes (zie story-fonts.ts); logoUrl is
+  // een gehost merklogo dat als overlay op elke scene komt wanneer logoEnabled.
+  fontFamily?: string | null;
+  logoUrl?: string | null;
+  logoEnabled?: boolean | null;
   // Instrumentaal achtergrond-muziekbed (CassetteAI), zacht onder de voice-over
   // gemixt in player en export. musicPrompt bewaart de gekozen stijl.
   musicUrl?: string | null;
   musicPrompt?: string | null;
   // Volume van het muziekbed (0..1), instelbaar via de slider. Default 0.18.
   musicVolume?: number | null;
+  // Consistentie tussen scenes: vaste seed + een "anker"-beeld (scene 0) dat als
+  // stijl-/character-referentie geldt voor de andere scenes en hun regeneraties.
+  seed?: number | null;
+  anchorImageUrl?: string | null;
+  // Spreeksnelheid van de voice-over (ElevenLabs speed, ~0,8–1,2). Default 1.
+  voiceSpeed?: number | null;
 }

@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 import { storyCanvasSize } from "@/lib/infographics/canvas-size";
 import { storyWindows, STORY_FPS } from "@/lib/infographics/story-layout";
 import { buildSceneSvg } from "@/lib/infographics/story-svg";
+import { STORY_FONT_FILES, resolveStoryFont } from "@/lib/infographics/story-fonts";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 
 export const runtime = "nodejs";
@@ -17,8 +18,9 @@ export const maxDuration = 300;
 // De tekst-overlay is pure SVG (zie StoryScene); we rasteren die server-side met
 // resvg i.p.v. een headless browser. Dat werkt betrouwbaar op Vercel (geen
 // chromium) en is snel. Het Inter-font (op schijf, meegetraced) zorgt voor de
-// juiste typografie.
-const INTER_FONT_PATH = path.join(process.cwd(), "lib/export/Inter-Bold.ttf");
+// juiste typografie. Alle huisstijl-fonts (zie story-fonts.ts) worden geladen,
+// zodat de gekozen font in de export exact als in de preview rendert.
+const FONT_FILES = STORY_FONT_FILES.map((f) => path.join(process.cwd(), "lib/export", f));
 
 function runFfmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -63,7 +65,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = (await req.json()) as { spec?: StorySpec; navy?: string; accent?: string };
+    const body = (await req.json()) as { spec?: StorySpec; navy?: string; accent?: string; fontFamily?: string; logoUrl?: string | null };
     const spec = body.spec;
     if (!spec || !Array.isArray(spec.scenes) || spec.scenes.length === 0) {
       return NextResponse.json({ error: "Geen scenes om te exporteren" }, { status: 400 });
@@ -97,14 +99,34 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 2. Transparante tekst-overlay per scene (resvg, geen browser) ──
-    const navy = body.navy ?? "#16243f";
-    const accent = body.accent ?? "#e8643c";
+    const navy = body.navy ?? spec.navy ?? "#16243f";
+    const accent = body.accent ?? spec.accent ?? "#e8643c";
+    const fontFamily = resolveStoryFont(body.fontFamily ?? spec.fontFamily);
+
+    // Merklogo als data-URI inbedden. Alleen PNG/JPEG (resvg rastert die
+    // betrouwbaar); overige formaten worden overgeslagen zodat de export nooit
+    // breekt. Eén keer ophalen, daarna in elke scene hergebruiken.
+    let logoDataUri: string | null = null;
+    const logoUrl = body.logoUrl ?? (spec.logoEnabled ? spec.logoUrl : null) ?? null;
+    if (logoUrl) {
+      try {
+        const r = await fetch(logoUrl);
+        if (r.ok) {
+          const ct = (r.headers.get("content-type") ?? "").split(";")[0].toLowerCase();
+          if (ct === "image/png" || ct === "image/jpeg" || ct === "image/jpg") {
+            const buf = Buffer.from(await r.arrayBuffer());
+            logoDataUri = `data:${ct};base64,${buf.toString("base64")}`;
+          }
+        }
+      } catch {}
+    }
+
     const texts: string[] = [];
     for (let i = 0; i < N; i++) {
-      const svg = buildSceneSvg(spec.scenes[i], spec.format, navy, accent);
+      const svg = buildSceneSvg(spec.scenes[i], spec.format, navy, accent, { fontFamily, logoDataUri });
       const png = new Resvg(svg, {
         fitTo: { mode: "width", value: W },
-        font: { fontFiles: [INTER_FONT_PATH], defaultFontFamily: "Inter", loadSystemFonts: false },
+        font: { fontFiles: FONT_FILES, defaultFontFamily: fontFamily, loadSystemFonts: false },
       }).render().asPng();
       const p = path.join(dir, `text-${String(i).padStart(3, "0")}.png`);
       await writeFile(p, png);

@@ -211,7 +211,7 @@ export async function cleanupIllustration(sourceImageUrl: string, format?: strin
     "Change ONLY the background and remove clutter: make the background one single flat, solid off-white color, completely plain and empty.",
     "Remove every decorative element that is not part of the main subject: remove all smoke, steam, vapor, mist, fog, clouds, sky, plants, leaves, branches, foliage, flowers, bubbles, sparkles, dots and floating shapes.",
     "The corners and all empty areas must be completely bare and empty.",
-    "No text, no numbers, no letters, no labels. No watermarks, no logos.",
+    "Any text, label or word that remains in the image MUST be in correct, natural Dutch: translate every English or other-language word into Dutch, and fix any garbled or misspelled text. Remove meaningless decorative text, watermarks and logos.",
   ].join(" ").slice(0, 4000);
 
   const result = await fal.subscribe(EDIT_MODEL, {
@@ -230,6 +230,37 @@ export async function cleanupIllustration(sourceImageUrl: string, format?: strin
   return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: fullPrompt, refsUsed: [sourceImageUrl] };
 }
 
+// Gerichte bewerking van een STORY-illustratie ("selecteer alleen Frankrijk",
+// "maak het dak blauw", "verwijder het prijskaartje"). Gebruikt nano-banana/edit
+// (Gemini) i.p.v. Flux Kontext: de illustraties zijn óók met nano-banana gemaakt,
+// en Gemini volgt instructies op deze platte vector-stijl veel beter én houdt de
+// stijl consistent. Flux Kontext (editImage) blijft voor de fotorealistische
+// studio-flow.
+export async function editIllustration(sourceImageUrl: string, instruction: string, format?: string): Promise<NanoBananaResult> {
+  const aspect = aspectFor(format);
+  const prompt = [
+    "Edit the reference image (a flat vector infographic illustration).",
+    `Apply exactly this change: ${instruction.trim()}.`,
+    "Keep everything else identical: the flat vector illustration style, the overall composition, all other objects, people and their identity, the colour palette, line weight and the plain off-white background. Change ONLY what is asked.",
+    "Any text in the image MUST be in correct, natural Dutch — translate any English or other-language words into Dutch and fix garbled text. Add no new decorative clutter, no watermarks and no logos.",
+  ].join(" ").slice(0, 4000);
+
+  const result = await fal.subscribe(EDIT_MODEL, {
+    input: {
+      prompt,
+      image_urls: [sourceImageUrl],
+      aspect_ratio: aspect,
+      resolution: "2K",
+      num_images: 1,
+      output_format: "jpeg",
+    } as never,
+  });
+  const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
+  if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Nano Banana (edit)");
+
+  return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: prompt, refsUsed: [sourceImageUrl] };
+}
+
 export async function editImage(input: EditImageInput): Promise<NanoBananaResult> {
   const aspect = aspectFor(input.format);
 
@@ -240,7 +271,7 @@ export async function editImage(input: EditImageInput): Promise<NanoBananaResult
   const prompt = [
     input.instruction.trim() + ".",
     "Change ONLY what is asked. Keep the composition, framing, all people and their identity, the background, lighting, colour palette and the visual/illustration style identical to the source.",
-    "No text, letters, watermarks or logos.",
+    "Any text in the image MUST be in correct, natural Dutch — translate any English or other-language words into Dutch and fix garbled text. No watermarks or logos.",
   ].join(" ").slice(0, 4000);
 
   const result = await fal.subscribe(FLUX_KONTEXT, {

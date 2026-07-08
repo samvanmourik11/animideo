@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { generateImageWithStyle, editImage, cleanupIllustration } from "@/lib/image-gen";
+import { generateImageWithStyle, editIllustration, cleanupIllustration } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
+import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint } from "@/lib/infographics/story-style";
+import { refineEditInstruction } from "@/lib/infographics/refine-edit";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
 
@@ -19,6 +20,12 @@ interface Body {
   sourceImageUrl?: string;
   instruction?: string;
   format?: InfographicFormat;
+  // Consistentie: vaste verhaal-seed + anker-beeld (scene 0) als stijl-referentie,
+  // zodat een geregenereerde scene bij de rest van de set blijft passen.
+  seed?: number | null;
+  anchorImageUrl?: string | null;
+  // Zacht huisstijl-palet (hex) voor het beeld.
+  brandColors?: { primary?: string; accent?: string };
 }
 
 export async function POST(req: NextRequest) {
@@ -41,21 +48,26 @@ export async function POST(req: NextRequest) {
     if (body.mode === "edit") {
       if (!body.sourceImageUrl) return NextResponse.json({ error: "Geen bronafbeelding" }, { status: 400 });
       if (!body.instruction?.trim()) return NextResponse.json({ error: "Geen aanpassing opgegeven" }, { status: 400 });
-      const result = await editImage({
-        sourceImageUrl: body.sourceImageUrl,
-        instruction: body.instruction.trim(),
-        format,
-      });
+      // Vage/korte wens eerst omzetten naar een precieze, visuele instructie —
+      // dat verhoogt de slagingskans van het beeld-edit-model flink.
+      const refined = await refineEditInstruction(body.instruction.trim(), body.illustration);
+      const result = await editIllustration(body.sourceImageUrl, refined, format);
       const imageUrl = await persistFalAssetSoft(supabase, user.id, result.imageUrl, "image");
       return NextResponse.json({ imageUrl });
     }
 
     // default: generate
     if (!body.illustration?.trim()) return NextResponse.json({ error: "Geen briefing opgegeven" }, { status: 400 });
+    const anchor = body.anchorImageUrl?.trim() || null;
+    const paletteHint = brandPaletteHint(body.brandColors?.primary, body.brandColors?.accent);
+    const extraContext = [paletteHint, anchor ? STYLE_MATCH_ANCHOR : ""].filter(Boolean).join(" ").trim() || undefined;
     const result = await generateImageWithStyle({
       prompt: buildIllustrationPrompt(body.illustration),
       format,
       visualStyle: null,
+      seed: typeof body.seed === "number" ? body.seed : undefined,
+      ingredientUrls: anchor ? [anchor] : undefined,
+      extraContext,
     });
     // Tweede pass: sfeer-decoratie wegvegen (zie cleanupIllustration). Faalt het,
     // dan val terug op het ruwe beeld.
