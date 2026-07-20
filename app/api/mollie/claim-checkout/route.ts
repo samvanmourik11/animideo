@@ -25,25 +25,29 @@ export async function POST(req: NextRequest) {
 
   if (!pending) return NextResponse.json({ claimed: false });
 
-  const credits = PLAN_CREDITS[pending.plan] ?? 100;
+  // Starttraject: eenmalige aankoop → 3000 credits + Starter-toegang, géén
+  // doorlopend abonnement (geen mollie_subscription_id, geen credit-reset).
+  const isTraject = pending.plan === "traject";
+  const credits = isTraject ? 3000 : (PLAN_CREDITS[pending.plan] ?? 100);
+  const planForProfile = isTraject ? "starter" : pending.plan;
 
   // Link to user account
   await supabase
     .from("profiles")
     .update({
-      plan: pending.plan,
+      plan: planForProfile,
       credits,
       mollie_customer_id: pending.mollie_customer_id,
       mollie_subscription_id: pending.mollie_subscription_id,
       subscription_status: "active",
-      credits_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      credits_reset_date: isTraject ? null : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
     })
     .eq("id", userId);
 
   await supabase.from("credit_transactions").insert({
     user_id: userId,
     amount: credits,
-    reason: `Abonnement gekoppeld na registratie: ${pending.plan}`,
+    reason: isTraject ? "Starttraject geactiveerd: 3000 credits" : `Abonnement gekoppeld na registratie: ${pending.plan}`,
   });
 
   // Mark checkout as claimed

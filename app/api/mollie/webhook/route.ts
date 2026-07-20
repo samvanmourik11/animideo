@@ -52,8 +52,23 @@ export async function POST(req: NextRequest) {
   const guestCheckoutId = metadata?.guestCheckoutId as string | undefined;
   const isCursus        = metadata?.isCursus        as boolean | undefined;
   const isTrial         = metadata?.isTrial         as boolean | undefined;
+  const isTraject       = metadata?.isTraject       as boolean | undefined;
 
   const supabase = createServiceClient();
+
+  // ── Starttraject (eenmalige betaling €246 → 3000 credits) ────────────────
+  // Volledig geïsoleerd: markeer de checkout als betaald en stop. Geen
+  // abonnement/mandaat. De 3000 credits worden bij claim-checkout toegekend
+  // zodra de klant na registratie inlogt. Raakt géén bestaande abonnee-logica.
+  if (isTraject && guestCheckoutId) {
+    if (status === "paid") {
+      await supabase
+        .from("pending_checkouts")
+        .update({ status: "paid" })
+        .eq("id", guestCheckoutId);
+    }
+    return NextResponse.json({ received: true });
+  }
 
   // ── Guest checkout (no account yet) ──────────────────────────────────────
   if (isGuest && guestCheckoutId && planId) {
