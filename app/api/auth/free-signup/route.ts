@@ -16,12 +16,19 @@ import { createServiceClient } from "@/lib/supabase/service";
  * FREE_SIGNUP_CODE / FREE_SIGNUP_CODE_500 aan in Vercel.
  */
 const FREE_SIGNUP_CODE = process.env.FREE_SIGNUP_CODE || "gratis-a7f3k9x2m4qp";
-const FREE_SIGNUP_CODE_500 = process.env.FREE_SIGNUP_CODE_500 || "starter500-r3ggae-k9m2x7";
+const FREE_SIGNUP_CODE_500 = process.env.FREE_SIGNUP_CODE_500 || "crs-eenmalig-9f4k2m7x";
 
-/** Geldige codes → hoeveel credits + welk plan er na aanmelding worden gezet. */
-const SIGNUP_CODES: Record<string, { credits: number; plan: string }> = {
+/**
+ * Geldige codes → hoeveel credits + welk plan er na aanmelding worden gezet.
+ *
+ * Zet je `email`, dan is de code PERSOONLIJK én EENMALIG: hij werkt alleen voor
+ * dat e-mailadres, en zodra dat account bestaat geeft een tweede poging "bestaat
+ * al" (409) — dus geen tweede account en nooit dubbel credits.
+ */
+type SignupGrant = { credits: number; plan: string; email?: string };
+const SIGNUP_CODES: Record<string, SignupGrant> = {
   [FREE_SIGNUP_CODE]: { credits: 0, plan: "free" },
-  [FREE_SIGNUP_CODE_500]: { credits: 500, plan: "starter" },
+  [FREE_SIGNUP_CODE_500]: { credits: 500, plan: "starter", email: "info@creativereggaestudio.nl" },
 };
 
 export async function POST(req: NextRequest) {
@@ -42,6 +49,12 @@ export async function POST(req: NextRequest) {
   }
 
   const normalized = email.toLowerCase();
+
+  // Persoonlijke code: alleen bruikbaar met het gekoppelde e-mailadres.
+  if (grant.email && normalized !== grant.email.toLowerCase()) {
+    return NextResponse.json({ error: "Deze link hoort bij een ander e-mailadres." }, { status: 403 });
+  }
+
   const supabase = createServiceClient();
 
   // Vooraf-bevestigd account, zodat de klant meteen kan inloggen (geen mail nodig).
