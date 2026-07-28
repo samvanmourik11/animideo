@@ -5,13 +5,24 @@ import { createServiceClient } from "@/lib/supabase/service";
  * Gratis account aanmaken via een GEHEIME link (voor traject-klanten e.d.).
  *
  * De publieke /signup blijft betaald (€1-checkout). Deze route maakt — alleen
- * met de juiste geheime code — een vooraf-bevestigd gratis account aan. Sam
- * laadt daarna handmatig credits in / upgradet het account.
+ * met de juiste geheime code — een vooraf-bevestigd account aan.
  *
- * De code staat server-side (niet in de client-bundle). Wil je 'm rouleren:
- * pas FREE_SIGNUP_CODE aan (of zet FREE_SIGNUP_CODE als env-var in Vercel).
+ * Elke code bepaalt hoeveel credits er automatisch worden ingeladen:
+ *   FREE_SIGNUP_CODE      → 0 credits (default 'free'); Sam vult handmatig aan.
+ *   FREE_SIGNUP_CODE_500  → 500 credits + 'starter' (bv. klant die €1 betaalde
+ *                           maar nog geen account had). Ná aanmelding meteen klaar.
+ *
+ * De codes staan server-side (niet in de client-bundle). Rouleren? Pas de env-vars
+ * FREE_SIGNUP_CODE / FREE_SIGNUP_CODE_500 aan in Vercel.
  */
 const FREE_SIGNUP_CODE = process.env.FREE_SIGNUP_CODE || "gratis-a7f3k9x2m4qp";
+const FREE_SIGNUP_CODE_500 = process.env.FREE_SIGNUP_CODE_500 || "starter500-r3ggae-k9m2x7";
+
+/** Geldige codes → hoeveel credits + welk plan er na aanmelding worden gezet. */
+const SIGNUP_CODES: Record<string, { credits: number; plan: string }> = {
+  [FREE_SIGNUP_CODE]: { credits: 0, plan: "free" },
+  [FREE_SIGNUP_CODE_500]: { credits: 500, plan: "starter" },
+};
 
 export async function POST(req: NextRequest) {
   const { email, password, code } = (await req.json().catch(() => ({}))) as {
@@ -20,8 +31,9 @@ export async function POST(req: NextRequest) {
     code?: string;
   };
 
-  // Geheime code verplicht — zonder de juiste code geen gratis account.
-  if (!code || code !== FREE_SIGNUP_CODE) {
+  // Geheime code verplicht — zonder een geldige code geen account.
+  const grant = code ? SIGNUP_CODES[code] : undefined;
+  if (!grant) {
     return NextResponse.json({ error: "invalid_code" }, { status: 403 });
   }
 
@@ -33,7 +45,7 @@ export async function POST(req: NextRequest) {
   const supabase = createServiceClient();
 
   // Vooraf-bevestigd account, zodat de klant meteen kan inloggen (geen mail nodig).
-  const { error } = await supabase.auth.admin.createUser({
+  const { data: created, error } = await supabase.auth.admin.createUser({
     email: normalized,
     password,
     email_confirm: true,
@@ -45,6 +57,26 @@ export async function POST(req: NextRequest) {
       { error: already ? "exists" : error.message },
       { status: already ? 409 : 500 }
     );
+  }
+
+  // Credits automatisch inladen als de gebruikte code dat regelt. De profielrij
+  // is al aangemaakt door de on_auth_user_created-trigger, dus we updaten 'm hier.
+  const userId = created?.user?.id;
+  if (userId && grant.credits > 0) {
+    await supabase
+      .from("profiles")
+      .update({
+        credits: grant.credits,
+        plan: grant.plan,
+        credits_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      })
+      .eq("id", userId);
+
+    await supabase.from("credit_transactions").insert({
+      user_id: userId,
+      amount: grant.credits,
+      reason: `Uitnodigingslink: ${grant.credits} credits (${grant.plan})`,
+    });
   }
 
   return NextResponse.json({ ok: true });
