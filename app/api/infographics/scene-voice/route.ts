@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
-import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
+import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -35,6 +35,11 @@ function probeDuration(file: string): Promise<number> {
 // Genereert de ingesproken voice-over voor één scene-tekst. Geeft de audio-URL
 // en de exacte duur terug; die duur stuurt de scene-lengte in player/export.
 export async function POST(req: NextRequest) {
+  // No-op tot credits daadwerkelijk zijn afgetrokken; daarna vervangen we 'm
+  // door de echte refund. Zo is 'ie in scope voor de catch, en doet 'ie niks
+  // als het misgaat vóór de aftrek.
+  let refund = async () => {};
+
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -54,6 +59,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Credits zijn vooraf afgetrokken. Faalt de generatie ergens hierna, dan
+    // moeten ze terug — anders kost een mislukte poging de gebruiker credits.
+    const userId = user.id;
+    refund = async () => {
+      try { await addCredits(userId, CREDIT_COSTS.VOICE, "Refund: story voice-over"); } catch {}
+    };
+
     const safeVoice = voice && ALLOWED_VOICES.has(voice) ? voice : "Charlotte";
 
     const result = await fal.subscribe("fal-ai/elevenlabs/tts/eleven-v3", {
@@ -67,7 +79,10 @@ export async function POST(req: NextRequest) {
       } as never,
     });
     const tempUrl = (result.data as { audio?: { url: string } }).audio?.url;
-    if (!tempUrl) return NextResponse.json({ error: "Geen audio ontvangen" }, { status: 500 });
+    if (!tempUrl) {
+      await refund();
+      return NextResponse.json({ error: "Geen audio ontvangen" }, { status: 500 });
+    }
 
     const buf = Buffer.from(await (await fetch(tempUrl)).arrayBuffer());
 
@@ -80,11 +95,15 @@ export async function POST(req: NextRequest) {
     // Opslaan in de audio-bucket
     const path = `${user.id}/story/${randomUUID()}.mp3`;
     const { error: upErr } = await supabase.storage.from("audio").upload(path, buf, { contentType: "audio/mpeg", upsert: true });
-    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+    if (upErr) {
+      await refund();
+      return NextResponse.json({ error: upErr.message }, { status: 500 });
+    }
     const { data: urlData } = supabase.storage.from("audio").getPublicUrl(path);
 
     return NextResponse.json({ audioUrl: urlData.publicUrl, duration });
   } catch (err: unknown) {
+    await refund();
     const msg = err instanceof Error ? err.message : String(err);
     console.error("scene-voice failed:", msg);
     return NextResponse.json({ error: "Voice-over genereren mislukt", detail: msg }, { status: 500 });
