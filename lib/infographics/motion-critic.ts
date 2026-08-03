@@ -54,6 +54,7 @@ export async function critiqueMotion(opts: {
   voiceover?: string | null;
   illustration?: string | null;
   title?: string | null;
+  plan?: string | null; // vooraf bepaalde beweging waartegen we toetsen
 }): Promise<MotionVerdict> {
   if (opts.frames.length === 0) return { ok: true, reason: "geen frames om te beoordelen", betterSteer: null };
 
@@ -65,19 +66,23 @@ export async function critiqueMotion(opts: {
     opts.title ? `Verhaal: ${opts.title}` : "",
     opts.voiceover ? `Voice-over van deze scène: "${opts.voiceover}"` : "",
     opts.illustration ? `Bedoeld beeld: ${opts.illustration}` : "",
+    opts.plan ? `De beweging was VOORAF EXACT bepaald als: "${opts.plan}"` : "",
   ].filter(Boolean).join("\n");
 
   const instruction = `Dit zijn opeenvolgende frames (begin → eind) uit een korte geanimeerde clip van ÉÉN scène.
 ${context}
 
-Beoordeel KRITISCH of de BEWEGING klopt. Keur AF (ok=false) als je één van deze ziet:
-- vervormde/morphende lichamen, gezichten of objecten; ledematen die verdwijnen, verdubbelen of onnatuurlijk verspringen;
-- figuren die wegglijden of onnatuurlijk van houding/positie wisselen;
-- beweging die NIET past bij de voice-over of de context van het verhaal.
-Subtiele, natuurlijke beweging die bij de tekst past = GOEDGEKEURD (ok=true).
+Beoordeel STRENG. Keur AF (ok=false) bij één van deze:
+- glitches/AI-fouten: vervormde/morphende lichamen, gezichten of objecten; extra, verdwijnende of verdubbelde ledematen; onnatuurlijk verspringen;
+- NIEUWE elementen die niet in het eerste frame staan (planten, objecten, tekst, extra personen);
+- personen of objecten die (deels) UIT BEELD bewegen of naar de rand schuiven;
+${opts.plan
+  ? `- ELKE afwijking van de vooraf bepaalde beweging: iets beweegt dat stil had moeten blijven, of de beweging is groter/anders/heftiger dan bepaald.`
+  : `- overdreven of onnatuurlijke beweging die niet bij de scène past.`}
 
-Antwoord met JSON: {"ok": boolean, "reason": "<korte reden in het Nederlands>", "betterSteer": "<concrete NL-bijsturing voor een nieuwe, voorzichtigere poging, of null als ok=true>"}.
-Voorbeeld betterSteer bij afkeuring: "Alleen heel subtiele beweging; personen behouden hun houding en gezicht, niets vervormt of verspringt".`;
+Keur alleen GOED (ok=true) als de clip ${opts.plan ? "PRECIES de vooraf bepaalde beweging toont" : "een subtiele, kloppende beweging toont"}, volledig glitch-vrij is, en al het andere identiek en stil blijft. Bij twijfel: AFKEUREN.
+
+Antwoord met JSON: {"ok": boolean, "reason": "<korte reden in het Nederlands>", "betterSteer": "<kortere, nóg voorzichtiger NL-bijsturing die dichter bij de bepaalde beweging blijft, of null als ok=true>"}.`;
 
   try {
     const res = await openai.chat.completions.create({

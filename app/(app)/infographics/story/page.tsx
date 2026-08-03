@@ -152,6 +152,8 @@ export default function StoryPage() {
   // Scenes waarvan de animatie is overgeslagen omdat het beeld tekst bevat (blijft
   // een still om vervorming te voorkomen; de gebruiker kan toch forceren).
   const [motionSkipped, setMotionSkipped] = useState<Record<string, boolean>>({});
+  // Reden waarom een scene stil is gehouden: "text" of "quality".
+  const [motionSkipReason, setMotionSkipReason] = useState<Record<string, string>>({});
   // Korte terugkoppeling van de automatische bewegings-controle (kritisch oog).
   const [motionNote, setMotionNote] = useState<Record<string, string>>({});
   const [animatingAll, setAnimatingAll] = useState(false);
@@ -653,8 +655,12 @@ export default function StoryPage() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Animeren mislukt"));
-      // Beeld bevat tekst → route sloeg animatie over; als still houden.
-      if (d.skipped) { setMotionSkipped((m) => ({ ...m, [s.id]: true })); return; }
+      // Route hield de scene stil (tekst in beeld, of beweging afgekeurd).
+      if (d.skipped) {
+        setMotionSkipped((m) => ({ ...m, [s.id]: true }));
+        setMotionSkipReason((m) => ({ ...m, [s.id]: d.reason ?? "text" }));
+        return;
+      }
       setMotionSkipped((m) => ({ ...m, [s.id]: false }));
       updateScene(i, { videoUrl: d.videoUrl });
       // Terugkoppeling van de automatische controle (aantal pogingen).
@@ -1259,8 +1265,17 @@ export default function StoryPage() {
                   </button>
                   {motionSkipped[scene.id] && (
                     <div className="text-[10px] text-amber-200/90 bg-amber-500/10 border border-amber-500/25 rounded px-2 py-1.5 space-y-1">
-                      <p>Dit beeld bevat tekst/cijfers en is als <b>stilstaand beeld</b> gehouden — zo vervormt de tekst niet. In de video beweegt de camera er subtiel overheen.</p>
-                      <button onClick={() => animateScene(i, true)} className="text-amber-200 underline hover:text-amber-100">Toch animeren (tekst kan vervormen)</button>
+                      {motionSkipReason[scene.id] === "quality" ? (
+                        <>
+                          <p>De beweging bleef na controle te rommelig (AI-fouten), dus deze scene is als <b>stilstaand beeld</b> gehouden — je credit is teruggestort. In de video zoomt de camera er subtiel overheen.</p>
+                          <button onClick={() => animateScene(i)} className="text-amber-200 underline hover:text-amber-100">Nog eens proberen te animeren</button>
+                        </>
+                      ) : (
+                        <>
+                          <p>Dit beeld bevat tekst/cijfers en is als <b>stilstaand beeld</b> gehouden — zo vervormt de tekst niet. In de video beweegt de camera er subtiel overheen.</p>
+                          <button onClick={() => animateScene(i, true)} className="text-amber-200 underline hover:text-amber-100">Toch animeren (tekst kan vervormen)</button>
+                        </>
+                      )}
                     </div>
                   )}
                   {motionNote[scene.id] && !motionBusy[scene.id] && !motionSkipped[scene.id] && (

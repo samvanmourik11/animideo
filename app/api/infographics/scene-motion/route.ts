@@ -4,8 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildMotionPrompt } from "@/lib/infographics/motion-prompt";
 import { imageHasText } from "@/lib/infographics/detect-text";
+import { planMotion } from "@/lib/infographics/motion-director";
 import { extractFrames, critiqueMotion } from "@/lib/infographics/motion-critic";
-import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
+import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -72,9 +73,10 @@ export async function POST(req: NextRequest) {
       return (result.data as { video?: { url: string } }).video?.url ?? null;
     }
 
-    let currentSteer = steer ?? prompt;
+    // VOORAF: bepaal exact de (minimale) beweging voor deze specifieke scène.
+    const plan = await planMotion({ imageUrl, voiceover, illustration, title, steer: steer ?? prompt });
+    let currentSteer = plan ?? steer ?? prompt;
     let acceptedUrl: string | null = null;
-    let lastUrl: string | null = null;
     let attempts = 0;
     let lastReason = "";
 
@@ -82,28 +84,25 @@ export async function POST(req: NextRequest) {
       attempts = i + 1;
       const tempUrl = await generateClip(currentSteer);
       if (!tempUrl) continue; // deze poging mislukte technisch; probeer opnieuw
-      lastUrl = tempUrl;
 
-      // Laatste poging niet meer beoordelen: neem gewoon wat er is.
-      if (i === MAX_ATTEMPTS - 1) { acceptedUrl = tempUrl; break; }
-
-      // Kritisch oog: beoordeel de beweging tegen tekst + context.
+      // Kritisch oog: toets de clip STRENG tegen het vooraf bepaalde plan.
       const frames = await extractFrames(tempUrl, 4);
-      const verdict = await critiqueMotion({ frames, voiceover, illustration, title });
+      const verdict = await critiqueMotion({ frames, voiceover, illustration, title, plan });
       lastReason = verdict.reason;
       if (verdict.ok) { acceptedUrl = tempUrl; break; }
-      // Afgekeurd → voorzichtiger opnieuw animeren met de bijsturing.
+      // Afgekeurd → nog voorzichtiger opnieuw, dichter bij het plan.
       currentSteer = verdict.betterSteer || currentSteer;
     }
 
-    const chosen = acceptedUrl ?? lastUrl;
-    if (!chosen) return NextResponse.json({ error: "Animatie mislukt na meerdere pogingen" }, { status: 500 });
+    // Geen enkele poging goedgekeurd? Dan liever het STILLE beeld dan een slechte
+    // animatie. De credit wordt teruggestort (er is geen bruikbare clip geleverd).
+    if (!acceptedUrl) {
+      try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: animatie afgekeurd, stil gehouden"); } catch {}
+      return NextResponse.json({ skipped: true, reason: "quality", attempts, detail: lastReason });
+    }
 
-    const videoUrl = await persistFalAssetSoft(supabase, user.id, chosen, "video");
-    return NextResponse.json({
-      videoUrl,
-      qc: { attempts, approved: acceptedUrl !== null, reason: lastReason },
-    });
+    const videoUrl = await persistFalAssetSoft(supabase, user.id, acceptedUrl, "video");
+    return NextResponse.json({ videoUrl, qc: { attempts, approved: true, reason: lastReason } });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("scene-motion failed:", msg);
