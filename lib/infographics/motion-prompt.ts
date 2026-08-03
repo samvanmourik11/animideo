@@ -17,6 +17,11 @@ const PRESERVE_RULE =
 const STYLE_RULE =
   "Flat 2D animated explainer-video style. Static locked camera, no camera movement, no zoom, no pan, no parallax. No 3D, no realism, no new lighting. Smooth, subtle, seamless loop.";
 
+// Kernbug: figuren die uit beeld lopen. Elke persoon/object moet VOLLEDIG in beeld
+// blijven; alleen kleine in-place beweging, geen translatie naar of over de randen.
+const IN_FRAME_RULE =
+  "IN-FRAME RULE — every person, character and object MUST stay fully inside the frame at all times. Nobody walks, runs, steps, slides, drifts, or moves toward or past the edges; nothing enters or leaves the frame and no one exits at the sides, top or bottom. Every character keeps the same position and footing as in the source image; allow ONLY subtle in-place motion (a small gesture, a slight weight shift, breathing, blinking, a hand or held object moving a little). No large body translation, no walking across the scene, no change of composition, framing or camera.";
+
 // Géén opsomming van bladeren/wolken/rook meer. We dwingen het model naar de
 // interne logica van het beeld: alleen bewegen wat er realistisch zou bewegen.
 const DEFAULT_MOTION =
@@ -28,5 +33,5 @@ export function buildMotionPrompt(steer?: string): string {
   const motion = extra
     ? `Apply motion to the existing illustration as follows: ${extra}. ${DEFAULT_MOTION}`
     : DEFAULT_MOTION;
-  return `Animate ONLY the existing image. ${motion} ${STYLE_RULE} ${PRESERVE_RULE}`.slice(0, 2500);
+  return `Animate ONLY the existing image. ${motion} ${STYLE_RULE} ${IN_FRAME_RULE} ${PRESERVE_RULE}`.slice(0, 2800);
 }
