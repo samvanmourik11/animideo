@@ -106,6 +106,17 @@ async function fetchImageB64(url: string): Promise<{ b64: string; mime: string }
   }
 }
 
+// Alleen de leesbare TEKST van een webpagina ophalen (geen LLM) — voor "blog/
+// artikel → video": de gebruiker plakt een URL en de brontekst wordt gevuld.
+export async function extractPageText(rawUrl: string): Promise<string> {
+  const url = normalizeBrandUrl(rawUrl);
+  const html = await fetchHtml(url.toString());
+  if (!html) throw new Error("Pagina kon niet gelezen worden");
+  const text = stripText(html);
+  if (text.length < 50) throw new Error("Geen bruikbare tekst gevonden op deze pagina");
+  return text.slice(0, MAX_TEXT);
+}
+
 // Homepage crawlen, een handvol beelden + de tekst door GPT-4o-vision halen en
 // daaruit de huisstijl (kleuren, fonts, naam, tone) afleiden. Het logo laten we
 // hier bewust weg — dat uploadt de gebruiker zelf.

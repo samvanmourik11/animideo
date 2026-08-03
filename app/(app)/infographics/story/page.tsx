@@ -99,6 +99,9 @@ export default function StoryPage() {
   // Serie-generatie: voorgestelde losse "afleveringen" uit het onderwerp/de bron.
   const [episodes, setEpisodes] = useState<{ title: string; angle: string; brief: string }[]>([]);
   const [seriesBusy, setSeriesBusy] = useState(false);
+  // "Tekst uit webpagina": URL waarvan de brontekst wordt opgehaald.
+  const [pageUrl, setPageUrl] = useState("");
+  const [pageBusy, setPageBusy] = useState(false);
   const [mode, setMode] = useState<"story" | "report">("story");
   const [format, setFormat] = useState<"16:9" | "9:16">("16:9");
   const [showSafeZone, setShowSafeZone] = useState(false);
@@ -381,6 +384,27 @@ export default function StoryPage() {
       setSeriesBusy(false);
     }
   }
+  // Haal de tekst van een webpagina op en zet 'm in de brontekst.
+  async function fetchPageText() {
+    if (!pageUrl.trim()) return;
+    setErr(null);
+    setPageBusy(true);
+    try {
+      const res = await fetch("/api/infographics/extract-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: pageUrl }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(apiError(d, "Tekst ophalen mislukt"));
+      setText(d.text as string);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPageBusy(false);
+    }
+  }
+
   // "Snel starten": een sjabloon vult onderwerp + brontekst + toon/formaat voor.
   function applyTemplate(t: (typeof STORY_TEMPLATES)[number]) {
     setTopic(t.topic);
@@ -753,9 +777,25 @@ export default function StoryPage() {
           <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="bijv. De geschiedenis van de VOC" className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white" />
         </label>
         <div>
-          <div className="flex items-center justify-between mb-0.5">
+          <div className="flex items-center justify-between mb-0.5 gap-2 flex-wrap">
             <span className="text-[11px] text-slate-400">Brontekst / data (cijfers worden hier letterlijk uit gehaald)</span>
-            <PdfUploadButton onExtracted={(t) => setText(t)} />
+            <div className="flex items-center gap-1.5 shrink-0">
+              <input
+                value={pageUrl}
+                onChange={(e) => setPageUrl(e.target.value)}
+                placeholder="https://… (blog/artikel)"
+                className="w-40 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white"
+              />
+              <button
+                onClick={fetchPageText}
+                disabled={pageBusy || !pageUrl.trim()}
+                title="Haal de tekst van deze webpagina op als brontekst"
+                className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 disabled:opacity-50 shrink-0"
+              >
+                {pageBusy ? "Ophalen…" : "🌐 Uit webpagina"}
+              </button>
+              <PdfUploadButton onExtracted={(t) => setText(t)} />
+            </div>
           </div>
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Plak hier je bron: cijfers, feiten en kernpunten. De AI maakt er een verhaalboog van. (Of upload een PDF.)" className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-xs text-white" />
           {!spec && (
