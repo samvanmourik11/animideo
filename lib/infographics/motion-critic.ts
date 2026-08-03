@@ -71,14 +71,13 @@ export async function critiqueMotion(opts: {
 ${context}
 
 Beoordeel KRITISCH of de BEWEGING klopt. Keur AF (ok=false) als je één van deze ziet:
-- personen of objecten die (deels) UIT BEELD lopen/bewegen, naar de rand schuiven of het kader verlaten — dit mag NOOIT;
 - vervormde/morphende lichamen, gezichten of objecten; ledematen die verdwijnen, verdubbelen of onnatuurlijk verspringen;
 - figuren die wegglijden of onnatuurlijk van houding/positie wisselen;
 - beweging die NIET past bij de voice-over of de context van het verhaal.
-Subtiele, natuurlijke in-place beweging die bij de tekst past én waarbij iedereen volledig in beeld blijft = GOEDGEKEURD (ok=true).
+Subtiele, natuurlijke beweging die bij de tekst past = GOEDGEKEURD (ok=true).
 
 Antwoord met JSON: {"ok": boolean, "reason": "<korte reden in het Nederlands>", "betterSteer": "<concrete NL-bijsturing voor een nieuwe, voorzichtigere poging, of null als ok=true>"}.
-Voorbeeld betterSteer bij afkeuring: "Alleen heel subtiele in-place beweging; iedereen blijft volledig in beeld en op zijn plek, niemand loopt weg, niets vervormt of verspringt".`;
+Voorbeeld betterSteer bij afkeuring: "Alleen heel subtiele beweging; personen behouden hun houding en gezicht, niets vervormt of verspringt".`;
 
   try {
     const res = await openai.chat.completions.create({

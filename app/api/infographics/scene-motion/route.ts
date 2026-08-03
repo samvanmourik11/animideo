@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildMotionPrompt } from "@/lib/infographics/motion-prompt";
 import { imageHasText } from "@/lib/infographics/detect-text";
-import { planMotion } from "@/lib/infographics/motion-director";
 import { extractFrames, critiqueMotion } from "@/lib/infographics/motion-critic";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 
@@ -73,11 +72,7 @@ export async function POST(req: NextRequest) {
       return (result.data as { video?: { url: string } }).video?.url ?? null;
     }
 
-    // PROACTIEF: laat de regisseur eerst per scène de beste, in-beeld-blijvende
-    // beweging bedenken (kijkt naar het beeld + voice-over/context). Lukt dit niet,
-    // dan vallen we terug op de eventuele gebruikers-bijsturing.
-    const planned = await planMotion({ imageUrl, voiceover, illustration, title, steer: steer ?? prompt });
-    let currentSteer = planned ?? steer ?? prompt;
+    let currentSteer = steer ?? prompt;
     let acceptedUrl: string | null = null;
     let lastUrl: string | null = null;
     let attempts = 0;
