@@ -7,6 +7,7 @@ import PdfUploadButton from "@/components/infographics/PdfUploadButton";
 import { splitVoiceDurations, storyWindows } from "@/lib/infographics/story-layout";
 import { storyAspectRatio } from "@/lib/infographics/canvas-size";
 import { STORY_STYLE_PRESETS, DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
+import { STORY_TEMPLATES } from "@/lib/infographics/story-templates";
 import { createClient } from "@/lib/supabase/client";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 import { STORY_VOICES, DEFAULT_VOICE, voicePreviewUrl } from "@/lib/infographics/story-voices";
@@ -379,6 +380,15 @@ export default function StoryPage() {
       setSeriesBusy(false);
     }
   }
+  // "Snel starten": een sjabloon vult onderwerp + brontekst + toon/formaat voor.
+  function applyTemplate(t: (typeof STORY_TEMPLATES)[number]) {
+    setTopic(t.topic);
+    setText(t.text);
+    setTone(t.tone);
+    setFormat(t.format);
+    setEpisodes([]);
+  }
+
   // Kies één aflevering: vult onderwerp + brontekst zodat je 'm normaal genereert.
   function planEpisode(ep: { title: string; angle: string; brief: string }) {
     setTopic(ep.title);
@@ -719,6 +729,23 @@ export default function StoryPage() {
       {loadingProject && <p className="text-sm text-blue-300 mb-4">Verhaal laden…</p>}
 
       <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3 mb-8">
+        {!spec && (
+          <div>
+            <span className="block text-[11px] text-slate-400 mb-1">Snel starten <span className="text-slate-500">(sjabloon vult onderwerp + brontekst + toon)</span></span>
+            <div className="flex flex-wrap gap-1.5">
+              {STORY_TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => applyTemplate(t)}
+                  title={t.hint}
+                  className="text-[11px] px-2 py-1 rounded-full border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:border-white/20 transition"
+                >
+                  {t.emoji} {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <label className="block">
           <span className="block text-[11px] text-slate-400 mb-0.5">Onderwerp / titel</span>
           <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="bijv. De geschiedenis van de VOC" className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white" />
