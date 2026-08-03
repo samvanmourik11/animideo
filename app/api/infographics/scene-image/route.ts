@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle, editIllustration, cleanupIllustration } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint } from "@/lib/infographics/story-style";
+import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, CHARACTER_GUIDANCE } from "@/lib/infographics/story-style";
 import { refineEditInstruction } from "@/lib/infographics/refine-edit";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
@@ -26,6 +26,14 @@ interface Body {
   anchorImageUrl?: string | null;
   // Zacht huisstijl-palet (hex) voor het beeld.
   brandColors?: { primary?: string; accent?: string };
+  // Gekozen tekenstijl (zie STORY_STYLE_PRESETS). Leeg = flat-vector.
+  styleId?: string;
+  // Taal van eventuele tekst-in-beeld. Leeg = Nederlands.
+  language?: string;
+  // Referentiefoto van het échte product/logo/object voor deze scène.
+  referencePhotoUrl?: string | null;
+  // Vast personage/mascotte dat consistent moet terugkomen.
+  characterUrl?: string | null;
 }
 
 export async function POST(req: NextRequest) {
@@ -59,14 +67,20 @@ export async function POST(req: NextRequest) {
     // default: generate
     if (!body.illustration?.trim()) return NextResponse.json({ error: "Geen briefing opgegeven" }, { status: 400 });
     const anchor = body.anchorImageUrl?.trim() || null;
+    const refPhoto = body.referencePhotoUrl?.trim() || null;
+    const character = body.characterUrl?.trim() || null;
     const paletteHint = brandPaletteHint(body.brandColors?.primary, body.brandColors?.accent);
-    const extraContext = [paletteHint, anchor ? STYLE_MATCH_ANCHOR : ""].filter(Boolean).join(" ").trim() || undefined;
+    const extraContext =
+      [paletteHint, refPhoto ? REFERENCE_PHOTO_GUIDANCE : "", character ? CHARACTER_GUIDANCE : "", anchor ? STYLE_MATCH_ANCHOR : ""]
+        .filter(Boolean).join(" ").trim() || undefined;
+    // Ingredient-volgorde: referentiefoto, dan personage, dan het stijl-anker.
+    const ingredientUrls = [refPhoto, character, anchor].filter((u): u is string => !!u);
     const result = await generateImageWithStyle({
-      prompt: buildIllustrationPrompt(body.illustration),
+      prompt: buildIllustrationPrompt(body.illustration, body.styleId, body.language),
       format,
       visualStyle: null,
       seed: typeof body.seed === "number" ? body.seed : undefined,
-      ingredientUrls: anchor ? [anchor] : undefined,
+      ingredientUrls: ingredientUrls.length ? ingredientUrls : undefined,
       extraContext,
     });
     // Tweede pass: sfeer-decoratie wegvegen (zie cleanupIllustration). Faalt het,

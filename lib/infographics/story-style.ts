@@ -29,9 +29,97 @@ export const STYLE_TEXT_DUTCH =
   "If a short label is truly essential to understand the scene, write it in correct, natural Dutch (Nederlands). " +
   "Any and all text in the image MUST be in Dutch — never English or any other language, and never garbled, made-up or misspelled words.";
 
-export function buildIllustrationPrompt(brief: string): string {
-  return `${STYLE_PREAMBLE}Scene: ${brief.trim()}.${STYLE_FRAMING}${STYLE_NEGATIVE}${STYLE_TEXT_DUTCH}`;
+// Kiesbare tekenstijlen voor de storytelling-infographic. Bewust PROMPT-gebaseerd
+// (geen aparte referentiebeeld-bucket): elke stijl levert een "preamble" die de
+// tekenstijl bepaalt. Flat-vector = de bestaande, vertrouwde look en blijft default,
+// zodat bestaande verhalen en "geen keuze" ongewijzigd blijven.
+export interface StoryStylePreset {
+  id: string;
+  name: string;    // label in de kiezer
+  tagline: string; // korte omschrijving
+  emoji: string;   // simpele thumbnail zonder assets
+  preamble: string;
 }
+
+export const STORY_STYLE_PRESETS: StoryStylePreset[] = [
+  {
+    id: "flat-vector",
+    name: "Flat vector",
+    tagline: "Strak & zakelijk (standaard)",
+    emoji: "🟦",
+    preamble: STYLE_PREAMBLE,
+  },
+  {
+    id: "marker-sketch",
+    name: "Marker Sketch",
+    tagline: "Losse handgetekende energie",
+    emoji: "✏️",
+    preamble:
+      "Loose, energetic hand-drawn illustration in an expressive editorial ink-and-marker style. " +
+      "Spontaneous sketchy ink linework with visible strokes, lively caricatured characters with " +
+      "exaggerated, dynamic poses and expressions. Loose watercolour/marker shading with painterly " +
+      "brush marks, mostly muted greys with a few bold colour pops (red, blue, yellow). " +
+      "Hand-made, illustrative, full-of-life feel — not a clean vector, not a photo. ",
+  },
+  {
+    id: "papercut",
+    name: "Papercut",
+    tagline: "Uitgeknipt papier-collage",
+    emoji: "📄",
+    preamble:
+      "Layered paper-cut collage illustration. Every shape looks like a piece of cut coloured paper " +
+      "stacked in layers with soft drop shadows between them, subtle matte paper texture, rounded " +
+      "friendly shapes, warm flat colours. Tactile handcrafted cut-out look. ",
+  },
+  {
+    id: "soft-3d",
+    name: "Soft 3D",
+    tagline: "Zacht & speels 3D",
+    emoji: "🧸",
+    preamble:
+      "Soft, rounded 3D illustration with cute clay-like characters and objects, smooth matte " +
+      "materials, gentle soft studio lighting and subtle depth of field. Friendly, playful, tactile " +
+      "toy-like look with rounded edges and soft shadows. ",
+  },
+];
+
+export const DEFAULT_STORY_STYLE = "flat-vector";
+
+export function storyStylePreamble(styleId?: string | null): string {
+  return STORY_STYLE_PRESETS.find((s) => s.id === styleId)?.preamble ?? STYLE_PREAMBLE;
+}
+
+// Taal (mensleesbaar NL) → Engelse naam voor de tekst-in-beeld-regel.
+const LANG_EN: Record<string, string> = {
+  Nederlands: "Dutch", Engels: "English", Duits: "German", Frans: "French", Spaans: "Spanish", Italiaans: "Italian",
+};
+function langTextRule(language?: string | null): string {
+  if (!language || language === "Nederlands") return STYLE_TEXT_DUTCH;
+  const l = LANG_EN[language] ?? "Dutch";
+  return `If a short label is truly essential to understand the scene, write it in correct, natural ${l}. ` +
+    `Any and all text in the image MUST be in ${l} — never another language, and never garbled, made-up or misspelled words.`;
+}
+
+export function buildIllustrationPrompt(brief: string, styleId?: string | null, language?: string | null): string {
+  return `${storyStylePreamble(styleId)}Scene: ${brief.trim()}.${STYLE_FRAMING}${STYLE_NEGATIVE}${langTextRule(language)}`;
+}
+
+// Referentiefoto per scène (verbeterplan-feature): het échte product/logo/object dat
+// de gebruiker meegeeft moet kloppen. De foto gaat als ingredient naar het beeldmodel;
+// deze tekst stuurt het gebruik ervan.
+export const REFERENCE_PHOTO_GUIDANCE =
+  " A reference photo of a specific real product, object or logo is provided. Recreate THAT specific " +
+  "item accurately in the scene — match its real shape, proportions, colours and distinctive details — " +
+  "but redraw it in the illustration style described above (never paste the photo, never make it photo-realistic). " +
+  "Keep the rest of the scene as described.";
+
+// Vast personage/mascotte (verbeterplan F5): een terugkerend figuur dat in elke scène
+// consistent moet terugkomen. De referentie gaat als ingredient mee.
+export const CHARACTER_GUIDANCE =
+  " A reference image of a RECURRING CHARACTER / mascot is provided. Wherever the scene has a main character, " +
+  "draw THIS SAME character — match its design, face, hair, outfit, colours and proportions — redrawn in the " +
+  "illustration style described above (not a photo). Keep this character visually identical and recognisable " +
+  "across every scene. Other background people may vary, but the recurring character stays the same.";
 
 // Zachte huisstijl-palet-instructie voor de illustraties: de merkkleuren leiden,
 // aangevuld met natuurlijke steunkleuren (niet strak/eentonig geforceerd). Wordt

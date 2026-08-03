@@ -45,11 +45,14 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { text, voice, speed } = (await req.json()) as { text?: string; voice?: string; speed?: number };
+    const { text, voice, speed, language } = (await req.json()) as { text?: string; voice?: string; speed?: number; language?: string };
     const clean = (text ?? "").trim();
     if (!clean) return NextResponse.json({ error: "Geen tekst" }, { status: 400 });
     // Spreeksnelheid begrenzen tot een natuurlijk bereik (ElevenLabs speed).
     const safeSpeed = typeof speed === "number" && Number.isFinite(speed) ? Math.max(0.7, Math.min(1.2, speed)) : 1;
+    // Taal → ElevenLabs language_code (default Nederlands).
+    const LANGUAGE_TO_CODE: Record<string, string> = { Nederlands: "nl", Engels: "en", Duits: "de", Frans: "fr", Spaans: "es", Italiaans: "it" };
+    const langCode = LANGUAGE_TO_CODE[language ?? "Nederlands"] ?? "nl";
 
     const credit = await deductCredits(user.id, CREDIT_COSTS.VOICE, "Story voice-over");
     if (!credit.success) {
@@ -72,7 +75,7 @@ export async function POST(req: NextRequest) {
       input: {
         text: clean,
         voice: safeVoice,
-        language_code: "nl",
+        language_code: langCode,
         stability: 0.5,
         similarity_boost: 0.75,
         speed: safeSpeed,

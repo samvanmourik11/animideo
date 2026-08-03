@@ -13,6 +13,12 @@ export interface BuildStoryPromptArgs {
   targetSeconds?: number;
   sceneCount?: number;
   wordsPerScene?: number;
+  // Merk-/eigennamen die NOOIT vertaald of verbasterd mogen worden (do-not-translate).
+  keepTerms?: string[];
+  // Verteltoon: "zakelijk" (default) | "speels" | "energiek".
+  tone?: string;
+  // Optionele invalshoek/hoek van waaruit het onderwerp benaderd wordt.
+  angle?: string;
 }
 
 // Vertaalt het richtaantal woorden per scene naar een leesbare zin-hint voor de
@@ -31,6 +37,17 @@ export function buildStoryPrompt(args: BuildStoryPromptArgs): { system: string; 
   const lang = args.language || "Nederlands";
   const brandLine = args.brand?.name
     ? `Het merk is "${args.brand.name}"${args.brand.toneOfVoice ? ` (tone of voice: ${args.brand.toneOfVoice})` : ""}. Laat de toon hierop aansluiten.`
+    : "";
+  const keepTerms = (args.keepTerms ?? []).map((t) => t.trim()).filter(Boolean);
+  const keepLine = keepTerms.length
+    ? `\n- Laat deze merk-/eigennamen EXACT ongewijzigd (nooit vertalen, verbuigen of fonetisch verbasteren), in zowel de voice-over als de headline: ${keepTerms.map((t) => `"${t}"`).join(", ")}.`
+    : "";
+  const toneLine =
+    args.tone === "speels" ? "\n- TOON: luchtig, speels en toegankelijk — vlot, met een glimlach, maar nog steeds helder."
+    : args.tone === "energiek" ? "\n- TOON: energiek, enthousiast en overtuigend — korte, krachtige zinnen met vaart."
+    : "";
+  const angleLine = args.angle?.trim()
+    ? `\n- GEWENSTE INVALSHOEK: benader het onderwerp bewust vanuit deze hoek: "${args.angle.trim()}".`
     : "";
 
   const modeLine =
@@ -56,18 +73,18 @@ ${lengthLine}
 ${modeLine}
 
 PER SCENE LEVER JE:
-- "voiceover": de gesproken narratie in ${lang}, ${voiceHint} (rond de ${wordsPerScene} woorden), natuurlijk en vloeiend (dit is wat een stem inspreekt).
-- "headline": de korte tekst die IN beeld verschijnt. Puntig, max ~6 woorden. Mag een fragment of kernwoord uit de voice-over zijn, niet de hele zin.
-- "emphasis": precies één woord uit de headline dat de accentkleur krijgt (het belangrijkste woord), of null.
+- "voiceover": de gesproken narratie in ${lang}, ${voiceHint} (rond de ${wordsPerScene} woorden), natuurlijk en vloeiend (dit is wat een stem inspreekt). Schrijf getallen, prijzen, percentages, data en afkortingen VOLUIT zoals ze uitgesproken worden (bijv. "tweehonderdvijftig euro", "negen komma zes miljoen", "vierentwintig uur per dag", "tachtig procent") — nooit als los cijfer of symbool, zodat de stem ze correct voorleest.
+- "headline": een korte tekst die IN beeld verschijnt — ALLEEN als die echt iets toevoegt. Zet 'm bij een hook, een kernboodschap, een climax/conclusie of als anker bij een groot getal; laat 'm WEG (null) bij puur verbindende, rustige of overgangsscenes. Liever een paar krachtige headlines dan bij elke scene tekst. Puntig, max ~6 woorden, een fragment of kernwoord uit de voice-over (niet de hele zin) — anders null.
+- "emphasis": precies één woord uit de headline dat de accentkleur krijgt (het belangrijkste woord), of null. Altijd null als "headline" null is.
 - "bigNumber": een hard getal uit de brontekst als dat de scene versterkt (bijv. "5.500€", "170", "9,6 mln"), anders null. VERZIN NOOIT cijfers; gebruik alleen wat letterlijk in de bron staat.
 - "numberLabel": een kort label bij dat getal (bijv. "subsidie", "soorten"), of null.
 - "illustration": een ENGELSE briefing voor de platte vector-illustratie van deze scene. Beschrijf ÉÉN concrete, letterlijke scène (wie, wat, waar, welke handeling) die precies toont wat de voice-over van deze scene zegt — specifiek voor dit onderwerp (bijv. "a worried family looking at a high energy bill in their living room"). GEEN tekst, cijfers of UI in het beeld. GEEN cliché-stockmetaforen (gloeilamp = idee, handdruk, tandwielen, zwevende vinkjes) en GEEN losse icoontjes/denkwolkjes/symboolverzamelingen. Teken abstracte begrippen niet letterlijk; kies een echte menselijke scène. Houd het simpel: één brandpunt, en laat ruimte voor een kop.
 
 HARDE REGELS:
 - Gebruik alleen feiten en cijfers die letterlijk in de brontekst staan.
-- Alle zichtbare teksten (voiceover, headline, numberLabel) in ${lang}. De "illustration" is altijd in het Engels.
+- Alle zichtbare teksten (voiceover, en headline/numberLabel indien aanwezig) in ${lang}. De "illustration" is altijd in het Engels.
 - Varieer de scenes visueel: niet 5 keer hetzelfde beeld. Wissel close-ups, omgevingen en perspectieven af, zoals een goede explainer-video.
-${brandLine ? `- ${brandLine}` : ""}`;
+${brandLine ? `- ${brandLine}` : ""}${keepLine}${toneLine}${angleLine}`;
 
   const user = `ONDERWERP / TITEL:
 ${args.topic || "(leid een passende titel af uit de brontekst)"}

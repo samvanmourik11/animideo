@@ -15,8 +15,9 @@ const storySceneSchema = {
     id: { type: "string" },
     // Gesproken narratie voor deze scene (1 tot 2 zinnen, de verhaallijn).
     voiceover: { type: "string" },
-    // Korte tekst die IN beeld komt. Mag korter/puntiger zijn dan de voice-over.
-    headline: { type: "string" },
+    // Korte tekst die IN beeld komt — OPTIONEEL. Alleen gevuld als hij echt iets
+    // toevoegt; anders null (niet elke scene heeft tekst in beeld nodig).
+    headline: { type: ["string", "null"] },
     // Eén woord uit de headline dat de accentkleur krijgt (of null).
     emphasis: { type: ["string", "null"] },
     // Groot getal uit de brontekst (bijv. "5.500€", "170", "9,6 mln"). Nooit
@@ -46,7 +47,7 @@ export const STORY_SPEC_SCHEMA = {
 export interface StoryScene {
   id: string;
   voiceover: string;
-  headline: string;
+  headline: string | null;
   emphasis: string | null;
   bigNumber: string | null;
   numberLabel: string | null;
@@ -101,4 +102,11 @@ export interface StorySpec {
   anchorImageUrl?: string | null;
   // Spreeksnelheid van de voice-over (ElevenLabs speed, ~0,8–1,2). Default 1.
   voiceSpeed?: number | null;
+  // Gekozen tekenstijl (zie STORY_STYLE_PRESETS). Leeg/afwezig = flat-vector.
+  // Bewaard in de spec zodat regeneraties en herladen dezelfde stijl gebruiken.
+  styleId?: string | null;
+  // Taal van script + voice-over (mensleesbaar NL, bijv. "Engels"). Leeg = Nederlands.
+  language?: string | null;
+  // Vast personage/mascotte (publieke URL) dat consistent in elke scène terugkomt.
+  characterUrl?: string | null;
 }

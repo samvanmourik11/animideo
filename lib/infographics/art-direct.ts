@@ -10,7 +10,7 @@ import { openai } from "@/lib/openai";
 
 export interface ArtDirectScene {
   voiceover: string;
-  headline: string;
+  headline: string | null;
   bigNumber?: string | null;
   numberLabel?: string | null;
 }
@@ -81,7 +81,7 @@ export async function artDirectScenes(input: {
     const sceneList = input.scenes
       .map((s, i) => {
         const num = s.bigNumber ? ` — getal in beeld: ${s.bigNumber}${s.numberLabel ? ` (${s.numberLabel})` : ""}` : "";
-        return `Scene ${i + 1}:\n  Voice-over: ${s.voiceover}\n  Tekst in beeld: ${s.headline}${num}`;
+        return `Scene ${i + 1}:\n  Voice-over: ${s.voiceover}\n  Tekst in beeld: ${s.headline ?? "(geen)"}${num}`;
       })
       .join("\n\n");
 

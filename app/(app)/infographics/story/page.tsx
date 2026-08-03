@@ -6,6 +6,7 @@ import StoryPlayer from "@/components/infographics/render/StoryPlayer";
 import PdfUploadButton from "@/components/infographics/PdfUploadButton";
 import { splitVoiceDurations, storyWindows } from "@/lib/infographics/story-layout";
 import { storyAspectRatio } from "@/lib/infographics/canvas-size";
+import { STORY_STYLE_PRESETS, DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
 import { createClient } from "@/lib/supabase/client";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 import { STORY_VOICES, DEFAULT_VOICE, voicePreviewUrl } from "@/lib/infographics/story-voices";
@@ -20,6 +21,7 @@ import type { StoryScene } from "@/lib/infographics/story-schema";
 
 // ~6 seconden per scene (praktijk: 5-7s). Gebruikt voor de live lengteschatting.
 const SECS_PER_SCENE = 6;
+const LANGUAGES = ["Nederlands", "Engels", "Duits", "Frans", "Spaans", "Italiaans"];
 
 // Vriendelijke foutmelding uit een API-antwoord; vangt het 402-creditgeval af.
 function apiError(d: { error?: string; detail?: string; required?: number; credits?: number } | undefined, fallback: string): string {
@@ -93,8 +95,18 @@ function SceneField({ label, value, onChange }: { label: string; value: string; 
 export default function StoryPage() {
   const [topic, setTopic] = useState("");
   const [text, setText] = useState("");
+  // Serie-generatie: voorgestelde losse "afleveringen" uit het onderwerp/de bron.
+  const [episodes, setEpisodes] = useState<{ title: string; angle: string; brief: string }[]>([]);
+  const [seriesBusy, setSeriesBusy] = useState(false);
   const [mode, setMode] = useState<"story" | "report">("story");
   const [format, setFormat] = useState<"16:9" | "9:16">("16:9");
+  const [styleId, setStyleId] = useState<string>(DEFAULT_STORY_STYLE);
+  const [language, setLanguage] = useState<string>("Nederlands");
+  const [keepTermsText, setKeepTermsText] = useState("");
+  const [tone, setTone] = useState<"zakelijk" | "speels" | "energiek">("zakelijk");
+  const [angle, setAngle] = useState("");
+  const [characterUrl, setCharacterUrl] = useState<string | null>(null);
+  const [characterBusy, setCharacterBusy] = useState(false);
   // Gewenste videolengte in seconden; bepaalt hoeveel scenes de AI maakt.
   const [targetSeconds, setTargetSeconds] = useState(90);
   const [navy, setNavy] = useState("#16243f");
@@ -121,6 +133,8 @@ export default function StoryPage() {
   // Beeldhistorie per scene (vorige imageUrls) → "vorige versie" terugzetten.
   const [imgHistory, setImgHistory] = useState<Record<string, string[]>>({});
   const [editInstr, setEditInstr] = useState<Record<string, string>>({});
+  // Referentiefoto per scène (sceneId → publieke URL van het geüploade product/logo).
+  const [sceneRef, setSceneRef] = useState<Record<string, string>>({});
   const [motionInstr, setMotionInstr] = useState<Record<string, string>>({});
   const [voiceBusy, setVoiceBusy] = useState(false);
   // Gekozen stem voor de voice-over + de stem die nu (als preview) speelt.
@@ -136,6 +150,8 @@ export default function StoryPage() {
   // Scenes waarvan de animatie is overgeslagen omdat het beeld tekst bevat (blijft
   // een still om vervorming te voorkomen; de gebruiker kan toch forceren).
   const [motionSkipped, setMotionSkipped] = useState<Record<string, boolean>>({});
+  // Korte terugkoppeling van de automatische bewegings-controle (kritisch oog).
+  const [motionNote, setMotionNote] = useState<Record<string, string>>({});
   const [animatingAll, setAnimatingAll] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
@@ -296,6 +312,24 @@ export default function StoryPage() {
     }
   }
 
+  // Vast personage/mascotte uploaden; komt daarna consistent in elke scène terug.
+  async function uploadCharacter(file: File) {
+    setErr(null);
+    setCharacterBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/infographics/upload-scene-ref", { method: "POST", body: fd });
+      const d = await res.json();
+      if (!res.ok) throw new Error(apiError(d, "Personage uploaden mislukt"));
+      setCharacterUrl(d.url as string);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCharacterBusy(false);
+    }
+  }
+
   // Speelt de ingebakken preview-mp3 van een stem af (kost niets; geen generatie).
   // Nogmaals klikken op dezelfde stem stopt het afspelen.
   function playPreview(voiceId: string) {
@@ -319,6 +353,40 @@ export default function StoryPage() {
     return active ? { primary: navy, accent } : undefined;
   }
 
+  // Houd de stijlkiezer in sync met het geladen/gegenereerde verhaal (bij herladen
+  // van een opgeslagen project komt de stijl uit de spec).
+  useEffect(() => { if (spec?.styleId) setStyleId(spec.styleId); }, [spec?.styleId]);
+  useEffect(() => { if (spec?.language) setLanguage(spec.language); }, [spec?.language]);
+  useEffect(() => { if (spec?.characterUrl) setCharacterUrl(spec.characterUrl); }, [spec?.characterUrl]);
+
+  // Serie: splits het onderwerp/de bron in losse afleveringen.
+  async function planSeries() {
+    setErr(null);
+    if (!topic.trim() && !text.trim()) { setErr("Vul eerst een onderwerp of brontekst in."); return; }
+    setSeriesBusy(true);
+    try {
+      const res = await fetch("/api/infographics/plan-series", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic, text, language }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(apiError(d, "Serie plannen mislukt"));
+      setEpisodes(Array.isArray(d.episodes) ? d.episodes : []);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSeriesBusy(false);
+    }
+  }
+  // Kies één aflevering: vult onderwerp + brontekst zodat je 'm normaal genereert.
+  function planEpisode(ep: { title: string; angle: string; brief: string }) {
+    setTopic(ep.title);
+    setText(`${ep.angle}\n\n${ep.brief}`);
+    setEpisodes([]);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   async function generate() {
     setLoading(true);
     setErr(null);
@@ -327,7 +395,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/generate-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, text, mode, format, targetSeconds, brandColors: brandColorsPayload() }),
+        body: JSON.stringify({ topic, text, mode, format, targetSeconds, styleId, language, tone, angle, characterUrl, keepTerms: keepTermsText.split(",").map((t) => t.trim()).filter(Boolean), brandColors: brandColorsPayload() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiError(data, "Verhaal genereren mislukt"));
@@ -429,6 +497,9 @@ export default function StoryPage() {
           // Consistentie: verhaal-seed + anker (behalve voor de anker-scene zelf).
           seed: spec.seed ?? undefined,
           anchorImageUrl: spec.anchorImageUrl && spec.anchorImageUrl !== s.imageUrl ? spec.anchorImageUrl : undefined,
+          styleId: spec.styleId ?? styleId,
+          language: spec.language ?? language,
+          characterUrl: spec.characterUrl ?? characterUrl,
           ...payload,
         }),
       });
@@ -436,9 +507,34 @@ export default function StoryPage() {
       if (!res.ok) throw new Error(apiError(d, "Beeld bijwerken mislukt"));
       // Beeldhistorie: het vorige beeld bewaren zodat je terug kunt (undo).
       if (prevImage) setImgHistory((h) => ({ ...h, [s.id]: [...(h[s.id] ?? []), prevImage].slice(-10) }));
-      updateScene(i, { imageUrl: d.imageUrl });
+      // Nieuw beeld → oude bewegende clip wissen, anders speelt de player de
+      // verouderde video i.p.v. het nieuwe beeld (de "twee video's"-valkuil).
+      updateScene(i, { imageUrl: d.imageUrl, videoUrl: null });
       // Nieuw beeld → tekst-status kan gewijzigd zijn; skip-melding wissen.
       setMotionSkipped((m) => ({ ...m, [s.id]: false }));
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setImgBusy((b) => ({ ...b, [s.id]: false }));
+    }
+  }
+
+  // Referentiefoto voor één scène uploaden en het beeld er meteen mee hergenereren,
+  // zodat het échte product/logo/object klopt. De referentie blijft bewaard, dus
+  // volgende regeneraties van deze scène gebruiken 'm ook.
+  async function uploadSceneRef(i: number, file: File) {
+    if (!spec) return;
+    const s = spec.scenes[i];
+    setErr(null);
+    setImgBusy((b) => ({ ...b, [s.id]: true }));
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/infographics/upload-scene-ref", { method: "POST", body: fd });
+      const d = await res.json();
+      if (!res.ok) throw new Error(apiError(d, "Referentiefoto uploaden mislukt"));
+      setSceneRef((m) => ({ ...m, [s.id]: d.url as string }));
+      await sceneImage(i, { mode: "generate", illustration: s.illustration, referencePhotoUrl: d.url, brandColors: brandColorsPayload() });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -456,7 +552,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/scene-voice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, voice, speed: voiceSpeed }),
+        body: JSON.stringify({ text, voice, speed: voiceSpeed, language: spec.language ?? language }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Voice-over mislukt"));
@@ -541,7 +637,8 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/scene-motion", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageUrl: s.imageUrl, steer, force }),
+        // Ankers voor het kritische oog: de voice-over, het bedoelde beeld en de titel.
+        body: JSON.stringify({ imageUrl: s.imageUrl, steer, force, voiceover: s.voiceover, illustration: s.illustration, title: spec?.title }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Animeren mislukt"));
@@ -549,6 +646,15 @@ export default function StoryPage() {
       if (d.skipped) { setMotionSkipped((m) => ({ ...m, [s.id]: true })); return; }
       setMotionSkipped((m) => ({ ...m, [s.id]: false }));
       updateScene(i, { videoUrl: d.videoUrl });
+      // Terugkoppeling van de automatische controle (aantal pogingen).
+      if (d.qc && typeof d.qc.attempts === "number") {
+        setMotionNote((m) => ({
+          ...m,
+          [s.id]: d.qc.attempts > 1
+            ? `✓ Beweging automatisch verbeterd (${d.qc.attempts} pogingen)`
+            : "✓ Beweging gecontroleerd",
+        }));
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -623,6 +729,32 @@ export default function StoryPage() {
             <PdfUploadButton onExtracted={(t) => setText(t)} />
           </div>
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Plak hier je bron: cijfers, feiten en kernpunten. De AI maakt er een verhaalboog van. (Of upload een PDF.)" className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-xs text-white" />
+          {!spec && (
+            <div className="mt-1.5">
+              <button
+                onClick={planSeries}
+                disabled={seriesBusy || (!topic.trim() && !text.trim())}
+                title="Splitst je onderwerp in meerdere losse korte video's"
+                className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+              >
+                {seriesBusy ? "Serie bedenken…" : "🎬 Maak er een serie van"}
+              </button>
+              {episodes.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  <p className="text-[11px] text-slate-400">Kies een aflevering — die vult onderwerp + brontekst, daarna genereer je 'm normaal:</p>
+                  {episodes.map((ep, i) => (
+                    <div key={i} className="flex items-start justify-between gap-3 bg-slate-900/40 border border-white/10 rounded px-2.5 py-2">
+                      <div className="min-w-0">
+                        <div className="text-xs font-medium text-white">{i + 1}. {ep.title}</div>
+                        <div className="text-[11px] text-slate-400">{ep.angle}</div>
+                      </div>
+                      <button onClick={() => planEpisode(ep)} className="shrink-0 text-[11px] px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white">Maak deze →</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Huisstijl: kies een opgeslagen kit óf haal 'm uit een website; kleuren,
@@ -711,6 +843,25 @@ export default function StoryPage() {
                 <span className="text-[11px] text-slate-400">Logo tonen{logoUrl ? "" : " (geen logo)"}</span>
               </label>
             </div>
+            <div className="flex flex-col gap-1 pb-1.5">
+              <span className="block text-[11px] text-slate-400">Vast personage</span>
+              <div className="flex items-center gap-2">
+                {characterUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={characterUrl} alt="personage" className="h-7 w-7 rounded object-contain bg-white/90 p-0.5" />
+                )}
+                <label className={`text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 cursor-pointer ${characterBusy ? "opacity-50 pointer-events-none" : ""}`} title="Upload een mascotte/typetje dat consistent in elke scène terugkomt (PNG, JPG of WEBP)">
+                  {characterBusy ? "Uploaden…" : characterUrl ? "Vervangen" : "⬆ Personage uploaden"}
+                  <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadCharacter(f); e.currentTarget.value = ""; }} />
+                </label>
+                {characterUrl && (
+                  <button type="button" onClick={() => setCharacterUrl(null)} title="Personage verwijderen" className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-800">
+                    Verwijderen
+                  </button>
+                )}
+              </div>
+              <span className="text-[10px] text-slate-500">Komt consistent in elke scène terug.</span>
+            </div>
           </div>
         </div>
 
@@ -721,6 +872,60 @@ export default function StoryPage() {
               <option value="story">Verhaal</option>
               <option value="report">Rapport</option>
             </select>
+          </label>
+          <label className="block">
+            <span className="block text-[11px] text-slate-400 mb-0.5">Stijl {spec ? "(vast)" : ""}</span>
+            <select
+              value={styleId}
+              onChange={(e) => setStyleId(e.target.value)}
+              disabled={!!spec}
+              title={spec ? "De stijl ligt vast voor dit verhaal. Klik 'Nieuw verhaal' voor een andere stijl." : "Kies de tekenstijl van de illustraties"}
+              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {STORY_STYLE_PRESETS.map((s) => (
+                <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="block text-[11px] text-slate-400 mb-0.5">Taal {spec ? "(vast)" : ""}</span>
+            <select
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+              disabled={!!spec}
+              title={spec ? "De taal ligt vast voor dit verhaal. Klik 'Nieuw verhaal' voor een andere taal." : "Taal van script en voice-over"}
+              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="block text-[11px] text-slate-400 mb-0.5">Namen niet vertalen</span>
+            <input
+              value={keepTermsText}
+              onChange={(e) => setKeepTermsText(e.target.value)}
+              placeholder="bijv. Smart Duck, TapEnjoy"
+              title="Merk-/eigennamen die exact zo moeten blijven (komma-gescheiden)"
+              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white w-44"
+            />
+          </label>
+          <label className="block">
+            <span className="block text-[11px] text-slate-400 mb-0.5">Toon</span>
+            <select value={tone} onChange={(e) => setTone(e.target.value as "zakelijk" | "speels" | "energiek")} className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white">
+              <option value="zakelijk">Zakelijk</option>
+              <option value="speels">Speels</option>
+              <option value="energiek">Energiek</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="block text-[11px] text-slate-400 mb-0.5">Invalshoek</span>
+            <input
+              value={angle}
+              onChange={(e) => setAngle(e.target.value)}
+              placeholder="optioneel · bijv. vanuit de klant"
+              title="Optionele hoek van waaruit het verhaal verteld wordt"
+              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white w-48"
+            />
           </label>
           <label className="block">
             <span className="block text-[11px] text-slate-400 mb-0.5">Formaat {spec ? "(vast)" : ""}</span>
@@ -940,7 +1145,7 @@ export default function StoryPage() {
                     </button>
                   </div>
                 </div>
-                <SceneField label="Kop (in beeld)" value={scene.headline} onChange={(v) => updateScene(i, { headline: v })} />
+                <SceneField label="Kop (in beeld)" value={scene.headline ?? ""} onChange={(v) => updateScene(i, { headline: v || null })} />
                 <SceneField label="Accentwoord" value={scene.emphasis ?? ""} onChange={(v) => updateScene(i, { emphasis: v || null })} />
                 <div className="grid grid-cols-2 gap-2">
                   <SceneField label="Groot getal" value={scene.bigNumber ?? ""} onChange={(v) => updateScene(i, { bigNumber: v || null })} />
@@ -959,13 +1164,17 @@ export default function StoryPage() {
                     <textarea value={scene.illustration} onChange={(e) => updateScene(i, { illustration: e.target.value })} rows={3} className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-slate-200" />
                   </label>
                   <button
-                    onClick={() => sceneImage(i, { mode: "generate", illustration: scene.illustration, brandColors: brandColorsPayload() })}
+                    onClick={() => sceneImage(i, { mode: "generate", illustration: scene.illustration, referencePhotoUrl: sceneRef[scene.id], brandColors: brandColorsPayload() })}
                     disabled={imgBusy[scene.id]}
                     title={`Kost ${CREDIT_COSTS.IMAGE_GENERATION} credit`}
                     className="text-xs bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md disabled:opacity-50 w-full"
                   >
                     Regenereer beeld <span className="text-slate-400">· {CREDIT_COSTS.IMAGE_GENERATION} cr.</span>
                   </button>
+                  <label className={`block text-xs px-3 py-1.5 rounded-md text-center cursor-pointer ${sceneRef[scene.id] ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20" : "bg-white/10 hover:bg-white/15 text-white"} ${imgBusy[scene.id] ? "opacity-50 pointer-events-none" : ""}`}>
+                    {sceneRef[scene.id] ? "✓ Referentiefoto · vervangen" : "📷 Referentiefoto (echt product/logo)"}
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadSceneRef(i, f); e.target.value = ""; }} />
+                  </label>
                   {(imgHistory[scene.id]?.length ?? 0) > 0 && (
                     <button onClick={() => revertImage(i)} title="Zet het vorige beeld terug" className="text-[11px] text-slate-400 hover:text-white underline">
                       ↩ vorige versie terugzetten
@@ -1011,7 +1220,10 @@ export default function StoryPage() {
                       <button onClick={() => animateScene(i, true)} className="text-amber-200 underline hover:text-amber-100">Toch animeren (tekst kan vervormen)</button>
                     </div>
                   )}
-                  <p className="text-[10px] text-slate-500">Vuistregel: het model voegt niks toe wat niet in het beeld staat, het maakt alleen het bestaande bewegend. Beelden met tekst blijven automatisch stil.</p>
+                  {motionNote[scene.id] && !motionBusy[scene.id] && !motionSkipped[scene.id] && (
+                    <p className="text-[10px] text-emerald-300/90">{motionNote[scene.id]}</p>
+                  )}
+                  <p className="text-[10px] text-slate-500">Vuistregel: het model voegt niks toe wat niet in het beeld staat, het maakt alleen het bestaande bewegend. Een kritisch oog controleert de beweging en animeert bij rare bewegingen automatisch (gratis) opnieuw. Beelden met tekst blijven stil.</p>
                 </div>
               </div>
             </div>

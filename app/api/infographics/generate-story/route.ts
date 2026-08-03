@@ -5,7 +5,7 @@ import { buildStoryPrompt } from "@/lib/infographics/build-story-prompt";
 import { STORY_SPEC_SCHEMA, type StorySpec, type StoryScene } from "@/lib/infographics/story-schema";
 import { generateImageWithStyle, cleanupIllustration } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint } from "@/lib/infographics/story-style";
+import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, CHARACTER_GUIDANCE } from "@/lib/infographics/story-style";
 import { artDirectScenes } from "@/lib/infographics/art-direct";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
@@ -23,6 +23,17 @@ interface Body {
   targetSeconds?: number;
   // Huisstijlkleuren (hex) voor het "zachte" illustratie-palet. Leeg = vrij palet.
   brandColors?: { primary?: string; accent?: string };
+  // Gekozen tekenstijl (zie STORY_STYLE_PRESETS). Leeg = flat-vector.
+  styleId?: string;
+  // Taal van script + voice-over (mensleesbaar NL, bijv. "Engels"). Leeg = Nederlands.
+  language?: string;
+  // Merk-/eigennamen die niet vertaald mogen worden (do-not-translate).
+  keepTerms?: string[];
+  // Verteltoon + optionele invalshoek.
+  tone?: string;
+  angle?: string;
+  // Vast personage/mascotte dat consistent moet terugkomen.
+  characterUrl?: string;
 }
 
 // Gemiddeld spreektempo (woorden/sec) en richtlengte per scene (sec), waaruit we
@@ -53,6 +64,10 @@ export async function POST(req: NextRequest) {
 
     const format = (body.format === "9:16" ? "9:16" : "16:9") as InfographicFormat;
     const mode = body.mode === "report" ? "report" : "story";
+    const styleId = body.styleId ?? "flat-vector";
+    const language = body.language ?? "Nederlands";
+    const keepTerms = Array.isArray(body.keepTerms) ? body.keepTerms : [];
+    const characterUrl = body.characterUrl?.trim() || null;
     const { secs, sceneCount, wordsPerScene } = planLength(body.targetSeconds ?? 60);
 
     // Credits: 1 voor het script + 1 beeld-tarief per geplande scene. Vooraf
@@ -71,7 +86,10 @@ export async function POST(req: NextRequest) {
       rawText,
       format,
       mode,
-      language: "Nederlands",
+      language,
+      keepTerms,
+      tone: body.tone,
+      angle: body.angle,
       targetSeconds: secs,
       sceneCount,
       wordsPerScene,
@@ -131,13 +149,14 @@ export async function POST(req: NextRequest) {
 
     const renderScene = async (scene: StoryScene, i: number, anchorUrl: string | null): Promise<StoryScene> => {
       try {
-        const extraContext = [paletteHint, anchorUrl ? STYLE_MATCH_ANCHOR : ""].filter(Boolean).join(" ").trim() || undefined;
+        const extraContext = [paletteHint, characterUrl ? CHARACTER_GUIDANCE : "", anchorUrl ? STYLE_MATCH_ANCHOR : ""].filter(Boolean).join(" ").trim() || undefined;
+        const ingredientUrls = [characterUrl, anchorUrl].filter((u): u is string => !!u);
         const result = await generateImageWithStyle({
-          prompt: buildIllustrationPrompt(scene.illustration),
+          prompt: buildIllustrationPrompt(scene.illustration, styleId, language),
           format,
           visualStyle: null,
           seed,
-          ingredientUrls: anchorUrl ? [anchorUrl] : undefined,
+          ingredientUrls: ingredientUrls.length ? ingredientUrls : undefined,
           extraContext,
         });
         // Tweede pass: sfeer-decoratie (rook, wolken, hoekplanten, bubbels) van het
@@ -166,7 +185,7 @@ export async function POST(req: NextRequest) {
     );
     const scenes: StoryScene[] = [first, ...rest];
 
-    return NextResponse.json({ spec: { ...spec, scenes, seed, anchorImageUrl } });
+    return NextResponse.json({ spec: { ...spec, scenes, seed, anchorImageUrl, styleId, language, characterUrl } });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("generate-story failed:", msg);
