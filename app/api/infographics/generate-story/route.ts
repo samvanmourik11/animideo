@@ -29,6 +29,8 @@ interface Body {
   language?: string;
   // Merk-/eigennamen die niet vertaald mogen worden (do-not-translate).
   keepTerms?: string[];
+  // Merk-/eigennamen die nergens genoemd mogen worden (bron-anoniem).
+  avoidTerms?: string[];
   // Verteltoon + optionele invalshoek.
   tone?: string;
   angle?: string;
@@ -88,6 +90,7 @@ export async function POST(req: NextRequest) {
       mode,
       language,
       keepTerms,
+      avoidTerms: Array.isArray(body.avoidTerms) ? body.avoidTerms : [],
       tone: body.tone,
       angle: body.angle,
       targetSeconds: secs,

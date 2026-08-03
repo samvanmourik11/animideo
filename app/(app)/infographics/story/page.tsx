@@ -108,6 +108,7 @@ export default function StoryPage() {
   const [styleId, setStyleId] = useState<string>(DEFAULT_STORY_STYLE);
   const [language, setLanguage] = useState<string>("Nederlands");
   const [keepTermsText, setKeepTermsText] = useState("");
+  const [avoidTermsText, setAvoidTermsText] = useState("");
   const [tone, setTone] = useState<"zakelijk" | "speels" | "energiek">("zakelijk");
   const [angle, setAngle] = useState("");
   const [characterUrl, setCharacterUrl] = useState<string | null>(null);
@@ -430,7 +431,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/generate-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, text, mode, format, targetSeconds, styleId, language, tone, angle, characterUrl, keepTerms: keepTermsText.split(",").map((t) => t.trim()).filter(Boolean), brandColors: brandColorsPayload() }),
+        body: JSON.stringify({ topic, text, mode, format, targetSeconds, styleId, language, tone, angle, characterUrl, keepTerms: keepTermsText.split(",").map((t) => t.trim()).filter(Boolean), avoidTerms: avoidTermsText.split(",").map((t) => t.trim()).filter(Boolean), brandColors: brandColorsPayload() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiError(data, "Verhaal genereren mislukt"));
@@ -975,6 +976,16 @@ export default function StoryPage() {
               onChange={(e) => setKeepTermsText(e.target.value)}
               placeholder="bijv. Smart Duck, TapEnjoy"
               title="Merk-/eigennamen die exact zo moeten blijven (komma-gescheiden)"
+              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white w-44"
+            />
+          </label>
+          <label className="block">
+            <span className="block text-[11px] text-slate-400 mb-0.5">Namen niet noemen</span>
+            <input
+              value={avoidTermsText}
+              onChange={(e) => setAvoidTermsText(e.target.value)}
+              placeholder="bijv. eigen merknaam"
+              title="Namen/merken die de AI NERGENS mag noemen (bron-anoniem, komma-gescheiden)"
               className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white w-44"
             />
           </label>

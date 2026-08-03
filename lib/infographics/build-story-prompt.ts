@@ -15,6 +15,8 @@ export interface BuildStoryPromptArgs {
   wordsPerScene?: number;
   // Merk-/eigennamen die NOOIT vertaald of verbasterd mogen worden (do-not-translate).
   keepTerms?: string[];
+  // Merk-/eigennamen die NERGENS genoemd mogen worden (bron-anoniem).
+  avoidTerms?: string[];
   // Verteltoon: "zakelijk" (default) | "speels" | "energiek".
   tone?: string;
   // Optionele invalshoek/hoek van waaruit het onderwerp benaderd wordt.
@@ -41,6 +43,10 @@ export function buildStoryPrompt(args: BuildStoryPromptArgs): { system: string; 
   const keepTerms = (args.keepTerms ?? []).map((t) => t.trim()).filter(Boolean);
   const keepLine = keepTerms.length
     ? `\n- Laat deze merk-/eigennamen EXACT ongewijzigd (nooit vertalen, verbuigen of fonetisch verbasteren), in zowel de voice-over als de headline: ${keepTerms.map((t) => `"${t}"`).join(", ")}.`
+    : "";
+  const avoidTerms = (args.avoidTerms ?? []).map((t) => t.trim()).filter(Boolean);
+  const avoidLine = avoidTerms.length
+    ? `\n- Noem deze namen/merken NERGENS (niet in de voice-over, niet in de headline): ${avoidTerms.map((t) => `"${t}"`).join(", ")}. Verwijs er hooguit omschrijvend naar (bijv. "een bedrijf in deze sector").`
     : "";
   const toneLine =
     args.tone === "speels" ? "\n- TOON: luchtig, speels en toegankelijk — vlot, met een glimlach, maar nog steeds helder."
@@ -84,7 +90,7 @@ HARDE REGELS:
 - Gebruik alleen feiten en cijfers die letterlijk in de brontekst staan.
 - Alle zichtbare teksten (voiceover, en headline/numberLabel indien aanwezig) in ${lang}. De "illustration" is altijd in het Engels.
 - Varieer de scenes visueel: niet 5 keer hetzelfde beeld. Wissel close-ups, omgevingen en perspectieven af, zoals een goede explainer-video.
-${brandLine ? `- ${brandLine}` : ""}${keepLine}${toneLine}${angleLine}`;
+${brandLine ? `- ${brandLine}` : ""}${keepLine}${avoidLine}${toneLine}${angleLine}`;
 
   const user = `ONDERWERP / TITEL:
 ${args.topic || "(leid een passende titel af uit de brontekst)"}
