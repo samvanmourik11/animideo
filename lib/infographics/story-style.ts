@@ -124,12 +124,19 @@ export const CHARACTER_GUIDANCE =
 // Zachte huisstijl-palet-instructie voor de illustraties: de merkkleuren leiden,
 // aangevuld met natuurlijke steunkleuren (niet strak/eentonig geforceerd). Wordt
 // als extra context aan de beeld-prompt meegegeven zodat de illustraties bij de
-// huisstijl aansluiten. Lege string als er geen geldige hex-kleuren zijn.
+// huisstijl aansluiten. ALTIJD in kleur — ook zonder merkkleuren — zodat scenes
+// nooit onbedoeld grijs/zwart-wit worden (huisstijl-kleurbug uit het verbeterplan).
+const ALWAYS_COLOUR =
+  " Render the whole scene in full, clear colour. NEVER grayscale, black-and-white, sepia, desaturated or monochrome; every scene in a set must be equally colourful.";
+
 export function brandPaletteHint(primary?: string | null, accent?: string | null): string {
   const cols = [primary, accent].filter((c): c is string => !!c && /^#[0-9a-fA-F]{6}$/.test(c.trim()));
-  if (cols.length === 0) return "";
+  if (cols.length === 0) {
+    // Geen merkkleuren: geen palet forceren, maar wél kleur garanderen.
+    return " Use a clear, friendly full-colour flat palette." + ALWAYS_COLOUR;
+  }
   const list = cols.join(" and ");
-  return ` Use a flat colour palette led by the brand colours ${list}: let these brand colours dominate the main shapes, fills and accents. Complement them with a few natural, harmonious supporting tones so the illustration stays clean and pleasant — do not force everything into one colour and do not make it monotone.`;
+  return ` Use a flat colour palette led by the brand colours ${list}: let these brand colours dominate the main shapes, fills and accents. Complement them with a few natural, harmonious supporting tones so the illustration stays clean and pleasant — do not force everything into one colour and do not make it monotone.` + ALWAYS_COLOUR;
 }
 
 // Extra instructie wanneer er een "anker"-beeld als STIJL-referentie wordt

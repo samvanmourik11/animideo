@@ -134,6 +134,7 @@ export async function extractBrandFromWebsite(rawUrl: string): Promise<Extracted
 }
 - primary = de dominante merkkleur (voor koppen/tekst). accent = de opvallende steunkleur (voor cijfers/nadruk). background = een lichte achtergrondkleur.
 - Kleuren MOETEN geldige hex zijn (#rrggbb), afgeleid uit de beelden/site.
+- BELANGRIJK: kijk naar de ÉCHTE merkkleuren (het logo van dit bedrijf, de koppen, knoppen en accentvlakken). NEGEER kleuren van keurmerk-, certificerings-, partner- of betaallogo's (bijv. RDW, iDEAL, Thuiswinkel Waarborg, Google, sociale-media-iconen) en van algemene UI/foto-inhoud — die zijn NIET de huisstijl.
 - Antwoord met UITSLUITEND het JSON-object.
 
 WEBSITETEKST:
