@@ -44,6 +44,7 @@ export async function extractFrames(videoUrl: string, max = 4): Promise<string[]
 
 export interface MotionVerdict {
   ok: boolean;
+  score: number;             // 0-10 kwaliteitsscore, om de beste poging te kiezen
   reason: string;
   betterSteer: string | null; // bijsturing voor een nieuwe poging (of null)
 }
@@ -56,7 +57,7 @@ export async function critiqueMotion(opts: {
   title?: string | null;
   plan?: string | null; // vooraf bepaalde beweging waartegen we toetsen
 }): Promise<MotionVerdict> {
-  if (opts.frames.length === 0) return { ok: true, reason: "geen frames om te beoordelen", betterSteer: null };
+  if (opts.frames.length === 0) return { ok: true, score: 10, reason: "geen frames om te beoordelen", betterSteer: null };
 
   const imageParts = opts.frames.map((b64) => ({
     type: "image_url" as const,
@@ -82,7 +83,9 @@ ${opts.plan
 
 Keur alleen GOED (ok=true) als de clip ${opts.plan ? "PRECIES de vooraf bepaalde beweging toont" : "een subtiele, kloppende beweging toont"}, volledig glitch-vrij is, en al het andere identiek en stil blijft. Bij twijfel: AFKEUREN.
 
-Antwoord met JSON: {"ok": boolean, "reason": "<korte reden in het Nederlands>", "betterSteer": "<kortere, nóg voorzichtiger NL-bijsturing die dichter bij de bepaalde beweging blijft, of null als ok=true>"}.`;
+Geef ook een kwaliteits-SCORE van 0 tot 10 (10 = precies de bepaalde beweging, subtiel en volledig glitch-vrij; 0 = ernstige glitches/vervorming of duidelijk fout). Zo kan de beste van meerdere pogingen gekozen worden.
+
+Antwoord met JSON: {"ok": boolean, "score": <0-10>, "reason": "<korte reden in het Nederlands>", "betterSteer": "<kortere, nóg voorzichtiger NL-bijsturing die dichter bij de bepaalde beweging blijft, of null als ok=true>"}.`;
 
   try {
     const res = await openai.chat.completions.create({
@@ -92,11 +95,13 @@ Antwoord met JSON: {"ok": boolean, "reason": "<korte reden in het Nederlands>", 
       response_format: { type: "json_object" },
       messages: [{ role: "user", content: [...imageParts, { type: "text", text: instruction }] }],
     });
-    const parsed = JSON.parse(res.choices[0]?.message?.content ?? "{}") as { ok?: boolean; reason?: string; betterSteer?: string | null };
-    return { ok: parsed.ok !== false, reason: String(parsed.reason ?? ""), betterSteer: parsed.betterSteer ?? null };
+    const parsed = JSON.parse(res.choices[0]?.message?.content ?? "{}") as { ok?: boolean; score?: number; reason?: string; betterSteer?: string | null };
+    const ok = parsed.ok !== false;
+    const score = typeof parsed.score === "number" ? Math.max(0, Math.min(10, parsed.score)) : (ok ? 8 : 3);
+    return { ok, score, reason: String(parsed.reason ?? ""), betterSteer: parsed.betterSteer ?? null };
   } catch (e) {
-    // Faalt de beoordeling, dan niet blokkeren: keur goed.
+    // Faalt de beoordeling, dan niet blokkeren: bruikbaar houden (hoge score).
     console.error("[motion-critic] beoordeling mislukt:", e instanceof Error ? e.message : String(e));
-    return { ok: true, reason: "beoordeling niet gelukt", betterSteer: null };
+    return { ok: true, score: 10, reason: "beoordeling niet gelukt", betterSteer: null };
   }
 }
