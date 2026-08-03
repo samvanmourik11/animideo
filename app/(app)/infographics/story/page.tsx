@@ -101,6 +101,7 @@ export default function StoryPage() {
   const [seriesBusy, setSeriesBusy] = useState(false);
   const [mode, setMode] = useState<"story" | "report">("story");
   const [format, setFormat] = useState<"16:9" | "9:16">("16:9");
+  const [showSafeZone, setShowSafeZone] = useState(false);
   const [styleId, setStyleId] = useState<string>(DEFAULT_STORY_STYLE);
   const [language, setLanguage] = useState<string>("Nederlands");
   const [keepTermsText, setKeepTermsText] = useState("");
@@ -1138,7 +1139,15 @@ export default function StoryPage() {
             <StoryPlayer spec={spec} navy={navy} accent={accent} fontFamily={fontFamily} logoUrl={logoEnabled ? logoUrl : null} />
           </div>
 
-          <h3 className="text-sm font-semibold text-slate-300">Scenes bewerken</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-300">Scenes bewerken</h3>
+            {spec.format === "9:16" && (
+              <label className="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer" title="Toont waar TikTok/Instagram-knoppen en captions het beeld bedekken, zodat je tekst en logo vrij houdt.">
+                <input type="checkbox" checked={showSafeZone} onChange={(e) => setShowSafeZone(e.target.checked)} className="accent-blue-500" />
+                Veilige zone (social) tonen
+              </label>
+            )}
+          </div>
           {spec.scenes.map((scene, i) => (
             <div key={scene.id} className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
               <div className="relative rounded-xl overflow-hidden border border-white/10 bg-[#f3f1ec]" style={{ aspectRatio: aspect }}>
@@ -1151,6 +1160,13 @@ export default function StoryPage() {
                   <div className="absolute inset-0 grid place-items-center text-slate-400 text-xs">geen illustratie</div>
                 )}
                 <EditableStoryScene scene={scene} format={spec.format} navy={navy} accent={accent} fontFamily={fontFamily} logoUrl={logoEnabled ? logoUrl : null} onChange={(patch) => updateScene(i, patch)} />
+                {spec.format === "9:16" && showSafeZone && (
+                  <div className="absolute inset-0 z-20 pointer-events-none">
+                    <div className="absolute inset-x-0 top-0 h-[10%] bg-red-500/10 border-b border-dashed border-red-400/50" />
+                    <div className="absolute inset-x-0 bottom-0 h-[20%] bg-red-500/10 border-t border-dashed border-red-400/50" />
+                    <span className="absolute bottom-[20.5%] left-1 text-[8px] text-red-100/90 bg-black/40 px-1 rounded">social-UI bedekt dit</span>
+                  </div>
+                )}
                 {(imgBusy[scene.id] || motionBusy[scene.id]) && (
                   <div className="absolute inset-0 z-10 grid place-items-center bg-black/40 text-white text-sm">{motionBusy[scene.id] ? "Animeren… (kan ~1 min duren)" : "Beeld bijwerken…"}</div>
                 )}
