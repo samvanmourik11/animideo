@@ -9,13 +9,30 @@ import type { StorySpec } from "@/lib/infographics/story-schema";
 // Achtergrond-clip van een scene. Is de scene langer dan de clip (Seedance levert
 // ~5s), dan vertragen we de clip zodat hij de hele scene vult in plaats van te
 // herhalen (geen loop). Korter dan de clip: gewoon op snelheid, niet versnellen.
-function SceneVideo({ src, duration }: { src: string; duration: number }) {
+function SceneVideo({ src, duration, playing, playKey }: { src: string; duration: number; playing: boolean; playKey: number }) {
   const ref = useRef<HTMLVideoElement | null>(null);
   function onMeta() {
     const v = ref.current;
     if (!v || !v.duration || !isFinite(v.duration) || duration <= 0) return;
     v.playbackRate = Math.max(0.1, Math.min(1, v.duration / duration));
+    if (playing) v.play().catch(() => {});
   }
+  // Mee spelen/pauzeren met de tijdlijn i.p.v. los door te spelen.
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    if (playing) v.play().catch(() => {});
+    else v.pause();
+  }, [playing]);
+  // Bij (her)start/seek terug naar het begin van de clip — anders blijft de eerste
+  // scene op een bevroren laatste frame staan als je opnieuw op afspelen drukt.
+  useEffect(() => {
+    const v = ref.current;
+    if (!v) return;
+    try { v.currentTime = 0; } catch {}
+    if (playing) v.play().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playKey]);
   return (
     <video
       ref={ref}
@@ -50,6 +67,8 @@ export default function StoryPlayer({
 
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
+  // Bumpt bij (her)start/seek zodat de scène-videos terug naar hun begin springen.
+  const [playGen, setPlayGen] = useState(0);
   const startRef = useRef(0);
   const rafRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -79,12 +98,15 @@ export default function StoryPlayer({
   }, [spec.musicVolume]);
 
   function toggle() {
-    if (t >= total) { setT(0); setPlaying(true); return; }
-    setPlaying((p) => !p);
+    if (playing) { setPlaying(false); return; }
+    if (t >= total) { setPlayGen((g) => g + 1); setT(0); setPlaying(true); return; }
+    if (t === 0) setPlayGen((g) => g + 1); // verse start vanaf het begin
+    setPlaying(true);
   }
-  function restart() { setT(0); setPlaying(true); }
+  function restart() { setPlayGen((g) => g + 1); setT(0); setPlaying(true); }
   function seek(frac: number) {
     const nt = Math.max(0, Math.min(total, frac * total));
+    setPlayGen((g) => g + 1);
     setT(nt);
     startRef.current = performance.now() - nt * 1000;
     if (audioRef.current && audioRef.current.src) { try { audioRef.current.currentTime = nt; } catch {} }
@@ -105,7 +127,7 @@ export default function StoryPlayer({
           return (
             <div key={l.index} className="absolute inset-0" style={{ opacity: l.opacity }}>
               {scene?.videoUrl ? (
-                <SceneVideo src={scene.videoUrl} duration={windows[l.index]?.duration ?? 5} />
+                <SceneVideo src={scene.videoUrl} duration={windows[l.index]?.duration ?? 5} playing={playing} playKey={playGen} />
               ) : scene?.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
