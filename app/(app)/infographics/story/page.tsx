@@ -7,7 +7,6 @@ import PdfUploadButton from "@/components/infographics/PdfUploadButton";
 import { splitVoiceDurations, storyWindows } from "@/lib/infographics/story-layout";
 import { storyAspectRatio } from "@/lib/infographics/canvas-size";
 import { STORY_STYLE_PRESETS, DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
-import { STORY_TEMPLATES } from "@/lib/infographics/story-templates";
 import { createClient } from "@/lib/supabase/client";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 import { STORY_VOICES, DEFAULT_VOICE, voicePreviewUrl } from "@/lib/infographics/story-voices";
@@ -107,8 +106,6 @@ export default function StoryPage() {
   const [showSafeZone, setShowSafeZone] = useState(false);
   const [styleId, setStyleId] = useState<string>(DEFAULT_STORY_STYLE);
   const [language, setLanguage] = useState<string>("Nederlands");
-  const [keepTermsText, setKeepTermsText] = useState("");
-  const [avoidTermsText, setAvoidTermsText] = useState("");
   const [tone, setTone] = useState<"zakelijk" | "speels" | "energiek">("zakelijk");
   const [angle, setAngle] = useState("");
   const [characterUrl, setCharacterUrl] = useState<string | null>(null);
@@ -406,15 +403,6 @@ export default function StoryPage() {
     }
   }
 
-  // "Snel starten": een sjabloon vult onderwerp + brontekst + toon/formaat voor.
-  function applyTemplate(t: (typeof STORY_TEMPLATES)[number]) {
-    setTopic(t.topic);
-    setText(t.text);
-    setTone(t.tone);
-    setFormat(t.format);
-    setEpisodes([]);
-  }
-
   // Kies één aflevering: vult onderwerp + brontekst zodat je 'm normaal genereert.
   function planEpisode(ep: { title: string; angle: string; brief: string }) {
     setTopic(ep.title);
@@ -431,7 +419,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/generate-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, text, mode, format, targetSeconds, styleId, language, tone, angle, characterUrl, keepTerms: keepTermsText.split(",").map((t) => t.trim()).filter(Boolean), avoidTerms: avoidTermsText.split(",").map((t) => t.trim()).filter(Boolean), brandColors: brandColorsPayload() }),
+        body: JSON.stringify({ topic, text, mode, format, targetSeconds, styleId, language, tone, angle, characterUrl, brandColors: brandColorsPayload() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiError(data, "Verhaal genereren mislukt"));
@@ -756,23 +744,6 @@ export default function StoryPage() {
       {loadingProject && <p className="text-sm text-blue-300 mb-4">Verhaal laden…</p>}
 
       <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3 mb-8">
-        {!spec && (
-          <div>
-            <span className="block text-[11px] text-slate-400 mb-1">Snel starten <span className="text-slate-500">(sjabloon vult onderwerp + brontekst + toon)</span></span>
-            <div className="flex flex-wrap gap-1.5">
-              {STORY_TEMPLATES.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => applyTemplate(t)}
-                  title={t.hint}
-                  className="text-[11px] px-2 py-1 rounded-full border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 hover:border-white/20 transition"
-                >
-                  {t.emoji} {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
         <label className="block">
           <span className="block text-[11px] text-slate-400 mb-0.5">Onderwerp / titel</span>
           <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="bijv. De geschiedenis van de VOC" className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white" />
@@ -968,26 +939,6 @@ export default function StoryPage() {
             >
               {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
-          </label>
-          <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Namen niet vertalen</span>
-            <input
-              value={keepTermsText}
-              onChange={(e) => setKeepTermsText(e.target.value)}
-              placeholder="bijv. Smart Duck, TapEnjoy"
-              title="Merk-/eigennamen die exact zo moeten blijven (komma-gescheiden)"
-              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white w-44"
-            />
-          </label>
-          <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Namen niet noemen</span>
-            <input
-              value={avoidTermsText}
-              onChange={(e) => setAvoidTermsText(e.target.value)}
-              placeholder="bijv. eigen merknaam"
-              title="Namen/merken die de AI NERGENS mag noemen (bron-anoniem, komma-gescheiden)"
-              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white w-44"
-            />
           </label>
           <label className="block">
             <span className="block text-[11px] text-slate-400 mb-0.5">Toon</span>

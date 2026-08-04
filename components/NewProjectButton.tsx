@@ -14,7 +14,7 @@ export default function NewProjectButton({ userId }: { userId: string }) {
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => setStudioAllowed(canUseStudio(data.user?.email)));
   }, []);
-  const [loading, setLoading] = useState<"wizard" | "free" | "photo" | "t2v" | "studio" | "playground" | "story" | "infographics" | "explainer" | null>(null);
+  const [loading, setLoading] = useState<"studio" | "story" | "infographics" | "explainer" | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   // Sluit dropdown bij klik buiten het component
@@ -35,12 +35,6 @@ export default function NewProjectButton({ userId }: { userId: string }) {
     router.push("/studio/new?new=1");
   }
 
-  function openPlayground() {
-    setLoading("playground");
-    setOpen(false);
-    router.push("/playground");
-  }
-
   function openStorytelling() {
     setLoading("story");
     setOpen(false);
@@ -57,113 +51,6 @@ export default function NewProjectButton({ userId }: { userId: string }) {
     setLoading("explainer");
     setOpen(false);
     router.push("/explainer/new");
-  }
-
-  async function createWizard() {
-    setLoading("wizard");
-    setOpen(false);
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("projects")
-      .insert({
-        user_id: userId,
-        title: "Untitled Project",
-        language: "English",
-        format: "16:9",
-        visual_style: "Cinematic",
-        status: "Draft",
-        mode: "wizard",
-      })
-      .select()
-      .single();
-
-    if (!error && data) {
-      router.push(`/project/${data.id}`);
-    } else {
-      alert("Kon project niet aanmaken: " + error?.message);
-      setLoading(null);
-    }
-  }
-
-  async function createPhoto() {
-    setLoading("photo");
-    setOpen(false);
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("projects")
-      .insert({
-        user_id:      userId,
-        title:        "Untitled Project",
-        language:     "Dutch",
-        format:       "16:9",
-        visual_style: "2D Cartoon",
-        status:       "Draft",
-        mode:         "photo",
-      })
-      .select()
-      .single();
-
-    if (!error && data) {
-      router.push(`/project/${data.id}`);
-    } else {
-      alert("Kon project niet aanmaken: " + error?.message);
-      setLoading(null);
-    }
-  }
-
-  async function createT2V() {
-    setLoading("t2v");
-    setOpen(false);
-    const supabase = createClient();
-    const today = new Date().toLocaleDateString("nl-NL", { day: "numeric", month: "long" });
-    const { data, error } = await supabase
-      .from("projects")
-      .insert({
-        user_id:      userId,
-        title:        "Untitled Project",
-        language:     "Dutch",
-        format:       "16:9",
-        visual_style: "Cinematic",
-        status:       "Draft",
-        mode:         "t2v",
-        video_model:  "seedance-lite-t2v",
-      })
-      .select()
-      .single();
-
-    if (!error && data) {
-      router.push(`/project/${data.id}/t2v`);
-    } else {
-      alert("Kon project niet aanmaken: " + error?.message);
-      setLoading(null);
-    }
-  }
-
-  async function createFree() {
-    setLoading("free");
-    setOpen(false);
-    const supabase = createClient();
-    const today = new Date().toLocaleDateString("nl-NL", { day: "numeric", month: "long" });
-    const { data, error } = await supabase
-      .from("projects")
-      .insert({
-        user_id: userId,
-        title: `Eigen video — ${today}`,
-        language: "Dutch",
-        format: "16:9",
-        visual_style: "Cinematic",
-        status: "Draft",
-        mode: "free",
-      })
-      .select()
-      .single();
-
-    if (!error && data) {
-      router.push(`/project/${data.id}/free`);
-    } else {
-      alert("Kon project niet aanmaken: " + error?.message);
-      setLoading(null);
-    }
   }
 
   const busy = loading !== null;
@@ -214,53 +101,9 @@ export default function NewProjectButton({ userId }: { userId: string }) {
               <p className="text-xs text-slate-500 mt-0.5">AI-verhaalvideo uit tekst of PDF, met voice-over</p>
             </div>
           </button>
-          <div className="h-px bg-white/[0.06] mx-3" />
-          <button
-            onClick={createWizard}
-            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
-          >
-            <span className="text-lg leading-none mt-0.5">✨</span>
-            <div>
-              <p className="text-sm font-medium text-white">AI Wizard</p>
-              <p className="text-xs text-slate-500 mt-0.5">Script en afbeeldingen via AI</p>
-            </div>
-          </button>
-          <div className="h-px bg-white/[0.06] mx-3" />
-          <button
-            onClick={createPhoto}
-            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
-          >
-            <span className="text-lg leading-none mt-0.5">📸</span>
-            <div>
-              <p className="text-sm font-medium text-white">Animeer je foto&apos;s</p>
-              <p className="text-xs text-slate-500 mt-0.5">Echte foto&apos;s omzetten naar animatie</p>
-            </div>
-          </button>
-          <div className="h-px bg-white/[0.06] mx-3" />
-          <button
-            onClick={createFree}
-            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
-          >
-            <span className="text-lg leading-none mt-0.5">🖼️</span>
-            <div>
-              <p className="text-sm font-medium text-white">Upload eigen afbeeldingen</p>
-              <p className="text-xs text-slate-500 mt-0.5">Eigen foto&apos;s omzetten naar video</p>
-            </div>
-          </button>
-          <div className="h-px bg-white/[0.06] mx-3" />
-          <button
-            onClick={createT2V}
-            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
-          >
-            <span className="text-lg leading-none mt-0.5">⚡</span>
-            <div>
-              <p className="text-sm font-medium text-white">Text to Video</p>
-              <p className="text-xs text-slate-500 mt-0.5">Direct video van tekst, geen afbeeldingen</p>
-            </div>
-          </button>
-          <div className="h-px bg-white/[0.06] mx-3" />
           {studioAllowed && (
             <>
+              <div className="h-px bg-white/[0.06] mx-3" />
               <button
                 onClick={openInfographics}
                 className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
@@ -282,19 +125,8 @@ export default function NewProjectButton({ userId }: { userId: string }) {
                   <p className="text-xs text-slate-500 mt-0.5">Flat animated uitleg-video met voice-over, geen poppetjes</p>
                 </div>
               </button>
-              <div className="h-px bg-white/[0.06] mx-3" />
             </>
           )}
-          <button
-            onClick={openPlayground}
-            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
-          >
-            <span className="text-lg leading-none mt-0.5">🎨</span>
-            <div>
-              <p className="text-sm font-medium text-white">Playground</p>
-              <p className="text-xs text-slate-500 mt-0.5">Vrij spelen met beelden, geen vaste volgorde</p>
-            </div>
-          </button>
         </div>
       )}
     </div>
