@@ -159,9 +159,13 @@ export default function StoryPage() {
   const [exporting, setExporting] = useState(false);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
 
-  // Persistentie: het verhaal hangt aan een project (mode 'story'). projectId is
-  // null tot de eerste opslag; daarna richten autosaves zich op dat project.
+  // Persistentie: het verhaal hangt aan een project (mode 'story'). Het project
+  // wordt automatisch aangemaakt zodra er een verhaal is — de gebruiker hoeft
+  // nergens op te klikken. Eerder moest dat wél, en wie dat vergat raakte al zijn
+  // beelden en animaties kwijt.
   const [projectId, setProjectId] = useState<string | null>(null);
+  // Slot: voorkomt dat twee gelijktijdige autosaves elk een eigen project aanmaken.
+  const savingRef = useRef(false);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [loadingProject, setLoadingProject] = useState(false);
@@ -171,6 +175,10 @@ export default function StoryPage() {
   const save = useCallback(
     async (silent = false): Promise<string | null> => {
       if (!spec) return null;
+      // Loopt er al een opslag? Dan die afwachten: anders maken twee tegelijk
+      // lopende autosaves allebei een nieuw project aan.
+      if (savingRef.current) return projectId;
+      savingRef.current = true;
       if (!silent) setSaving(true);
       try {
         const specToSave: StorySpec = { ...spec, navy, accent, voice, voiceSpeed, fontFamily, logoUrl, logoEnabled };
@@ -192,6 +200,7 @@ export default function StoryPage() {
         setErr(e instanceof Error ? e.message : String(e));
         return null;
       } finally {
+        savingRef.current = false;
         if (!silent) setSaving(false);
       }
     },
@@ -232,15 +241,25 @@ export default function StoryPage() {
     })();
   }, []);
 
-  // Debounced autosave: zodra er een opgeslagen project is, bewaren we wijzigingen
-  // aan de spec automatisch (stil, ~1,5s na de laatste verandering).
-  const firstSpec = useRef(true);
+  // Debounced autosave. Er is bewust GEEN "eerst zelf bewaren"-drempel: zodra er
+  // een verhaal bestaat wordt het project aangemaakt en daarna bij elke wijziging
+  // (nieuw beeld, animatie, voice-over) stil bijgewerkt, ~1,5s na de laatste
+  // verandering. Tijdens het laden van een bestaand verhaal slaan we niets op.
   useEffect(() => {
-    if (!projectId || !spec) return;
-    if (firstSpec.current) { firstSpec.current = false; return; }
+    if (!spec || loadingProject) return;
     const t = setTimeout(() => { void save(true); }, 1500);
     return () => clearTimeout(t);
-  }, [spec, navy, accent, voice, voiceSpeed, fontFamily, logoUrl, logoEnabled, projectId, save]);
+  }, [spec, navy, accent, voice, voiceSpeed, fontFamily, logoUrl, logoEnabled, projectId, loadingProject, save]);
+
+  // Vangnet: waarschuw alleen als er nog écht een opslag onderweg is bij het
+  // wegklikken. Normaal is er niets te verliezen, want alles is al bewaard.
+  useEffect(() => {
+    function onLeave(e: BeforeUnloadEvent) {
+      if (savingRef.current) e.preventDefault();
+    }
+    window.addEventListener("beforeunload", onLeave);
+    return () => window.removeEventListener("beforeunload", onLeave);
+  }, []);
 
   // Huisstijlen van de gebruiker ophalen (voor de stem-/kleurkeuze in stap 1).
   useEffect(() => {
@@ -444,7 +463,6 @@ export default function StoryPage() {
     setErr(null);
     setProjectId(null);
     setSavedAt(null);
-    firstSpec.current = true;
     window.history.replaceState(null, "", "/infographics/story");
   }
 
@@ -1017,7 +1035,7 @@ export default function StoryPage() {
               </span>
               <span>Formaat: {spec.format}</span>
               {spec.voiceDuration ? <span className="text-emerald-400">{spec.voiceDuration.toFixed(1)}s ingesproken</span> : null}
-              {savedAt && !saving && <span>bewaard om {savedAt}</span>}
+              {savedAt && <span className="text-emerald-400/80">automatisch bewaard om {savedAt}</span>}
             </div>
 
             {/* Audio: stemkeuze + voice-over + sync + muziek. */}
@@ -1129,9 +1147,9 @@ export default function StoryPage() {
               {exportUrl && (
                 <a href={exportUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-400 underline">Download video</a>
               )}
-              <button onClick={() => save()} disabled={saving} className="text-sm bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 px-4 py-1.5 rounded-md disabled:opacity-50">
-                {saving ? "Opslaan…" : projectId ? "Opslaan" : "Bewaar verhaal"}
-              </button>
+              <span className="text-xs text-slate-400">
+                {savedAt ? `Automatisch bewaard om ${savedAt}` : "Wordt automatisch bewaard"}
+              </span>
               <button onClick={resetStory} className="text-sm text-slate-400 hover:text-white ml-auto">Nieuw verhaal (ander formaat)</button>
             </div>
           </div>
