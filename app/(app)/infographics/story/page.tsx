@@ -150,9 +150,8 @@ export default function StoryPage() {
   const [musicBusy, setMusicBusy] = useState(false);
   const [musicPrompt, setMusicPrompt] = useState("rustige, lichte corporate explainer-muziek");
   const [motionBusy, setMotionBusy] = useState<Record<string, boolean>>({});
-  // Scenes waarvan de animatie is overgeslagen: "text" (beeld bevat tekst) of
-  // "added"/"quality" (het kritische oog keurde elke poging af). Blijft dan een
-  // still; de gebruiker kan toch forceren.
+  // Scenes waarvan het kritische oog élke poging afkeurde omdat er iets werd
+  // toegevoegd. Die blijven staan (met camerabeweging in player en export).
   const [motionSkipped, setMotionSkipped] = useState<Record<string, string>>({});
   // Korte terugkoppeling van de automatische bewegings-controle (kritisch oog).
   const [motionNote, setMotionNote] = useState<Record<string, string>>({});
@@ -648,13 +647,12 @@ export default function StoryPage() {
     }
   }
 
-  async function animateScene(i: number, force = false) {
+  async function animateScene(i: number) {
     if (!spec) return;
     const s = spec.scenes[i];
     if (!s.imageUrl) return;
     // De vuistregel ("verzin niets bij") zit in de route; hier sturen we alleen
-    // de optionele bijsturing mee van wat er wél/niet moet bewegen. force=true
-    // negeert de tekst-check (animeren ondanks tekst in beeld).
+    // de optionele bijsturing mee van wat er wél/niet moet bewegen.
     const steer = (motionInstr[s.id] ?? "").trim();
     setErr(null);
     setMotionBusy((b) => ({ ...b, [s.id]: true }));
@@ -663,12 +661,12 @@ export default function StoryPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // Ankers voor het kritische oog: de voice-over, het bedoelde beeld en de titel.
-        body: JSON.stringify({ imageUrl: s.imageUrl, steer, force, voiceover: s.voiceover, illustration: s.illustration, title: spec?.title }),
+        body: JSON.stringify({ imageUrl: s.imageUrl, steer, voiceover: s.voiceover, illustration: s.illustration, title: spec?.title }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Animeren mislukt"));
-      // Beeld bevat tekst → route sloeg animatie over; als still houden.
-      if (d.skipped) { setMotionSkipped((m) => ({ ...m, [s.id]: String(d.reason ?? "text") })); return; }
+      // Elke poging afgekeurd (er kwam iets bij) → beeld blijft staan.
+      if (d.skipped) { setMotionSkipped((m) => ({ ...m, [s.id]: String(d.reason ?? "quality") })); return; }
       setMotionSkipped((m) => ({ ...m, [s.id]: "" }));
       updateScene(i, { videoUrl: d.videoUrl });
       // Terugkoppeling van de automatische controle.
@@ -1263,23 +1261,14 @@ export default function StoryPage() {
                   </button>
                   {motionSkipped[scene.id] && (
                     <div className="text-[10px] text-amber-200/90 bg-amber-500/10 border border-amber-500/25 rounded px-2 py-1.5 space-y-1">
-                      {motionSkipped[scene.id] === "text" ? (
-                        <>
-                          <p>Dit beeld bevat tekst/cijfers en is als <b>stilstaand beeld</b> gehouden — zo vervormt de tekst niet. In de video beweegt de camera er subtiel overheen.</p>
-                          <button onClick={() => animateScene(i, true)} className="text-amber-200 underline hover:text-amber-100">Toch animeren (tekst kan vervormen)</button>
-                        </>
-                      ) : (
-                        <>
-                          <p>Elke poging voegde iets toe wat niet in het beeld staat (bijv. een hand of extra object) en is daarom afgekeurd. Dit beeld krijgt in de video een <b>subtiele camerabeweging</b> in plaats van een animatie — je credits zijn teruggestort. Probeer het opnieuw, of stuur bij wat er mag bewegen.</p>
-                          <button onClick={() => animateScene(i)} className="text-amber-200 underline hover:text-amber-100">Opnieuw proberen</button>
-                        </>
-                      )}
+                      <p>Elke poging voegde iets toe wat niet in het beeld staat (bijv. een hand of extra object) en is daarom afgekeurd. Dit beeld krijgt in de video een <b>subtiele camerabeweging</b> in plaats van een animatie — je credits zijn teruggestort.</p>
+                      <button onClick={() => animateScene(i)} className="text-amber-200 underline hover:text-amber-100">Opnieuw proberen</button>
                     </div>
                   )}
                   {motionNote[scene.id] && !motionBusy[scene.id] && !motionSkipped[scene.id] && (
                     <p className="text-[10px] text-emerald-300/90">{motionNote[scene.id]}</p>
                   )}
-                  <p className="text-[10px] text-slate-500">Vuistregel: het model voegt niks toe wat niet in het beeld staat, het maakt alleen het bestaande bewegend. Een kritisch oog vergelijkt elke poging met het bronbeeld; komt er iets bij (bijv. een hand), dan wordt die poging nooit getoond en volgt automatisch (gratis) een nieuwe, voorzichtiger poging. Beelden met tekst blijven stil.</p>
+                  <p className="text-[10px] text-slate-500">Vuistregel: het model voegt niks toe wat niet in het beeld staat, het maakt alleen het bestaande bewegend. Een kritisch oog vergelijkt elke poging met het bronbeeld; komt er iets bij (bijv. een hand), dan wordt die poging nooit getoond en volgt automatisch (gratis) een nieuwe, voorzichtiger poging. Ook beelden met tekst worden geanimeerd; verandert de tekst ook maar iets, dan wordt die poging afgekeurd.</p>
                 </div>
               </div>
             </div>

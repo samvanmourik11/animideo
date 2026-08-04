@@ -95,6 +95,7 @@ ${context}
 
 Beoordeel STRENG. Keur AF (ok=false) bij één van deze:
 - glitches/AI-fouten: vervormde/morphende lichamen, gezichten of objecten; extra, verdwijnende of verdubbelde ledematen; onnatuurlijk verspringen;
+- TEKST, cijfers, labels of logo's in het beeld die veranderen: vervormen, vervagen, verspringen, andere letters krijgen of onleesbaar worden. Tekst moet exact identiek en haarscherp blijven;
 - NIEUWE elementen die niet in het ${opts.sourceImageUrl ? "bronbeeld" : "eerste frame"} staan: objecten, planten, tekst, extra personen, en in het bijzonder een hand, vinger, arm of ander lichaamsdeel dat in beeld komt of iets vastpakt;
 - iets dat vanaf een rand het beeld IN komt;
 - personen of objecten die (deels) UIT BEELD bewegen of naar de rand schuiven;

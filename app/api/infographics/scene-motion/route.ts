@@ -3,7 +3,6 @@ import { fal } from "@fal-ai/client";
 import { createClient } from "@/lib/supabase/server";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildMotionPrompt, MICRO_MOTION_STEER } from "@/lib/infographics/motion-prompt";
-import { imageHasText } from "@/lib/infographics/detect-text";
 import { planMotion } from "@/lib/infographics/motion-director";
 import { extractFrames, critiqueMotion } from "@/lib/infographics/motion-critic";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
@@ -37,11 +36,10 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { imageUrl, steer, prompt, force, voiceover, illustration, title } = (await req.json()) as {
+    const { imageUrl, steer, prompt, voiceover, illustration, title } = (await req.json()) as {
       imageUrl?: string;
       steer?: string;
       prompt?: string;
-      force?: boolean;
       // Ankers voor het kritische oog (tekst + context van het verhaal).
       voiceover?: string;
       illustration?: string;
@@ -49,11 +47,9 @@ export async function POST(req: NextRequest) {
     };
     if (!imageUrl) return NextResponse.json({ error: "Geen beeld" }, { status: 400 });
 
-    // Tekst-garantie: beeld met leesbare tekst → niet animeren (video-modellen
-    // vervormen tekst). Check vóór de creditafschrijving.
-    if (!force && (await imageHasText(imageUrl))) {
-      return NextResponse.json({ skipped: true, reason: "text" });
-    }
+    // Beelden met tekst worden NIET meer overgeslagen: ze werden dan stilgehouden
+    // met een waarschuwing, en dat leverde dode scènes op. Het kritische oog is
+    // hier de bewaker — het keurt af zodra tekst vervormt, morpht of verandert.
 
     // Credits worden ÉÉN keer afgerekend; de kwaliteits-herpogingen zijn gratis.
     const credit = await deductCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Story scene animeren");
