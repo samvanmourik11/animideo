@@ -150,9 +150,10 @@ export default function StoryPage() {
   const [musicBusy, setMusicBusy] = useState(false);
   const [musicPrompt, setMusicPrompt] = useState("rustige, lichte corporate explainer-muziek");
   const [motionBusy, setMotionBusy] = useState<Record<string, boolean>>({});
-  // Scenes waarvan de animatie is overgeslagen omdat het beeld tekst bevat (blijft
-  // een still om vervorming te voorkomen; de gebruiker kan toch forceren).
-  const [motionSkipped, setMotionSkipped] = useState<Record<string, boolean>>({});
+  // Scenes waarvan de animatie is overgeslagen: "text" (beeld bevat tekst) of
+  // "added"/"quality" (het kritische oog keurde elke poging af). Blijft dan een
+  // still; de gebruiker kan toch forceren.
+  const [motionSkipped, setMotionSkipped] = useState<Record<string, string>>({});
   // Korte terugkoppeling van de automatische bewegings-controle (kritisch oog).
   const [motionNote, setMotionNote] = useState<Record<string, string>>({});
   const [animatingAll, setAnimatingAll] = useState(false);
@@ -535,7 +536,7 @@ export default function StoryPage() {
       // verouderde video i.p.v. het nieuwe beeld (de "twee video's"-valkuil).
       updateScene(i, { imageUrl: d.imageUrl, videoUrl: null });
       // Nieuw beeld → tekst-status kan gewijzigd zijn; skip-melding wissen.
-      setMotionSkipped((m) => ({ ...m, [s.id]: false }));
+      setMotionSkipped((m) => ({ ...m, [s.id]: "" }));
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -667,8 +668,8 @@ export default function StoryPage() {
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Animeren mislukt"));
       // Beeld bevat tekst → route sloeg animatie over; als still houden.
-      if (d.skipped) { setMotionSkipped((m) => ({ ...m, [s.id]: true })); return; }
-      setMotionSkipped((m) => ({ ...m, [s.id]: false }));
+      if (d.skipped) { setMotionSkipped((m) => ({ ...m, [s.id]: String(d.reason ?? "text") })); return; }
+      setMotionSkipped((m) => ({ ...m, [s.id]: "" }));
       updateScene(i, { videoUrl: d.videoUrl });
       // Terugkoppeling van de automatische controle.
       if (d.qc && typeof d.qc.attempts === "number") {
@@ -1262,8 +1263,17 @@ export default function StoryPage() {
                   </button>
                   {motionSkipped[scene.id] && (
                     <div className="text-[10px] text-amber-200/90 bg-amber-500/10 border border-amber-500/25 rounded px-2 py-1.5 space-y-1">
-                      <p>Dit beeld bevat tekst/cijfers en is als <b>stilstaand beeld</b> gehouden — zo vervormt de tekst niet. In de video beweegt de camera er subtiel overheen.</p>
-                      <button onClick={() => animateScene(i, true)} className="text-amber-200 underline hover:text-amber-100">Toch animeren (tekst kan vervormen)</button>
+                      {motionSkipped[scene.id] === "text" ? (
+                        <>
+                          <p>Dit beeld bevat tekst/cijfers en is als <b>stilstaand beeld</b> gehouden — zo vervormt de tekst niet. In de video beweegt de camera er subtiel overheen.</p>
+                          <button onClick={() => animateScene(i, true)} className="text-amber-200 underline hover:text-amber-100">Toch animeren (tekst kan vervormen)</button>
+                        </>
+                      ) : (
+                        <>
+                          <p>De animatie voegde dingen toe die niet in het beeld staan (bijv. een hand of extra object). Elke poging is afgekeurd, dus dit beeld blijft <b>stil</b> — je credits zijn teruggestort. Probeer het opnieuw, of stuur bij wat er mag bewegen.</p>
+                          <button onClick={() => animateScene(i)} className="text-amber-200 underline hover:text-amber-100">Opnieuw proberen</button>
+                        </>
+                      )}
                     </div>
                   )}
                   {motionNote[scene.id] && !motionBusy[scene.id] && !motionSkipped[scene.id] && (

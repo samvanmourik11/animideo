@@ -6,7 +6,7 @@ import { buildMotionPrompt } from "@/lib/infographics/motion-prompt";
 import { imageHasText } from "@/lib/infographics/detect-text";
 import { planMotion } from "@/lib/infographics/motion-director";
 import { extractFrames, critiqueMotion } from "@/lib/infographics/motion-critic";
-import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
+import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -17,6 +17,12 @@ export const maxDuration = 300;
 // clip (Seedance Lite). Na elke animatie beoordeelt een "kritisch oog" of de
 // beweging klopt (geen vervorming + passend bij voice-over/context); bij afkeuring
 // wordt automatisch en GRATIS opnieuw geanimeerd (max 2 herpogingen).
+//
+// Harde regel: verschijnt er iets dat NIET in het bronbeeld staat (een hand die
+// in beeld komt, een extra object of persoon), dan is die clip onbruikbaar — hij
+// wordt nooit getoond, ook niet als "beste poging". Blijft er na alle pogingen
+// niets schoons over, dan houden we het stilstaande beeld en storten we de credit
+// terug. Een te grote of net-niet-perfecte beweging mag wél als beste poging.
 const SEEDANCE_LITE = "fal-ai/bytedance/seedance/v1/lite/image-to-video";
 // 1 eerste poging + 2 gratis herpogingen wanneer het kritische oog afkeurt.
 const MAX_ATTEMPTS = 3;
@@ -76,30 +82,50 @@ export async function POST(req: NextRequest) {
     // VOORAF: bepaal exact de (minimale) beweging voor deze specifieke scène.
     const plan = await planMotion({ imageUrl, voiceover, illustration, title, steer: steer ?? prompt });
     let currentSteer = plan ?? steer ?? prompt;
-    let bestUrl: string | null = null;
-    let bestScore = -1;
+    // "Schoon" = het kritische oog zag niets in beeld verschijnen dat niet in het
+    // bronbeeld stond. Alleen zulke pogingen mogen getoond worden.
+    let bestCleanUrl: string | null = null;
+    let bestCleanScore = -1;
     let approved = false;
     let attempts = 0;
     let lastReason = "";
+    let sawAddedElements = false;
 
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
       attempts = i + 1;
       const tempUrl = await generateClip(currentSteer);
       if (!tempUrl) continue; // deze poging mislukte technisch; probeer opnieuw
 
-      // Kritisch oog: toets STRENG tegen het plan én geef een score.
+      // Kritisch oog: toets STRENG tegen het plan (en het bronbeeld) én geef een score.
       const frames = await extractFrames(tempUrl, 4);
-      const verdict = await critiqueMotion({ frames, voiceover, illustration, title, plan });
+      const verdict = await critiqueMotion({ frames, voiceover, illustration, title, plan, sourceImageUrl: imageUrl });
       lastReason = verdict.reason;
-      // Onthoud de BESTE poging tot nu toe (op score).
-      if (verdict.score > bestScore) { bestScore = verdict.score; bestUrl = tempUrl; }
+      if (verdict.addedElements) {
+        // Harde veto: er kwam iets bij (hand, persoon, object). Deze clip komt
+        // NOOIT in beeld, ook niet als "beste poging".
+        sawAddedElements = true;
+        currentSteer = `${verdict.betterSteer || currentSteer} Absolutely nothing new may appear: no hand, finger, arm, person or object that is not already in the source image, and nothing enters the frame from any edge. If in doubt, keep the image almost completely still.`;
+        continue;
+      }
+      // Onthoud de BESTE schone poging tot nu toe (op score).
+      if (verdict.score > bestCleanScore) { bestCleanScore = verdict.score; bestCleanUrl = tempUrl; }
       if (verdict.ok) { approved = true; break; } // goedgekeurd → klaar
       // Afgekeurd → nog voorzichtiger opnieuw, dichter bij het plan.
       currentSteer = verdict.betterSteer || currentSteer;
     }
 
-    // Nooit stilhouden: toon ALTIJD de beste poging, ook als geen enkele werd goedgekeurd.
-    if (!bestUrl) return NextResponse.json({ error: "Animatie mislukt na meerdere pogingen" }, { status: 500 });
+    // Geen enkele schone poging? Dan liever het STILLE beeld dan een animatie die
+    // dingen verzint. De credit gaat terug: er is geen bruikbare clip geleverd.
+    if (!bestCleanUrl) {
+      try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: animatie voegde elementen toe, stil gehouden"); } catch {}
+      return NextResponse.json({
+        skipped: true,
+        reason: sawAddedElements ? "added" : "quality",
+        attempts,
+        detail: lastReason,
+      });
+    }
+    const bestUrl = bestCleanUrl;
 
     const videoUrl = await persistFalAssetSoft(supabase, user.id, bestUrl, "video");
     return NextResponse.json({ videoUrl, qc: { attempts, approved, reason: lastReason } });

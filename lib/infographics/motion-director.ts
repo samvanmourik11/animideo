@@ -27,9 +27,11 @@ export async function planMotion(opts: {
 ${context}
 
 BELANGRIJK — kies de KLEINSTE, VEILIGSTE beweging:
-- Kies bij voorkeur ÉÉN heel subtiele in-place beweging (bijv. één persoon knikt licht, of een hand beweegt een klein stukje, of ogen knipperen). Bij twijfel: bijna geen beweging.
-- Iedereen en alles blijft VOLLEDIG in beeld en op zijn plek — niemand loopt, stapt of beweegt naar de randen.
-- Er komt NIETS bij (geen planten, objecten, tekst, personen); niets vervormt of morpht; camera staat vast.
+- Beschrijf UITSLUITEND iets dat op deze foto al volledig zichtbaar is. Noem nooit een hand, arm, vinger, persoon of object dat je niet letterlijk in het beeld ziet staan — het videomodel tekent alles wat je noemt er anders bij.
+- Kies bij voorkeur ÉÉN heel subtiele in-place beweging van zo'n bestaand element (bijv. één zichtbaar persoon knikt licht of knippert met de ogen). Bij twijfel: bijna geen beweging.
+- Is er niets dat uit zichzelf kan bewegen? Beschrijf dan expliciet dat het beeld vrijwel volledig stil blijft.
+- Iedereen en alles blijft VOLLEDIG in beeld en op zijn plek — niemand loopt, stapt of beweegt naar de randen, en er komt niets van buiten het kader in beeld.
+- Er komt NIETS bij (geen planten, objecten, tekst, personen, handen of andere lichaamsdelen); niets vervormt of morpht; camera staat vast.
 
 Geef het als één korte, heel concrete ENGELSE zin die precies zegt WAT er beweegt en HOE klein, en dat al het andere volledig stil blijft. UITSLUITEND die zin, geen uitleg.`;
 
