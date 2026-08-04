@@ -1270,7 +1270,7 @@ export default function StoryPage() {
                         </>
                       ) : (
                         <>
-                          <p>De animatie voegde dingen toe die niet in het beeld staan (bijv. een hand of extra object). Elke poging is afgekeurd, dus dit beeld blijft <b>stil</b> — je credits zijn teruggestort. Probeer het opnieuw, of stuur bij wat er mag bewegen.</p>
+                          <p>Elke poging voegde iets toe wat niet in het beeld staat (bijv. een hand of extra object) en is daarom afgekeurd. Dit beeld krijgt in de video een <b>subtiele camerabeweging</b> in plaats van een animatie — je credits zijn teruggestort. Probeer het opnieuw, of stuur bij wat er mag bewegen.</p>
                           <button onClick={() => animateScene(i)} className="text-amber-200 underline hover:text-amber-100">Opnieuw proberen</button>
                         </>
                       )}
@@ -1279,7 +1279,7 @@ export default function StoryPage() {
                   {motionNote[scene.id] && !motionBusy[scene.id] && !motionSkipped[scene.id] && (
                     <p className="text-[10px] text-emerald-300/90">{motionNote[scene.id]}</p>
                   )}
-                  <p className="text-[10px] text-slate-500">Vuistregel: het model voegt niks toe wat niet in het beeld staat, het maakt alleen het bestaande bewegend. Een kritisch oog controleert de beweging en animeert bij rare bewegingen automatisch (gratis) opnieuw. Beelden met tekst blijven stil.</p>
+                  <p className="text-[10px] text-slate-500">Vuistregel: het model voegt niks toe wat niet in het beeld staat, het maakt alleen het bestaande bewegend. Een kritisch oog vergelijkt elke poging met het bronbeeld; komt er iets bij (bijv. een hand), dan wordt die poging nooit getoond en volgt automatisch (gratis) een nieuwe, voorzichtiger poging. Beelden met tekst blijven stil.</p>
                 </div>
               </div>
             </div>

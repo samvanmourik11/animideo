@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import { createClient } from "@/lib/supabase/server";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { buildMotionPrompt } from "@/lib/infographics/motion-prompt";
+import { buildMotionPrompt, MICRO_MOTION_STEER } from "@/lib/infographics/motion-prompt";
 import { imageHasText } from "@/lib/infographics/detect-text";
 import { planMotion } from "@/lib/infographics/motion-director";
 import { extractFrames, critiqueMotion } from "@/lib/infographics/motion-critic";
@@ -20,9 +20,11 @@ export const maxDuration = 300;
 //
 // Harde regel: verschijnt er iets dat NIET in het bronbeeld staat (een hand die
 // in beeld komt, een extra object of persoon), dan is die clip onbruikbaar — hij
-// wordt nooit getoond, ook niet als "beste poging". Blijft er na alle pogingen
-// niets schoons over, dan houden we het stilstaande beeld en storten we de credit
-// terug. Een te grote of net-niet-perfecte beweging mag wél als beste poging.
+// wordt nooit getoond, ook niet als "beste poging". De slotpoging valt dan terug
+// op een geforceerde micro-beweging, die te klein is om iets bij te verzinnen, zodat
+// de scène tóch beweegt. Lukt zelfs dat niet, dan blijft het beeld staan (met de
+// subtiele camerabeweging uit de player/export) en gaat de credit terug.
+// Een te grote of net-niet-perfecte beweging mag wél als beste poging.
 const SEEDANCE_LITE = "fal-ai/bytedance/seedance/v1/lite/image-to-video";
 // 1 eerste poging + 2 gratis herpogingen wanneer het kritische oog afkeurt.
 const MAX_ATTEMPTS = 3;
@@ -93,6 +95,10 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
       attempts = i + 1;
+      // Slotpoging na eerdere hallucinaties: forceer de micro-beweging. Die is zo
+      // klein dat het model niets kan bijverzinnen — zo houdt de scène tóch
+      // beweging in plaats van een dood stilstaand beeld.
+      if (i === MAX_ATTEMPTS - 1 && sawAddedElements) currentSteer = MICRO_MOTION_STEER;
       const tempUrl = await generateClip(currentSteer);
       if (!tempUrl) continue; // deze poging mislukte technisch; probeer opnieuw
 

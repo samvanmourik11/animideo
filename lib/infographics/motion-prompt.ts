@@ -22,6 +22,12 @@ const STYLE_RULE =
 const DEFAULT_MOTION =
   "Study what this specific image actually depicts and bring it gently to life with motion that follows the internal logic of the scene. Move ONLY elements that are already fully visible in the source image, and only in the way they realistically would: a person who is already shown may breathe, blink or shift their weight a little; an object that is already shown may tilt or settle slightly; a poured or contained liquid may ripple; a wheel, gear or dial may turn slowly; a falling or floating object that is already shown may drift along its natural path. Everything else stays completely still. Keep every motion small, slow, smooth and natural — a calm living-illustration feel. Do not invent ambient motion, and never introduce a new actor, body part or object to create the motion — if nothing in the image can move on its own, keep the image almost completely still.";
 
+// Laatste redmiddel: een beweging die zó klein is dat er niets bij verzonnen kan
+// worden. Wordt gebruikt voor de slotpoging als eerdere pogingen elementen
+// toevoegden — beter een minieme beweging dan een hallucinatie of een dood beeld.
+export const MICRO_MOTION_STEER =
+  "Keep the entire image identical to the source and essentially motionless. The only allowed motion is an almost imperceptible living-illustration breath: a barely visible settling or sway of a subject that is already fully visible. Nothing changes position, nothing new appears, nothing enters the frame.";
+
 export function buildMotionPrompt(steer?: string): string {
   const extra = (steer || "").trim();
   // De vuistregel staat zowel voor- als achteraan, zodat hij het zwaarst weegt.
