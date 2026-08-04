@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 import { STORY_VOICES, DEFAULT_VOICE, voicePreviewUrl } from "@/lib/infographics/story-voices";
 import { STORY_FONTS, DEFAULT_STORY_FONT, nearestStoryFont, STORY_FONTS_CSS_HREF } from "@/lib/infographics/story-fonts";
-import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
 import type { BrandKit } from "@/lib/types";
 import type { StoryScene } from "@/lib/infographics/story-schema";
 
@@ -990,9 +990,9 @@ export default function StoryPage() {
             <span className="block text-[11px] text-slate-400 mb-0.5">Accent{brandKitId ? " · uit huisstijl" : ""}</span>
             <input type="color" value={accent} onChange={(e) => { setAccent(e.target.value); setBrandKitId(""); }} className="h-9 w-14 bg-transparent border border-white/10 rounded cursor-pointer" />
           </label>
-          <button onClick={generate} disabled={loading || !text.trim()} title={!text.trim() ? "Vul eerst een brontekst in" : `${CREDIT_COSTS.SCRIPT_GENERATION} credit script + ${CREDIT_COSTS.IMAGE_GENERATION} per scene`} className="btn-primary text-sm disabled:opacity-50">
+          <button onClick={generate} disabled={loading || !text.trim()} title={!text.trim() ? "Vul eerst een brontekst in" : `Script schrijven is gratis, ${CREDIT_COSTS.IMAGE_GENERATION} credit per scene-beeld`} className="btn-primary text-sm disabled:opacity-50">
             {loading ? "Genereren… (script + beelden)" : "Genereer verhaal"}
-            <span className="text-white/70 ml-1">· {CREDIT_COSTS.SCRIPT_GENERATION}+{CREDIT_COSTS.IMAGE_GENERATION}/scene cr.</span>
+            <span className="text-white/70 ml-1">· {CREDIT_COSTS.IMAGE_GENERATION}/scene cr.</span>
           </button>
         </div>
         {err && <p className="text-red-400 text-sm break-words">{err}</p>}
@@ -1052,7 +1052,7 @@ export default function StoryPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={genVoice} disabled={voiceBusy} title={`Kost ${CREDIT_COSTS.VOICE} credits`} className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50">
                   {voiceBusy ? "Voice-over genereren…" : spec.voiceUrl ? "Voice-over opnieuw" : "Genereer voice-over"}
-                  <span className="text-slate-400 ml-1">· {CREDIT_COSTS.VOICE} cr.</span>
+                  <span className="text-slate-400 ml-1">· {creditLabel(CREDIT_COSTS.VOICE)}</span>
                 </button>
                 <label className="flex items-center gap-1.5" title="Spreeksnelheid van de voice-over (0,85–1,2×)">
                   <span className="text-[11px] text-slate-400">Snelheid</span>
@@ -1071,7 +1071,7 @@ export default function StoryPage() {
                   className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50"
                 >
                   {syncBusy ? "Autosync…" : "Autosync op voice"}
-                  <span className="text-slate-400 ml-1">· {CREDIT_COSTS.SYNC} cr.</span>
+                  <span className="text-slate-400 ml-1">· {creditLabel(CREDIT_COSTS.SYNC)}</span>
                 </button>
                 <span className="w-px self-stretch bg-white/10 mx-1" />
                 <input
@@ -1088,7 +1088,7 @@ export default function StoryPage() {
                   className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50"
                 >
                   {musicBusy ? "Muziek…" : spec.musicUrl ? "Muziek opnieuw" : "Genereer muziekbed"}
-                  <span className="text-slate-400 ml-1">· {CREDIT_COSTS.MUSIC} cr.</span>
+                  <span className="text-slate-400 ml-1">· {creditLabel(CREDIT_COSTS.MUSIC)}</span>
                 </button>
                 {spec.musicUrl ? <span className="text-xs text-emerald-400">muziekbed klaar</span> : null}
                 <label className="flex items-center gap-2" title="Volume van het muziekbed onder de voice-over (geldt in de preview en de export)">
@@ -1216,7 +1216,7 @@ export default function StoryPage() {
                     title={`Kost ${CREDIT_COSTS.IMAGE_GENERATION} credit`}
                     className="text-xs bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md disabled:opacity-50 w-full"
                   >
-                    Regenereer beeld <span className="text-slate-400">· {CREDIT_COSTS.IMAGE_GENERATION} cr.</span>
+                    Regenereer beeld <span className="text-slate-400">· {creditLabel(CREDIT_COSTS.IMAGE_GENERATION)}</span>
                   </button>
                   <label className={`block text-xs px-3 py-1.5 rounded-md text-center cursor-pointer ${sceneRef[scene.id] ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20" : "bg-white/10 hover:bg-white/15 text-white"} ${imgBusy[scene.id] ? "opacity-50 pointer-events-none" : ""}`}>
                     {sceneRef[scene.id] ? "✓ Referentiefoto · vervangen" : "📷 Referentiefoto (echt product/logo)"}
@@ -1242,7 +1242,7 @@ export default function StoryPage() {
                     title={`Kost ${CREDIT_COSTS.IMAGE_GENERATION} credit`}
                     className="text-xs bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md disabled:opacity-50 w-full"
                   >
-                    Pas beeld aan <span className="text-slate-400">· {CREDIT_COSTS.IMAGE_GENERATION} cr.</span>
+                    Pas beeld aan <span className="text-slate-400">· {creditLabel(CREDIT_COSTS.IMAGE_GENERATION)}</span>
                   </button>
                   <label className="block">
                     <span className="block text-[11px] text-slate-400 mb-0.5">Beweging bijsturen (optioneel)</span>
@@ -1259,7 +1259,7 @@ export default function StoryPage() {
                     className="text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 px-3 py-1.5 rounded-md disabled:opacity-50 w-full"
                   >
                     {motionBusy[scene.id] ? "Animeren…" : scene.videoUrl ? "Opnieuw animeren" : "Animeer beeld (proef, ~1 min)"}
-                    <span className="text-blue-300/60 ml-1">· {CREDIT_COSTS.VIDEO_GENERATION} cr.</span>
+                    <span className="text-blue-300/60 ml-1">· {creditLabel(CREDIT_COSTS.VIDEO_GENERATION)}</span>
                   </button>
                   {motionSkipped[scene.id] && (
                     <div className="text-[10px] text-amber-200/90 bg-amber-500/10 border border-amber-500/25 rounded px-2 py-1.5 space-y-1">

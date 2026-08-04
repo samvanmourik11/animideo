@@ -1,5 +1,23 @@
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+
+// Het transactielogboek MOET via de service-client geschreven worden. De RLS op
+// credit_transactions kent alleen een SELECT-policy voor eigen rijen en een
+// full-access-policy voor de service-rol — een INSERT vanuit de gebruikerssessie
+// wordt dus geweigerd. Dat gebeurde stil (de fout werd genegeerd), waardoor
+// maandenlang géén enkele afschrijving werd gelogd: de creditspagina bleef leeg
+// en verbruik was niet te analyseren.
+async function logTransaction(userId: string, amount: number, reason: string) {
+  try {
+    const { error } = await createServiceClient()
+      .from("credit_transactions")
+      .insert({ user_id: userId, amount, reason });
+    if (error) console.error("[credits] transactie niet gelogd:", error.message);
+  } catch (e) {
+    console.error("[credits] transactie niet gelogd:", e instanceof Error ? e.message : String(e));
+  }
+}
 
 // Her-exporteren zodat bestaande server-imports (@/lib/credits) blijven werken.
 export { CREDIT_COSTS };
@@ -35,6 +53,7 @@ export interface Profile {
   subscription_status: string | null;
   credits_reset_date: string | null;
   hide_leren: boolean;
+  is_admin?: boolean;
   created_at: string;
 }
 
@@ -82,6 +101,9 @@ export async function deductCredits(
 
   const profile = await getProfile(userId);
 
+  // Gratis stappen (tarief 0): niets afschrijven, niets loggen.
+  if (amount <= 0) return { success: true, credits: profile.credits };
+
   // Unlimited accounts: skip deduction entirely
   if (profile.email && UNLIMITED_ACCOUNTS.has(profile.email)) {
     return { success: true, credits: profile.credits };
@@ -100,11 +122,7 @@ export async function deductCredits(
 
   if (error) throw new Error("Kon credits niet aftrekken: " + error.message);
 
-  await supabase.from("credit_transactions").insert({
-    user_id: userId,
-    amount: -amount,
-    reason,
-  });
+  await logTransaction(userId, -amount, reason);
 
   return { success: true, credits: newCredits };
 }
@@ -125,9 +143,5 @@ export async function addCredits(
     .update({ credits: newCredits })
     .eq("id", userId);
 
-  await supabase.from("credit_transactions").insert({
-    user_id: userId,
-    amount,
-    reason,
-  });
+  await logTransaction(userId, amount, reason);
 }

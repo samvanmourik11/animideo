@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PlaygroundNode, Project, TransitionType } from "@/lib/types";
+import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
 
 const VOICES = [
   { value: "Charlotte", label: "Charlotte (warm vrouwelijk)" },
@@ -274,7 +275,7 @@ export default function StoryboardPanel({
                               </button>
                             )}
                             {!isAnimating && !hasVideo && (
-                              <span className="text-[10px] text-amber-300/80">10 credits</span>
+                              <span className="text-[10px] text-amber-300/80">{creditLabel(CREDIT_COSTS.VIDEO_GENERATION)}</span>
                             )}
                           </div>
                         </div>

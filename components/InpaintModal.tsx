@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
 
 interface Props {
   sourceImageUrl: string;
@@ -293,7 +294,7 @@ export default function InpaintModal({
               Annuleren
             </button>
             <button onClick={generate} disabled={generating} className="btn-primary">
-              {generating ? "Genereren…" : "Genereer (2 credits)"}
+              {generating ? "Genereren…" : `Genereer (${creditLabel(CREDIT_COSTS.INPAINT)})`}
             </button>
           </div>
         </div>

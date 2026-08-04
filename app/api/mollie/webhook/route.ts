@@ -46,8 +46,8 @@ export async function POST(req: NextRequest) {
   const payment = await paymentRes.json();
   const { status, metadata, sequenceType, mandateId, customerId } = payment;
 
-  const userId          = metadata?.userId          as string | undefined;
-  const planId          = metadata?.planId          as string | undefined;
+  let userId            = metadata?.userId          as string | undefined;
+  let planId            = metadata?.planId          as string | undefined;
   const isGuest         = metadata?.isGuest         as boolean | undefined;
   const guestCheckoutId = metadata?.guestCheckoutId as string | undefined;
   const isCursus        = metadata?.isCursus        as boolean | undefined;
@@ -128,6 +128,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
+  // Vervolgbetalingen dragen de metadata van de ABONNEMENTS-aanmaak, en bij een
+  // gast-checkout bestond het account toen nog niet — daar zit dus geen userId in.
+  // Zonder deze terugval viel elke maandelijkse verlenging stil uit de webhook en
+  // werden de credits nooit ververst (51 betaalde vervolgmaanden, 2 verversingen).
+  // Daarom: klant opzoeken via het Mollie-customer-id op het profiel.
+  if ((!userId || !planId) && customerId) {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("id, plan")
+      .eq("mollie_customer_id", customerId)
+      .maybeSingle();
+    if (prof) {
+      userId = userId ?? prof.id;
+      // Plan uit de metadata is leidend; anders het plan dat op het profiel staat.
+      planId = planId ?? (prof.plan && prof.plan !== "free" ? prof.plan : "starter");
+    }
+  }
+
   if (!userId || !planId) {
     // Could be a test ping from Mollie — just return 200
     return NextResponse.json({ received: true });
@@ -200,7 +218,18 @@ export async function POST(req: NextRequest) {
 
   // ── Successful recurring payment: renew credits ───────────────────────────
   if (status === "paid" && sequenceType === "recurring") {
-    const credits = PLAN_CREDITS[planId] ?? 100;
+    const bundel = PLAN_CREDITS[planId] ?? 100;
+
+    // Doorrollen i.p.v. resetten: wie een maand weinig gebruikt, houdt zijn saldo.
+    // Gedekt tot maximaal twee maandbundels, zodat het niet eindeloos opstapelt.
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("credits")
+      .eq("id", userId)
+      .maybeSingle();
+    const huidig = prof?.credits ?? 0;
+    const credits = Math.min(huidig + bundel, bundel * 2);
+    const bijgeschreven = credits - huidig;
 
     await supabase
       .from("profiles")
@@ -212,8 +241,8 @@ export async function POST(req: NextRequest) {
 
     await supabase.from("credit_transactions").insert({
       user_id: userId,
-      amount: credits,
-      reason: `Credits vernieuwd: ${planId}`,
+      amount: bijgeschreven,
+      reason: `Credits vernieuwd: ${planId}${bijgeschreven < bundel ? " (gemaximeerd op 2 maandbundels)" : ""}`,
     });
 
     return NextResponse.json({ received: true });

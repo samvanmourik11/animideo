@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Scene } from "@/lib/types";
+import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
 
 // "Google Flow"-stijl bewerken van één scene-beeld. Geen volledige prompt
 // aanpassen, alleen een instructie ("maak het polo blauw", "verwijder de
@@ -138,7 +139,7 @@ export default function SceneEditModal({
             disabled={busy || instruction.trim().length < 2}
             className="btn-primary text-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {busy ? "Bewerken…" : "Pas aan (2 credits)"}
+            {busy ? "Bewerken…" : `Pas aan (${creditLabel(CREDIT_COSTS.IMAGE_GENERATION)})`}
           </button>
         </div>
       </div>

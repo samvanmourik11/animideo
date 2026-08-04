@@ -24,9 +24,9 @@ const PLANS: Plan[] = [
     credits: "100 credits/maand",
     features: [
       "100 credits per maand",
-      "Script genereren (1 credit)",
-      "Afbeelding genereren (2 credits)",
-      "Video beweging (10 credits)",
+      "Script genereren (gratis)",
+      "Afbeelding genereren (1 credit)",
+      "Video beweging (2 credits)",
       "720p export met watermark",
     ],
     highlight: false,
@@ -39,9 +39,9 @@ const PLANS: Plan[] = [
     credits: "500 credits/maand",
     features: [
       "500 credits per maand",
-      "Script genereren (1 credit)",
-      "Afbeelding genereren (2 credits)",
-      "Video beweging (10 credits)",
+      "Script genereren (gratis)",
+      "Afbeelding genereren (1 credit)",
+      "Video beweging (2 credits)",
       "Geen watermark",
       "1080p export",
       "Email support",
@@ -57,9 +57,9 @@ const PLANS: Plan[] = [
     badge: "MEEST GEKOZEN",
     features: [
       "1.500 credits per maand",
-      "Script genereren (1 credit)",
-      "Afbeelding genereren (2 credits)",
-      "Video beweging (10 credits)",
+      "Script genereren (gratis)",
+      "Afbeelding genereren (1 credit)",
+      "Video beweging (2 credits)",
       "Geen watermark",
       "1080p HD export (hogere kwaliteit)",
       "Prioriteit support",
@@ -74,9 +74,9 @@ const PLANS: Plan[] = [
     credits: "5.000 credits/maand",
     features: [
       "5.000 credits per maand",
-      "Script genereren (1 credit)",
-      "Afbeelding genereren (2 credits)",
-      "Video beweging (10 credits)",
+      "Script genereren (gratis)",
+      "Afbeelding genereren (1 credit)",
+      "Video beweging (2 credits)",
       "Geen watermark",
       "1080p HD export (maximale kwaliteit)",
       "Dedicated support",
@@ -268,9 +268,9 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
         <h3 className="font-semibold text-white mb-4">Hoe werken credits?</h3>
         <div className="grid grid-cols-3 gap-4">
           {[
-            { action: "Script genereren", cost: "1 credit", icon: "📝" },
-            { action: "Afbeelding genereren", cost: "2 credits", icon: "🎨" },
-            { action: "Video beweging", cost: "10 credits", icon: "🎬" },
+            { action: "Script genereren", cost: "gratis", icon: "📝" },
+            { action: "Afbeelding genereren", cost: "1 credit", icon: "🎨" },
+            { action: "Video beweging", cost: "2 credits", icon: "🎬" },
           ].map((item) => (
             <div key={item.action} className="text-center bg-white/[0.03] rounded-xl p-4">
               <div className="text-2xl mb-2">{item.icon}</div>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Project } from "@/lib/types";
 import Step6Editor from "@/components/wizard/Step6Editor";
 import { useProjectAutosave, AutosaveIndicator } from "@/lib/use-project-autosave";
+import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
 
 // Wrapper rond Step6Editor zodat de playground-modus dezelfde timeline en
 // MP4-export krijgt als de wizard. Voice-over wordt hier on-demand gegenereerd
@@ -95,7 +96,7 @@ export default function PlaygroundFinish({
           <div className="min-w-0">
             <p className="text-sm text-white font-medium">Voice-over nog niet gegenereerd</p>
             <p className="text-xs text-slate-400 mt-0.5">
-              Klik om de voice-over te maken met stem <span className="text-slate-200">{project.selected_voice ?? "Charlotte"}</span>. Kost 4 credits.
+              Klik om de voice-over te maken met stem <span className="text-slate-200">{project.selected_voice ?? "Charlotte"}</span>. Kost {CREDIT_COSTS.VOICE} credit.
             </p>
           </div>
           <button

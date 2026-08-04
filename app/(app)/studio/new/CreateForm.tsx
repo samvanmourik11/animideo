@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import CharacterPicker from "@/components/studio/CharacterPicker";
 import { BrandKit, Character, OutroContact, VisualStyle } from "@/lib/types";
 import StylePicker from "@/components/StylePicker";
+import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
 
 /** Lees een fetch-respons veilig als JSON, ook als de body leeg of geen JSON is. */
 async function readJson(res: Response): Promise<{ idea?: string; error?: string }> {
@@ -885,7 +886,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
               <p className="text-xs text-slate-400">
                 AI onderzoekt de héle website: kernverhaal, tone of voice, communicatiestijl,
                 huisstijlkleuren, het logo én echte werkfoto&apos;s. Maakt automatisch een huisstijl aan en
-                gebruikt de foto&apos;s als referentie, zodat het meteen jouw bedrijf is. (3 credits)
+                gebruikt de foto&apos;s als referentie, zodat het meteen jouw bedrijf is. ({CREDIT_COSTS.IMAGE_GENERATION} credit)
                 <br />
                 <span className="text-slate-500">Tip: zet er extra pagina&apos;s bij (één URL per regel) — bijv. een
                 galerij- of werk-pagina — zodat ook foto&apos;s die niet op de homepage staan worden meegenomen.</span>

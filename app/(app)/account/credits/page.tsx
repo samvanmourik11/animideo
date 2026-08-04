@@ -81,8 +81,14 @@ export default async function CreditsPage() {
         </div>
         <div className="flex justify-between text-xs text-slate-400">
           <span>{profile.credits} beschikbaar</span>
-          {resetDate && <span>Reset op {resetDate}</span>}
+          {resetDate && <span>Nieuwe credits op {resetDate}</span>}
         </div>
+        {profile.plan !== "free" && (
+          <p className="text-xs text-slate-500 mt-2">
+            Credits die je niet gebruikt blijven staan: bij je verlenging komen er {planMax} bij,
+            tot maximaal {planMax * 2} in totaal.
+          </p>
+        )}
       </div>
 
       {/* Usage breakdown */}
