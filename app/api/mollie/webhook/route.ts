@@ -222,13 +222,16 @@ export async function POST(req: NextRequest) {
 
     // Doorrollen i.p.v. resetten: wie een maand weinig gebruikt, houdt zijn saldo.
     // Gedekt tot maximaal twee maandbundels, zodat het niet eindeloos opstapelt.
+    // De verlenging mag een saldo NOOIT verlagen: handmatig ingeladen tegoeden
+    // (traject-klanten met 3000 credits) staan ver boven die grens en zouden
+    // anders bij de eerstvolgende incasso teruggezet worden naar 1000.
     const { data: prof } = await supabase
       .from("profiles")
       .select("credits")
       .eq("id", userId)
       .maybeSingle();
     const huidig = prof?.credits ?? 0;
-    const credits = Math.min(huidig + bundel, bundel * 2);
+    const credits = Math.max(huidig, Math.min(huidig + bundel, bundel * 2));
     const bijgeschreven = credits - huidig;
 
     await supabase
