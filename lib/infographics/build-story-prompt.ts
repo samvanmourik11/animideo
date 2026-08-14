@@ -37,6 +37,22 @@ function sentenceHint(words: number): string {
 // illustratie-briefing. Puur (geen side effects) zodat de route dun blijft.
 export function buildStoryPrompt(args: BuildStoryPromptArgs): { system: string; user: string } {
   const lang = args.language || "Nederlands";
+  // Vlaams is geen apart taalmodel maar een andere manier van Nederlands
+  // schrijven. Zonder deze aanwijzingen levert "schrijf in het Vlaams" gewoon
+  // Hollands Nederlands op met hooguit een enkel Vlaams woord erin — en juist de
+  // woordkeuze bepaalt of een Vlaamse luisteraar het als eigen taal herkent.
+  const vlaamsLine =
+    lang === "Vlaams"
+      ? `
+
+VLAAMS (BELGISCH-NEDERLANDS) — DIT IS BELANGRIJK:
+- Schrijf zoals men in Vlaanderen spreekt en schrijft, niet zoals in Nederland. Een Vlaamse luisteraar moet het meteen als eigen taal herkennen.
+- Gebruik Vlaamse woordkeuze waar die natuurlijk is: "goesting" (zin), "seffens" (zo meteen), "curieus" (benieuwd), "content" (blij), "kuisen" (schoonmaken), "wenen" (huilen), "lopen/rijden" i.p.v. "fietsen" waar passend, "gsm" (mobiel), "auto" i.p.v. "wagen" alleen als dat natuurlijk klinkt, "beenhouwer" (slager), "living" (woonkamer), "verlof" (vakantie), "factuur" (rekening), "firma"/"bedrijf".
+- Vermijd typisch Nederlandse woorden en uitdrukkingen: "leuk", "gezellig", "hartstikke", "prima", "joh", "even lekker", "tof" alleen als het echt past.
+- Zinsbouw: rustiger en iets formeler dan Nederlands Nederlands, minder stellig, beleefder. Vlamingen gebruiken vaker "u" en omzichtiger formuleringen.
+- Geen dialect en geen karikatuur: dit is verzorgd Belgisch-Nederlands (VRT-Nederlands), geen West-Vlaams of Antwerps toneelaccent.
+- Cijfers voluit blijven schrijven zoals hieronder beschreven, in Vlaamse spreektaal ("tweeënzeventig", "honderd euro").`
+      : "";
   const brandLine = args.brand?.name
     ? `Het merk is "${args.brand.name}"${args.brand.toneOfVoice ? ` (tone of voice: ${args.brand.toneOfVoice})` : ""}. Laat de toon hierop aansluiten.`
     : "";
@@ -90,7 +106,7 @@ HARDE REGELS:
 - Gebruik alleen feiten en cijfers die letterlijk in de brontekst staan.
 - Alle zichtbare teksten (voiceover, en headline/numberLabel indien aanwezig) in ${lang}. De "illustration" is altijd in het Engels.
 - Varieer de scenes visueel: niet 5 keer hetzelfde beeld. Wissel close-ups, omgevingen en perspectieven af, zoals een goede explainer-video.
-${brandLine ? `- ${brandLine}` : ""}${keepLine}${avoidLine}${toneLine}${angleLine}`;
+${brandLine ? `- ${brandLine}` : ""}${keepLine}${avoidLine}${toneLine}${angleLine}${vlaamsLine}`;
 
   const user = `ONDERWERP / TITEL:
 ${args.topic || "(leid een passende titel af uit de brontekst)"}

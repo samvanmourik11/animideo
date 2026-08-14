@@ -9,7 +9,7 @@ import { storyAspectRatio } from "@/lib/infographics/canvas-size";
 import { STORY_STYLE_PRESETS, DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
 import { createClient } from "@/lib/supabase/client";
 import type { StorySpec } from "@/lib/infographics/story-schema";
-import { STORY_VOICES, DEFAULT_VOICE, voicePreviewUrl } from "@/lib/infographics/story-voices";
+import { DEFAULT_VOICE, voicePreviewUrl, voicesForLanguage, voiceForLanguage } from "@/lib/infographics/story-voices";
 import { STORY_FONTS, DEFAULT_STORY_FONT, nearestStoryFont, STORY_FONTS_CSS_HREF } from "@/lib/infographics/story-fonts";
 import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
 import type { BrandKit } from "@/lib/types";
@@ -21,7 +21,7 @@ import type { StoryScene } from "@/lib/infographics/story-schema";
 
 // ~6 seconden per scene (praktijk: 5-7s). Gebruikt voor de live lengteschatting.
 const SECS_PER_SCENE = 6;
-const LANGUAGES = ["Nederlands", "Engels", "Duits", "Frans", "Spaans", "Italiaans"];
+const LANGUAGES = ["Nederlands", "Vlaams", "Engels", "Duits", "Frans", "Spaans", "Italiaans"];
 
 // Vriendelijke foutmelding uit een API-antwoord; vangt het 402-creditgeval af.
 function apiError(d: { error?: string; detail?: string; required?: number; credits?: number } | undefined, fallback: string): string {
@@ -384,6 +384,14 @@ export default function StoryPage() {
   // van een opgeslagen project komt de stijl uit de spec).
   useEffect(() => { if (spec?.styleId) setStyleId(spec.styleId); }, [spec?.styleId]);
   useEffect(() => { if (spec?.language) setLanguage(spec.language); }, [spec?.language]);
+
+  // De beschikbare stemmen hangen van de taal af: bij Vlaams alleen Vlaamse
+  // stemmen. Staat er een stem gekozen die niet bij de taal past (bv. na het
+  // omzetten naar Vlaams), dan schuiven we automatisch door naar de juiste.
+  const beschikbareStemmen = voicesForLanguage(spec?.language ?? language);
+  useEffect(() => {
+    setVoice((huidig) => voiceForLanguage(huidig, spec?.language ?? language));
+  }, [language, spec?.language]);
   useEffect(() => { if (spec?.characterUrl) setCharacterUrl(spec.characterUrl); }, [spec?.characterUrl]);
 
   // Serie: splits het onderwerp/de bron in losse afleveringen.
@@ -1105,7 +1113,7 @@ export default function StoryPage() {
             <div className="space-y-2">
               <p className="text-[11px] uppercase tracking-wide text-slate-500">Audio</p>
               <div className="flex flex-wrap gap-2">
-                {STORY_VOICES.map((v) => {
+                {beschikbareStemmen.map((v) => {
                   const active = voice === v.id;
                   const playing = previewVoice === v.id;
                   return (

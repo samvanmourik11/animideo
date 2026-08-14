@@ -91,7 +91,8 @@ export function storyStylePreamble(styleId?: string | null): string {
 
 // Taal (mensleesbaar NL) → Engelse naam voor de tekst-in-beeld-regel.
 const LANG_EN: Record<string, string> = {
-  Nederlands: "Dutch", Engels: "English", Duits: "German", Frans: "French", Spaans: "Spanish", Italiaans: "Italian",
+  Nederlands: "Dutch", Vlaams: "Dutch (Flemish, as written in Belgium)",
+  Engels: "English", Duits: "German", Frans: "French", Spaans: "Spanish", Italiaans: "Italian",
 };
 function langTextRule(language?: string | null): string {
   if (!language || language === "Nederlands") return STYLE_TEXT_DUTCH;

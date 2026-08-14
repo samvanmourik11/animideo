@@ -12,7 +12,9 @@ export const maxDuration = 120;
 // Nederlands getranscribeerd; bij een eigen opname in een andere taal levert dat
 // onzin-woorden op en dus scenegrenzen op willekeurige plekken.
 const TAAL_NAAR_CODE: Record<string, string> = {
-  Nederlands: "nl", Engels: "en", Duits: "de", Frans: "fr", Spaans: "es", Italiaans: "it",
+  // Vlaams valt onder "nl": Whisper kent geen aparte Vlaamse code en herkent
+  // Vlaamse spraak prima als Nederlands.
+  Nederlands: "nl", Vlaams: "nl", Engels: "en", Duits: "de", Frans: "fr", Spaans: "es", Italiaans: "it",
 };
 
 // Story-autosync (zelfde aanpak als de Creator Studio): transcribeer de doorlopende

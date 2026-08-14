@@ -17,6 +17,11 @@ export const maxDuration = 120;
 const ALLOWED_VOICES = new Set([
   "Aria", "Roger", "Sarah", "Laura", "Charlie", "George", "Callum", "River", "Liam", "Charlotte",
   "Alice", "Matilda", "Will", "Jessica", "Eric", "Chris", "Brian", "Daniel", "Lily", "Bill", "Rachel",
+  // Vlaamse stemmen uit de ElevenLabs-stemmenbibliotheek. Die hebben geen naam
+  // maar een voice-id; fal accepteert allebei. Zie lib/infographics/story-voices.ts.
+  "02TPKkY2rZbgnKFIPrT9", // Katleen  — warme Vlaamse vrouwenstem
+  "Yv0oyZ3obP9foTH7emqG", // Jeroen   — warme Vlaamse mannenstem
+  "AgeYjqDIfXtkcA3mOcsH", // Gunther  — rustige Vlaamse verteller
 ]);
 
 function probeDuration(file: string): Promise<number> {
@@ -51,7 +56,10 @@ export async function POST(req: NextRequest) {
     // Spreeksnelheid begrenzen tot een natuurlijk bereik (ElevenLabs speed).
     const safeSpeed = typeof speed === "number" && Number.isFinite(speed) ? Math.max(0.7, Math.min(1.2, speed)) : 1;
     // Taal → ElevenLabs language_code (default Nederlands).
-    const LANGUAGE_TO_CODE: Record<string, string> = { Nederlands: "nl", Engels: "en", Duits: "de", Frans: "fr", Spaans: "es", Italiaans: "it" };
+    // Vlaams heeft geen eigen ElevenLabs-taalcode; het accent komt uit de stem,
+    // de code blijft "nl". Zonder deze regel viel Vlaams terug op de default —
+    // toevallig ook "nl", maar dan zonder dat dat ergens vastligt.
+    const LANGUAGE_TO_CODE: Record<string, string> = { Nederlands: "nl", Vlaams: "nl", Engels: "en", Duits: "de", Frans: "fr", Spaans: "es", Italiaans: "it" };
     const langCode = LANGUAGE_TO_CODE[language ?? "Nederlands"] ?? "nl";
 
     const credit = await deductCredits(user.id, CREDIT_COSTS.VOICE, "Story voice-over");
