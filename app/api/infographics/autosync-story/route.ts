@@ -3,21 +3,23 @@ import { transcribeWords } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { StorySpec } from "@/lib/infographics/story-schema";
+import { alignScenes, startsNaarDuren, type WordTimestamp } from "@/lib/infographics/story-align";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-interface WordTimestamp { word: string; start: number; end: number; }
-
-function tokenize(text: string): string[] {
-  return text.toLowerCase().replace(/[^\p{L}\p{N}\s']/gu, " ").split(/\s+/).filter(Boolean);
-}
+// Taal van het verhaal → Whisper-taalcode. Zonder dit werd élke voice-over als
+// Nederlands getranscribeerd; bij een eigen opname in een andere taal levert dat
+// onzin-woorden op en dus scenegrenzen op willekeurige plekken.
+const TAAL_NAAR_CODE: Record<string, string> = {
+  Nederlands: "nl", Engels: "en", Duits: "de", Frans: "fr", Spaans: "es", Italiaans: "it",
+};
 
 // Story-autosync (zelfde aanpak als de Creator Studio): transcribeer de doorlopende
 // voice-over met Whisper (woord-timestamps) en leg de scenegrenzen op de plek in de
-// audio waar de tekst van die scene wordt uitgesproken. De duur van scene N is
-// (start van N+1) - (start van N), zodat stiltes meetellen en alle duren samen
-// exact de audioduur vullen: geen gaten, geen overlap, beeld loopt gelijk met stem.
+// audio waar de tekst van die scene wordt uitgesproken. Werkt zowel op een
+// gegenereerde stem als op een eigen geüploade opname; het uitlijnen zelf zit in
+// lib/infographics/story-align.ts.
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
@@ -29,7 +31,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Geen scenes" }, { status: 400 });
     }
     if (!spec.voiceUrl) {
-      return NextResponse.json({ error: "Genereer eerst de voice-over voordat je autosynct." }, { status: 400 });
+      return NextResponse.json({ error: "Genereer of upload eerst een voice-over voordat je autosynct." }, { status: 400 });
     }
 
     const credit = await deductCredits(user.id, CREDIT_COSTS.SYNC, "Story autosync");
@@ -47,7 +49,9 @@ export async function POST(req: NextRequest) {
     let words: WordTimestamp[] = [];
     let audioDuration = 0;
     try {
-      const t = await transcribeWords(audioBuf, { language: "nl" });
+      const t = await transcribeWords(audioBuf, {
+        language: TAAL_NAAR_CODE[spec.language ?? "Nederlands"] ?? "nl",
+      });
       words = t.words;
       audioDuration = t.duration;
     } catch (err: unknown) {
@@ -56,43 +60,23 @@ export async function POST(req: NextRequest) {
     }
     if (words.length === 0) return NextResponse.json({ error: "Geen woord-timestamps van Whisper" }, { status: 500 });
 
-    const scenes = spec.scenes;
-    const sceneTokens = scenes.map((s) => tokenize(s.voiceover ?? ""));
-    const totalSceneWords = sceneTokens.reduce((a, t) => a + t.length, 0);
-    const ratioMismatch = totalSceneWords === 0 ? 1 : Math.abs(words.length - totalSceneWords) / Math.max(words.length, totalSceneWords);
-
-    // Startpunt per scene: cumulatief op de woord-timestamps. Wijkt het aantal
-    // getranscribeerde woorden te ver af van de tekst (>30%), val dan terug op een
-    // verdeling naar tekstlengte zodat we nooit volledig de mist in gaan.
-    let starts: number[];
-    if (ratioMismatch > 0.3 || totalSceneWords === 0) {
-      const charLens = scenes.map((s) => Math.max(1, (s.voiceover ?? "").trim().length));
-      const totalChars = charLens.reduce((a, n) => a + n, 0);
-      let acc = 0;
-      starts = charLens.map((c) => { const st = (acc / totalChars) * audioDuration; acc += c; return st; });
-    } else {
-      starts = [];
-      let cursor = 0;
-      for (let i = 0; i < scenes.length; i++) {
-        const idx = Math.min(cursor, words.length - 1);
-        starts.push(words[idx]?.start ?? 0);
-        cursor += sceneTokens[i].length;
-      }
-    }
-    if (starts.length > 0) starts[0] = 0;
-
-    const durations = scenes.map((_, i) => {
-      const start = starts[i];
-      const end = i < scenes.length - 1 ? starts[i + 1] : audioDuration;
-      return Math.round(Math.max(1, end - start) * 10) / 10;
-    });
+    const uitlijning = alignScenes(
+      words,
+      spec.scenes.map((s) => s.voiceover ?? ""),
+      audioDuration
+    );
+    const durations = startsNaarDuren(uitlijning.starts, audioDuration);
 
     return NextResponse.json({
       durations,
       audioDuration,
       wordsMatched: words.length,
-      sceneWords: totalSceneWords,
-      fallbackUsed: ratioMismatch > 0.3,
+      sceneWords: uitlijning.sceneWords,
+      fallbackUsed: uitlijning.fallbackUsed,
+      // Hoeveel scenegrenzen echt op een herkende zin liggen, i.p.v. op een
+      // geschatte positie. De interface waarschuwt als dit tegenvalt.
+      anchorsMatched: uitlijning.anchorsMatched,
+      anchorsTotal: uitlijning.anchorsTotal,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

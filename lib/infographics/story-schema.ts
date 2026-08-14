@@ -79,6 +79,10 @@ export interface StorySpec {
   // Gekozen stem (ElevenLabs-naam, bijv. "Charlotte"). Bewaard zodat een
   // opnieuw gegenereerde voice-over dezelfde stem gebruikt.
   voice?: string | null;
+  // Eigen geüploade voice-over i.p.v. een gegenereerde stem. De bestandsnaam
+  // tonen we in de interface zodat zichtbaar is welke opname eronder zit.
+  voiceIsCustom?: boolean | null;
+  voiceFileName?: string | null;
   // Merkkleuren waarmee de typografie wordt gerenderd. Worden bij het opslaan in
   // de spec bewaard zodat een herladen verhaal er hetzelfde uitziet. (Niet door
   // de AI gevuld; puur client-/persistentie-kant.)

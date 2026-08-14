@@ -147,6 +147,11 @@ export default function StoryPage() {
   const [previewVoice, setPreviewVoice] = useState<string | null>(null);
   const previewRef = useRef<HTMLAudioElement | null>(null);
   const [syncBusy, setSyncBusy] = useState(false);
+  // Terugkoppeling na een autosync: hoe goed de scenegrenzen op de audio vielen.
+  const [syncNote, setSyncNote] = useState<{ tekst: string; waarschuwing: boolean } | null>(null);
+  // Eigen ingesproken voice-over uploaden.
+  const [voiceUploadBusy, setVoiceUploadBusy] = useState(false);
+  const voiceFileRef = useRef<HTMLInputElement | null>(null);
   const [musicBusy, setMusicBusy] = useState(false);
   const [musicPrompt, setMusicPrompt] = useState("rustige, lichte corporate explainer-muziek");
   const [motionBusy, setMotionBusy] = useState<Record<string, boolean>>({});
@@ -604,12 +609,50 @@ export default function StoryPage() {
         voiceUrl: d.audioUrl,
         voiceDuration: d.duration,
         voice,
+        voiceIsCustom: false,
+        voiceFileName: null,
         scenes: prev.scenes.map((s, idx) => ({ ...s, voiceDuration: durs[idx] })),
       } : prev);
+      setSyncNote(null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setVoiceBusy(false);
+    }
+  }
+
+  // Eigen ingesproken voice-over (mp3) gebruiken in plaats van een AI-stem. De
+  // scene-lengtes worden eerst naar rato van de tekst verdeeld; met "Autosync op
+  // voice" liggen ze daarna op de echte woordtiming van de opname.
+  async function uploadVoice(file: File) {
+    if (!spec) return;
+    setErr(null);
+    setVoiceUploadBusy(true);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/infographics/story-voice-upload", { method: "POST", body });
+      const d = await res.json();
+      if (!res.ok) throw new Error(apiError(d, "Uploaden mislukt"));
+      const durs = splitVoiceDurations(spec.scenes, d.duration);
+      setSpec((prev) => prev ? {
+        ...prev,
+        voiceUrl: d.audioUrl,
+        voiceDuration: d.duration,
+        voiceIsCustom: true,
+        voiceFileName: d.fileName ?? file.name,
+        scenes: prev.scenes.map((s, idx) => ({ ...s, voiceDuration: durs[idx] })),
+      } : prev);
+      setSyncNote({
+        tekst: "Eigen voice-over geladen. Klik op 'Autosync op voice' om de scenes op de opname te leggen.",
+        waarschuwing: false,
+      });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setVoiceUploadBusy(false);
+      // Leegmaken, anders kun je hetzelfde bestand niet nog eens kiezen.
+      if (voiceFileRef.current) voiceFileRef.current.value = "";
     }
   }
 
@@ -641,8 +684,9 @@ export default function StoryPage() {
   // gegenereerde voice-over (spec.voiceUrl).
   async function autoSync() {
     if (!spec) return;
-    if (!spec.voiceUrl) { setErr("Genereer eerst de voice-over voordat je autosynct."); return; }
+    if (!spec.voiceUrl) { setErr("Genereer of upload eerst een voice-over voordat je autosynct."); return; }
     setErr(null);
+    setSyncNote(null);
     setSyncBusy(true);
     try {
       const res = await fetch("/api/infographics/autosync-story", {
@@ -658,6 +702,25 @@ export default function StoryPage() {
         voiceDuration: d.audioDuration ?? prev.voiceDuration,
         scenes: prev.scenes.map((s, idx) => ({ ...s, voiceDuration: durs[idx] ?? s.voiceDuration })),
       } : prev);
+
+      // Eerlijk laten zien hoe goed het gelukt is. Bij een eigen opname die van
+      // het script afwijkt, is de verdeling een schatting — dan kun je beter zelf
+      // nog even de scene-lengtes nalopen dan denken dat het perfect staat.
+      const gevonden = typeof d.anchorsMatched === "number" ? d.anchorsMatched : null;
+      const totaal = typeof d.anchorsTotal === "number" ? d.anchorsTotal : 0;
+      if (d.fallbackUsed) {
+        setSyncNote({
+          tekst: "De opname wijkt te veel af van het script; de scenes zijn verdeeld naar tekstlengte. Loop ze even na.",
+          waarschuwing: true,
+        });
+      } else if (gevonden !== null && totaal > 0 && gevonden < totaal) {
+        setSyncNote({
+          tekst: `${gevonden} van de ${totaal} scenegrenzen exact op de opname gelegd; de rest is geschat.`,
+          waarschuwing: gevonden < totaal / 2,
+        });
+      } else {
+        setSyncNote({ tekst: "Scenes liggen gelijk met de opname.", waarschuwing: false });
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1070,6 +1133,22 @@ export default function StoryPage() {
                   {voiceBusy ? "Voice-over genereren…" : spec.voiceUrl ? "Voice-over opnieuw" : "Genereer voice-over"}
                   <span className="text-slate-400 ml-1">· {creditLabel(CREDIT_COSTS.VOICE)}</span>
                 </button>
+                <input
+                  ref={voiceFileRef}
+                  type="file"
+                  accept="audio/*,.mp3,.wav,.m4a,.ogg"
+                  className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadVoice(f); }}
+                />
+                <button
+                  onClick={() => voiceFileRef.current?.click()}
+                  disabled={voiceUploadBusy}
+                  title="Gebruik je eigen ingesproken mp3 in plaats van een AI-stem. Max. 25 MB. Kost geen credits."
+                  className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50"
+                >
+                  {voiceUploadBusy ? "Uploaden…" : "Eigen mp3 uploaden"}
+                  <span className="text-slate-400 ml-1">· gratis</span>
+                </button>
                 <label className="flex items-center gap-1.5" title="Spreeksnelheid van de voice-over (0,85–1,2×)">
                   <span className="text-[11px] text-slate-400">Snelheid</span>
                   <select value={voiceSpeed} onChange={(e) => setVoiceSpeed(Number(e.target.value))} className="bg-slate-900/60 border border-white/10 rounded px-1.5 py-1 text-xs text-white">
@@ -1083,7 +1162,7 @@ export default function StoryPage() {
                 <button
                   onClick={autoSync}
                   disabled={syncBusy || !spec.voiceUrl}
-                  title="Legt de scenes precies op de gesproken voice-over (Whisper)."
+                  title="Legt de scenes precies op de gesproken voice-over (Whisper). Werkt ook op een eigen geüploade opname."
                   className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50"
                 >
                   {syncBusy ? "Autosync…" : "Autosync op voice"}
@@ -1124,6 +1203,17 @@ export default function StoryPage() {
                   <span className="text-[11px] text-slate-500 w-9 text-right tabular-nums">{Math.round((spec.musicVolume ?? 0.18) * 100)}%</span>
                 </label>
               </div>
+              {spec.voiceIsCustom && spec.voiceUrl ? (
+                <p className="text-xs text-emerald-400">
+                  Eigen voice-over: <span className="text-emerald-300">{spec.voiceFileName ?? "geüpload bestand"}</span>
+                  {spec.voiceDuration ? <span className="text-slate-400"> · {Math.round(spec.voiceDuration)}s</span> : null}
+                </p>
+              ) : null}
+              {syncNote ? (
+                <p className={`text-xs ${syncNote.waarschuwing ? "text-amber-400" : "text-slate-400"}`}>
+                  {syncNote.tekst}
+                </p>
+              ) : null}
             </div>
 
             {/* Beeld: alle scenes in één keer bewegend maken. */}
