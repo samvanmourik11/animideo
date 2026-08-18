@@ -49,6 +49,15 @@ function SceneVideo({ src, duration, playing, playKey }: { src: string; duration
 // Speelt het verhaal af als animatievideo: scenes met crossfades, subtiele
 // camerabeweging (Ken Burns) op het beeld, tekst die inanimeert, en één
 // doorlopende voice-over synchroon met de tijdlijn.
+// Waar het muziekbed staat op tijdstip t. De bibliotheeknummers zijn korter of
+// langer dan de video; korter betekent doorlussen (net als in de export), dus
+// rekenen we modulo de nummerlengte. Zonder dit springt een seek voorbij het
+// einde van het nummer en valt de muziek stil.
+function muziekTijd(el: HTMLAudioElement, t: number): number {
+  const d = el.duration;
+  return Number.isFinite(d) && d > 0 ? t % d : t;
+}
+
 export default function StoryPlayer({
   spec,
   navy = "#16243f",
@@ -80,7 +89,7 @@ export default function StoryPlayer({
     const a = audioRef.current;
     if (a && a.src) { try { a.currentTime = t; } catch {} a.play().catch(() => {}); }
     const m = musicRef.current;
-    if (m && m.src) { m.volume = spec.musicVolume ?? 0.18; try { m.currentTime = t; } catch {} m.play().catch(() => {}); }
+    if (m && m.src) { m.volume = spec.musicVolume ?? 0.18; try { m.currentTime = muziekTijd(m, t); } catch {} m.play().catch(() => {}); }
     const tick = () => {
       const now = (performance.now() - startRef.current) / 1000;
       if (now >= total) { setT(total); setPlaying(false); audioRef.current?.pause(); musicRef.current?.pause(); return; }
@@ -110,7 +119,7 @@ export default function StoryPlayer({
     setT(nt);
     startRef.current = performance.now() - nt * 1000;
     if (audioRef.current && audioRef.current.src) { try { audioRef.current.currentTime = nt; } catch {} }
-    if (musicRef.current && musicRef.current.src) { try { musicRef.current.currentTime = nt; } catch {} }
+    if (musicRef.current && musicRef.current.src) { try { musicRef.current.currentTime = muziekTijd(musicRef.current, nt); } catch {} }
   }
 
   const { layers } = storyLayers(spec.scenes, t);
@@ -158,7 +167,7 @@ export default function StoryPlayer({
       </div>
 
       {spec.voiceUrl && <audio ref={audioRef} src={spec.voiceUrl} preload="auto" />}
-      {spec.musicUrl && <audio ref={musicRef} src={spec.musicUrl} preload="auto" />}
+      {spec.musicUrl && <audio ref={musicRef} src={spec.musicUrl} preload="auto" loop />}
     </div>
   );
 }

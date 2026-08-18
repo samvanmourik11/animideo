@@ -91,6 +91,7 @@ export function buildEditorTimeline(project: Project): TimelineDoc {
           start: 0,
           duration: total,
           volume: 0.18,
+          loop: true,
         } satisfies AudioClip,
       ],
     };

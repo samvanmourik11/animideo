@@ -92,6 +92,12 @@ export interface AudioClip extends ClipBase {
   src: string;
   volume?: number; // 0..1
   speed?: number;
+  /**
+   * Doorlussen als de bron korter is dan de clip. Staat aan op het muziekbed:
+   * de bibliotheeknummers zijn korter dan een lange video, en zonder lus valt
+   * de muziek daar halverwege stil. Nooit aanzetten op een voice-over.
+   */
+  loop?: boolean;
 }
 
 export type Clip = VideoClip | ImageClip | TextClip | AudioClip;

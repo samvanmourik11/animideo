@@ -12,6 +12,8 @@ import type { StorySpec } from "@/lib/infographics/story-schema";
 import { DEFAULT_VOICE, voicePreviewUrl, voicesForLanguage, voiceForLanguage } from "@/lib/infographics/story-voices";
 import { STORY_FONTS, DEFAULT_STORY_FONT, nearestStoryFont, STORY_FONTS_CSS_HREF } from "@/lib/infographics/story-fonts";
 import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
+import { MusicPickerButton } from "@/components/music/MusicPicker";
+import { findMusicTrackByUrl } from "@/lib/music/library";
 import type { BrandKit } from "@/lib/types";
 import type { StoryScene } from "@/lib/infographics/story-schema";
 
@@ -152,8 +154,6 @@ export default function StoryPage() {
   // Eigen ingesproken voice-over uploaden.
   const [voiceUploadBusy, setVoiceUploadBusy] = useState(false);
   const voiceFileRef = useRef<HTMLInputElement | null>(null);
-  const [musicBusy, setMusicBusy] = useState(false);
-  const [musicPrompt, setMusicPrompt] = useState("rustige, lichte corporate explainer-muziek");
   const [motionBusy, setMotionBusy] = useState<Record<string, boolean>>({});
   // Scenes waarvan het kritische oog élke poging afkeurde omdat er iets werd
   // toegevoegd. Die blijven staan (met camerabeweging in player en export).
@@ -664,29 +664,6 @@ export default function StoryPage() {
     }
   }
 
-  // Genereert een instrumentaal achtergrond-muziekbed (CassetteAI) voor de hele
-  // videolengte en hangt het aan de spec. Wordt zacht onder de voice gemixt.
-  async function genMusic() {
-    if (!spec) return;
-    setErr(null);
-    setMusicBusy(true);
-    try {
-      const total = storyWindows(spec.scenes).total;
-      const res = await fetch("/api/infographics/story-music", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: musicPrompt, duration: Math.ceil(total) }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(apiError(d, "Muziekbed mislukt"));
-      setSpec((prev) => prev ? { ...prev, musicUrl: d.musicUrl, musicPrompt } : prev);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setMusicBusy(false);
-    }
-  }
-
   // Autosync (zoals de Creator Studio): legt de scenegrenzen op de echte
   // woordtiming in de voice-over, zodat beeld en stem gelijk lopen. Vereist een
   // gegenereerde voice-over (spec.voiceUrl).
@@ -1177,23 +1154,17 @@ export default function StoryPage() {
                   <span className="text-slate-400 ml-1">· {creditLabel(CREDIT_COSTS.SYNC)}</span>
                 </button>
                 <span className="w-px self-stretch bg-white/10 mx-1" />
-                <input
-                  value={musicPrompt}
-                  onChange={(e) => setMusicPrompt(e.target.value)}
-                  placeholder="muziekstijl"
-                  title="Stijl van het achtergrond-muziekbed"
-                  className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-xs text-white w-48"
+                <MusicPickerButton
+                  value={spec.musicUrl}
+                  onChange={(url) => setSpec((prev) => (prev ? { ...prev, musicUrl: url } : prev))}
+                  videoDuration={storyWindows(spec.scenes).total}
+                  className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md"
                 />
-                <button
-                  onClick={genMusic}
-                  disabled={musicBusy}
-                  title="Genereert een zacht instrumentaal muziekbed (CassetteAI) onder de voice-over."
-                  className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50"
-                >
-                  {musicBusy ? "Muziek…" : spec.musicUrl ? "Muziek opnieuw" : "Genereer muziekbed"}
-                  <span className="text-slate-400 ml-1">· {creditLabel(CREDIT_COSTS.MUSIC)}</span>
-                </button>
-                {spec.musicUrl ? <span className="text-xs text-emerald-400">muziekbed klaar</span> : null}
+                {spec.musicUrl ? (
+                  <span className="text-xs text-emerald-400">
+                    {findMusicTrackByUrl(spec.musicUrl)?.title ?? "eigen muziek"} · gratis
+                  </span>
+                ) : null}
                 <label className="flex items-center gap-2" title="Volume van het muziekbed onder de voice-over (geldt in de preview en de export)">
                   <span className="text-[11px] text-slate-400">Muziekvolume</span>
                   <input

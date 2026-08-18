@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { Project, Scene, TransitionType } from "@/lib/types";
+import { MusicPickerButton } from "@/components/music/MusicPicker";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const PX_PER_SEC  = 80;
@@ -176,7 +177,10 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
   const [bgMusicUrl,        setBgMusicUrl]        = useState(project.bg_music_url ?? "");
   const [voiceVol,          setVoiceVol]          = useState(1);
   const [voiceSpeed,        setVoiceSpeed]        = useState(1);
-  const [musicVol,          setMusicVol]          = useState(0.5);
+  // 0,2 en niet 0,5: de bibliotheeknummers zijn genormaliseerd op vol niveau
+  // (anders dan het oude, veel zachtere AI-bed) en overstemmen de voice-over
+  // als ze op de helft binnenkomen.
+  const [musicVol,          setMusicVol]          = useState(0.2);
   const [exporting,         setExporting]         = useState(false);
   const [exportPct,         setExportPct]         = useState(0);
   const [exportPhase,       setExportPhase]       = useState("");
@@ -608,6 +612,19 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
     const updated = scenes.map((s, i) => i === idx ? { ...s, [field]: value } : s);
     setScenes(updated);
     save(updated);
+  }
+
+  // ── Muziek uit de bibliotheek ─────────────────────────────────────────────
+  // Kiezen slaat meteen op: de klant hoort het nummer al in de preview en mag
+  // daarna gerust verversen zonder zijn keuze kwijt te raken.
+  function pickMusic(url: string | null) {
+    setBgMusicUrl(url ?? "");
+    onUpdate({ bg_music_url: url });
+    fetch("/api/save-project", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: project.id, bg_music_url: url }),
+    }).catch(() => {});
   }
 
   // ── Music upload ──────────────────────────────────────────────────────────
@@ -1260,10 +1277,16 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
               </div>
             )}
             <div>
-              <label className="text-[11px] text-slate-400 block mb-1.5">Background Music</label>
-              <label className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg border border-[#2a2a2a] bg-[#1e1e1e] hover:border-[#555] text-xs text-gray-400 hover:text-gray-200 cursor-pointer transition-colors">
+              <label className="text-[11px] text-slate-400 block mb-1.5">Achtergrondmuziek</label>
+              <MusicPickerButton
+                value={bgMusicUrl || null}
+                onChange={pickMusic}
+                videoDuration={totalDuration}
+                className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg border border-[#2a2a2a] bg-[#1e1e1e] hover:border-[#555] text-xs text-gray-300 hover:text-white transition-colors"
+              />
+              <label className="mt-1.5 flex items-center justify-center gap-1.5 w-full py-2 rounded-lg border border-[#2a2a2a] bg-[#1e1e1e] hover:border-[#555] text-xs text-gray-400 hover:text-gray-200 cursor-pointer transition-colors">
                 <input type="file" accept="audio/*" className="hidden" onChange={handleMusicUpload} />
-                {uploadingMusic ? "Uploading…" : bgMusicUrl ? "Change Music" : "Upload MP3"}
+                {uploadingMusic ? "Uploading…" : "Of upload je eigen mp3"}
               </label>
               {bgMusicUrl && (
                 <div className="mt-3 space-y-2">

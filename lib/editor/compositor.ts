@@ -464,7 +464,11 @@ export class Compositor {
     const a = r.audio;
     if (!a) return;
     a.volume = (clip.volume ?? 1) * this.fadeFactor(clip, t);
-    const target = (clip.trimIn ?? 0) + (t - clip.start);
+    // Een muziekbed dat korter is dan de clip lust door — anders valt de muziek
+    // in de preview stil terwijl hij in de export wél doorloopt.
+    a.loop = clip.loop === true;
+    let target = (clip.trimIn ?? 0) + (t - clip.start);
+    if (clip.loop && a.duration > 0) target = target % a.duration;
     if (playing) {
       if (a.paused) a.play().catch(() => {});
       if (Math.abs(a.currentTime - target) > 0.3) a.currentTime = target;

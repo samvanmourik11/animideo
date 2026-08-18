@@ -22,6 +22,8 @@ interface AudioSource {
   volume: number;
   fadeIn: number;
   fadeOut: number;
+  /** Muziekbed: doorlussen als het nummer korter is dan de clip. */
+  loop: boolean;
 }
 
 /** Alle hoorbare audio- en videoclips verzamelen voor de audiomix. */
@@ -43,6 +45,7 @@ function collectAudio(doc: TimelineDoc): AudioSource[] {
         // compositor — zo blijft de export gelijk aan de preview.
         fadeIn: Math.max(clip.fadeIn ?? 0, clip.transitionIn?.duration ?? 0),
         fadeOut: Math.max(clip.fadeOut ?? 0, clip.transitionOut?.duration ?? 0),
+        loop: clip.type === "audio" && clip.loop === true,
       });
     }
   }
@@ -129,7 +132,12 @@ export async function renderTimeline(
     // naar de beperkte /tmp. Input 0 = de framestroom; daarna de audio-inputs.
     const final = path.join(dir, "final.mp4");
     const args = ["-y", "-f", "image2pipe", "-framerate", String(fps), "-i", "pipe:0"];
-    for (const f of audioFiles) args.push("-i", f);
+    for (let k = 0; k < audioFiles.length; k++) {
+      // Een lussende bron (het muziekbed) wordt oneindig herhaald; de atrim
+      // hieronder kapt hem af op de clipduur, dus dit kan niet doorlopen.
+      if (audio[k].loop) args.push("-stream_loop", "-1");
+      args.push("-i", audioFiles[k]);
+    }
 
     if (audio.length === 0) {
       args.push(

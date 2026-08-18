@@ -94,9 +94,12 @@ export interface StorySpec {
   fontFamily?: string | null;
   logoUrl?: string | null;
   logoEnabled?: boolean | null;
-  // Instrumentaal achtergrond-muziekbed (CassetteAI), zacht onder de voice-over
-  // gemixt in player en export. musicPrompt bewaart de gekozen stijl.
+  // Achtergrondmuziek uit de vaste bibliotheek (lib/music/library.ts), zacht
+  // onder de voice-over gemixt in player en export. Bij het exporteren wordt
+  // het nummer op de videolengte gezet (lib/music/bed.ts).
   musicUrl?: string | null;
+  // Legacy: de stijlprompt van het oude AI-muziekbed. Blijft staan zodat
+  // bestaande projecten niet stukgaan; nieuwe projecten vullen dit niet meer.
   musicPrompt?: string | null;
   // Volume van het muziekbed (0..1), instelbaar via de slider. Default 0.18.
   musicVolume?: number | null;

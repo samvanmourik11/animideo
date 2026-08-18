@@ -20,7 +20,6 @@ export const CREDIT_COSTS = {
   INPAINT: 1,               // Flux Pro Fill inpainting (~$0,05)
   VIDEO_GENERATION: 2,      // Seedance Lite 5s 720p (~$0,18) — was 5, grootste kostenpost voor de klant
   LIPSYNC: 3,               // Kling AI Avatar Standard v2 pratend personage (~5s, ~$0,28) — was 7
-  MUSIC: 0,                 // GRATIS — CassetteAI muziekbed (~$0,02/min)
   SYNC: 0,                  // GRATIS — Whisper word-timestamps voor autosync (~$0,01)
   CHAT: 0,                  // GRATIS — AI-buddy chat-beurt (GPT-4o tekst + tool-calls, ~$0,02-0,04)
 } as const;

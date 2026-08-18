@@ -11,6 +11,7 @@ import { storyWindows, STORY_FPS } from "@/lib/infographics/story-layout";
 import { buildSceneSvg } from "@/lib/infographics/story-svg";
 import { STORY_FONT_FILES, resolveStoryFont } from "@/lib/infographics/story-fonts";
 import type { StorySpec } from "@/lib/infographics/story-schema";
+import { renderMusicBed } from "@/lib/music/bed";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -139,10 +140,16 @@ export async function POST(req: NextRequest) {
       voicePath = path.join(dir, "voice.mp3");
       if (!(await download(spec.voiceUrl, voicePath))) voicePath = null;
     }
+    // Het gekozen bibliotheeknummer wordt op exact de videolengte gezet:
+    // korter dan de video = doorlussen, langer = afkappen met een uitfade
+    // (lib/music/bed.ts). Zonder die stap valt een kort nummer halverwege stil.
     let musicPath: string | null = null;
     if (spec.musicUrl) {
-      musicPath = path.join(dir, "music.wav");
-      if (!(await download(spec.musicUrl, musicPath))) musicPath = null;
+      const musicSrc = path.join(dir, "music-src.mp3");
+      const bed = path.join(dir, "music.wav");
+      if (await download(spec.musicUrl, musicSrc)) {
+        musicPath = await renderMusicBed(musicSrc, total, bed).catch(() => null);
+      }
     }
 
     // ── 4. ffmpeg: per scene een genormaliseerd segment + concat ──────

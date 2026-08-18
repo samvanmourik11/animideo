@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
 import type { Scene } from "@/lib/types";
+import { renderMusicBed } from "@/lib/music/bed";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -124,12 +125,18 @@ export async function POST(req: NextRequest) {
           try { await downloadTo(project.voice_audio_url, voicePath); }
           catch { voicePath = null; }
         }
+        // Het gekozen nummer uit de bibliotheek gaat eerst op de videolengte:
+        // korter dan de video = doorlussen, langer = afkappen met een uitfade
+        // (lib/music/bed.ts). Anders viel een kort nummer halverwege stil en
+        // werd een lang nummer midden in een maat afgekapt door de -t hieronder.
         let musicPath: string | null = null;
         const bgMusicUrl = body.bgMusicUrl || project.bg_music_url;
         if (bgMusicUrl) {
-          musicPath = join(workDir, "music.mp3");
-          try { await downloadTo(bgMusicUrl, musicPath); }
-          catch { musicPath = null; }
+          const musicSrc = join(workDir, "music-src.mp3");
+          try {
+            await downloadTo(bgMusicUrl, musicSrc);
+            musicPath = await renderMusicBed(musicSrc, totalExpectedDuration, join(workDir, "music.wav"));
+          } catch { musicPath = null; }
         }
 
         emit({ type: "phase", phase: "Bronlengtes meten", pct: 17 });
