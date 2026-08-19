@@ -53,37 +53,37 @@ export default function HistoryPanel({
   }
 
   return (
-    <div className="absolute right-0 top-0 z-40 h-full w-72 border-l border-[#2a2a2a] bg-[#141414] flex flex-col">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#2a2a2a]">
-        <span className="text-xs font-semibold text-slate-200">Versies</span>
+    <div className="h-full flex flex-col bg-white">
+      <div className="flex items-center justify-between px-4 pt-4 pb-3">
+        <span className="text-[15px] font-semibold text-slate-900">Versies</span>
         <button
           type="button"
           onClick={onClose}
           aria-label="Sluiten"
-          className="w-6 h-6 rounded bg-white/5 hover:bg-white/15 text-slate-400 text-xs"
+          className="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center"
         >
           ✕
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {fout ? <p className="text-[11px] text-amber-300 px-1 py-2">{fout}</p> : null}
+      <div className="flex-1 overflow-y-auto px-4 pb-3 space-y-1.5">
+        {fout ? <p className="text-[13px] text-amber-700 py-2">{fout}</p> : null}
 
         {regels === null ? (
-          <p className="text-[11px] text-slate-500 px-1 py-2">Laden…</p>
+          <p className="text-[13px] text-slate-500 py-2">Laden…</p>
         ) : regels.length === 0 ? (
-          <p className="text-[11px] text-slate-500 px-1 py-2">
+          <p className="text-[13px] text-slate-600 py-2 leading-relaxed">
             Nog geen bewerkingen. Alles wat je vanaf nu doet komt hier te staan, ook na het sluiten van dit tabblad.
           </p>
         ) : (
           regels.map((r) => (
             <div
               key={r.version}
-              className="rounded border border-white/5 bg-white/[0.03] px-2 py-1.5 flex items-start gap-2"
+              className="rounded-xl border border-slate-200 px-3 py-2 flex items-start gap-2"
             >
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] text-slate-200 leading-snug">{r.summary || r.op.op}</p>
-                <p className="text-[10px] text-slate-500">
+                <p className="text-[13px] text-slate-800 leading-snug">{r.summary || r.op.op}</p>
+                <p className="text-[11px] text-slate-500">
                   v{r.version} · {tijd(r.createdAt)}
                   {r.source === "ai" ? " · AI" : ""}
                 </p>
@@ -93,7 +93,7 @@ export default function HistoryPanel({
                 onClick={() => herstel(r.version)}
                 disabled={bezig !== null}
                 title={`Zet de montage terug zoals hij was na deze stap`}
-                className="shrink-0 text-[10px] px-1.5 py-1 rounded bg-white/10 hover:bg-white/20 text-slate-300 disabled:opacity-40"
+                className="shrink-0 text-[12px] px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-40"
               >
                 {bezig === r.version ? "…" : "Terug"}
               </button>
@@ -101,17 +101,17 @@ export default function HistoryPanel({
           ))
         )}
         {regels && regels.length > 0 ? (
-          <div className="rounded border border-white/5 bg-white/[0.03] px-2 py-1.5 flex items-start gap-2">
+          <div className="rounded-xl border border-slate-200 px-3 py-2 flex items-start gap-2">
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] text-slate-200 leading-snug">Begin</p>
-              <p className="text-[10px] text-slate-500">v0 · zoals het project binnenkwam</p>
+              <p className="text-[13px] text-slate-800 leading-snug">Begin</p>
+              <p className="text-[11px] text-slate-500">v0 · zoals het project binnenkwam</p>
             </div>
             <button
               type="button"
               onClick={() => herstel(0)}
               disabled={bezig !== null}
               title="Alles terug naar hoe deze montage begon"
-              className="shrink-0 text-[10px] px-1.5 py-1 rounded bg-white/10 hover:bg-white/20 text-slate-300 disabled:opacity-40"
+              className="shrink-0 text-[12px] px-2.5 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 disabled:opacity-40"
             >
               {bezig === 0 ? "…" : "Terug"}
             </button>
@@ -119,7 +119,7 @@ export default function HistoryPanel({
         ) : null}
       </div>
 
-      <p className="text-[10px] text-slate-500 px-3 py-2 border-t border-[#2a2a2a]">
+      <p className="text-[12px] text-slate-500 px-4 py-3 border-t border-slate-200">
         Terugzetten is zelf ook ongedaan te maken — je raakt niets kwijt.
       </p>
     </div>

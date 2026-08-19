@@ -19,8 +19,12 @@ export default async function EditorLayout({
   if (!user) redirect("/login");
   if (!canUseEditor(user.email)) redirect("/dashboard");
 
+  // Licht, in tegenstelling tot de rest van de app: dit is een werkomgeving waar
+  // je uren in leest en klikt, en dan wint contrast van sfeer. Het beeld zelf
+  // houdt zijn eigen neutrale grijs eromheen, zodat je kleuren wel goed kunt
+  // beoordelen.
   return (
-    <div className="fixed inset-0 flex flex-col bg-[#060d1f] text-white">
+    <div className="fixed inset-0 flex flex-col bg-white text-slate-900">
       {children}
     </div>
   );

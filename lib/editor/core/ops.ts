@@ -13,7 +13,7 @@
 // klantprojecten bevatten soms al een overlap uit de tijd dat de UI dat toestond;
 // die mogen een nette bewerking niet blokkeren.
 
-import { DEFAULT_TEXT_STYLE, type Clip, type DiagramMeta, type TimelineDoc, type Track, type Transition } from "../timeline";
+import { DEFAULT_TEXT_STYLE, type Clip, type DiagramMeta, type TextStyle, type TimelineDoc, type Track, type Transition } from "../timeline";
 import { breedteNaarSchaal } from "../element-geometry";
 import { STANDAARD_VORMSTIJL, vindVorm, vormDataUri, type VormStijl } from "../shapes-svg";
 import { diagramDataUri, type DiagramOpties } from "../charts";
@@ -78,6 +78,13 @@ export type Op =
       color?: string;
       align?: "left" | "center" | "right";
       background?: string;
+      /**
+       * De rest van de opmaak in één keer: lettertype, gewicht, letterafstand,
+       * omlijning, schaduw. Zonder dit moest de UI eerst een tekst plaatsen en
+       * daarna de stijl zetten — twee stappen in de geschiedenis voor één
+       * handeling, en een moment waarop de tekst er verkeerd uitzag.
+       */
+      style?: Partial<TextStyle>;
     }
   /**
    * Het beeldmateriaal van een clip vervangen (na een AI-bewerking van het
@@ -119,9 +126,22 @@ export type Op =
       clipId: string;
       stijl?: Partial<VormStijl>;
       diagram?: Partial<DiagramMeta>;
-    };
+    }
+  /**
+   * Het muziekbed onder de hele video. Eén op voor kiezen, wisselen én
+   * weghalen (`src: null`), omdat het altijd om hetzelfde ene bed gaat — twee
+   * nummers tegelijk is geen montagekeuze maar een ongeluk.
+   *
+   * De clip loopt door zolang de video duurt en lust zichzelf als het nummer
+   * korter is. De voice-over op hetzelfde spoor blijft staan: die herkennen we
+   * aan het ontbreken van source 'muziek'.
+   */
+  | { op: "set_muziek"; src: string | null; titel?: string; volume?: number };
 
 export type OpKind = Op["op"];
+
+/** Vast spoor-id voor het muziekbed; zie de op set_muziek. */
+export const MUZIEKSPOOR = "trk_muziek";
 
 export interface OpError {
   code: "not_found" | "invalid" | "would_break";
@@ -479,9 +499,10 @@ export function applyOp(doc: TimelineDoc, op: Op): OpResult {
           text: tekst,
           style: {
             ...DEFAULT_TEXT_STYLE,
-            fontSize: op.fontSize ?? DEFAULT_TEXT_STYLE.fontSize,
-            color: op.color ?? DEFAULT_TEXT_STYLE.color,
-            align: op.align ?? DEFAULT_TEXT_STYLE.align,
+            ...op.style,
+            fontSize: op.fontSize ?? op.style?.fontSize ?? DEFAULT_TEXT_STYLE.fontSize,
+            color: op.color ?? op.style?.color ?? DEFAULT_TEXT_STYLE.color,
+            align: op.align ?? op.style?.align ?? DEFAULT_TEXT_STYLE.align,
             ...(op.background ? { background: op.background } : {}),
           },
           start: gevonden.clip.start,
@@ -584,6 +605,53 @@ export function applyOp(doc: TimelineDoc, op: Op): OpResult {
           meta: { diagram },
           summary: `Diagram (${diagram.soort}) geplaatst`,
         });
+      }
+
+      case "set_muziek": {
+        // Eigen spoor, los van de voice-over. Niet omdat het mooier staat maar
+        // omdat het moet: op één audiospoor mag niets overlappen, en muziek
+        // hoort juist ónder de stem te liggen. Dit ging eerder mis met een
+        // voice-over die korter was dan de video.
+        let spoor = doc.tracks.find((t) => t.id === MUZIEKSPOOR);
+        let tracks = doc.tracks;
+        if (!spoor) {
+          spoor = { id: MUZIEKSPOOR, kind: "audio", name: "Muziek", clips: [] };
+          tracks = [...doc.tracks, spoor];
+        }
+        const zonderBed = spoor.clips.filter((c) => c.meta?.source !== "muziek");
+
+        if (!op.src) {
+          if (zonderBed.length === spoor.clips.length) return fout("invalid", "Er staat geen muziek onder deze video");
+          return {
+            ok: true,
+            doc: { ...doc, tracks: tracks.map((t) => (t.id === spoor!.id ? { ...t, clips: zonderBed } : t)) },
+            summary: "Muziek weggehaald",
+          };
+        }
+
+        // Even lang als de video: korter zou halverwege stil vallen, langer zou
+        // na het laatste beeld doorspelen.
+        const lengte = snapToFrame(
+          Math.max(...doc.tracks.flatMap((t) => t.clips.map((c) => c.start + c.duration)), 0),
+          fps
+        );
+        if (lengte < min) return fout("invalid", "Zet eerst beeld op de tijdlijn");
+
+        const bed: Clip = {
+          id: "muziekbed",
+          type: "audio",
+          src: op.src,
+          start: 0,
+          duration: lengte,
+          loop: true,
+          volume: op.volume ?? 0.25,
+          meta: { label: op.titel ?? "Muziek", source: "muziek" },
+        };
+        return {
+          ok: true,
+          doc: { ...doc, tracks: tracks.map((t) => (t.id === spoor!.id ? { ...t, clips: [...zonderBed, bed] } : t)) },
+          summary: `Muziek: ${op.titel ?? "gekozen"}`,
+        };
       }
 
       case "restyle_element": {

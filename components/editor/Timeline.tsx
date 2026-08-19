@@ -8,11 +8,13 @@ const ROW_H = 48;
 const RULER_H = 24;
 const LABEL_W = 96;
 
+// Elk soort clip zijn eigen kleur, verzadigd genoeg om op de lichte tijdlijn te
+// blijven staan — op de oude donkere achtergrond kon dit doorzichtig, hier niet.
 const CLIP_COLOR: Record<Clip["type"], string> = {
-  video: "bg-blue-600/70 border-blue-400/50",
-  image: "bg-emerald-600/70 border-emerald-400/50",
-  text: "bg-amber-600/70 border-amber-400/50",
-  audio: "bg-fuchsia-600/70 border-fuchsia-400/50",
+  video: "bg-blue-500 border-blue-600",
+  image: "bg-emerald-500 border-emerald-600",
+  text: "bg-amber-500 border-amber-600",
+  audio: "bg-fuchsia-500 border-fuchsia-600",
 };
 
 function Playhead({ store }: { store: EditorStore }) {
@@ -128,16 +130,16 @@ export default function Timeline({ store }: { store: EditorStore }) {
   for (let s = 0; s <= Math.max(duration, 10); s += step) ticks.push(s);
 
   return (
-    <section className="h-60 border-t border-white/10 shrink-0 flex flex-col">
+    <section className="h-60 border-t border-slate-200 bg-white shrink-0 flex flex-col">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 h-9 border-b border-white/10">
+      <div className="flex items-center gap-2 px-3 h-11 border-b border-slate-200">
         <button
           onClick={() => {
             const id = store.getState().selectedClipId;
             if (id) store.splitClip(id, store.getState().currentTime);
           }}
           disabled={!selectedId}
-          className="btn-secondary text-xs py-1 px-3 disabled:opacity-40"
+          className="text-[13px] py-1.5 px-3 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40"
         >
           Splitsen
         </button>
@@ -147,13 +149,13 @@ export default function Timeline({ store }: { store: EditorStore }) {
             if (id) store.removeClip(id);
           }}
           disabled={!selectedId}
-          className="btn-secondary text-xs py-1 px-3 disabled:opacity-40"
+          className="text-[13px] py-1.5 px-3 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-40"
         >
           Verwijderen
         </button>
         <button
           onClick={() => store.addTextClip()}
-          className="btn-secondary text-xs py-1 px-3"
+          className="text-[13px] py-1.5 px-3 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
           title="Tekst toevoegen op de playhead"
         >
           + Tekst
@@ -164,13 +166,13 @@ export default function Timeline({ store }: { store: EditorStore }) {
             if (id) store.clipToNewLayer(id);
             else store.addOverlayTrack();
           }}
-          className="btn-secondary text-xs py-1 px-3"
+          className="text-[13px] py-1.5 px-3 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
           title="Nieuwe overlay-laag (verplaatst de selectie ernaartoe)"
         >
           + Laag
         </button>
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-[11px] text-slate-500">Zoom</span>
+          <span className="text-[12px] text-slate-500">Zoom</span>
           <input
             type="range"
             min={20}
@@ -185,13 +187,13 @@ export default function Timeline({ store }: { store: EditorStore }) {
       {/* Tracks */}
       <div className="flex flex-1 min-h-0 overflow-y-auto">
         {/* Labels */}
-        <div className="shrink-0 border-r border-white/10" style={{ width: LABEL_W }}>
-          <div style={{ height: RULER_H }} className="border-b border-white/10" />
+        <div className="shrink-0 border-r border-slate-200 bg-slate-50" style={{ width: LABEL_W }}>
+          <div style={{ height: RULER_H }} className="border-b border-slate-200" />
           {displayTracks.map((t) => (
             <div
               key={t.id}
               style={{ height: ROW_H }}
-              className="px-3 flex items-center text-[11px] text-slate-400 border-b border-white/5"
+              className="px-3 flex items-center text-[12px] text-slate-600 border-b border-slate-200"
             >
               {t.name}
             </div>
@@ -204,16 +206,16 @@ export default function Timeline({ store }: { store: EditorStore }) {
             {/* Liniaal */}
             <div
               style={{ height: RULER_H }}
-              className="relative border-b border-white/10 cursor-pointer select-none"
+              className="relative border-b border-slate-200 bg-slate-50 cursor-pointer select-none"
               onPointerDown={startScrub}
             >
               {ticks.map((s) => (
                 <div
                   key={s}
-                  className="absolute top-0 bottom-0 border-l border-white/10"
+                  className="absolute top-0 bottom-0 border-l border-slate-300"
                   style={{ left: s * pxPerSec }}
                 >
-                  <span className="absolute top-0.5 left-1 text-[9px] text-slate-500 tabular-nums">
+                  <span className="absolute top-0.5 left-1 text-[10px] text-slate-500 tabular-nums">
                     {s}s
                   </span>
                 </div>
@@ -225,7 +227,7 @@ export default function Timeline({ store }: { store: EditorStore }) {
               <div
                 key={track.id}
                 style={{ height: ROW_H }}
-                className="relative border-b border-white/5"
+                className="relative border-b border-slate-200"
                 onPointerDown={startScrub}
               >
                 {track.clips.map((clip) => {
@@ -242,10 +244,10 @@ export default function Timeline({ store }: { store: EditorStore }) {
                       }}
                       className={`absolute rounded-md border cursor-grab active:cursor-grabbing overflow-hidden ${
                         CLIP_COLOR[clip.type]
-                      } ${selected ? "ring-2 ring-white" : ""}`}
+                      } ${selected ? "ring-2 ring-violet-600 ring-offset-1" : ""}`}
                     >
-                      <div className="px-2 py-1 text-[10px] text-white/90 truncate pointer-events-none">
-                        {clip.type === "text" ? "Tekst" : clip.type}
+                      <div className="px-2 py-1 text-[11px] text-white truncate pointer-events-none">
+                        {clip.meta?.label ?? (clip.type === "text" ? "Tekst" : clip.type)}
                       </div>
                       {/* Trim-handles */}
                       <div
@@ -288,8 +290,8 @@ export default function Timeline({ store }: { store: EditorStore }) {
                           style={{ left: next.start * pxPerSec - 9, top: ROW_H / 2 - 9 }}
                           className={`absolute z-10 w-[18px] h-[18px] rounded-full border flex items-center justify-center text-[10px] leading-none transition-colors ${
                             active
-                              ? "bg-amber-400 border-amber-300 text-black"
-                              : "bg-slate-800 border-white/40 text-white/80 hover:bg-slate-700"
+                              ? "bg-amber-400 border-amber-500 text-slate-900"
+                              : "bg-white border-slate-300 text-slate-600 hover:bg-slate-100"
                           }`}
                         >
                           {active ? "✓" : "⇄"}

@@ -30,18 +30,18 @@ export default function Transport({ store }: { store: EditorStore }) {
     <div className="flex items-center gap-3">
       {saveLabel && (
         <span
-          className={`text-xs ${saveState === "error" ? "text-red-400" : "text-slate-500"}`}
+          className={`text-[12px] ${saveState === "error" ? "text-red-600" : "text-slate-500"}`}
         >
           {saveLabel}
         </span>
       )}
       <button
         onClick={() => store.togglePlay()}
-        className="btn-secondary text-sm py-1.5 px-4 w-20"
+        className="text-[14px] py-2 px-4 w-24 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50"
       >
         {isPlaying ? "Pauze" : "Afspelen"}
       </button>
-      <span className="text-xs tabular-nums text-slate-400 w-24 text-center">
+      <span className="text-[13px] tabular-nums text-slate-500 w-24 text-center">
         {fmt(currentTime)} / {fmt(duration)}
       </span>
     </div>

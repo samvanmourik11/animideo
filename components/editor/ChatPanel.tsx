@@ -115,24 +115,24 @@ export default function ChatPanel({
   }
 
   return (
-    <div className="absolute right-0 top-0 z-40 h-full w-80 border-l border-[#2a2a2a] bg-[#141414] flex flex-col">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-[#2a2a2a]">
-        <span className="text-xs font-semibold text-slate-200">Monteur</span>
+    <div className="h-full flex flex-col bg-white">
+      <div className="flex items-center justify-between px-4 pt-4 pb-3">
+        <span className="text-[15px] font-semibold text-slate-900">Monteur</span>
         <button
           type="button"
           onClick={onClose}
           aria-label="Sluiten"
-          className="w-6 h-6 rounded bg-white/5 hover:bg-white/15 text-slate-400 text-xs"
+          className="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center"
         >
           ✕
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div className="flex-1 overflow-y-auto px-4 pb-3 space-y-3">
         {berichten.length === 0 ? (
-          <div className="text-[11px] text-slate-500 space-y-2">
+          <div className="text-[13px] text-slate-600 space-y-2 leading-relaxed">
             <p>Zeg wat er moet gebeuren, in gewone taal. Bijvoorbeeld:</p>
-            <ul className="space-y-1 text-slate-400">
+            <ul className="space-y-1 text-slate-500">
               <li>· &ldquo;maak de intro twee seconden korter&rdquo;</li>
               <li>· &ldquo;haal de scène weg waarin niemand praat&rdquo;</li>
               <li>· &ldquo;zet de laatste clip vooraan&rdquo;</li>
@@ -144,8 +144,8 @@ export default function ChatPanel({
             <div key={i} className={b.rol === "user" ? "text-right" : ""}>
               {b.tekst ? (
                 <p
-                  className={`inline-block text-[12px] leading-snug rounded-lg px-2.5 py-1.5 ${
-                    b.rol === "user" ? "bg-cyan-500/15 text-cyan-100" : "bg-white/5 text-slate-200"
+                  className={`inline-block text-[13px] leading-snug rounded-xl px-3 py-2 ${
+                    b.rol === "user" ? "bg-violet-100 text-violet-900" : "bg-slate-100 text-slate-800"
                   }`}
                 >
                   {b.tekst}
@@ -155,7 +155,7 @@ export default function ChatPanel({
               {b.stappen && b.stappen.length > 0 ? (
                 <ul className="mt-1.5 space-y-1">
                   {b.stappen.map((s, k) => (
-                    <li key={k} className="text-[11px] text-emerald-300/90 flex gap-1.5">
+                    <li key={k} className="text-[12px] text-emerald-700 flex gap-1.5">
                       <span aria-hidden>✓</span>
                       <span>{s.summary}</span>
                     </li>
@@ -164,13 +164,13 @@ export default function ChatPanel({
               ) : null}
 
               {b.bezigMet ? (
-                <p className="mt-1.5 text-[11px] text-slate-400">{b.bezigMet}</p>
+                <p className="mt-1.5 text-[12px] text-slate-500">{b.bezigMet}</p>
               ) : null}
 
               {b.geweigerd && b.geweigerd.length > 0 ? (
                 <ul className="mt-1.5 space-y-1">
                   {b.geweigerd.map((r, k) => (
-                    <li key={k} className="text-[11px] text-amber-300/90">
+                    <li key={k} className="text-[12px] text-amber-700">
                       Niet gedaan: {r}
                     </li>
                   ))}
@@ -179,11 +179,11 @@ export default function ChatPanel({
             </div>
           ))
         )}
-        {bezig ? <p className="text-[11px] text-slate-500">Bezig…</p> : null}
+        {bezig ? <p className="text-[12px] text-slate-500">Bezig…</p> : null}
         <div ref={bodemRef} />
       </div>
 
-      <div className="border-t border-[#2a2a2a] p-2">
+      <div className="border-t border-slate-200 p-3">
         <textarea
           value={invoer}
           onChange={(e) => setInvoer(e.target.value)}
@@ -195,13 +195,13 @@ export default function ChatPanel({
           }}
           rows={2}
           placeholder="Wat moet er gebeuren?"
-          className="w-full resize-none rounded-md bg-[#1e1e1e] border border-[#2a2a2a] px-2 py-1.5 text-[12px] text-white placeholder:text-slate-600 focus:outline-none focus:border-[#555]"
+          className="w-full resize-none rounded-xl bg-slate-100 focus:bg-white border border-transparent focus:border-violet-400 px-3 py-2.5 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
         />
         <button
           type="button"
           onClick={() => void verstuur()}
           disabled={bezig || !invoer.trim()}
-          className="mt-1.5 w-full text-xs py-1.5 rounded-md bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-white"
+          className="mt-2 w-full text-[14px] font-medium py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white"
         >
           {bezig ? "Bezig…" : "Stuur"}
         </button>

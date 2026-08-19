@@ -5,6 +5,8 @@ import { Compositor } from "@/lib/editor/compositor";
 import type { EditorStore } from "@/lib/editor/store";
 import type { Ratio } from "@/lib/editor/timeline";
 import CanvasOverlay from "./CanvasOverlay";
+import TekenLaag from "./TekenLaag";
+import type { PenStijl } from "@/lib/editor/tekening";
 
 const ASPECT: Record<Ratio, string> = {
   "16:9": "aspect-video",
@@ -15,9 +17,14 @@ const ASPECT: Record<Ratio, string> = {
 export default function PreviewCanvas({
   store,
   ratio,
+  pen,
+  onTekening,
 }: {
   store: EditorStore;
   ratio: Ratio;
+  /** Actieve pen; zolang die er is vangt de tekenlaag alle klikken af. */
+  pen?: PenStijl | null;
+  onTekening?: (bericht: string) => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const compRef = useRef<Compositor | null>(null);
@@ -58,16 +65,22 @@ export default function PreviewCanvas({
   }
 
   return (
-    <div className="flex-1 min-w-0 flex items-center justify-center bg-black/40 p-6">
+    <div className="flex-1 min-w-0 min-h-0 flex items-center justify-center bg-slate-200 p-6 overflow-hidden">
       <div
-        className={`${ASPECT[ratio]} relative max-h-full max-w-full bg-black rounded-lg overflow-hidden border border-white/10 shadow-2xl`}
+        className={`${ASPECT[ratio]} relative max-h-full max-w-full bg-black rounded-lg overflow-hidden shadow-[0_2px_24px_rgba(15,23,42,0.18)]`}
         style={{
           width: ratio === "16:9" ? "100%" : "auto",
           height: ratio === "16:9" ? "auto" : "100%",
         }}
       >
         <div ref={hostRef} className="w-full h-full" onPointerDown={onCanvasPointerDown} />
-        <CanvasOverlay store={store} getLayout={(id) => compRef.current?.getClipLayout(id) ?? null} />
+        {/* Tijdens het tekenen geen selectiekader: dan zou elke streep meteen een
+            sleep-actie op de vorige worden. */}
+        {pen ? (
+          <TekenLaag store={store} pen={pen} onKlaar={(b) => onTekening?.(b)} />
+        ) : (
+          <CanvasOverlay store={store} getLayout={(id) => compRef.current?.getClipLayout(id) ?? null} />
+        )}
       </div>
     </div>
   );

@@ -429,3 +429,59 @@ describe("add_diagram en restyle_element", () => {
     expect(r.ok).toBe(false);
   });
 });
+
+describe("set_muziek", () => {
+  function metVideo() {
+    const doc = createEmptyTimeline("16:9");
+    mainVideoTrack(doc)!.clips = [v("a", 0, 4), v("b", 4, 6)];
+    return doc;
+  }
+
+  // Muziek krijgt bewust een eigen spoor naast de voice-over, dus we kijken
+  // naar álle audiosporen samen.
+  function audioClips(doc: TimelineDoc): Clip[] {
+    return doc.tracks.filter((t) => t.kind === "audio").flatMap((t) => t.clips);
+  }
+
+  it("legt het bed onder de hele video en lust het door", () => {
+    const r = applyOp(metVideo(), { op: "set_muziek", src: "muziek.mp3", titel: "Rustig" });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const bed = audioClips(r.doc)[0];
+    expect(bed.start).toBe(0);
+    expect(bed.duration).toBe(10);
+    expect(bed.type === "audio" && bed.loop).toBe(true);
+  });
+
+  it("vervangt het vorige nummer in plaats van er een tweede bij te zetten", () => {
+    const een = applyOp(metVideo(), { op: "set_muziek", src: "a.mp3" });
+    expect(een.ok).toBe(true);
+    if (!een.ok) return;
+    const twee = applyOp(een.doc, { op: "set_muziek", src: "b.mp3" });
+    expect(twee.ok).toBe(true);
+    if (!twee.ok) return;
+    expect(audioClips(twee.doc)).toHaveLength(1);
+    const bed = audioClips(twee.doc)[0];
+    expect(bed.type === "audio" ? bed.src : null).toBe("b.mp3");
+  });
+
+  it("laat de voice-over met rust", () => {
+    const doc = metVideo();
+    doc.tracks.find((t) => t.kind === "audio")!.clips = [
+      { id: "vo", type: "audio", src: "stem.mp3", start: 0, duration: 8 },
+    ];
+    const r = applyOp(doc, { op: "set_muziek", src: "muziek.mp3" });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(audioClips(r.doc).map((c) => c.id).sort()).toEqual(["muziekbed", "vo"]);
+
+    const weg = applyOp(r.doc, { op: "set_muziek", src: null });
+    expect(weg.ok).toBe(true);
+    if (!weg.ok) return;
+    expect(audioClips(weg.doc).map((c) => c.id)).toEqual(["vo"]);
+  });
+
+  it("weigert muziek onder een lege tijdlijn", () => {
+    expect(applyOp(createEmptyTimeline("16:9"), { op: "set_muziek", src: "a.mp3" }).ok).toBe(false);
+  });
+});

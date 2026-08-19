@@ -21,14 +21,14 @@ import { useEditor, type EditorStore } from "@/lib/editor/store";
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <label className="block text-[11px] font-medium text-slate-500">{label}</label>
+      <label className="block text-[12px] font-medium text-slate-600">{label}</label>
       {children}
     </div>
   );
 }
 
 const numCls =
-  "w-full bg-[#060d1f] border border-white/10 rounded-md px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500/50";
+  "w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[13px] text-slate-900 focus:outline-none focus:border-violet-500";
 
 export default function PropertiesPanel({ store }: { store: EditorStore }) {
   const selectedId = useEditor(store, (s) => s.selectedClipId);
@@ -75,7 +75,7 @@ export default function PropertiesPanel({ store }: { store: EditorStore }) {
     return (
       <div className="space-y-1">
         <div className="flex items-center justify-between gap-1">
-          <label className="text-[11px] text-slate-500 truncate">{label}</label>
+          <label className="text-[12px] text-slate-600 truncate">{label}</label>
           <Diamond property={property} />
         </div>
         <input
@@ -95,8 +95,8 @@ export default function PropertiesPanel({ store }: { store: EditorStore }) {
   }
 
   return (
-    <aside className="w-64 border-l border-white/10 shrink-0 hidden lg:flex flex-col">
-      <div className="px-3 h-9 flex items-center text-xs font-medium text-slate-400 border-b border-white/10">
+    <aside className="w-72 border-l border-slate-200 bg-white shrink-0 hidden lg:flex flex-col">
+      <div className="px-4 h-12 flex items-center text-[14px] font-semibold text-slate-900 border-b border-slate-200">
         Eigenschappen
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
@@ -104,7 +104,7 @@ export default function PropertiesPanel({ store }: { store: EditorStore }) {
           <p className="text-xs text-slate-600">Selecteer een clip om te bewerken.</p>
         ) : (
           <>
-            <div className="text-xs text-slate-400 capitalize">{clip.type}</div>
+            <div className="text-[13px] text-slate-500 capitalize">{clip.type}</div>
 
             {clip.type === "text" && (
               <div className="space-y-3">
@@ -252,13 +252,13 @@ export default function PropertiesPanel({ store }: { store: EditorStore }) {
                       store.setAnimatable(clip.id, "x", 0.5);
                       store.setAnimatable(clip.id, "y", 0.5);
                     }}
-                    className="btn-secondary text-[11px] py-1 px-2 flex-1"
+                    className="text-[12px] py-1.5 px-2 flex-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
                   >
                     Centreren
                   </button>
                   <button
                     onClick={() => store.setTransform(clip.id, DEFAULT_TRANSFORM)}
-                    className="btn-secondary text-[11px] py-1 px-2 flex-1"
+                    className="text-[12px] py-1.5 px-2 flex-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
                   >
                     Reset
                   </button>
@@ -276,7 +276,7 @@ export default function PropertiesPanel({ store }: { store: EditorStore }) {
               return (
                 <div className="space-y-1">
                   <div className="flex items-center justify-between gap-1">
-                    <label className="text-[11px] text-slate-500">
+                    <label className="text-[12px] text-slate-600">
                       Transparantie: {Math.round(opVal * 100)}%
                     </label>
                     <Diamond property="opacity" />
@@ -313,8 +313,8 @@ export default function PropertiesPanel({ store }: { store: EditorStore }) {
             )}
 
             {isVisual && (
-              <div className="space-y-2 pt-2 border-t border-white/10">
-                <div className="text-[11px] font-medium text-slate-500">Aanpassingen</div>
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <div className="text-[12px] font-semibold text-slate-700">Aanpassingen</div>
                 {ADJUSTMENTS.map((f) => {
                   const val =
                     clip.effects?.find((e) => e.kind === f.kind)?.amount ??
@@ -338,7 +338,7 @@ export default function PropertiesPanel({ store }: { store: EditorStore }) {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/10">
+            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-200">
               <Row label={`Fade in: ${(clip.fadeIn ?? 0).toFixed(1)}s`}>
                 <input
                   type="range"
@@ -384,13 +384,13 @@ export default function PropertiesPanel({ store }: { store: EditorStore }) {
             )}
 
             {isVisual && (
-              <div className="space-y-2 pt-2 border-t border-white/10">
-                <div className="text-[11px] font-medium text-slate-500">
+              <div className="space-y-2 pt-2 border-t border-slate-200">
+                <div className="text-[12px] font-semibold text-slate-700">
                   Laag: {track?.name ?? "—"}
                 </div>
                 <button
                   onClick={() => store.clipToNewLayer(clip.id)}
-                  className="btn-secondary text-[11px] py-1 px-2 w-full"
+                  className="text-[12px] py-1.5 px-2 w-full rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
                 >
                   Naar nieuwe laag
                 </button>
@@ -400,16 +400,16 @@ export default function PropertiesPanel({ store }: { store: EditorStore }) {
               </div>
             )}
 
-            <div className="flex gap-2 pt-2 border-t border-white/10">
+            <div className="flex gap-2 pt-2 border-t border-slate-200">
               <button
                 onClick={() => store.duplicateClip(clip.id)}
-                className="btn-secondary text-xs py-1.5 px-3 flex-1"
+                className="text-[13px] py-2 px-3 flex-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50"
               >
                 Dupliceren
               </button>
               <button
                 onClick={() => store.removeClip(clip.id)}
-                className="btn-secondary text-xs py-1.5 px-3 flex-1 text-red-300 hover:text-red-200"
+                className="text-[13px] py-2 px-3 flex-1 rounded-lg border border-slate-200 text-red-600 hover:bg-red-50 hover:border-red-200"
               >
                 Verwijderen
               </button>

@@ -1,18 +1,40 @@
 "use client";
 
+// ── De editor ────────────────────────────────────────────────────────────────
+//
+// Indeling naar het voorbeeld van Canva, omdat die ene keuze het meeste
+// oplevert: een rail links met wóórden erbij, één paneel dat daarbij openschuift,
+// een grote werkplek in het midden met de knoppen die op de selectie slaan er
+// vlak boven, en de tijdlijn onderin.
+//
+// De oude indeling stopte alles in drie knopjes rechtsboven en een kolom met
+// schuifjes rechts; je moest weten waar iets zat. Nu zie je het staan.
+//
+// Lichte panelen, donker rondom het beeld: lezen doe je op wit, maar een video
+// beoordeel je tegen een neutrale achtergrond — daarom houdt de werkplek zelf
+// zijn grijs.
+
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { EditorStore } from "@/lib/editor/store";
 import { EditorHistory } from "@/lib/editor/history";
+import type { Ratio, TimelineDoc } from "@/lib/editor/timeline";
+import type { PenStijl } from "@/lib/editor/tekening";
+import Rail, { type RailItem } from "./Rail";
+import ContextBalk from "./ContextBalk";
 import HistoryPanel from "./HistoryPanel";
 import ChatPanel from "./ChatPanel";
-import IconPanel from "./IconPanel";
-import type { Ratio, TimelineDoc } from "@/lib/editor/timeline";
+import ElementenPanel from "./panels/ElementenPanel";
+import TekstPanel from "./panels/TekstPanel";
+import UploadsPanel from "./panels/UploadsPanel";
+import MuziekPanel from "./panels/MuziekPanel";
+import MerkPanel from "./panels/MerkPanel";
+import SjablonenPanel from "./panels/SjablonenPanel";
+import ToolsPanel from "./panels/ToolsPanel";
 import PreviewCanvas from "./PreviewCanvas";
 import Transport from "./Transport";
 import Timeline from "./Timeline";
-import MediaPanel from "./MediaPanel";
 import PropertiesPanel from "./PropertiesPanel";
 
 export default function EditorShell({
@@ -34,9 +56,6 @@ export default function EditorShell({
 }) {
   const router = useRouter();
 
-  // ←-knop: een expliciete Studio-bestemming (?studio=) heeft voorrang; anders
-  // gewoon terug naar de vorige pagina (bv. de Studio-wizard, die stap 5 herstelt),
-  // met de projectenlijst als laatste vangnet.
   function goBack() {
     if (backHref !== "/editor") { router.push(backHref); return; }
     if (typeof window !== "undefined" && window.history.length > 1) { router.back(); return; }
@@ -56,12 +75,7 @@ export default function EditorShell({
       async (doc) => {
         const { error } = await supabase
           .from("editor_projects")
-          .update({
-            timeline: doc,
-            width: doc.width,
-            height: doc.height,
-            fps: doc.fps,
-          })
+          .update({ timeline: doc, width: doc.width, height: doc.height, fps: doc.fps })
           .eq("id", projectId);
         if (error) throw error;
       },
@@ -95,9 +109,20 @@ export default function EditorShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [historieOpen, setHistorieOpen] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
-  const [iconenOpen, setIconenOpen] = useState(false);
+  const [paneel, setPaneel] = useState<RailItem | null>("elementen");
+  const [meerOpen, setMeerOpen] = useState(false);
+  const [pen, setPen] = useState<PenStijl | null>(null);
+  const [tekenMelding, setTekenMelding] = useState<string | null>(null);
+
+  // De pen hoort bij het tools-paneel: sluit je dat, dan stop je met tekenen.
+  // Anders blijf je krassen zonder te zien waar dat vandaan komt.
+  function kiesPaneel(id: RailItem) {
+    setPaneel((huidig) => {
+      const nieuw = huidig === id ? null : id;
+      if (nieuw !== "tools") setPen(null);
+      return nieuw;
+    });
+  }
 
   // ── Export ─────────────────────────────────────────────────
   const [exporting, setExporting] = useState(false);
@@ -168,6 +193,12 @@ export default function EditorShell({
         store.redo();
         return;
       }
+      // Tijdens het tekenen doet Escape wat je verwacht: pen weg.
+      if (e.key === "Escape" && pen) {
+        e.preventDefault();
+        setPen(null);
+        return;
+      }
       if (e.code === "Space") {
         e.preventDefault();
         store.togglePlay();
@@ -181,130 +212,125 @@ export default function EditorShell({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [store]);
+  }, [store, pen]);
+
+  const sluitPaneel = () => { setPaneel(null); setPen(null); };
 
   return (
-    <div className="relative flex flex-col h-full min-h-0">
-      <header className="flex items-center justify-between px-4 h-12 border-b border-white/10 shrink-0">
+    <div className="relative flex flex-col h-full min-h-0 bg-white text-slate-900">
+      <header className="flex items-center justify-between px-4 h-14 border-b border-slate-200 bg-white shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <button type="button" onClick={goBack} className="text-slate-400 hover:text-white text-sm">
+          <button
+            type="button"
+            onClick={goBack}
+            aria-label="Terug"
+            className="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-600 flex items-center justify-center"
+          >
             ←
           </button>
-          <span className="text-sm font-semibold truncate">{title}</span>
-          <span className="text-xs text-slate-500 px-2 py-0.5 rounded bg-white/5">
-            {ratio}
-          </span>
+          <span className="text-[15px] font-semibold truncate">{title}</span>
+          <span className="text-[12px] text-slate-500 px-2 py-0.5 rounded-md bg-slate-100">{ratio}</span>
         </div>
         <div className="flex items-center gap-3">
           <Transport store={store} />
           <button
-            type="button"
-            onClick={() => { setChatOpen((o) => !o); setHistorieOpen(false); setIconenOpen(false); }}
-            title="Zeg in gewone taal wat er moet gebeuren"
-            className="text-xs px-2.5 py-1.5 rounded-md bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-200"
-          >
-            Monteur
-          </button>
-          <button
-            type="button"
-            onClick={() => { setIconenOpen((o) => !o); setChatOpen(false); setHistorieOpen(false); }}
-            title="Iconenbibliotheek"
-            className="text-xs px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/15 text-slate-300"
-          >
-            Iconen
-          </button>
-          <button
-            type="button"
-            onClick={() => { setHistorieOpen((o) => !o); setChatOpen(false); setIconenOpen(false); }}
-            title="Wat er met deze montage is gebeurd, en terug naar een eerdere versie"
-            className="text-xs px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/15 text-slate-300"
-          >
-            Versies
-          </button>
-          <button
             onClick={handleExport}
             disabled={exporting}
-            className="btn-primary text-sm py-1.5 px-4"
+            className="text-[14px] font-semibold py-2 px-5 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white"
           >
-            {exporting ? "Exporteren..." : "Exporteren"}
+            {exporting ? "Exporteren…" : "Exporteren"}
           </button>
         </div>
       </header>
 
-      {iconenOpen && (
-        <IconPanel store={store} onClose={() => setIconenOpen(false)} />
-      )}
+      <div className="flex flex-1 min-h-0">
+        <Rail actief={paneel} onKies={kiesPaneel} />
 
-      {chatOpen && (
-        <ChatPanel projectId={projectId} store={store} onClose={() => setChatOpen(false)} />
-      )}
+        {paneel && (
+          <aside className="w-[340px] shrink-0 border-r border-slate-200 bg-white overflow-hidden">
+            {paneel === "sjablonen" && <SjablonenPanel store={store} onSluit={sluitPaneel} />}
+            {paneel === "elementen" && <ElementenPanel store={store} onSluit={sluitPaneel} />}
+            {paneel === "tekst" && <TekstPanel store={store} onSluit={sluitPaneel} />}
+            {paneel === "merk" && <MerkPanel store={store} onSluit={sluitPaneel} />}
+            {paneel === "uploads" && (
+              <UploadsPanel store={store} projectId={projectId} userId={userId} onSluit={sluitPaneel} />
+            )}
+            {paneel === "muziek" && <MuziekPanel store={store} onSluit={sluitPaneel} />}
+            {paneel === "tools" && (
+              <ToolsPanel store={store} pen={pen} onPen={setPen} onSluit={sluitPaneel} />
+            )}
+            {paneel === "monteur" && <ChatPanel projectId={projectId} store={store} onClose={sluitPaneel} />}
+            {paneel === "versies" && historyRef.current && (
+              <HistoryPanel history={historyRef.current} store={store} onClose={sluitPaneel} />
+            )}
+          </aside>
+        )}
 
-      {historieOpen && historyRef.current && (
-        <HistoryPanel
-          history={historyRef.current}
-          store={store}
-          onClose={() => setHistorieOpen(false)}
-        />
-      )}
+        <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+          <ContextBalk store={store} onMeer={() => setMeerOpen((o) => !o)} meerOpen={meerOpen} />
+          {pen && (
+            <div className="px-4 py-2 bg-violet-50 border-b border-violet-200 text-[13px] text-violet-800 flex items-center gap-3 shrink-0">
+              <span>Teken op het beeld. Elke streep wordt een losse laag.</span>
+              {tekenMelding && <span className="text-violet-600">{tekenMelding}</span>}
+              <button type="button" onClick={() => setPen(null)} className="ml-auto underline">
+                Stoppen (Esc)
+              </button>
+            </div>
+          )}
+          <PreviewCanvas store={store} ratio={ratio} pen={pen} onTekening={setTekenMelding} />
+        </div>
+
+        {meerOpen && <PropertiesPanel store={store} />}
+      </div>
+
+      <Timeline store={store} />
 
       {(exporting || exportUrl || exportError) && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
-          <div className="card w-96 text-center space-y-4">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center">
+          <div className="w-96 rounded-2xl bg-white p-6 text-center space-y-4 shadow-xl">
             {exportError ? (
               <>
-                <p className="text-sm font-semibold text-red-400">Export mislukt</p>
-                <p className="text-xs text-slate-400 break-words">{exportError}</p>
+                <p className="text-[15px] font-semibold text-red-600">Export mislukt</p>
+                <p className="text-[13px] text-slate-600 break-words">{exportError}</p>
                 <button
                   onClick={() => setExportError(null)}
-                  className="btn-secondary text-sm w-full"
+                  className="w-full rounded-xl border border-slate-200 hover:bg-slate-50 text-[14px] py-2.5 text-slate-700"
                 >
                   Sluiten
                 </button>
               </>
             ) : exportUrl ? (
               <>
-                <p className="text-sm font-semibold">Klaar</p>
+                <p className="text-[15px] font-semibold">Klaar</p>
                 <a
                   href={exportUrl}
                   download={`${title.replace(/\s+/g, "-")}.mp4`}
-                  className="btn-primary text-sm inline-block w-full"
+                  className="block w-full rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-[14px] font-semibold py-2.5"
                 >
                   Download MP4
                 </a>
                 <button
                   onClick={() => setExportUrl(null)}
-                  className="btn-secondary text-sm w-full"
+                  className="w-full rounded-xl border border-slate-200 hover:bg-slate-50 text-[14px] py-2.5 text-slate-700"
                 >
                   Sluiten
                 </button>
               </>
             ) : (
               <>
-                <p className="text-sm font-semibold">{exportLabel || "Exporteren"}</p>
-                <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 transition-all"
-                    style={{ width: `${exportPct}%` }}
-                  />
+                <p className="text-[15px] font-semibold">{exportLabel || "Exporteren"}</p>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-violet-600 transition-all" style={{ width: `${exportPct}%` }} />
                 </div>
-                <p className="text-xs text-slate-500">{exportPct}%</p>
-                <p className="text-[11px] text-slate-600">
-                  De server rendert frame voor frame. Voor langere video&apos;s kan dit
-                  enkele minuten duren.
+                <p className="text-[13px] text-slate-500">{exportPct}%</p>
+                <p className="text-[12px] text-slate-400">
+                  De server rendert frame voor frame. Voor langere video&apos;s kan dit enkele minuten duren.
                 </p>
               </>
             )}
           </div>
         </div>
       )}
-
-      <div className="flex flex-1 min-h-0">
-        <MediaPanel store={store} projectId={projectId} userId={userId} />
-        <PreviewCanvas store={store} ratio={ratio} />
-        <PropertiesPanel store={store} />
-      </div>
-
-      <Timeline store={store} />
     </div>
   );
 }
