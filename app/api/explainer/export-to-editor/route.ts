@@ -120,6 +120,7 @@ export async function POST(req: NextRequest) {
     for (let s = 0; s < spec.scenes.length; s++) {
       const sdir = path.join(dir, `s${s}`);
       await mkdir(sdir, { recursive: true });
+      // Frames als JPEG: zie docs/editor-render-benchmark.md.
       for (let f = 0; f < ANIM_FRAMES; f++) {
         await page.evaluate(
           ([sc, p]) => new Promise<void>((r) => {
@@ -128,12 +129,12 @@ export async function POST(req: NextRequest) {
           }),
           [s, f / (ANIM_FRAMES - 1)]
         );
-        await page.screenshot({ path: path.join(sdir, `f-${String(f).padStart(4, "0")}.png`), clip: { x: 0, y: 0, width, height } });
+        await page.screenshot({ path: path.join(sdir, `f-${String(f).padStart(4, "0")}.jpg`), type: "jpeg", quality: 92, clip: { x: 0, y: 0, width, height } });
       }
       const dur = spec.scenes[s].durationSec;
       const clip = path.join(dir, `clip${s}.mp4`);
       const hold = Math.max(0, dur - ANIM_FRAMES / FPS);
-      await runFfmpeg(["-y", "-framerate", String(FPS), "-i", path.join(sdir, "f-%04d.png"), "-vf", `tpad=stop_mode=clone:stop_duration=${hold.toFixed(3)},format=yuv420p`, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-r", String(FPS), clip]);
+      await runFfmpeg(["-y", "-framerate", String(FPS), "-i", path.join(sdir, "f-%04d.jpg"), "-vf", `tpad=stop_mode=clone:stop_duration=${hold.toFixed(3)},format=yuv420p`, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-r", String(FPS), clip]);
       const bytes = await readFile(clip);
       const cpath = `${user.id}/explainer/${projectId}/scene-${s}-${Date.now()}.mp4`;
       const { error: cErr } = await supabase.storage.from("scene-assets").upload(cpath, bytes, { contentType: "video/mp4", upsert: true });

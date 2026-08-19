@@ -79,6 +79,31 @@ Van ~3,05 naar **~1,55 seconde render per seconde video**; per frame van 100 naa
 53 ms. Visueel gecontroleerd op een frame met tekst en vlakke kleuren (het
 gevoeligste geval voor JPEG-artefacten): geen zichtbaar verschil.
 
+### Dezelfde ingreep op de andere renderers
+
+Vier andere routes renderden ook frame voor frame naar PNG, en die zitten in
+tools die klanten wél gebruiken (de editor zelf staat achter een allowlist van
+drie interne accounts):
+
+| Route | Gebruikt door |
+|---|---|
+| `app/api/studio/render-designed-scene` | Creator Studio, ontworpen scènes — 67 projecten, laatste van vandaag |
+| `app/api/infographics/export-video` | Infographic-tool (nu nog intern) |
+| `app/api/explainer/export` | Explainer-tool (nu nog intern) |
+| `app/api/explainer/export-to-editor` | Explainer → editor |
+
+Allemaal omgezet naar JPEG-frames. Uitzondering: de **poster** van een ontworpen
+scène blijft PNG. Dat stilstaande beeld wordt opgeslagen en later hergebruikt,
+en bij vlakke vormen met tekst is verliesloos dat waard — het kost één extra
+screenshot.
+
+Gecontroleerd op de zwaarste route (`render-designed-scene`, echte scène met
+witte tekst op zwart en een lijntekening-logo): 200 OK in 11,8s, en tegen de
+vorige PNG-render gemeten op **PSNR 39,0 dB luma / 40,7 dB gemiddeld** — daarin
+zit ook nog het verschil van twee keer H.264 coderen. Visueel geen verschil te
+zien. De andere drie routes zijn dezelfde eenregelige wijziging; die zijn niet
+apart end-to-end gedraaid (wel de jpg-sequentie → ffmpeg-stap los getest).
+
 ## Reparatie 2 — eerlijk falen in plaats van stil afkappen
 
 De renderlus krijgt nu een eigen tijdbudget (240s, ruim onder de functielimiet

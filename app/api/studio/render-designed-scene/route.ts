@@ -129,6 +129,9 @@ export async function POST(req: NextRequest) {
     // Volledige duur renderen (progress loopt 0→1 over de hele scène), zodat de
     // per-bullet onthullingen exact op hun tijdstip landen.
     const totalFrames = Math.max(ANIM_FRAMES, Math.round(spec.durationSec * FPS));
+    // Frames als JPEG (kwaliteit 92) i.p.v. PNG: verliesloos comprimeren kost per
+    // frame meer tijd dan het tekenen zelf, terwijl alles daarna toch door H.264
+    // gaat. Halveert de rendertijd; gemeten in docs/editor-render-benchmark.md.
     for (let f = 0; f < totalFrames; f++) {
       await page.evaluate(
         (p) => new Promise<void>((r) => {
@@ -137,14 +140,20 @@ export async function POST(req: NextRequest) {
         }),
         f / (totalFrames - 1)
       );
-      await page.screenshot({ path: path.join(framesDir, `f-${String(f).padStart(4, "0")}.png`), clip: { x: 0, y: 0, width, height } });
+      await page.screenshot({ path: path.join(framesDir, `f-${String(f).padStart(4, "0")}.jpg`), type: "jpeg", quality: 92, clip: { x: 0, y: 0, width, height } });
     }
+
+    // De poster (het stilstaande beeld dat in de wizard blijft staan) wél als
+    // PNG: die wordt opgeslagen en hergebruikt, en bij vlakke vormen met tekst
+    // is verliesloos daar het verschil waard. Eén frame extra kost niets.
+    const posterPath = path.join(framesDir, "poster.png");
+    await page.screenshot({ path: posterPath, clip: { x: 0, y: 0, width, height } });
     await browser.close();
     browser = null;
 
     const clipPath = path.join(dir, "clip.mp4");
     await runFfmpeg([
-      "-y", "-framerate", String(FPS), "-i", path.join(framesDir, "f-%04d.png"),
+      "-y", "-framerate", String(FPS), "-i", path.join(framesDir, "f-%04d.jpg"),
       "-vf", "format=yuv420p",
       "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-r", String(FPS),
       clipPath,
@@ -158,7 +167,7 @@ export async function POST(req: NextRequest) {
     if (cErr) throw new Error("Clip upload mislukt: " + cErr.message);
     const videoUrl = supabase.storage.from("scene-assets").getPublicUrl(clipKey).data.publicUrl;
 
-    const posterBytes = await readFile(path.join(framesDir, `f-${String(totalFrames - 1).padStart(4, "0")}.png`));
+    const posterBytes = await readFile(posterPath);
     const posterKey = `${user.id}/${projectId}/${sceneId}-designed-${stamp}.png`;
     const { error: pErr } = await supabase.storage.from("scene-assets").upload(posterKey, posterBytes, { contentType: "image/png", upsert: true });
     if (pErr) throw new Error("Poster upload mislukt: " + pErr.message);

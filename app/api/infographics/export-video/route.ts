@@ -62,6 +62,9 @@ export async function POST(req: NextRequest) {
     await page.waitForFunction("window.__igvReady === true", null, { timeout: 30000 });
 
     // Frame voor frame: zet het frame, wacht op de paint, maak een screenshot.
+    // Frames als JPEG (kwaliteit 92) i.p.v. PNG: verliesloos comprimeren kost per
+    // frame meer tijd dan het tekenen zelf, terwijl alles daarna toch door H.264
+    // gaat. Halveert de rendertijd; gemeten in docs/editor-render-benchmark.md.
     for (let f = 0; f < totalFrames; f++) {
       await page.evaluate(
         (frame) =>
@@ -72,7 +75,9 @@ export async function POST(req: NextRequest) {
         f
       );
       await page.screenshot({
-        path: path.join(dir, `frame-${String(f).padStart(5, "0")}.png`),
+        path: path.join(dir, `frame-${String(f).padStart(5, "0")}.jpg`),
+        type: "jpeg",
+        quality: 92,
         clip: { x: 0, y: 0, width, height },
       });
     }
@@ -83,7 +88,7 @@ export async function POST(req: NextRequest) {
     await runFfmpeg([
       "-y",
       "-framerate", String(FPS),
-      "-i", path.join(dir, "frame-%05d.png"),
+      "-i", path.join(dir, "frame-%05d.jpg"),
       "-c:v", "libx264",
       "-pix_fmt", "yuv420p",
       "-movflags", "+faststart",
