@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { handleChargeback, revokeMollieBilling } from "@/lib/chargeback";
 
 const MOLLIE_BASE = "https://api.mollie.com/v2";
 
@@ -55,6 +56,25 @@ export async function POST(req: NextRequest) {
   const isTraject       = metadata?.isTraject       as boolean | undefined;
 
   const supabase = createServiceClient();
+
+  // ── Terugboeking (chargeback / SEPA-storno) ───────────────────────────────
+  // Mollie roept déze webhook aan zodra er op de betaling wordt teruggeboekt;
+  // de betaalstatus blijft dan gewoon "paid" en alleen `amountChargedback`
+  // loopt op. Deze controle staat daarom bewust vóór alle andere takken: zonder
+  // die volgorde zou een teruggeboekte incasso hieronder als geslaagde
+  // vervolgbetaling worden gelezen en zouden er credits worden bíjgeschreven.
+  const teruggeboekt = Number(payment.amountChargedback?.value ?? 0) > 0;
+  if (teruggeboekt) {
+    await handleChargeback({
+      userId,
+      customerId,
+      paymentId,
+      amount: payment.amountChargedback?.value,
+      currency: payment.amountChargedback?.currency,
+      guestCheckoutId,
+    });
+    return NextResponse.json({ received: true });
+  }
 
   // ── Starttraject (eenmalige betaling €246 → 3000 credits) ────────────────
   // Volledig geïsoleerd: markeer de checkout als betaald en stop. Geen
@@ -149,6 +169,24 @@ export async function POST(req: NextRequest) {
   if (!userId || !planId) {
     // Could be a test ping from Mollie — just return 200
     return NextResponse.json({ received: true });
+  }
+
+  // Een account dat na een terugboeking op slot staat mag nooit meer via de
+  // webhook geactiveerd of bijgeschreven worden. Landt er tóch nog een betaling,
+  // dan trekken we de resterende incassosporen (nogmaals) in.
+  const { data: blokkade } = await supabase
+    .from("profiles")
+    .select("billing_blocked")
+    .eq("id", userId)
+    .maybeSingle();
+  if (blokkade?.billing_blocked) {
+    if (customerId) {
+      await revokeMollieBilling(customerId).catch((e) =>
+        console.error("[webhook] intrekken na blokkade mislukt:", e instanceof Error ? e.message : String(e))
+      );
+    }
+    console.warn(`[webhook] betaling ${paymentId} genegeerd — account ${userId} geblokkeerd na terugboeking`);
+    return NextResponse.json({ received: true, blocked: true });
   }
 
   // ── Successful first payment: create subscription + update profile ────────

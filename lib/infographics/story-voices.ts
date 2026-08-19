@@ -62,3 +62,18 @@ export function voiceForLanguage(voiceId: string | null | undefined, language?: 
 export function voicePreviewUrl(voiceId: string): string {
   return `/voice-previews/${voiceId}.mp3`;
 }
+
+/**
+ * Kiest een vertellerstem die NIET door de cast gebruikt wordt.
+ *
+ * Een verteller die klinkt als een van de personages laat de kijker denken dat
+ * dat personage praat terwijl je iets anders in beeld ziet — precies de verwarring
+ * die we met de sprekercontrole hebben opgelost.
+ */
+export function kiesVertellerStem(bezet: string[], taal?: string | null): string {
+  const beschikbaar = STORY_VOICES.filter(
+    (v) => !v.languages || (taal ? v.languages.includes(taal) : false)
+  );
+  const kandidaten = (beschikbaar.length ? beschikbaar : STORY_VOICES).filter((v) => !bezet.includes(v.id));
+  return (kandidaten[0] ?? STORY_VOICES[0]).id;
+}

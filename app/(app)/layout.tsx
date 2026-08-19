@@ -25,6 +25,7 @@ export default async function AppLayout({
         plan={profile.plan}
         creditsResetDate={profile.credits_reset_date}
         hideLeren={profile.hide_leren}
+        isAdmin={profile.is_admin ?? false}
       />
       <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
     </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { isBillingBlockedByEmail, BILLING_BLOCKED_MESSAGE } from "@/lib/chargeback";
 
 const MOLLIE_BASE = "https://api.mollie.com/v2";
 
@@ -27,6 +28,11 @@ export async function POST(req: NextRequest) {
   const { email } = await req.json() as { email?: string };
   if (!email || !email.includes("@")) {
     return json({ error: "Ongeldig e-mailadres" }, 400);
+  }
+
+  // Terugboeking op dit e-mailadres: geen nieuw mandaat opzetten.
+  if (await isBillingBlockedByEmail(email)) {
+    return json({ error: BILLING_BLOCKED_MESSAGE }, 403);
   }
 
   const supabase = createServiceClient();

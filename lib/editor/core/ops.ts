@@ -13,7 +13,10 @@
 // klantprojecten bevatten soms al een overlap uit de tijd dat de UI dat toestond;
 // die mogen een nette bewerking niet blokkeren.
 
-import { DEFAULT_TEXT_STYLE, type Clip, type TimelineDoc, type Track, type Transition } from "../timeline";
+import { DEFAULT_TEXT_STYLE, type Clip, type DiagramMeta, type TimelineDoc, type Track, type Transition } from "../timeline";
+import { breedteNaarSchaal } from "../element-geometry";
+import { STANDAARD_VORMSTIJL, vindVorm, vormDataUri, type VormStijl } from "../shapes-svg";
+import { diagramDataUri, type DiagramOpties } from "../charts";
 import {
   checkInvariants,
   mainVideoTrack,
@@ -80,7 +83,43 @@ export type Op =
    * Het beeldmateriaal van een clip vervangen (na een AI-bewerking van het
    * bronbeeld). Timing en positie blijven staan; alleen de bron verandert.
    */
-  | { op: "replace_clip_source"; clipId: string; src: string; mediaType: "video" | "image"; naturalDuration?: number };
+  | { op: "replace_clip_source"; clipId: string; src: string; mediaType: "video" | "image"; naturalDuration?: number }
+  /**
+   * Een vorm uit de bibliotheek over een clip leggen. De tekening wordt hier
+   * gemaakt, niet meegegeven: dat houdt document en beeld altijd gelijk, en het
+   * maakt een op herhaalbaar — dezelfde op geeft letterlijk dezelfde pixels.
+   */
+  | {
+      op: "add_vorm";
+      clipId: string;
+      vormId: string;
+      stijl?: Partial<VormStijl>;
+      /** Breedte als fractie van de compositie; leeg = de maat van de vorm zelf. */
+      breedte?: number;
+      x?: number;
+      y?: number;
+      elementId?: string;
+    }
+  /** Diagram uit cijfers, op dezelfde manier: de tekening volgt uit de data. */
+  | {
+      op: "add_diagram";
+      clipId: string;
+      diagram: DiagramMeta;
+      breedte?: number;
+      x?: number;
+      y?: number;
+      elementId?: string;
+    }
+  /**
+   * Kleur, lijndikte of cijfers van een geplaatste vorm/diagram wijzigen. De
+   * clip blijft staan waar hij staat; alleen de tekening wordt vernieuwd.
+   */
+  | {
+      op: "restyle_element";
+      clipId: string;
+      stijl?: Partial<VormStijl>;
+      diagram?: Partial<DiagramMeta>;
+    };
 
 export type OpKind = Op["op"];
 
@@ -164,6 +203,74 @@ function seconden(n: number): string {
  * Past één op toe. Geeft óf een nieuw document terug, óf een fout waarbij het
  * oorspronkelijke document gegarandeerd onaangeroerd blijft.
  */
+/**
+ * Op welke pixelmaat een vorm getekend wordt. Alleen de verhouding telt — het
+ * is een vector — maar de compositor rekent met pixels om de schaal te bepalen.
+ */
+function tekenFormaat(verhouding: number): { breedte: number; hoogte: number } {
+  const breedte = 400;
+  return { breedte, hoogte: Math.max(8, Math.round(breedte / verhouding)) };
+}
+
+/**
+ * Een los element over een clip leggen: overlay-spoor opzoeken (of maken), de
+ * schaal uitrekenen uit de gewenste breedte, en de clip erin hangen.
+ *
+ * Gedeeld door add_vorm en add_diagram. `add_element` doet hetzelfde voor een
+ * kant-en-klare afbeelding, maar kent de pixelmaat niet en gebruikt daarom een
+ * schaal die de aanroeper meegeeft.
+ */
+function plaatsElement(
+  doc: TimelineDoc,
+  clipId: string,
+  elementId: string | undefined,
+  spec: {
+    src: string;
+    label: string;
+    source: string;
+    formaat: { breedte: number; hoogte: number };
+    breedte: number;
+    x?: number;
+    y?: number;
+    meta: Partial<Clip["meta"]>;
+    summary: string;
+  }
+): OpResult {
+  const gevonden = vind(doc, clipId);
+  if (!gevonden) return fout("not_found", `Clip ${clipId} bestaat niet`);
+
+  let overlay = doc.tracks.find((t) => t.kind === "overlay");
+  let tracks = doc.tracks;
+  if (!overlay) {
+    overlay = { id: `trk_overlay_${doc.tracks.length}`, kind: "overlay", name: "Overlay", clips: [] };
+    const vi = doc.tracks.findIndex((t) => t.kind === "video");
+    tracks = [...doc.tracks.slice(0, vi + 1), overlay, ...doc.tracks.slice(vi + 1)];
+  }
+  const id = elementId ?? `elm_${clipId}_${overlay.clips.length}`;
+  if (vind(doc, id)) return fout("invalid", `Er bestaat al een element met id ${id}`);
+
+  const element: Clip = {
+    id,
+    type: "image",
+    src: spec.src,
+    start: gevonden.clip.start,
+    duration: gevonden.clip.duration,
+    transform: {
+      x: spec.x ?? 0.5,
+      y: spec.y ?? 0.5,
+      scale: breedteNaarSchaal(spec.breedte, spec.formaat, doc),
+      rotation: 0,
+    },
+    meta: { label: spec.label, source: spec.source, ...spec.meta },
+  };
+
+  return {
+    ok: true,
+    doc: { ...doc, tracks: tracks.map((t) => (t.id === overlay!.id ? { ...t, clips: [...t.clips, element] } : t)) },
+    summary: spec.summary,
+  };
+}
+
 export function applyOp(doc: TimelineDoc, op: Op): OpResult {
   const fps = doc.fps || 30;
   const min = minDuration(fps);
@@ -442,6 +549,71 @@ export function applyOp(doc: TimelineDoc, op: Op): OpResult {
           doc: vervangSpoor(doc, track.id, clips),
           summary: op.kind ? `Overgang aan de ${op.edge === "in" ? "voorkant" : "achterkant"} gezet` : "Overgang weggehaald",
         };
+      }
+
+      case "add_vorm": {
+        const def = vindVorm(op.vormId);
+        if (!def) return fout("invalid", `Onbekende vorm: ${op.vormId}`);
+        const stijl: VormStijl = { ...STANDAARD_VORMSTIJL, ...op.stijl };
+        const breedte = op.breedte ?? def.standaardBreedte;
+        return plaatsElement(doc, op.clipId, op.elementId, {
+          src: vormDataUri(op.vormId, stijl),
+          label: def.label,
+          source: "vorm",
+          formaat: tekenFormaat(def.verhouding),
+          breedte,
+          x: op.x,
+          y: op.y,
+          meta: { vorm: { id: op.vormId, ...stijl } },
+          summary: `${def.label} geplaatst`,
+        });
+      }
+
+      case "add_diagram": {
+        const diagram = op.diagram;
+        if (!diagram.data?.length) return fout("invalid", "Een diagram zonder cijfers heeft niets te tonen");
+        return plaatsElement(doc, op.clipId, op.elementId, {
+          src: diagramDataUri(diagram as DiagramOpties),
+          label: diagram.titel?.trim() || "Diagram",
+          source: "diagram",
+          // Diagrammen tekenen we op 720px breed; zie diagramSvg.
+          formaat: { breedte: 720, hoogte: Math.round(720 / 1.4) },
+          breedte: op.breedte ?? 0.5,
+          x: op.x,
+          y: op.y,
+          meta: { diagram },
+          summary: `Diagram (${diagram.soort}) geplaatst`,
+        });
+      }
+
+      case "restyle_element": {
+        const gevonden = vind(doc, op.clipId);
+        if (!gevonden) return fout("not_found", `Clip ${op.clipId} bestaat niet`);
+        const { track, clip } = gevonden;
+        if (clip.type !== "image") return fout("invalid", "Dit element is geen vorm of diagram");
+
+        if (op.stijl && clip.meta?.vorm) {
+          const vorm = { ...clip.meta.vorm, ...op.stijl };
+          const clips = track.clips.map((c) =>
+            c.id === clip.id
+              ? { ...c, src: vormDataUri(vorm.id, vorm), meta: { ...c.meta, vorm } }
+              : c
+          );
+          return { ok: true, doc: vervangSpoor(doc, track.id, clips), summary: "Vorm aangepast" };
+        }
+
+        if (op.diagram && clip.meta?.diagram) {
+          const diagram: DiagramMeta = { ...clip.meta.diagram, ...op.diagram };
+          if (!diagram.data?.length) return fout("invalid", "Een diagram zonder cijfers heeft niets te tonen");
+          const clips = track.clips.map((c) =>
+            c.id === clip.id
+              ? { ...c, src: diagramDataUri(diagram as DiagramOpties), meta: { ...c.meta, diagram } }
+              : c
+          );
+          return { ok: true, doc: vervangSpoor(doc, track.id, clips), summary: "Diagram bijgewerkt" };
+        }
+
+        return fout("invalid", "Voor dit element zijn geen instellingen bewaard");
       }
     }
   })();

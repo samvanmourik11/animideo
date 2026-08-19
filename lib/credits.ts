@@ -52,6 +52,8 @@ export interface Profile {
   mollie_subscription_id: string | null;
   subscription_status: string | null;
   credits_reset_date: string | null;
+  /** Op slot na een terugboeking: geen nieuwe abonnementen of incasso's. */
+  billing_blocked?: boolean;
   hide_leren: boolean;
   is_admin?: boolean;
   created_at: string;

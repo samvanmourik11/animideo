@@ -11,9 +11,10 @@ interface NavBarProps {
   plan: string;
   creditsResetDate: string | null;
   hideLeren: boolean;
+  isAdmin?: boolean;
 }
 
-export default function NavBar({ email, credits, plan, creditsResetDate, hideLeren }: NavBarProps) {
+export default function NavBar({ email, credits, plan, creditsResetDate, hideLeren, isAdmin }: NavBarProps) {
   const router = useRouter();
   const [showCreditsMenu, setShowCreditsMenu] = useState(false);
 
@@ -87,6 +88,11 @@ export default function NavBar({ email, credits, plan, creditsResetDate, hideLer
           <Link href="/support" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
             Hulp
           </Link>
+          {isAdmin && (
+            <Link href="/admin" className="text-sm text-blue-400/80 hover:text-blue-300 transition-colors">
+              Admin
+            </Link>
+          )}
         </div>
 
         <div className="flex items-center gap-3">

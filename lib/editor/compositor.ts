@@ -1,6 +1,6 @@
 "use client";
 
-import type { Application, Filter, Sprite, Text, Texture } from "pixi.js";
+import type { Application, Filter, Graphics, Sprite, Text, Texture } from "pixi.js";
 import type { EditorState } from "./store";
 import {
   keyframeValueAt,
@@ -24,6 +24,13 @@ interface Resource {
   video?: HTMLVideoElement;
   audio?: HTMLAudioElement;
   text?: Text;
+  /**
+   * Achtergrondbalk achter de tekst. TextStyle.background stond al jaren in het
+   * schema maar werd nergens getekend, waardoor ondertiteling op licht beeld
+   * onleesbaar was. Een losse Graphics achter de letters is de enige manier:
+   * Pixi's Text kent zelf geen achtergrond.
+   */
+  bg?: Graphics;
   textKey?: string; // detecteert wijzigingen in tekstinhoud/stijl
   effectsKey?: string; // detecteert wijzigingen in effecten
 }
@@ -387,8 +394,10 @@ export class Compositor {
           used.add(clip.id);
           const rt = this.ensureText(clip);
           if (rt.text) {
+            if (rt.bg) rt.bg.zIndex = z++;
             rt.text.zIndex = z++;
             this.layoutText(rt.text, clip, currentTime);
+            this.tekenTekstAchtergrond(rt, clip);
             this.applyEffects(rt, clip);
           }
           continue;
@@ -437,6 +446,7 @@ export class Compositor {
       if (used.has(id)) continue;
       if (r.sprite) r.sprite.visible = false;
       if (r.text) r.text.visible = false;
+      if (r.bg) r.bg.visible = false;
       if (r.video && !r.video.paused) r.video.pause();
       if (r.audio && !r.audio.paused) r.audio.pause();
     }
@@ -519,8 +529,12 @@ export class Compositor {
         style: this.makeTextStyle(clip.style),
       });
       text.anchor.set(0.5);
+      const bg = new this.PIXI.Graphics();
+      bg.visible = false;
+      this.app.stage.addChild(bg);
       this.app.stage.addChild(text);
       r.text = text;
+      r.bg = bg;
       this.resources.set(clip.id, r);
       return r;
     }
@@ -530,6 +544,34 @@ export class Compositor {
       r.textKey = key;
     }
     return r;
+  }
+
+  /**
+   * De balk achter de tekst. Wordt na layoutText getekend omdat hij de
+   * uiteindelijke maat van de letters nodig heeft — die kent Pixi pas als de
+   * tekst met zijn definitieve inhoud en schaal staat (bij een typemachine-
+   * animatie groeit hij per frame mee).
+   */
+  private tekenTekstAchtergrond(r: Resource, clip: TextClip) {
+    const bg = r.bg;
+    const text = r.text;
+    if (!bg || !text) return;
+    const kleur = clip.style.background;
+    if (!kleur || !text.visible) {
+      bg.visible = false;
+      return;
+    }
+    const marge = clip.style.fontSize * 0.22 * text.scale.x;
+    const b = text.width + marge * 2;
+    const h = text.height + marge * 1.2;
+    bg.clear();
+    bg.roundRect(-b / 2, -h / 2, b, h, Math.min(b, h) * 0.18);
+    bg.fill(kleur);
+    bg.x = text.x;
+    bg.y = text.y;
+    bg.rotation = text.rotation;
+    bg.alpha = text.alpha;
+    bg.visible = true;
   }
 
   private layoutText(text: Text, clip: TextClip, currentTime: number) {
@@ -631,6 +673,10 @@ export class Compositor {
   private disposeResource(r: Resource) {
     if (r.sprite) {
       r.sprite.destroy();
+    }
+    if (r.bg) {
+      r.bg.destroy();
+      r.bg = undefined;
     }
     if (r.text) {
       r.text.destroy();

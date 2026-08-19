@@ -13,6 +13,14 @@ export async function POST(req: NextRequest) {
 
   const supabase = createServiceClient();
 
+  // Een account dat op slot staat na een terugboeking claimt niets meer.
+  const { data: blokkade } = await supabase
+    .from("profiles")
+    .select("billing_blocked")
+    .eq("id", userId)
+    .maybeSingle();
+  if (blokkade?.billing_blocked) return NextResponse.json({ claimed: false });
+
   // Look for a paid (unclaimed) checkout for this email
   const { data: pending } = await supabase
     .from("pending_checkouts")

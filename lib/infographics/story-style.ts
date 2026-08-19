@@ -144,3 +144,11 @@ export const STYLE_MATCH_ANCHOR =
   "Do NOT copy or reproduce the specific people, faces, hair, clothing, poses, objects or composition from the reference — " +
   "THIS scene has its own, DIFFERENT subjects, people and layout exactly as described above. Where the scene needs people, " +
   "draw new and distinct individuals (varied faces, ages, clothing) in that same art style; never clone the same person across scenes.";
+
+// Pad naar het ingebakken voorbeeldbeeld van een tekenstijl. Vooraf gegenereerd
+// in public/style-previews/<id>.jpg — net als de voice-previews kost bekijken dus
+// niets. Alle vier tonen dezelfde scène met dezelfde seed, zodat de gebruiker
+// alleen het STIJLVERSCHIL ziet en niet een ander plaatje.
+export function stylePreviewUrl(styleId: string): string {
+  return `/style-previews/${styleId}.jpg`;
+}

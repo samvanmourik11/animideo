@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/cron/chargebacks",
+      "schedule": "0 6 * * *"
+    }
+  ],
   "functions": {
     "app/api/export/route.ts": {
       "maxDuration": 300,

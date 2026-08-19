@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isBillingBlocked, BILLING_BLOCKED_MESSAGE } from "@/lib/chargeback";
 
 const MOLLIE_BASE = "https://api.mollie.com/v2";
 
@@ -29,6 +30,11 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { planId } = await req.json() as { planId: string };
+
+  // Terug naar gratis mag altijd; een betaald pakket kiezen na een terugboeking niet.
+  if (planId !== "free" && await isBillingBlocked(user.id)) {
+    return NextResponse.json({ error: BILLING_BLOCKED_MESSAGE }, { status: 403 });
+  }
 
   const apiKey = process.env.MOLLIE_API_KEY;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;

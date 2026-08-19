@@ -75,6 +75,27 @@ export interface ClipMeta {
   label?: string;
   /** Waar deze clip vandaan komt: 'studio', 'explainer', 'upload', … */
   source?: string;
+  /**
+   * Bij een vorm of diagram: de instellingen waarmee het beeld is getekend.
+   *
+   * De bron van zo'n clip is een SVG-data-URL, en daar kun je geen kleur meer
+   * uit terughalen. Door de parameters te bewaren blijft het element bewerkbaar
+   * — je kiest een andere kleur en wij tekenen hem opnieuw, in plaats van dat je
+   * hem moet weggooien en opnieuw plaatsen. Puur beschrijvend: de weergave komt
+   * altijd uit `src`.
+   */
+  vorm?: { id: string; vulling: string; lijn: string; dikte: number };
+  diagram?: DiagramMeta;
+}
+
+/** Losse kopie van de diagram-instellingen; zie lib/editor/charts.ts. */
+export interface DiagramMeta {
+  soort: string;
+  data: Array<{ label: string; waarde: number }>;
+  titel?: string;
+  kleuren?: string[];
+  tekstkleur?: string;
+  toonWaarden?: boolean;
 }
 
 interface ClipBase {

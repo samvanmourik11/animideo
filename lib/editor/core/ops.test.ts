@@ -313,3 +313,119 @@ describe("eigenschappen van alle ops", () => {
     );
   });
 });
+
+// ── Vormen en diagrammen ─────────────────────────────────────────────────────
+//
+// Deze ops tekenen zelf; dat is het hele punt. Ze mogen dus nooit een bron
+// opleveren die niet bij de bewaarde instellingen past, want dan is de kleur die
+// je rechts ziet iets anders dan wat er in beeld staat.
+
+describe("add_vorm", () => {
+  function metVideo() {
+    const doc = createEmptyTimeline("16:9");
+    mainVideoTrack(doc)!.clips = [
+      { id: "v1", type: "video", src: "a.mp4", start: 0, duration: 6 },
+    ];
+    return doc;
+  }
+
+  it("legt de vorm over de clip, even lang", () => {
+    const r = applyOp(metVideo(), { op: "add_vorm", clipId: "v1", vormId: "ster-5", elementId: "e1" });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const el = r.doc.tracks.flatMap((t) => t.clips).find((c) => c.id === "e1")!;
+    expect(el.start).toBe(0);
+    expect(el.duration).toBe(6);
+    expect(el.type).toBe("image");
+  });
+
+  it("bewaart de instellingen zodat je later kunt herkleuren", () => {
+    const r = applyOp(metVideo(), {
+      op: "add_vorm", clipId: "v1", vormId: "cirkel", elementId: "e1",
+      stijl: { vulling: "#ff0000" },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const el = r.doc.tracks.flatMap((t) => t.clips).find((c) => c.id === "e1")!;
+    expect(el.meta?.vorm?.id).toBe("cirkel");
+    expect(el.meta?.vorm?.vulling).toBe("#ff0000");
+    expect(el.type === "image" && el.src.startsWith("data:image/svg+xml")).toBe(true);
+  });
+
+  it("weigert een vorm die niet bestaat", () => {
+    const r = applyOp(metVideo(), { op: "add_vorm", clipId: "v1", vormId: "banaan" });
+    expect(r.ok).toBe(false);
+  });
+
+  it("laat de vorm niet als speldenknop in beeld komen", () => {
+    // Eerder ging dit mis bij losse elementen: scale 0,2 betekent niet "20% van
+    // het beeld", want de compositor schaalt eerst passend in het kader.
+    const r = applyOp(metVideo(), { op: "add_vorm", clipId: "v1", vormId: "vierkant", elementId: "e1", breedte: 0.25 });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const el = r.doc.tracks.flatMap((t) => t.clips).find((c) => c.id === "e1")!;
+    // 400px vierkant in 1920x1080: passend = 1080/400 = 2,7 → 0,25*1920/(400*2,7)
+    expect(el.transform!.scale).toBeCloseTo((0.25 * 1920) / (400 * (1080 / 400)), 4);
+  });
+
+  it("staat meerdere vormen over dezelfde clip toe", () => {
+    const een = applyOp(metVideo(), { op: "add_vorm", clipId: "v1", vormId: "cirkel", elementId: "e1" });
+    expect(een.ok).toBe(true);
+    if (!een.ok) return;
+    const twee = applyOp(een.doc, { op: "add_vorm", clipId: "v1", vormId: "pijl-rechts", elementId: "e2" });
+    expect(twee.ok).toBe(true);
+  });
+});
+
+describe("add_diagram en restyle_element", () => {
+  function metVormEnDiagram() {
+    const doc = createEmptyTimeline("16:9");
+    mainVideoTrack(doc)!.clips = [{ id: "v1", type: "video", src: "a.mp4", start: 0, duration: 6 }];
+    const a = applyOp(doc, { op: "add_vorm", clipId: "v1", vormId: "cirkel", elementId: "vorm1", stijl: { vulling: "#111111" } });
+    if (!a.ok) throw new Error(a.error.message);
+    const b = applyOp(a.doc, {
+      op: "add_diagram", clipId: "v1", elementId: "dia1",
+      diagram: { soort: "staaf", data: [{ label: "A", waarde: 3 }] },
+    });
+    if (!b.ok) throw new Error(b.error.message);
+    return b.doc;
+  }
+
+  it("weigert een diagram zonder cijfers", () => {
+    const doc = createEmptyTimeline("16:9");
+    mainVideoTrack(doc)!.clips = [{ id: "v1", type: "video", src: "a.mp4", start: 0, duration: 6 }];
+    const r = applyOp(doc, { op: "add_diagram", clipId: "v1", diagram: { soort: "staaf", data: [] } });
+    expect(r.ok).toBe(false);
+  });
+
+  it("tekent de vorm opnieuw bij een andere kleur", () => {
+    const doc = metVormEnDiagram();
+    const voor = doc.tracks.flatMap((t) => t.clips).find((c) => c.id === "vorm1")!;
+    const r = applyOp(doc, { op: "restyle_element", clipId: "vorm1", stijl: { vulling: "#00ff00" } });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const na = r.doc.tracks.flatMap((t) => t.clips).find((c) => c.id === "vorm1")!;
+    expect(na.meta?.vorm?.vulling).toBe("#00ff00");
+    expect(na.type === "image" && voor.type === "image" && na.src === voor.src).toBe(false);
+    expect(na.type === "image" && decodeURIComponent(na.src)).toContain("#00ff00");
+  });
+
+  it("werkt de cijfers van een diagram bij zonder het te verplaatsen", () => {
+    const doc = metVormEnDiagram();
+    const r = applyOp(doc, {
+      op: "restyle_element", clipId: "dia1",
+      diagram: { data: [{ label: "A", waarde: 3 }, { label: "B", waarde: 9 }] },
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const na = r.doc.tracks.flatMap((t) => t.clips).find((c) => c.id === "dia1")!;
+    expect(na.meta?.diagram?.data).toHaveLength(2);
+    expect(na.transform).toEqual(doc.tracks.flatMap((t) => t.clips).find((c) => c.id === "dia1")!.transform);
+  });
+
+  it("zegt het eerlijk als er niets te herstijlen valt", () => {
+    const doc = metVormEnDiagram();
+    const r = applyOp(doc, { op: "restyle_element", clipId: "v1", stijl: { vulling: "#fff" } });
+    expect(r.ok).toBe(false);
+  });
+});
