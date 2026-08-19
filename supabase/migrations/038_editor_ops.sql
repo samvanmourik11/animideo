@@ -43,6 +43,12 @@ create table if not exists public.editor_checkpoints (
   project_id  uuid not null references public.editor_projects(id) on delete cascade,
   version     int  not null,
   label       text,
+  -- Het volledige document op dit punt. Zonder momentopname is terugzetten
+  -- onmogelijk: je zou de ops moeten afspelen vanaf het begin, maar het
+  -- beginpunt (het project zoals het uit de Studio kwam) is nooit als op
+  -- vastgelegd. Met een snapshot is terugzetten: dichtstbijzijnde checkpoint
+  -- pakken en de ops daarna opnieuw toepassen.
+  doc         jsonb not null,
   -- Automatisch gezet vóór elke AI-beurt; handmatige checkpoints zet de
   -- gebruiker zelf ("hier was het nog goed").
   auto        bool not null default true,
