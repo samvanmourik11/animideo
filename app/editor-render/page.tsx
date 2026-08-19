@@ -120,5 +120,16 @@ export default function EditorRenderPage() {
     w.__editorReady = true;
   }, []);
 
-  return <div id="render-host" style={{ position: "fixed", inset: 0 }} />;
+  return (
+    <>
+      {/*
+        Het ontwikkelbadge van Next.js zweeft linksonder in beeld en wordt door
+        de frame-opname gewoon meegenomen: het stond in een lokaal geëxporteerde
+        MP4. In productie bestaat het niet, maar een export die je tijdens het
+        bouwen maakt hoor je te kunnen bekijken zonder logo erin.
+      */}
+      <style>{"nextjs-portal { display: none !important; }"}</style>
+      <div id="render-host" style={{ position: "fixed", inset: 0 }} />
+    </>
+  );
 }

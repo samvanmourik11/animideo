@@ -95,6 +95,9 @@ Sluit aan bij de bestaande code in het bestand waar je in werkt.
 | Supabase-clients (browser / server / service) | `lib/supabase/` |
 | Timeline Document (het editor-schema) | `lib/editor/timeline.ts` |
 | Editor-mutaties: ops + invarianten | `lib/editor/core/` |
+| Vormen, diagrammen, tekenen (pure SVG) | `lib/editor/shapes-svg.ts`, `charts.ts`, `tekening.ts` |
+| Tekstsoorten, lettertypen, teksteffecten | `lib/editor/text-styles.ts` |
+| Panelen van de editor | `components/editor/panels/` |
 | Rendertijden en het exportplafond | `docs/editor-render-benchmark.md` |
 
 ## De editor
@@ -107,6 +110,18 @@ de export gelijk aan wat je ziet.
 het hoofdvideospoor magnetisch (nooit een zwart gat) en levert de op-objecten
 die straks de geschiedenis en de AI-chat voeden. De UI-store gaat er nog
 buitenom; dat wordt rechtgezet, maar bouw er niets nieuws omheen.
+
+**Aankleding is deterministisch, geen model.** Vormen, diagrammen, tabellen en
+getrokken lijnen zijn SVG die uit hun eigen parameters wordt getekend
+(`shapes-svg.ts`, `charts.ts`, `tekening.ts`). Ze komen als data-URL op de
+tijdlijn en hun instellingen blijven in `ClipMeta` staan, zodat kleur en cijfers
+achteraf te wijzigen zijn via `restyle_element` in plaats van opnieuw plaatsen.
+Bouw nieuwe aankleding op dezelfde manier: dezelfde code moet de tegel in het
+paneel, de preview én de export tekenen, anders lopen ze uit elkaar.
+
+**Lettertypen alleen uit `LETTERTYPEN`** in `lib/editor/text-styles.ts`. De
+server-render draait in Chromium op Linux; een lettertype dat daar ontbreekt
+levert stilzwijgend een andere video op dan je in de preview zag.
 
 **Renderen kost ~1,5s per seconde video** (lokaal, na de JPEG-ingreep) en draait
 in een Vercel-functie met een limiet. De renderlus meet zichzelf en stopt met
