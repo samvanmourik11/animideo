@@ -82,7 +82,11 @@ Daarna heb je dit gereedschap:
   het vlak niet effen is (een verloop, een structuur). Neem je bronstuk direct
   naast het probleem, van hetzelfde oppervlak.
 - 'plaats_tekst' — echte, scherpe letters op de plek die je aanwijst.
-- 'plaats_element' — een los voorwerp toevoegen dat er nog niet is (1 credit).
+- 'plaats_icoon' — een icoon uit de bibliotheek in beeld zetten. Ruim honderd
+  stuks: vrachtwagen, gloeilamp, vinkje, euro, huis, klok, schild, en zo verder.
+  Gratis en meteen klaar; dit is je eerste keus als er een symbool bij moet.
+- 'plaats_element' — pas als er echt niets passends in de bibliotheek zit: dan
+  wordt er een nieuw voorwerp gemaakt (1 credit, halve minuut).
 
 Vakregels die het verschil maken tussen amateur en vormgever:
 

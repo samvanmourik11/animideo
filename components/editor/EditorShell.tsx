@@ -7,6 +7,7 @@ import { EditorStore } from "@/lib/editor/store";
 import { EditorHistory } from "@/lib/editor/history";
 import HistoryPanel from "./HistoryPanel";
 import ChatPanel from "./ChatPanel";
+import IconPanel from "./IconPanel";
 import type { Ratio, TimelineDoc } from "@/lib/editor/timeline";
 import PreviewCanvas from "./PreviewCanvas";
 import Transport from "./Transport";
@@ -96,6 +97,7 @@ export default function EditorShell({
 
   const [historieOpen, setHistorieOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [iconenOpen, setIconenOpen] = useState(false);
 
   // ── Export ─────────────────────────────────────────────────
   const [exporting, setExporting] = useState(false);
@@ -197,7 +199,7 @@ export default function EditorShell({
           <Transport store={store} />
           <button
             type="button"
-            onClick={() => { setChatOpen((o) => !o); setHistorieOpen(false); }}
+            onClick={() => { setChatOpen((o) => !o); setHistorieOpen(false); setIconenOpen(false); }}
             title="Zeg in gewone taal wat er moet gebeuren"
             className="text-xs px-2.5 py-1.5 rounded-md bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-200"
           >
@@ -205,7 +207,15 @@ export default function EditorShell({
           </button>
           <button
             type="button"
-            onClick={() => { setHistorieOpen((o) => !o); setChatOpen(false); }}
+            onClick={() => { setIconenOpen((o) => !o); setChatOpen(false); setHistorieOpen(false); }}
+            title="Iconenbibliotheek"
+            className="text-xs px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/15 text-slate-300"
+          >
+            Iconen
+          </button>
+          <button
+            type="button"
+            onClick={() => { setHistorieOpen((o) => !o); setChatOpen(false); setIconenOpen(false); }}
             title="Wat er met deze montage is gebeurd, en terug naar een eerdere versie"
             className="text-xs px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/15 text-slate-300"
           >
@@ -220,6 +230,10 @@ export default function EditorShell({
           </button>
         </div>
       </header>
+
+      {iconenOpen && (
+        <IconPanel store={store} onClose={() => setIconenOpen(false)} />
+      )}
 
       {chatOpen && (
         <ChatPanel projectId={projectId} store={store} onClose={() => setChatOpen(false)} />

@@ -138,3 +138,30 @@ describe("snapToFrame", () => {
     expect(minDuration(60)).toBeCloseTo(0.05, 5);
   });
 });
+
+describe("lagen mogen elkaar overlappen", () => {
+  // Bij het plaatsen van een tweede icoon over dezelfde scène liep dit stuk:
+  // "Clip elm_1 overlapt met elm_0". Terwijl twee iconen tegelijk in beeld
+  // precies is waar een overlay-laag voor is.
+  function metTweeElementen(kind: "overlay" | "text" | "video") {
+    const doc = createEmptyTimeline("16:9");
+    const spoor = doc.tracks.find((t) => t.kind === kind)!;
+    spoor.clips = [
+      { id: "el_a", type: "image", src: "a.png", start: 0, duration: 5 },
+      { id: "el_b", type: "image", src: "b.png", start: 0, duration: 5 },
+    ];
+    return doc;
+  }
+
+  it("staat twee elementen tegelijk toe op de overlay-laag", () => {
+    expect(checkInvariants(metTweeElementen("overlay")).map((v) => v.code)).not.toContain("overlap");
+  });
+
+  it("staat twee teksten tegelijk toe", () => {
+    expect(checkInvariants(metTweeElementen("text")).map((v) => v.code)).not.toContain("overlap");
+  });
+
+  it("blijft overlap op het videospoor wél afkeuren", () => {
+    expect(checkInvariants(metTweeElementen("video")).map((v) => v.code)).toContain("overlap");
+  });
+});

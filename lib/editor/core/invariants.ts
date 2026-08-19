@@ -110,11 +110,17 @@ export function checkInvariants(doc: TimelineDoc): Violation[] {
       }
     }
 
-    for (let i = 1; i < clips.length; i++) {
-      const vorige = clips[i - 1];
-      const huidige = clips[i];
-      if (huidige.start < vorige.start + vorige.duration - 1e-6) {
-        out.push({ code: "overlap", message: `Clip ${huidige.id} overlapt met ${vorige.id}`, trackId: track.id, clipId: huidige.id });
+    // Overlap is alleen fout waar maar één ding tegelijk kan spelen: op het
+    // videospoor (twee beelden over elkaar is geen montage) en op audiosporen.
+    // Overlay- en tekstsporen zijn juist lagen — daar hoor je meerdere iconen,
+    // stickers of teksten tegelijk in beeld te kunnen hebben.
+    if (track.kind === "video" || track.kind === "audio") {
+      for (let i = 1; i < clips.length; i++) {
+        const vorige = clips[i - 1];
+        const huidige = clips[i];
+        if (huidige.start < vorige.start + vorige.duration - 1e-6) {
+          out.push({ code: "overlap", message: `Clip ${huidige.id} overlapt met ${vorige.id}`, trackId: track.id, clipId: huidige.id });
+        }
       }
     }
 

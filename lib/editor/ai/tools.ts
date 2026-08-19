@@ -120,9 +120,26 @@ export const EDITOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "plaats_icoon",
+      description:
+        "Zet een icoon uit de bibliotheek in beeld: vrachtwagen, gloeilamp, vinkje, euro, huis, klok en ruim honderd andere. Gratis en meteen klaar. Dit is je EERSTE keus als er een symbool bij moet — gebruik plaats_element alleen als er echt niets passends in de bibliotheek zit.",
+      parameters: {
+        type: "object",
+        properties: {
+          clipId: clipIdParam,
+          wat: { type: "string", description: "Welk icoon, in gewone woorden ('vrachtwagen', 'groen vinkje', 'gloeilamp')." },
+          waar: { type: "string", description: "Waar het ongeveer moet komen ('rechtsboven', 'naast de man'). Mag leeg." },
+        },
+        required: ["clipId", "wat"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "plaats_element",
       description:
-        "Zet een nieuw voorwerp in beeld bij een clip: je beschrijft wat het is en waar het moet komen, en het wordt als losse laag over de video gelegd. Gebruik dit voor dingen TOEVOEGEN ('zet er een appel op het bureau', 'plak ons logo rechtsboven'). Kost 1 credit en duurt een halve minuut. Kan niet gebruikt worden om iets weg te halen.",
+        "Laat een NIEUW voorwerp maken dat niet in de iconenbibliotheek zit, en leg het als losse laag over de video. Kost 1 credit en duurt een halve minuut. Probeer altijd eerst plaats_icoon — dat is gratis en meteen klaar. Kan niet gebruikt worden om iets weg te halen.",
       parameters: {
         type: "object",
         properties: {
@@ -274,7 +291,7 @@ export const KIJK_TOOLS = new Set(["bekijk_clip"]);
  * voordat er een op uit komt. Die kosten credits en tijd, dus de route handelt
  * ze apart af en meldt onderweg wat er gebeurt.
  */
-export const MAAK_TOOLS = new Set(["plaats_element", "bewerk_beeld", "dek_af", "vul_vlak", "plaats_tekst", "herstel_tekst"]);
+export const MAAK_TOOLS = new Set(["plaats_element", "plaats_icoon", "bewerk_beeld", "dek_af", "vul_vlak", "plaats_tekst", "herstel_tekst"]);
 
 export type ToolArgs = Record<string, unknown>;
 

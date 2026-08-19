@@ -22,6 +22,7 @@ import { EDITOR_TOOLS, KIJK_TOOLS, LEES_TOOLS, MAAK_TOOLS, toolCallNaarOp } from
 import { bepaalPlek, bewerkClipBeeld, breedteNaarSchaal, genereerElement, maakBeweging, pakFrame, pngFormaat, snijUitFrame, vulVlak } from "@/lib/editor/elements";
 import { breedteNaarCompositie, frameNaarCompositie, leesbareLetterkleur, vaakstVoorkomend } from "@/lib/editor/element-geometry";
 import { besteTreffer, zoekTekst } from "@/lib/editor/vision";
+import { besteIcoon, iconUrl } from "@/lib/editor/icons/library";
 import { leesKleur, maakVlak, uploadFrame } from "@/lib/editor/elements";
 import { applyOps } from "@/lib/editor/core/ops";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
@@ -462,6 +463,32 @@ async function voerMaakToolUit(ctx: MaakContext): Promise<MaakUitkomst> {
         scale: schaal,
       },
       summary: "Stukje beeld eroverheen geplakt",
+    };
+  }
+
+  if (naam === "plaats_icoon") {
+    const wat = typeof args.wat === "string" ? args.wat.trim() : "";
+    if (!wat) return { ok: false, reden: "Ik weet niet welk icoon je bedoelt" };
+    const icoon = besteIcoon(wat);
+    if (!icoon) {
+      return {
+        ok: false,
+        reden: `Geen icoon in de bibliotheek dat op "${wat}" lijkt. Gebruik plaats_element als het er echt bij moet (1 credit).`,
+      };
+    }
+
+    const waar = typeof args.waar === "string" ? args.waar : "";
+    const plek = frame
+      ? await bepaalPlek(frame, waar, icoon.label)
+      : { x: 0.5, y: 0.35, scale: 0.18, toelichting: undefined };
+    const positie = naarBeeld({ x: plek.x, y: plek.y });
+    // De iconen zijn vierkant (1024×1024) — dat weten we, dus geen extra ophaal.
+    const schaal = breedteNaarSchaal(plek.scale, { breedte: 1024, hoogte: 1024 }, { width: doc.width, height: doc.height });
+
+    return {
+      ok: true,
+      op: { op: "add_element", clipId, src: iconUrl(icoon.slug), label: icoon.label, x: positie.x, y: positie.y, scale: schaal },
+      summary: `Icoon "${icoon.label}" in beeld gezet`,
     };
   }
 
