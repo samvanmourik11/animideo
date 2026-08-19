@@ -184,6 +184,53 @@ export const EDITOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "markeer",
+      description:
+        "Wijs iets aan in beeld: een cirkel eromheen, een kader, een pijl ernaartoe of een streep eronder. Je zegt wát je wilt aanwijzen ('de prijs', 'het bordje', 'de knop') en het wordt opgemeten en op de juiste plek getekend. Kost niets en is altijd scherp — het is een getekende vorm, geen gegenereerd plaatje.",
+      parameters: {
+        type: "object",
+        properties: {
+          clipId: clipIdParam,
+          wat: { type: "string", description: "Wat je wilt aanwijzen, zoals de klant het noemt. Staat het als tekst in beeld, schrijf die tekst dan letterlijk over." },
+          objectEngels: {
+            type: "string",
+            description:
+              "Hetzelfde ding in het Engels, kort en concreet ('green sign', 'coffee mug', 'price tag'). De objectherkenning is Engelstalig: op een Nederlandse zin pakt hij het halve beeld, op 'sign' precies het bordje.",
+          },
+          vorm: {
+            type: "string",
+            enum: ["cirkel", "kader", "pijl", "onderstreping"],
+            description: "Cirkel om iets heen, kader eromheen, pijl ernaartoe, of een streep eronder. Cirkel is de gebruikelijke keus.",
+          },
+          kleur: { type: "string", description: "Hex-kleur van de vorm. Weglaten = opvallend rood." },
+        },
+        required: ["clipId", "wat", "vorm"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "vervaag",
+      description:
+        "Maak een stukje beeld onherkenbaar: een kenteken, een gezicht, een naam op een scherm. Je zegt wat er weg moet en dat gebied wordt vervaagd. Kost niets en raakt de rest van het beeld niet aan.",
+      parameters: {
+        type: "object",
+        properties: {
+          clipId: clipIdParam,
+          wat: { type: "string", description: "Wat er onherkenbaar moet worden, zoals de klant het noemt." },
+          objectEngels: {
+            type: "string",
+            description: "Hetzelfde in het Engels, kort ('licence plate', 'face', 'name badge'). De objectherkenning is Engelstalig.",
+          },
+        },
+        required: ["clipId", "wat"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "herstel_tekst",
       description:
         "Repareer verkeerde tekst in een AI-beeld: een spelfout op een bordje, een verhaspeld woord op een verpakking. Zeg wat er staat en wat er moet staan, en het wordt gevonden, netjes dichtgelegd in de kleur van het vlak eromheen, en voorzien van goede tekst. Dit is de juiste keus bij tekstfouten — je hoeft geen coördinaten te schatten, die worden gemeten. Kost niets.",
@@ -291,7 +338,7 @@ export const KIJK_TOOLS = new Set(["bekijk_clip"]);
  * voordat er een op uit komt. Die kosten credits en tijd, dus de route handelt
  * ze apart af en meldt onderweg wat er gebeurt.
  */
-export const MAAK_TOOLS = new Set(["plaats_element", "plaats_icoon", "bewerk_beeld", "dek_af", "vul_vlak", "plaats_tekst", "herstel_tekst"]);
+export const MAAK_TOOLS = new Set(["plaats_element", "plaats_icoon", "bewerk_beeld", "dek_af", "vul_vlak", "plaats_tekst", "herstel_tekst", "markeer", "vervaag"]);
 
 export type ToolArgs = Record<string, unknown>;
 

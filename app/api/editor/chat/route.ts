@@ -21,9 +21,10 @@ import { buildEditorPrompt } from "@/lib/editor/ai/prompt";
 import { EDITOR_TOOLS, KIJK_TOOLS, LEES_TOOLS, MAAK_TOOLS, toolCallNaarOp } from "@/lib/editor/ai/tools";
 import { bepaalPlek, bewerkClipBeeld, breedteNaarSchaal, genereerElement, maakBeweging, pakFrame, pngFormaat, snijUitFrame, vulVlak } from "@/lib/editor/elements";
 import { breedteNaarCompositie, frameNaarCompositie, leesbareLetterkleur, vaakstVoorkomend } from "@/lib/editor/element-geometry";
-import { besteTreffer, zoekTekst } from "@/lib/editor/vision";
+import { besteTreffer, zoekTekst, zoekVoorwerp, type Kader } from "@/lib/editor/vision";
 import { besteIcoon, iconUrl } from "@/lib/editor/icons/library";
-import { leesKleur, maakVlak, uploadFrame } from "@/lib/editor/elements";
+import { leesKleur, maakVlak, uploadFrame, uploadVorm, vervaagUitsnede } from "@/lib/editor/elements";
+import { tekenVorm, type VormSoort } from "@/lib/editor/shapes";
 import { applyOps } from "@/lib/editor/core/ops";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { Op } from "@/lib/editor/core/ops";
@@ -309,6 +310,129 @@ async function voerMaakToolUit(ctx: MaakContext): Promise<MaakUitkomst> {
   const frameFormaat = frame ? pngFormaat(frame) : null;
   const naarBeeld = (p: { x: number; y: number }) =>
     frameFormaat ? frameNaarCompositie(p, frameFormaat, { width: doc.width, height: doc.height }) : p;
+
+  // Waar staat het ding dat de klant noemt? Eerst als tekst in beeld (dat is
+  // exact), anders als voorwerp op omschrijving. Zonder meten zou dit weer
+  // schatten worden, en dan zit een cirkel naast het bordje.
+  async function zoekDoel(wat: string, engels?: string): Promise<Kader | null> {
+    if (!frame || !frameFormaat) return null;
+    const beeldUrl = await uploadFrame(supabase, userId, frame);
+    if (!beeldUrl) return null;
+
+    const tekstKaders = await zoekTekst(beeldUrl, frameFormaat.breedte, frameFormaat.hoogte);
+    const alsTekst = besteTreffer(tekstKaders, wat);
+    if (alsTekst) return alsTekst;
+
+    // De objectherkenning is Engelstalig. Op "het te koop bord" gaf hij een kader
+    // van 67% van het beeld (het hele huis), op "sign" 31% (het bordje). Dus
+    // liefst de Engelse omschrijving, met de Nederlandse als laatste redmiddel.
+    const voorwerpen = await zoekVoorwerp(beeldUrl, engels || wat, frameFormaat.breedte, frameFormaat.hoogte);
+    const kader = voorwerpen[0];
+    if (!kader) return null;
+
+    // Een kader dat bijna het hele beeld beslaat is geen aanwijzing maar een
+    // mislukte meting. Liever eerlijk melden dan een cirkel om alles zetten.
+    if (kader.breedte > 0.7 && kader.hoogte > 0.7) return null;
+    return kader;
+  }
+
+  if (naam === "markeer" || naam === "vervaag") {
+    const wat = typeof args.wat === "string" ? args.wat.trim() : "";
+    if (!wat) return { ok: false, reden: "Ik weet niet wat ik moet aanwijzen" };
+    if (!frame || !frameFormaat) return { ok: false, reden: "Ik kon geen beeld uit deze clip halen" };
+
+    emit({ type: "bezig", tekst: `"${wat}" opzoeken in beeld…` });
+    const engels = typeof args.objectEngels === "string" ? args.objectEngels.trim() : "";
+    const kader = await zoekDoel(wat, engels);
+    if (!kader) {
+      return {
+        ok: false,
+        reden: `Ik kon "${wat}" niet duidelijk aanwijzen in beeld. Probeer het concreter te omschrijven, of noem de tekst die erop staat.`,
+      };
+    }
+
+    const comp = { width: doc.width, height: doc.height };
+    const tijd = clip.type === "video" ? midden : 0;
+
+    if (naam === "vervaag") {
+      // Iets ruimer dan het gevonden kader: randjes die net buiten de meting
+      // vallen zijn precies wat je niet wilt laten staan.
+      const gebied = {
+        x: kader.x,
+        y: kader.y,
+        breedte: Math.min(0.98, kader.breedte * 1.2),
+        hoogte: Math.min(0.98, kader.hoogte * 1.3),
+      };
+      const vervaagd = await vervaagUitsnede(supabase, userId, clip.src, tijd, gebied);
+      if (!vervaagd) return { ok: false, reden: "Het vervagen lukte niet" };
+
+      const formaat = pngFormaat(vervaagd.png) ?? { breedte: 100, hoogte: 100 };
+      const breedteInBeeld = breedteNaarCompositie(gebied.breedte, frameFormaat, comp);
+      const positie = naarBeeld({ x: gebied.x, y: gebied.y });
+      return {
+        ok: true,
+        op: {
+          op: "add_element", clipId, src: vervaagd.url, label: `${wat} vervaagd`,
+          x: positie.x, y: positie.y,
+          scale: breedteNaarSchaal(breedteInBeeld, formaat, comp),
+        },
+        summary: `"${wat}" vervaagd`,
+      };
+    }
+
+    const soort = (["cirkel", "kader", "pijl", "onderstreping"].includes(String(args.vorm))
+      ? args.vorm
+      : "cirkel") as VormSoort;
+    const kleur = typeof args.kleur === "string" && /^#[0-9a-f]{6}$/i.test(args.kleur) ? args.kleur : "#e53935";
+
+    // Maat en plek hangen af van de vorm: een cirkel gaat eromheen, een pijl
+    // ernaast, een streep eronder.
+    let breedteFrame = kader.breedte * 1.35;
+    let hoogteFrame = kader.hoogte * 1.9;
+    let doelX = kader.x;
+    let doelY = kader.y;
+
+    if (soort === "pijl") {
+      breedteFrame = Math.max(0.08, kader.breedte * 0.8);
+      hoogteFrame = breedteFrame * 0.45;
+      // Links ernaast, wijzend naar het doel.
+      doelX = Math.max(0.05, kader.x - kader.breedte / 2 - breedteFrame / 2 - 0.01);
+      doelY = kader.y;
+    } else if (soort === "onderstreping") {
+      breedteFrame = kader.breedte * 1.1;
+      hoogteFrame = Math.max(0.02, kader.hoogte * 0.35);
+      doelY = Math.min(0.97, kader.y + kader.hoogte * 0.75);
+    } else if (soort === "kader") {
+      breedteFrame = kader.breedte * 1.2;
+      hoogteFrame = kader.hoogte * 1.6;
+    }
+
+    // Tekenen op de resolutie waarop het straks in beeld komt: dan is het scherp.
+    const breedteInBeeld = breedteNaarCompositie(breedteFrame, frameFormaat, comp);
+    const hoogteInBeeld = (hoogteFrame * frameFormaat.hoogte * Math.min(comp.width / frameFormaat.breedte, comp.height / frameFormaat.hoogte)) / comp.height;
+    const png = tekenVorm(soort, {
+      breedtePx: Math.max(16, Math.round(breedteInBeeld * comp.width)),
+      hoogtePx: Math.max(16, Math.round(hoogteInBeeld * comp.height)),
+      kleur,
+    });
+    const url = await uploadVorm(supabase, userId, png);
+    if (!url) return { ok: false, reden: "De vorm opslaan lukte niet" };
+
+    const formaat = pngFormaat(png) ?? { breedte: 100, hoogte: 100 };
+    const positie = naarBeeld({ x: doelX, y: doelY });
+    const namen: Record<VormSoort, string> = {
+      cirkel: "Cirkel om", kader: "Kader om", pijl: "Pijl naar", onderstreping: "Streep onder",
+    };
+    return {
+      ok: true,
+      op: {
+        op: "add_element", clipId, src: url, label: `${namen[soort]} ${wat}`,
+        x: positie.x, y: positie.y,
+        scale: breedteNaarSchaal(breedteInBeeld, formaat, comp),
+      },
+      summary: `${namen[soort]} "${wat}" gezet`,
+    };
+  }
 
   if (naam === "herstel_tekst") {
     const fout = typeof args.foutieveTekst === "string" ? args.foutieveTekst : "";

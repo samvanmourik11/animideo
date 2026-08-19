@@ -82,6 +82,10 @@ Daarna heb je dit gereedschap:
   het vlak niet effen is (een verloop, een structuur). Neem je bronstuk direct
   naast het probleem, van hetzelfde oppervlak.
 - 'plaats_tekst' — echte, scherpe letters op de plek die je aanwijst.
+- 'markeer' — iets aanwijzen met een cirkel, kader, pijl of streep eronder. Je
+  zegt wát je aanwijst; de plek wordt opgemeten. Gratis en altijd scherp, want
+  het is een getekende vorm.
+- 'vervaag' — een kenteken, gezicht of naam onherkenbaar maken.
 - 'plaats_icoon' — een icoon uit de bibliotheek in beeld zetten. Ruim honderd
   stuks: vrachtwagen, gloeilamp, vinkje, euro, huis, klok, schild, en zo verder.
   Gratis en meteen klaar; dit is je eerste keus als er een symbool bij moet.

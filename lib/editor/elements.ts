@@ -225,6 +225,53 @@ export async function maakVlak(
   }
 }
 
+/** Vervaagt een stuk van het beeld en levert dat als los plaatje. */
+export async function vervaagUitsnede(
+  sb: SupabaseClient,
+  userId: string,
+  videoUrl: string,
+  seconde: number,
+  gebied: { x: number; y: number; breedte: number; hoogte: number },
+  sterkte = 18
+): Promise<{ url: string; png: Buffer } | null> {
+  const dir = await mkdtemp(path.join(tmpdir(), "blur-"));
+  try {
+    const uit = path.join(dir, "blur.png");
+    const links = Math.max(0, Math.min(1, gebied.x - gebied.breedte / 2));
+    const boven = Math.max(0, Math.min(1, gebied.y - gebied.hoogte / 2));
+    // Eerst uitsnijden, dan vervagen: zo blijft de rest van het beeld scherp en
+    // leggen we alleen dit stukje er straks overheen.
+    const filter =
+      `crop=in_w*${gebied.breedte.toFixed(4)}:in_h*${gebied.hoogte.toFixed(4)}:` +
+      `in_w*${links.toFixed(4)}:in_h*${boven.toFixed(4)},boxblur=${Math.round(sterkte)}:2`;
+    await run(ffmpegPath as unknown as string, [
+      "-ss", Math.max(0, seconde).toFixed(2),
+      "-i", videoUrl,
+      "-frames:v", "1",
+      "-vf", filter,
+      "-y", uit,
+    ], { maxBuffer: 1024 * 1024 * 32 });
+
+    const png = await readFile(uit);
+    const pad = `${userId}/editor/blur/${randomUUID()}.png`;
+    const { error } = await sb.storage.from("scene-assets").upload(pad, png, { contentType: "image/png", upsert: true });
+    if (error) return null;
+    return { url: sb.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl, png };
+  } catch {
+    return null;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** Een getekende vorm in de opslag zetten, klaar om over de video te leggen. */
+export async function uploadVorm(sb: SupabaseClient, userId: string, png: Buffer): Promise<string | null> {
+  const pad = `${userId}/editor/vormen/${randomUUID()}.png`;
+  const { error } = await sb.storage.from("scene-assets").upload(pad, png, { contentType: "image/png", upsert: true });
+  if (error) return null;
+  return sb.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl;
+}
+
 /** Een frame in de opslag zetten zodat externe modellen erbij kunnen. */
 export async function uploadFrame(sb: SupabaseClient, userId: string, png: Buffer): Promise<string | null> {
   const pad = `${userId}/editor/frames/${randomUUID()}.png`;
