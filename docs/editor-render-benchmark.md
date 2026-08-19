@@ -118,6 +118,26 @@ Daarmee draait de foutafhandeling in de route wél (status wordt `error`, de
 gebruiker ziet de melding) in plaats van dat de functie halverwege wordt gedood.
 De rekensom staat los in `budgetAdvies()` en is getest.
 
+## Meting op productie ná de reparatie (19-8-2026)
+
+Zelfde project van 28,7s, nu op de nieuwe build:
+
+- Na **40 seconden** stopte de export met een melding in beeld. Geen stille dood
+  meer na zes minuten — het vangnet werkt.
+- Gemeten voortgang: ~12% na 40s rendertijd → **~0,34 seconde per frame**. Dat is
+  ruwweg **6,5× langzamer dan lokaal** (0,053 s/frame). De uitgeklede Chromium op
+  een kleine serverless-CPU is duurder dan verwacht.
+
+Die eerste meting legde meteen een fout in de kalibratie bloot: die keek naar de
+eerste 45 frames, en juist daar komen de videodecoders op gang. Daardoor schatte
+hij ~0,73 s/frame en meldde "ongeveer 11 seconden past" terwijl het er ~23
+waren — video's die het wél zouden halen werden geweigerd. Nu wordt er pas ná 30
+opwarmframes gemeten, en daarna elke 150 frames opnieuw (zodat een render die
+halverwege trager wordt alsnog op tijd stopt).
+
+**Het echte plafond op Vercel is daarmee ~23 seconden video** binnen het budget
+van 240s.
+
 ## Conclusie
 
 1. **Vóór deze ingrepen lag het plafond rond de 25 seconden video.** Met de vuistregel
@@ -128,13 +148,14 @@ De rekensom staat los in `budgetAdvies()` en is getest.
    gebruiker ziet geen foutmelding. Dat is een bug in de huidige editor, los van
    de AI-plannen: exporteren van een normale Studio-video van 30s mislukt nu
    zonder uitleg.
-3. **Met de JPEG-winst verdubbelt het plafond** naar naar schatting 55-60
-   seconden op Vercel. Dat moet op productie gemeten worden voor we het als
-   waarheid opschrijven — lokaal meten zegt niets over die machine.
-4. **Voor langer dan een minuut is een worker alsnog nodig** (Trigger.dev of een
-   eigen container), of een hogere `maxDuration`: Vercel staat met Fluid Compute
-   tot 800s toe, wat een aanpassing van één regel in `vercel.json` zou zijn.
-   Uitzoeken welke van de twee bij het huidige abonnement past.
+3. **Het plafond op Vercel ligt op ~23 seconden video** — gemeten, niet geschat.
+   De JPEG-winst is er wel degelijk (de renders zijn twee keer sneller), maar de
+   machine is zo veel trager dan een laptop dat een minuut video er niet in past.
+4. **De goedkoopste volgende stap is `maxDuration` verhogen.** Vercel staat met
+   Fluid Compute tot 800s toe; dat is één regel in `vercel.json` en zou het
+   plafond naar ~70 seconden brengen. Uitzoeken of het abonnement dat toestaat.
+   Lukt dat niet, dan moet renderen naar een eigen worker (Trigger.dev, Fly) —
+   daar is geen harde limiet en kun je bovendien parallel chunken.
 5. **Ondertussen faalt het in elk geval eerlijk**, wat het verschil is tussen
    "de knop doet niets" en "je video is te lang, kort hem in".
 

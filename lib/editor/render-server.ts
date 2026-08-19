@@ -98,26 +98,38 @@ export interface RenderOptions {
   budgetMs?: number;
 }
 
-// Na dit aantal frames weten we hoe snel deze machine is en kunnen we
-// vooruitrekenen. Bewust laag: liever na acht seconden eerlijk zeggen dat het
-// niet gaat passen dan de gebruiker vier minuten laten wachten op niets.
-const CALIBRATIE_FRAMES = 45;
+// De eerste frames zijn niet representatief: daar komen de videodecoders op
+// gang en wordt er voor het eerst geseekt. Meten begint dus pas ná deze
+// opwarmframes, anders reken je die eenmalige kosten door over de hele film.
+// (Op productie schatte een meting vanaf frame 0 de snelheid ruim twee keer te
+// pessimistisch — video's die het wél haalden werden geweigerd.)
+const OPWARM_FRAMES = 30;
+
+// Daarna elke zoveel frames opnieuw kijken. Zo wordt een render die halverwege
+// trager wordt alsnog op tijd afgebroken, in plaats van pas op de deadline.
+const HERIJK_ELKE = 150;
 
 /**
- * Gaat deze render het halen, en zo niet: hoeveel video past er dan wél?
+ * Haalt deze render het nog met de tot nu toe gemeten snelheid? En zo niet:
+ * hoeveel seconden video passen er dan in totaal wél?
+ *
  * Los van de renderlus zodat het te testen is zonder browser.
  */
 export function budgetAdvies(
   perFrameMs: number,
+  framesGedaan: number,
   totalFrames: number,
   fps: number,
   resterendMs: number
 ): { past: boolean; haalbareSeconden: number } {
-  if (perFrameMs <= 0) return { past: true, haalbareSeconden: Math.round(totalFrames / fps) };
-  const nodig = perFrameMs * totalFrames;
+  const f = fps || 30;
+  if (perFrameMs <= 0) return { past: true, haalbareSeconden: Math.round(totalFrames / f) };
+  const teGaan = Math.max(0, totalFrames - framesGedaan);
+  const passenNog = Math.max(0, resterendMs) / perFrameMs;
   return {
-    past: nodig <= resterendMs,
-    haalbareSeconden: Math.max(0, Math.floor(resterendMs / perFrameMs / (fps || 30))),
+    past: perFrameMs * teGaan <= resterendMs,
+    // Wat al gerenderd is telt mee: dat is immers ook video die af komt.
+    haalbareSeconden: Math.max(0, Math.floor((framesGedaan + passenNog) / f)),
   };
 }
 
@@ -229,14 +241,17 @@ export async function renderTimeline(
     const totalFrames = Math.max(1, Math.round(duration * fps));
     const frameStart = Date.now();
     const deadline = options.budgetMs ? frameStart + options.budgetMs : Infinity;
+    let opwarmKlaar = 0;
 
     for (let f = 0; f < totalFrames; f++) {
-      // Zodra we weten hoe snel deze machine is: vooruitrekenen. Past het niet,
-      // dan stoppen we meteen met een advies in plaats van halverwege te worden
-      // afgekapt.
-      if (f === CALIBRATIE_FRAMES && Number.isFinite(deadline)) {
-        const verstreken = Date.now() - frameStart;
-        const advies = budgetAdvies(verstreken / f, totalFrames, fps, deadline - frameStart);
+      // Na de opwarm meten we de echte snelheid, en daarna periodiek opnieuw.
+      // Haalt hij het niet, dan stoppen we meteen met een advies in plaats van
+      // halverwege te worden afgekapt.
+      if (f === OPWARM_FRAMES) opwarmKlaar = Date.now();
+      const naOpwarm = f - OPWARM_FRAMES;
+      if (opwarmKlaar > 0 && naOpwarm > 0 && naOpwarm % HERIJK_ELKE === 0 && Number.isFinite(deadline)) {
+        const perFrame = (Date.now() - opwarmKlaar) / naOpwarm;
+        const advies = budgetAdvies(perFrame, f, totalFrames, fps, deadline - Date.now());
         if (!advies.past) {
           throw new Error(
             `Deze video van ${Math.round(duration)} seconden is te lang om hier te exporteren. ` +

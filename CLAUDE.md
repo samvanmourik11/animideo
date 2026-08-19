@@ -93,3 +93,22 @@ Sluit aan bij de bestaande code in het bestand waar je in werkt.
 | Menu "Nieuw project" | `components/NewProjectButton.tsx` |
 | Databaseschema (in volgorde) | `supabase/migrations/` |
 | Supabase-clients (browser / server / service) | `lib/supabase/` |
+| Timeline Document (het editor-schema) | `lib/editor/timeline.ts` |
+| Editor-mutaties: ops + invarianten | `lib/editor/core/` |
+| Rendertijden en het exportplafond | `docs/editor-render-benchmark.md` |
+
+## De editor
+
+De editor bouwt op één JSON-document (`lib/editor/timeline.ts`) dat zowel de
+preview (Pixi-compositor in de browser) als de server-render leest — daarom is
+de export gelijk aan wat je ziet.
+
+**Elke mutatie hoort via `lib/editor/core/` te gaan.** Die laag valideert, houdt
+het hoofdvideospoor magnetisch (nooit een zwart gat) en levert de op-objecten
+die straks de geschiedenis en de AI-chat voeden. De UI-store gaat er nog
+buitenom; dat wordt rechtgezet, maar bouw er niets nieuws omheen.
+
+**Renderen kost ~1,5s per seconde video** (lokaal, na de JPEG-ingreep) en draait
+in een Vercel-functie met een limiet. De renderlus meet zichzelf en stopt met
+een nette melding als het niet past — zie het benchmark-document voor de
+actuele grens en de vervolgstappen.
