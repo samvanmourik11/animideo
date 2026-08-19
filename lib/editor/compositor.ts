@@ -360,11 +360,7 @@ export class Compositor {
     const sprite = r.sprite!;
     const straal = clip.transform?.cornerRadius ?? 0;
     if (straal <= 0) {
-      if (r.deco) {
-      r.deco.destroy();
-      r.deco = undefined;
-    }
-    if (r.masker) {
+      if (r.masker) {
         sprite.mask = null;
         r.masker.visible = false;
       }
@@ -682,10 +678,19 @@ export class Compositor {
     }
     const b = text.width;
     const h = text.height;
-    const dik = Math.max(1, clip.style.fontSize * 0.06 * text.scale.x);
+    const dik = Math.max(1, clip.style.fontSize * 0.06 * Math.abs(text.scale.x));
+    // Bij holle letters is de vulkleur doorzichtig; dan is de omlijning de kleur
+    // die je ziet, en die moet de streep ook krijgen.
+    const kleur =
+      clip.style.color === "#00000000" ? clip.style.stroke?.color ?? "#ffffff" : clip.style.color;
     deco.clear();
-    if (underline) deco.rect(-b / 2, h * 0.38, b, dik).fill(clip.style.color);
-    if (strike) deco.rect(-b / 2, -dik / 2, b, dik).fill(clip.style.color);
+    // Positie op de lettergrootte en niet op de hoogte van het tekstvak: dat vak
+    // groeit mee met een schaduw of een dikke omlijning, waardoor de streep
+    // ergens onder de tekst in het niets belandde. Bij meerdere regels staat de
+    // streep onder de laatste regel — Canva onderstreept elke regel apart, maar
+    // dat kan Pixi's Text niet uitrekenen.
+    if (underline) deco.rect(-b / 2, h / 2 - dik * 2.5, b, dik).fill(kleur);
+    if (strike) deco.rect(-b / 2, -dik / 2, b, dik).fill(kleur);
     deco.x = text.x;
     deco.y = text.y;
     deco.rotation = text.rotation;
