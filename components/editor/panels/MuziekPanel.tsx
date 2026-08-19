@@ -73,8 +73,8 @@ export default function MuziekPanel({ store, onSluit }: { store: EditorStore; on
       <Zoekbalk waarde={zoek} onWijzig={setZoek} hint="Zoek een nummer" />
 
       {gekozen && (
-        <div className="mx-4 mb-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 shrink-0">
-          <p className="text-[12px] text-violet-700 font-medium">Staat nu onder de video</p>
+        <div className="mx-4 mb-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 shrink-0">
+          <p className="text-[12px] text-blue-700 font-medium">Staat nu onder de video</p>
           <div className="flex items-center justify-between gap-2 mt-0.5">
             <span className="text-[14px] text-slate-900 truncate">{gekozen.title}</span>
             <button type="button" onClick={haalWeg} className="text-[12px] text-slate-500 hover:text-red-600 shrink-0">
@@ -102,7 +102,7 @@ export default function MuziekPanel({ store, onSluit }: { store: EditorStore; on
                 <div
                   key={t.slug}
                   className={`flex items-center gap-2 rounded-xl px-2 py-2 border ${
-                    actief ? "border-violet-500 bg-violet-50" : "border-transparent hover:bg-slate-50"
+                    actief ? "border-blue-500 bg-blue-50" : "border-transparent hover:bg-slate-50"
                   }`}
                 >
                   <button

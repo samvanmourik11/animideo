@@ -19,9 +19,10 @@ import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { EditorStore } from "@/lib/editor/store";
 import { EditorHistory } from "@/lib/editor/history";
-import type { Ratio, TimelineDoc } from "@/lib/editor/timeline";
+import type { Clip, Ratio, TimelineDoc, TrackKind } from "@/lib/editor/timeline";
 import type { PenStijl } from "@/lib/editor/tekening";
 import Rail, { type RailItem } from "./Rail";
+import ContextMenu, { type MenuPlek } from "./ContextMenu";
 import ContextBalk from "./ContextBalk";
 import HistoryPanel from "./HistoryPanel";
 import ChatPanel from "./ChatPanel";
@@ -114,6 +115,15 @@ export default function EditorShell({
   const [pen, setPen] = useState<PenStijl | null>(null);
   const [tekenMelding, setTekenMelding] = useState<string | null>(null);
 
+  // Rechtermuisknop-menu plus de twee klemborden: één voor hele lagen, één voor
+  // alleen de opmaak. Ze leven hier omdat je in het ene element kopieert en in
+  // het andere plakt.
+  const [menu, setMenu] = useState<MenuPlek | null>(null);
+  const [menuMaat, setMenuMaat] = useState<{ halfW: number; halfH: number } | null>(null);
+  const [klembord, setKlembord] = useState<{ clip: Clip; spoor: TrackKind } | null>(null);
+  const maatRef = useRef<() => { halfW: number; halfH: number } | null>(() => null);
+  const [stijlKlembord, setStijlKlembord] = useState<Clip | null>(null);
+
   // De pen hoort bij het tools-paneel: sluit je dat, dan stop je met tekenen.
   // Anders blijf je krassen zonder te zien waar dat vandaan komt.
   function kiesPaneel(id: RailItem) {
@@ -199,6 +209,29 @@ export default function EditorShell({
         setPen(null);
         return;
       }
+      const gekozen = store.getState().selectedClipId;
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey) {
+        const k = e.key.toLowerCase();
+        if (k === "c" && gekozen) {
+          e.preventDefault();
+          const clip = store.find(gekozen);
+          if (clip) {
+            if (e.altKey) setStijlKlembord(clip);
+            else setKlembord({ clip, spoor: store.spoorKindVan(clip.id) ?? "overlay" });
+          }
+          return;
+        }
+        if (k === "v" && klembord) {
+          e.preventDefault();
+          store.plakClip(klembord.clip, klembord.spoor);
+          return;
+        }
+        if (k === "d" && gekozen) {
+          e.preventDefault();
+          store.dupliceerOpZelfdePlek(gekozen);
+          return;
+        }
+      }
       if (e.code === "Space") {
         e.preventDefault();
         store.togglePlay();
@@ -212,7 +245,7 @@ export default function EditorShell({
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [store, pen]);
+  }, [store, pen, klembord]);
 
   const sluitPaneel = () => { setPaneel(null); setPen(null); };
 
@@ -236,7 +269,7 @@ export default function EditorShell({
           <button
             onClick={handleExport}
             disabled={exporting}
-            className="text-[14px] font-semibold py-2 px-5 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white"
+            className="text-[14px] font-semibold py-2 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white"
           >
             {exporting ? "Exporteren…" : "Exporteren"}
           </button>
@@ -267,23 +300,63 @@ export default function EditorShell({
         )}
 
         <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-          <ContextBalk store={store} onMeer={() => setMeerOpen((o) => !o)} meerOpen={meerOpen} />
+          <ContextBalk
+            store={store}
+            onMeer={() => setMeerOpen((o) => !o)}
+            meerOpen={meerOpen}
+            getMaat={() => maatRef.current()}
+          />
           {pen && (
-            <div className="px-4 py-2 bg-violet-50 border-b border-violet-200 text-[13px] text-violet-800 flex items-center gap-3 shrink-0">
+            <div className="px-4 py-2 bg-blue-50 border-b border-blue-200 text-[13px] text-blue-800 flex items-center gap-3 shrink-0">
               <span>Teken op het beeld. Elke streep wordt een losse laag.</span>
-              {tekenMelding && <span className="text-violet-600">{tekenMelding}</span>}
+              {tekenMelding && <span className="text-blue-600">{tekenMelding}</span>}
               <button type="button" onClick={() => setPen(null)} className="ml-auto underline">
                 Stoppen (Esc)
               </button>
             </div>
           )}
-          <PreviewCanvas store={store} ratio={ratio} pen={pen} onTekening={setTekenMelding} />
+          <PreviewCanvas
+            store={store}
+            ratio={ratio}
+            pen={pen}
+            onTekening={setTekenMelding}
+            registreerMaat={(fn) => { maatRef.current = fn; }}
+            onContext={(punt, clipId, maat) => {
+              setMenuMaat(maat);
+              // Iets naar binnen, zodat een menu bij de rechterrand niet half
+              // buiten het scherm valt.
+              setMenu({ x: Math.min(punt.x, window.innerWidth - 280), y: Math.min(punt.y, window.innerHeight - 380), clipId });
+            }}
+          />
         </div>
 
         {meerOpen && <PropertiesPanel store={store} />}
       </div>
 
-      <Timeline store={store} />
+      <Timeline
+        store={store}
+        onContext={(punt, clipId) => {
+          setMenuMaat(maatRef.current());
+          setMenu({
+            x: Math.min(punt.x, window.innerWidth - 280),
+            y: Math.min(punt.y, window.innerHeight - 380),
+            clipId,
+          });
+        }}
+      />
+
+      {menu && (
+        <ContextMenu
+          store={store}
+          plek={menu}
+          maat={menuMaat}
+          klembord={klembord}
+          onKlembord={setKlembord}
+          stijlKlembord={stijlKlembord}
+          onStijlKlembord={setStijlKlembord}
+          onSluit={() => setMenu(null)}
+        />
+      )}
 
       {(exporting || exportUrl || exportError) && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center">
@@ -305,7 +378,7 @@ export default function EditorShell({
                 <a
                   href={exportUrl}
                   download={`${title.replace(/\s+/g, "-")}.mp4`}
-                  className="block w-full rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-[14px] font-semibold py-2.5"
+                  className="block w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[14px] font-semibold py-2.5"
                 >
                   Download MP4
                 </a>
@@ -320,7 +393,7 @@ export default function EditorShell({
               <>
                 <p className="text-[15px] font-semibold">{exportLabel || "Exporteren"}</p>
                 <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-violet-600 transition-all" style={{ width: `${exportPct}%` }} />
+                  <div className="h-full bg-blue-600 transition-all" style={{ width: `${exportPct}%` }} />
                 </div>
                 <p className="text-[13px] text-slate-500">{exportPct}%</p>
                 <p className="text-[12px] text-slate-400">

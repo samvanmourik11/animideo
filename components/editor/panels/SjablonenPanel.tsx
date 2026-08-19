@@ -55,13 +55,13 @@ export default function SjablonenPanel({ store, onSluit }: { store: EditorStore;
           value={titel}
           onChange={(e) => setTitel(e.target.value)}
           placeholder="Titel"
-          className="w-full rounded-xl bg-slate-100 focus:bg-white border border-transparent focus:border-violet-400 px-3 py-2.5 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
+          className="w-full rounded-xl bg-slate-100 focus:bg-white border border-transparent focus:border-blue-500 px-3 py-2.5 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
         />
         <input
           value={onder}
           onChange={(e) => setOnder(e.target.value)}
           placeholder="Regel eronder"
-          className="w-full rounded-xl bg-slate-100 focus:bg-white border border-transparent focus:border-violet-400 px-3 py-2.5 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
+          className="w-full rounded-xl bg-slate-100 focus:bg-white border border-transparent focus:border-blue-500 px-3 py-2.5 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
         />
       </div>
 
@@ -76,7 +76,7 @@ export default function SjablonenPanel({ store, onSluit }: { store: EditorStore;
                 type="button"
                 disabled={leeg}
                 onClick={() => plaats(s.id)}
-                className="w-full rounded-xl border border-slate-200 hover:border-violet-400 hover:bg-violet-50/40 p-2 text-left disabled:opacity-40"
+                className="w-full rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/40 p-2 text-left disabled:opacity-40"
               >
                 <div className="relative aspect-video rounded-lg bg-slate-700 overflow-hidden">
                   {s.voorbeeld.map((v, i) =>

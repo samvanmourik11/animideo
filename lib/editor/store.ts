@@ -621,6 +621,125 @@ export class EditorStore {
     this.seek(placed.start + 0.01);
   }
 
+  /**
+   * Kopie op dezelfde plek in de tijd, iets verschoven in beeld.
+   *
+   * `duplicateClip` zet de kopie ná het origineel op de tijdlijn; dat klopt voor
+   * een scène, maar niet voor een element dat je over die scène wilt herhalen —
+   * dan verdwijnt de kopie uit beeld. Vandaar deze aparte variant.
+   */
+  dupliceerOpZelfdePlek(id: string) {
+    const doc = this.state.doc;
+    for (const track of doc.tracks) {
+      const clip = track.clips.find((c) => c.id === id);
+      if (!clip) continue;
+      const t = { ...DEFAULT_TRANSFORM, ...clip.transform };
+      const kopie = {
+        ...clip,
+        id: crypto.randomUUID(),
+        transform: { ...t, x: Math.min(0.96, t.x + 0.03), y: Math.min(0.96, t.y + 0.03) },
+      } as Clip;
+      this.setDoc({
+        ...doc,
+        tracks: doc.tracks.map((tr) =>
+          tr.id === track.id
+            ? { ...tr, clips: tr.clips.flatMap((c) => (c.id === id ? [c, kopie] : [c])) }
+            : tr
+        ),
+      });
+      this.select(kopie.id);
+      return kopie.id;
+    }
+    return null;
+  }
+
+  /**
+   * Een gekopieerde clip terugzetten. Hij landt op de tijd waar de speelkop
+   * staat, niet waar hij vandaan kwam — anders plak je iets buiten beeld en
+   * denk je dat er niets gebeurt.
+   */
+  plakClip(bron: Clip, spoor?: TrackKind) {
+    const doc = this.state.doc;
+    // Het soort spoor komt van de plek waar je kopieerde, niet van het type
+    // clip: een afbeelding kan een scène zijn (videospoor) óf een element dat
+    // erover ligt (overlay). Op type alleen zou een gekopieerd icoon als nieuwe
+    // scène achteraan belanden.
+    const kind = spoor ?? TRACK_FOR_KIND[bron.type];
+    let track = doc.tracks.find((t) => t.kind === kind);
+    let tracks = doc.tracks;
+    if (!track) {
+      track = { id: crypto.randomUUID(), kind, name: kind, clips: [] };
+      tracks = [...doc.tracks, track];
+    }
+    const t = { ...DEFAULT_TRANSFORM, ...bron.transform };
+    const nieuw = {
+      ...bron,
+      id: crypto.randomUUID(),
+      start: kind === "video" ? track.clips.reduce((m, c) => Math.max(m, c.start + c.duration), 0) : this.state.currentTime,
+      transform: { ...t, x: Math.min(0.96, t.x + 0.03), y: Math.min(0.96, t.y + 0.03) },
+    } as Clip;
+    this.setDoc({
+      ...doc,
+      tracks: tracks.map((tr) => (tr.id === track!.id ? { ...tr, clips: [...tr.clips, nieuw] } : tr)),
+    });
+    this.select(nieuw.id);
+    return nieuw.id;
+  }
+
+  /** Laagvolgorde binnen het spoor; 'vooraan'/'achteraan' gaan in één keer door. */
+  zetLaag(id: string, waar: "voor" | "achter" | "vooraan" | "achteraan") {
+    const doc = this.state.doc;
+    this.setDoc({
+      ...doc,
+      tracks: doc.tracks.map((t) => {
+        const i = t.clips.findIndex((c) => c.id === id);
+        if (i < 0) return t;
+        const clips = [...t.clips];
+        const [clip] = clips.splice(i, 1);
+        const j =
+          waar === "voor" ? Math.min(clips.length, i + 1)
+          : waar === "achter" ? Math.max(0, i - 1)
+          : waar === "vooraan" ? clips.length
+          : 0;
+        clips.splice(j, 0, clip);
+        return { ...t, clips };
+      }),
+    });
+  }
+
+  /**
+   * Uitlijnen op het beeld. De halve breedte/hoogte komt van de compositor,
+   * want die weet pas hoe groot het element in beeld staat — met alleen de
+   * transform zou 'tegen de linkerrand' een gok zijn.
+   */
+  lijnUit(
+    id: string,
+    richting: "links" | "midden" | "rechts" | "boven" | "centraal" | "onder",
+    maat: { halfW: number; halfH: number } | null
+  ) {
+    const hw = maat?.halfW ?? 0;
+    const hh = maat?.halfH ?? 0;
+    const patch =
+      richting === "links" ? { x: hw }
+      : richting === "midden" ? { x: 0.5 }
+      : richting === "rechts" ? { x: 1 - hw }
+      : richting === "boven" ? { y: hh }
+      : richting === "centraal" ? { y: 0.5 }
+      : { y: 1 - hh };
+    this.setTransform(id, patch);
+  }
+
+  /** Op welk soort spoor staat deze clip nu? Nodig om er weer op te plakken. */
+  spoorKindVan(id: string): TrackKind | null {
+    for (const t of this.state.doc.tracks) if (t.clips.some((c) => c.id === id)) return t.kind;
+    return null;
+  }
+
+  /** Vergrendelen: aanklikken mag, verslepen niet. */
+  zetVergrendeld(id: string, aan: boolean) {
+    this.updateClip(id, { locked: aan } as Partial<Clip>);
+  }
+
   removeClip(id: string) {
     // Let op: op het videospoor schuift de rest nu automatisch door. Een gat in
     // de video is zwart beeld, en dat mag een niet-editor nooit overkomen.

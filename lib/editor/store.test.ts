@@ -138,3 +138,106 @@ describe("EditorStore via EditorCore", () => {
     vi.useRealTimers();
   });
 });
+
+// ── Beheer-acties uit het rechtermuisknopmenu ────────────────────────────────
+//
+// Dit zijn de handelingen die je bij een geselecteerd element verwacht. Ze gaan
+// niet over montage maar over ordenen, en juist daar is een stille fout
+// vervelend: je klikt "helemaal naar voren" en er lijkt niets te gebeuren.
+
+function storeMetElementen() {
+  const doc = createEmptyTimeline("16:9");
+  mainVideoTrack(doc)!.clips = [v("scene", 0, 6)];
+  doc.tracks.find((t) => t.kind === "overlay")!.clips = [
+    { id: "e1", type: "image", src: "a.png", start: 0, duration: 6, transform: { x: 0.5, y: 0.5, scale: 0.3, rotation: 0 } },
+    { id: "e2", type: "image", src: "b.png", start: 0, duration: 6 },
+    { id: "e3", type: "image", src: "c.png", start: 0, duration: 6 },
+  ];
+  return new EditorStore(doc, undefined, {});
+}
+
+function overlayIds(doc: TimelineDoc) {
+  return doc.tracks.find((t) => t.kind === "overlay")!.clips.map((c) => c.id);
+}
+
+describe("laagvolgorde", () => {
+  it("zet een element helemaal vooraan of achteraan", () => {
+    const store = storeMetElementen();
+    store.zetLaag("e1", "vooraan");
+    expect(overlayIds(store.getState().doc)).toEqual(["e2", "e3", "e1"]);
+    store.zetLaag("e1", "achteraan");
+    expect(overlayIds(store.getState().doc)).toEqual(["e1", "e2", "e3"]);
+    store.destroy();
+  });
+
+  it("schuift één stap op en blijft aan de rand staan", () => {
+    const store = storeMetElementen();
+    store.zetLaag("e1", "voor");
+    expect(overlayIds(store.getState().doc)).toEqual(["e2", "e1", "e3"]);
+    store.zetLaag("e2", "achter");
+    expect(overlayIds(store.getState().doc)).toEqual(["e2", "e1", "e3"]);
+    store.destroy();
+  });
+});
+
+describe("uitlijnen met het beeld", () => {
+  it("zet het element tegen de rand, rekening houdend met zijn breedte", () => {
+    const store = storeMetElementen();
+    store.lijnUit("e1", "links", { halfW: 0.12, halfH: 0.2 });
+    expect(store.find("e1")!.transform!.x).toBeCloseTo(0.12, 5);
+    store.lijnUit("e1", "rechts", { halfW: 0.12, halfH: 0.2 });
+    expect(store.find("e1")!.transform!.x).toBeCloseTo(0.88, 5);
+    store.lijnUit("e1", "onder", { halfW: 0.12, halfH: 0.2 });
+    expect(store.find("e1")!.transform!.y).toBeCloseTo(0.8, 5);
+    store.destroy();
+  });
+
+  it("valt terug op de rand zelf als de maat onbekend is", () => {
+    const store = storeMetElementen();
+    store.lijnUit("e1", "links", null);
+    expect(store.find("e1")!.transform!.x).toBe(0);
+    store.destroy();
+  });
+});
+
+describe("kopiëren en plakken", () => {
+  it("dupliceert op dezelfde tijd, iets verschoven in beeld", () => {
+    const store = storeMetElementen();
+    const id = store.dupliceerOpZelfdePlek("e1")!;
+    const origineel = store.find("e1")!;
+    const kopie = store.find(id)!;
+    expect(kopie.start).toBe(origineel.start);
+    expect(kopie.duration).toBe(origineel.duration);
+    expect(kopie.transform!.x).toBeCloseTo(origineel.transform!.x + 0.03, 5);
+    expect(store.getState().selectedClipId).toBe(id);
+    store.destroy();
+  });
+
+  it("plakt op de speelkop en niet op de oude plek", () => {
+    const store = storeMetElementen();
+    const bron = store.find("e1")!;
+    store.seek(3);
+    const id = store.plakClip(bron, store.spoorKindVan("e1")!)!;
+    expect(store.find(id)!.start).toBeCloseTo(3, 5);
+    expect(overlayIds(store.getState().doc)).toHaveLength(4);
+    store.destroy();
+  });
+
+  it("geeft de kopie een eigen id", () => {
+    const store = storeMetElementen();
+    const id = store.plakClip(store.find("e1")!, "overlay")!;
+    expect(id).not.toBe("e1");
+    store.destroy();
+  });
+});
+
+describe("vergrendelen", () => {
+  it("zet de vlag om en weer terug", () => {
+    const store = storeMetElementen();
+    store.zetVergrendeld("e1", true);
+    expect(store.find("e1")!.locked).toBe(true);
+    store.zetVergrendeld("e1", false);
+    expect(store.find("e1")!.locked).toBe(false);
+    store.destroy();
+  });
+});

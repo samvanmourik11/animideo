@@ -145,7 +145,7 @@ export default function ChatPanel({
               {b.tekst ? (
                 <p
                   className={`inline-block text-[13px] leading-snug rounded-xl px-3 py-2 ${
-                    b.rol === "user" ? "bg-violet-100 text-violet-900" : "bg-slate-100 text-slate-800"
+                    b.rol === "user" ? "bg-blue-100 text-blue-900" : "bg-slate-100 text-slate-800"
                   }`}
                 >
                   {b.tekst}
@@ -195,13 +195,13 @@ export default function ChatPanel({
           }}
           rows={2}
           placeholder="Wat moet er gebeuren?"
-          className="w-full resize-none rounded-xl bg-slate-100 focus:bg-white border border-transparent focus:border-violet-400 px-3 py-2.5 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
+          className="w-full resize-none rounded-xl bg-slate-100 focus:bg-white border border-transparent focus:border-blue-500 px-3 py-2.5 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
         />
         <button
           type="button"
           onClick={() => void verstuur()}
           disabled={bezig || !invoer.trim()}
-          className="mt-2 w-full text-[14px] font-medium py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white"
+          className="mt-2 w-full text-[14px] font-medium py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white"
         >
           {bezig ? "Bezig…" : "Stuur"}
         </button>

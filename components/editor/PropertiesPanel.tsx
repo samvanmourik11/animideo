@@ -29,7 +29,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 const numCls =
-  "w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[13px] text-slate-900 focus:outline-none focus:border-violet-500";
+  "w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[13px] text-slate-900 focus:outline-none focus:border-blue-500";
 
 export default function PropertiesPanel({ store }: { store: EditorStore }) {
   const selectedId = useEditor(store, (s) => s.selectedClipId);

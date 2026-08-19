@@ -18,8 +18,8 @@ export const KLEUR = {
   werkvlak: "bg-slate-100",
   tekst: "text-slate-900",
   tekstZacht: "text-slate-500",
-  accent: "bg-violet-600",
-  accentTekst: "text-violet-700",
+  accent: "bg-blue-600",
+  accentTekst: "text-blue-700",
 };
 
 export function PaneelKop({ titel, onTerug, onSluit }: { titel: string; onTerug?: () => void; onSluit?: () => void }) {
@@ -67,7 +67,7 @@ export function Zoekbalk({
           value={waarde}
           onChange={(e) => onWijzig(e.target.value)}
           placeholder={hint}
-          className="w-full rounded-xl bg-slate-100 border border-transparent focus:border-violet-400 focus:bg-white pl-8 pr-3 py-2.5 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
+          className="w-full rounded-xl bg-slate-100 border border-transparent focus:border-blue-500 focus:bg-white pl-8 pr-3 py-2.5 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
         />
       </div>
     </div>
@@ -96,7 +96,7 @@ export function Sectie({
           <button
             type="button"
             onClick={alles.onWissel}
-            className="text-[12px] text-violet-700 hover:text-violet-900 font-medium"
+            className="text-[12px] text-blue-700 hover:text-blue-900 font-medium"
           >
             {alles.open ? "Minder" : "Alles bekijken"}
           </button>
@@ -130,19 +130,19 @@ export function GenereerVak({
   const kan = tekst.trim().length >= 2 && !bezig;
   return (
     <div className="px-4 pb-3 shrink-0">
-      <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-2.5 space-y-2">
+      <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-2.5 space-y-2">
         <input
           value={tekst}
           onChange={(e) => setTekst(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && kan) onGenereer(tekst.trim()); }}
           placeholder={hint}
-          className="w-full rounded-lg bg-white border border-violet-200 px-3 py-2 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-violet-500"
+          className="w-full rounded-lg bg-white border border-blue-200 px-3 py-2 text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-blue-500"
         />
         <button
           type="button"
           onClick={() => kan && onGenereer(tekst.trim())}
           disabled={!kan}
-          className="w-full rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-[13px] font-medium py-2"
+          className="w-full rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-[13px] font-medium py-2"
         >
           {bezig ? "Bezig met maken…" : knop}
         </button>
@@ -186,7 +186,7 @@ export function Chip({ actief, onClick, label }: { actief: boolean; onClick: () 
       onClick={onClick}
       className={`text-[12px] px-3 py-1.5 rounded-full border font-medium transition-colors ${
         actief
-          ? "border-violet-500 bg-violet-50 text-violet-700"
+          ? "border-blue-500 bg-blue-50 text-blue-700"
           : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
       }`}
     >
@@ -230,7 +230,7 @@ export function KleurKiezer({
             onClick={() => onKies(k)}
             aria-label={k}
             className={`w-6 h-6 rounded-full border-2 ${
-              waarde.toLowerCase() === k ? "border-violet-600" : "border-slate-200"
+              waarde.toLowerCase() === k ? "border-blue-600" : "border-slate-200"
             }`}
             style={{ background: k }}
           />

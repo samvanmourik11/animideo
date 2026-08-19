@@ -30,7 +30,14 @@ function Playhead({ store }: { store: EditorStore }) {
   );
 }
 
-export default function Timeline({ store }: { store: EditorStore }) {
+export default function Timeline({
+  store,
+  onContext,
+}: {
+  store: EditorStore;
+  /** Rechtsklik op een clip; het menu zelf leeft in de shell. */
+  onContext?: (punt: { x: number; y: number }, clipId: string) => void;
+}) {
   const doc = useEditor(store, (s) => s.doc);
   const pxPerSec = useEditor(store, (s) => s.pxPerSec);
   const selectedId = useEditor(store, (s) => s.selectedClipId);
@@ -236,6 +243,11 @@ export default function Timeline({ store }: { store: EditorStore }) {
                     <div
                       key={clip.id}
                       onPointerDown={(e) => startClipDrag(e, clip, "move")}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        store.select(clip.id);
+                        onContext?.({ x: e.clientX, y: e.clientY }, clip.id);
+                      }}
                       style={{
                         left: clip.start * pxPerSec,
                         width: Math.max(8, clip.duration * pxPerSec),
@@ -244,7 +256,7 @@ export default function Timeline({ store }: { store: EditorStore }) {
                       }}
                       className={`absolute rounded-md border cursor-grab active:cursor-grabbing overflow-hidden ${
                         CLIP_COLOR[clip.type]
-                      } ${selected ? "ring-2 ring-violet-600 ring-offset-1" : ""}`}
+                      } ${selected ? "ring-2 ring-blue-600 ring-offset-1" : ""}`}
                     >
                       <div className="px-2 py-1 text-[11px] text-white truncate pointer-events-none">
                         {clip.meta?.label ?? (clip.type === "text" ? "Tekst" : clip.type)}

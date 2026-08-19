@@ -99,7 +99,7 @@ export default function DiagramEditor({
           type="checkbox"
           checked={diagram.toonWaarden !== false}
           onChange={(e) => wijzig({ toonWaarden: e.target.checked })}
-          className="accent-violet-600"
+          className="accent-blue-600"
         />
         Waarden bij de punten tonen
       </label>

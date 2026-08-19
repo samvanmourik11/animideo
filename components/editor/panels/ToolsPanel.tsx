@@ -76,7 +76,7 @@ export default function ToolsPanel({
                   disabled={leeg}
                   onClick={() => kiesPen(p.id)}
                   className={`rounded-xl border px-3 py-3 text-left disabled:opacity-40 ${
-                    actief ? "border-violet-500 bg-violet-50" : "border-slate-200 hover:bg-slate-50"
+                    actief ? "border-blue-500 bg-blue-50" : "border-slate-200 hover:bg-slate-50"
                   }`}
                 >
                   <span
@@ -88,7 +88,7 @@ export default function ToolsPanel({
                     }}
                   />
                   <span className="text-[13px] font-medium text-slate-800">{p.label}</span>
-                  {actief && <span className="block text-[11px] text-violet-700">Actief — teken op het canvas</span>}
+                  {actief && <span className="block text-[11px] text-blue-700">Actief — teken op het canvas</span>}
                 </button>
               );
             })}
@@ -105,7 +105,7 @@ export default function ToolsPanel({
                   step={0.001}
                   value={pen.dikte}
                   onChange={(e) => onPen({ ...pen, dikte: Number(e.target.value) })}
-                  className="w-full accent-violet-600"
+                  className="w-full accent-blue-600"
                 />
               </div>
               <button
@@ -127,7 +127,7 @@ export default function ToolsPanel({
                 type="button"
                 onClick={() => setBriefjeKleur(k)}
                 aria-label={k}
-                className={`w-8 h-8 rounded-md border-2 ${briefjeKleur === k ? "border-violet-600" : "border-slate-200"}`}
+                className={`w-8 h-8 rounded-md border-2 ${briefjeKleur === k ? "border-blue-600" : "border-slate-200"}`}
                 style={{ background: k }}
               />
             ))}

@@ -296,7 +296,7 @@ function Kleuren({ stijl, onWijzig }: { stijl: VormStijl; onWijzig: (s: VormStij
           step={0.005}
           value={stijl.dikte}
           onChange={(e) => onWijzig({ ...stijl, dikte: Number(e.target.value) })}
-          className="w-full accent-violet-600"
+          className="w-full accent-blue-600"
         />
       </div>
     </div>

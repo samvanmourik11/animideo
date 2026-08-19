@@ -174,8 +174,12 @@ export default function CanvasOverlay({
     });
   }
 
+  // Een vergrendelde clip mag je wel zien en aanklikken, maar niet verslepen —
+  // daarom krijgt hij een streepjeskader zonder handvatten.
+  const vergrendeld = !!store.find(selectedId)?.locked;
+
   const handle =
-    "absolute w-3 h-3 bg-white border border-blue-500 rounded-sm pointer-events-auto";
+    "absolute w-3 h-3 bg-white border border-blue-600 rounded-sm pointer-events-auto";
 
   return (
     <div ref={overlayRef} className="absolute inset-0 pointer-events-none">
@@ -192,19 +196,25 @@ export default function CanvasOverlay({
             transform: `translate(-50%, -50%) rotate(${box.rot}deg)`,
           }}
         >
-          <div
-            onPointerDown={onBody}
-            className="absolute inset-0 border-2 border-blue-400 pointer-events-auto cursor-move"
-          />
-          <div onPointerDown={onCorner} className={`${handle} -left-1.5 -top-1.5 cursor-nwse-resize`} />
-          <div onPointerDown={onCorner} className={`${handle} -right-1.5 -top-1.5 cursor-nesw-resize`} />
-          <div onPointerDown={onCorner} className={`${handle} -left-1.5 -bottom-1.5 cursor-nesw-resize`} />
-          <div onPointerDown={onCorner} className={`${handle} -right-1.5 -bottom-1.5 cursor-nwse-resize`} />
-          <div
-            onPointerDown={onRotate}
-            className="absolute left-1/2 -top-7 -translate-x-1/2 w-3 h-3 bg-blue-400 rounded-full pointer-events-auto cursor-grab"
-          />
-          <div className="absolute left-1/2 -top-4 -translate-x-1/2 w-px h-4 bg-blue-400" />
+          {vergrendeld ? (
+            <div className="absolute inset-0 border-2 border-dashed border-slate-400 pointer-events-none" />
+          ) : (
+            <>
+              <div
+                onPointerDown={onBody}
+                className="absolute inset-0 border-2 border-blue-500 pointer-events-auto cursor-move"
+              />
+              <div onPointerDown={onCorner} className={`${handle} -left-1.5 -top-1.5 cursor-nwse-resize`} />
+              <div onPointerDown={onCorner} className={`${handle} -right-1.5 -top-1.5 cursor-nesw-resize`} />
+              <div onPointerDown={onCorner} className={`${handle} -left-1.5 -bottom-1.5 cursor-nesw-resize`} />
+              <div onPointerDown={onCorner} className={`${handle} -right-1.5 -bottom-1.5 cursor-nwse-resize`} />
+              <div
+                onPointerDown={onRotate}
+                className="absolute left-1/2 -top-7 -translate-x-1/2 w-3 h-3 bg-blue-500 rounded-full pointer-events-auto cursor-grab"
+              />
+              <div className="absolute left-1/2 -top-4 -translate-x-1/2 w-px h-4 bg-blue-500" />
+            </>
+          )}
         </div>
       )}
     </div>

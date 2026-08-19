@@ -71,7 +71,7 @@ export default function Rail({
   onKies: (id: RailItem) => void;
 }) {
   return (
-    <nav className="w-[76px] shrink-0 bg-slate-50 border-r border-slate-200 flex flex-col items-center py-2 gap-0.5 overflow-y-auto">
+    <nav className="w-[76px] shrink-0 bg-[#f4f7fd] border-r border-slate-200 flex flex-col items-center py-2 gap-0.5 overflow-y-auto">
       {RAIL.map((item) => {
         const aan = actief === item.id;
         return (
@@ -82,9 +82,9 @@ export default function Rail({
             aria-pressed={aan}
             className={`w-[68px] py-2.5 rounded-xl flex flex-col items-center gap-1 transition-colors ${
               aan
-                ? "bg-violet-100 text-violet-700"
+                ? "bg-blue-100 text-blue-700"
                 : item.bijzonder
-                  ? "text-violet-600 hover:bg-violet-50"
+                  ? "text-blue-600 hover:bg-blue-50"
                   : "text-slate-600 hover:bg-slate-200/70"
             }`}
           >

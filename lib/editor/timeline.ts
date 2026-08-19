@@ -102,6 +102,12 @@ interface ClipBase {
   id: string;
   start: number; // positie op de timeline (s)
   duration: number; // lengte op de timeline (s)
+  /**
+   * Vergrendeld: wel aan te klikken, niet te verslepen of te schalen. Voor de
+   * achtergrond of een logo dat op zijn plek moet blijven terwijl je erboven
+   * werkt — anders pak je hem steeds per ongeluk beet.
+   */
+  locked?: boolean;
   meta?: ClipMeta;
   trimIn?: number; // seconden in de bron waar afspelen begint (video/audio)
   transform?: Transform;
@@ -157,7 +163,18 @@ export interface Transform {
   y: number; // 0..1
   scale: number; // 1 = passend ingevuld
   rotation: number; // graden
+  /**
+   * Wat er van het bronbeeld overblijft, als fractie van elke kant. Bijsnijden
+   * maakt het element écht kleiner (de compositor tekent een uitsnede van de
+   * bron), zodat het kader eromheen klopt en je hem daarna normaal kunt
+   * verslepen.
+   */
   crop?: { top: number; right: number; bottom: number; left: number }; // fracties
+  /** Spiegelen. Handig als iemand of iets de verkeerde kant op kijkt. */
+  flipH?: boolean;
+  flipV?: boolean;
+  /** Afgeronde hoeken, als fractie van de kleinste zijde (0..0,5). */
+  cornerRadius?: number;
 }
 
 export const DEFAULT_TRANSFORM: Transform = { x: 0.5, y: 0.5, scale: 1, rotation: 0 };
@@ -209,6 +226,16 @@ export interface Transition {
 
 export interface TextStyle {
   fontFamily: string;
+  /** Cursief. Apart van fontWeight, want dat is een getal. */
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+  /**
+   * Hoofdletters of kleine letters afdwingen zonder de getypte tekst te
+   * veranderen. Zo kun je het weer uitzetten en heb je je oorspronkelijke
+   * schrijfwijze terug — dat is precies waarom dit opmaak is en geen bewerking.
+   */
+  letters?: "normaal" | "hoofdletters" | "kleine-letters";
   fontSize: number; // px op compositie-schaal
   fontWeight: number;
   color: string;

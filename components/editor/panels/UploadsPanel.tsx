@@ -93,7 +93,7 @@ export default function UploadsPanel({
           type="button"
           onClick={() => invoer.current?.click()}
           disabled={bezig}
-          className="w-full rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-[14px] font-semibold py-3"
+          className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-[14px] font-semibold py-3"
         >
           {bezig ? "Bezig met uploaden…" : "Bestanden uploaden"}
         </button>

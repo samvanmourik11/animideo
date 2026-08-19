@@ -96,7 +96,7 @@ export default function TekstPanel({ store, onSluit }: { store: EditorStore; onS
           type="button"
           disabled={leeg}
           onClick={() => plaats("Jouw tekst", TEKST_SOORTEN[1].stijl)}
-          className="w-full rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-40 text-white text-[14px] font-semibold py-3"
+          className="w-full rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 text-white text-[14px] font-semibold py-3"
         >
           Tekstvak toevoegen
         </button>
@@ -144,7 +144,7 @@ export default function TekstPanel({ store, onSluit }: { store: EditorStore; onS
                 disabled={leeg}
                 onClick={() => plaats(s.tekst, s.stijl, s.id === "ondertitel" ? 0.82 : 0.5)}
                 title={s.label}
-                className="rounded-xl bg-slate-900 hover:ring-2 hover:ring-violet-400 h-20 flex items-center justify-center px-2 overflow-hidden disabled:opacity-40"
+                className="rounded-xl bg-slate-900 hover:ring-2 hover:ring-blue-500 h-20 flex items-center justify-center px-2 overflow-hidden disabled:opacity-40"
               >
                 <span style={voorbeeldStijl(s.stijl)} className="text-center leading-tight truncate">
                   {s.tekst}
@@ -162,7 +162,7 @@ export default function TekstPanel({ store, onSluit }: { store: EditorStore; onS
                 type="button"
                 onClick={() => setLetter(l.id)}
                 className={`w-full text-left rounded-lg px-3 py-2.5 border ${
-                  letter === l.id ? "border-violet-500 bg-violet-50" : "border-transparent hover:bg-slate-50"
+                  letter === l.id ? "border-blue-500 bg-blue-50" : "border-transparent hover:bg-slate-50"
                 }`}
               >
                 <span className="block text-[16px] text-slate-900" style={{ fontFamily: l.stack }}>

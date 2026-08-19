@@ -31,6 +31,17 @@ interface Resource {
    * Pixi's Text kent zelf geen achtergrond.
    */
   bg?: Graphics;
+  /**
+   * De onbewerkte textuur. Bijsnijden vervangt de textuur van de sprite door een
+   * uitsnede; zonder het origineel erbij kun je die snede nooit meer ruimer
+   * maken.
+   */
+  volleTextuur?: Texture;
+  /** Onderstreping en doorhaling; die kent Pixi's Text zelf niet. */
+  deco?: Graphics;
+  cropKey?: string;
+  /** Masker voor afgeronde hoeken; alleen aanwezig als de clip er om vraagt. */
+  masker?: Graphics;
   textKey?: string; // detecteert wijzigingen in tekstinhoud/stijl
   effectsKey?: string; // detecteert wijzigingen in effecten
 }
@@ -305,6 +316,76 @@ export class Compositor {
     return op * this.fadeFactor(clip, t);
   }
 
+  /**
+   * Bijsnijden: de sprite krijgt een uitsnede van de bron in plaats van de hele
+   * afbeelding.
+   *
+   * Bewust via de textuur en niet via een masker: dan wordt het element écht
+   * kleiner, klopt het selectiekader eromheen en kun je de uitsnede daarna
+   * gewoon verslepen. Met een masker zou de weggesneden ruimte blijven meetellen
+   * en pak je bij het slepen lucht beet.
+   */
+  private pasUitsnedeToe(r: Resource, clip: Clip, bronB: number, bronH: number): { w: number; h: number } {
+    const sprite = r.sprite!;
+    if (!r.volleTextuur) r.volleTextuur = sprite.texture;
+    const c = clip.transform?.crop;
+    const key = c ? `${c.top},${c.right},${c.bottom},${c.left}|${bronB}x${bronH}` : "";
+    if (r.cropKey !== key) {
+      r.cropKey = key;
+      const vol = r.volleTextuur;
+      const leeg = !c || (!c.top && !c.right && !c.bottom && !c.left);
+      if (leeg || !bronB || !bronH) {
+        sprite.texture = vol;
+      } else {
+        const kap = (n: number) => Math.max(0, Math.min(0.45, n || 0));
+        const x = kap(c.left) * bronB;
+        const y = kap(c.top) * bronH;
+        const w = Math.max(8, bronB - x - kap(c.right) * bronB);
+        const h = Math.max(8, bronH - y - kap(c.bottom) * bronH);
+        sprite.texture = new this.PIXI.Texture({
+          source: vol.source,
+          frame: new this.PIXI.Rectangle(x, y, w, h),
+        });
+      }
+    }
+    return { w: sprite.texture.width || bronB, h: sprite.texture.height || bronH };
+  }
+
+  /**
+   * Afgeronde hoeken. Het masker deelt de transform van de sprite, dus het
+   * draait en schaalt vanzelf mee; alleen de vorm hoeft opnieuw getekend te
+   * worden als de maat verandert.
+   */
+  private pasHoekenToe(r: Resource, clip: Clip, w: number, h: number) {
+    const sprite = r.sprite!;
+    const straal = clip.transform?.cornerRadius ?? 0;
+    if (straal <= 0) {
+      if (r.deco) {
+      r.deco.destroy();
+      r.deco = undefined;
+    }
+    if (r.masker) {
+        sprite.mask = null;
+        r.masker.visible = false;
+      }
+      return;
+    }
+    if (!r.masker) {
+      r.masker = new this.PIXI.Graphics();
+      this.app.stage.addChild(r.masker);
+    }
+    const m = r.masker;
+    m.visible = true;
+    m.clear();
+    m.roundRect(-w / 2, -h / 2, w, h, Math.min(0.5, straal) * Math.min(w, h));
+    m.fill(0xffffff);
+    m.x = sprite.x;
+    m.y = sprite.y;
+    m.rotation = sprite.rotation;
+    m.scale.set(sprite.scale.x, sprite.scale.y);
+    sprite.mask = m;
+  }
+
   private layout(sprite: Sprite, clip: Clip, mw: number, mh: number, t: number) {
     const W = this.app.renderer.width;
     const H = this.app.renderer.height;
@@ -316,7 +397,9 @@ export class Compositor {
     const tf = clip.transform;
     const base = Math.min(W / mw, H / mh);
     const sx = keyframeValueAt(clip, "scale", local, tf?.scale ?? 1);
-    sprite.scale.set(base * sx);
+    // Spiegelen is een negatieve schaal; de anchor staat in het midden, dus het
+    // element blijft op zijn plek staan.
+    sprite.scale.set(base * sx * (tf?.flipH ? -1 : 1), base * sx * (tf?.flipV ? -1 : 1));
     sprite.x = keyframeValueAt(clip, "x", local, tf?.x ?? 0.5) * W;
     sprite.y = keyframeValueAt(clip, "y", local, tf?.y ?? 0.5) * H;
     sprite.rotation =
@@ -396,8 +479,10 @@ export class Compositor {
           if (rt.text) {
             if (rt.bg) rt.bg.zIndex = z++;
             rt.text.zIndex = z++;
+            if (rt.deco) rt.deco.zIndex = z++;
             this.layoutText(rt.text, clip, currentTime);
             this.tekenTekstAchtergrond(rt, clip);
+            this.tekenTekstStrepen(rt, clip);
             this.applyEffects(rt, clip);
           }
           continue;
@@ -427,15 +512,14 @@ export class Compositor {
             if (!v.paused) v.pause();
             if (Math.abs(v.currentTime - target) > 0.05) v.currentTime = target;
           }
-          this.layout(r.sprite, clip, v.videoWidth, v.videoHeight, currentTime);
+          const uv = this.pasUitsnedeToe(r, clip, v.videoWidth, v.videoHeight);
+          this.layout(r.sprite, clip, uv.w, uv.h, currentTime);
+          this.pasHoekenToe(r, clip, uv.w, uv.h);
         } else {
-          this.layout(
-            r.sprite,
-            clip,
-            r.sprite.texture.width,
-            r.sprite.texture.height,
-            currentTime
-          );
+          const vol = r.volleTextuur ?? r.sprite.texture;
+          const ui = this.pasUitsnedeToe(r, clip, vol.width, vol.height);
+          this.layout(r.sprite, clip, ui.w, ui.h, currentTime);
+          this.pasHoekenToe(r, clip, ui.w, ui.h);
         }
         this.applyEffects(r, clip);
       }
@@ -447,6 +531,8 @@ export class Compositor {
       if (r.sprite) r.sprite.visible = false;
       if (r.text) r.text.visible = false;
       if (r.bg) r.bg.visible = false;
+      if (r.masker) r.masker.visible = false;
+      if (r.deco) r.deco.visible = false;
       if (r.video && !r.video.paused) r.video.pause();
       if (r.audio && !r.audio.paused) r.audio.pause();
     }
@@ -493,6 +579,7 @@ export class Compositor {
       fontFamily: s.fontFamily,
       fontSize: s.fontSize,
       fontWeight: String(s.fontWeight),
+      ...(s.italic ? { fontStyle: "italic" } : {}),
       fill: s.color,
       align: s.align,
       letterSpacing: s.letterSpacing ?? 0,
@@ -531,10 +618,14 @@ export class Compositor {
       text.anchor.set(0.5);
       const bg = new this.PIXI.Graphics();
       bg.visible = false;
+      const deco = new this.PIXI.Graphics();
+      deco.visible = false;
       this.app.stage.addChild(bg);
       this.app.stage.addChild(text);
+      this.app.stage.addChild(deco);
       r.text = text;
       r.bg = bg;
+      r.deco = deco;
       this.resources.set(clip.id, r);
       return r;
     }
@@ -574,6 +665,34 @@ export class Compositor {
     bg.visible = true;
   }
 
+  /**
+   * Onderstreping en doorhaling. Pixi's Text kan dit niet, dus we trekken de
+   * strepen zelf op de plek waar de letters staan — dezelfde aanpak als de
+   * achtergrondbalk, en om dezelfde reden ná de opmaak van de tekst, omdat we
+   * de uiteindelijke breedte nodig hebben.
+   */
+  private tekenTekstStrepen(r: Resource, clip: TextClip) {
+    const deco = r.deco;
+    const text = r.text;
+    if (!deco || !text) return;
+    const { underline, strike } = clip.style;
+    if ((!underline && !strike) || !text.visible) {
+      deco.visible = false;
+      return;
+    }
+    const b = text.width;
+    const h = text.height;
+    const dik = Math.max(1, clip.style.fontSize * 0.06 * text.scale.x);
+    deco.clear();
+    if (underline) deco.rect(-b / 2, h * 0.38, b, dik).fill(clip.style.color);
+    if (strike) deco.rect(-b / 2, -dik / 2, b, dik).fill(clip.style.color);
+    deco.x = text.x;
+    deco.y = text.y;
+    deco.rotation = text.rotation;
+    deco.alpha = text.alpha;
+    deco.visible = true;
+  }
+
   private layoutText(text: Text, clip: TextClip, currentTime: number) {
     const W = this.app.renderer.width;
     const H = this.app.renderer.height;
@@ -588,7 +707,10 @@ export class Compositor {
     // Intro-animatie over de eerste 0,4s van de clip.
     const p = Math.max(0, Math.min(1, (currentTime - clip.start) / 0.4));
     const ease = 1 - Math.pow(1 - p, 2);
-    let display = clip.text;
+    let display =
+      clip.style.letters === "hoofdletters" ? clip.text.toUpperCase()
+      : clip.style.letters === "kleine-letters" ? clip.text.toLowerCase()
+      : clip.text;
     switch (clip.preset) {
       case "fade-in":
         alpha *= ease;
@@ -602,10 +724,10 @@ export class Compositor {
         y += (1 - ease) * 0.05 * H;
         break;
       case "typewriter":
-        display = clip.text.slice(0, Math.ceil(clip.text.length * p));
+        display = display.slice(0, Math.ceil(display.length * p));
         break;
       case "word-by-word": {
-        const w = clip.text.split(" ");
+        const w = display.split(" ");
         display = w.slice(0, Math.max(1, Math.ceil(w.length * p))).join(" ");
         break;
       }
@@ -677,6 +799,15 @@ export class Compositor {
     if (r.bg) {
       r.bg.destroy();
       r.bg = undefined;
+    }
+    if (r.deco) {
+      r.deco.destroy();
+      r.deco = undefined;
+    }
+    if (r.masker) {
+      if (r.sprite) r.sprite.mask = null;
+      r.masker.destroy();
+      r.masker = undefined;
     }
     if (r.text) {
       r.text.destroy();

@@ -123,6 +123,34 @@ export async function genereerElement(
 }
 
 /**
+ * Achtergrond van een bestaand plaatje weghalen.
+ *
+ * Zelfde model als bij de iconenbibliotheek, maar dan op materiaal dat er al
+ * staat. Er wordt niets opnieuw bedacht: het model bepaalt alleen wélke pixels
+ * doorzichtig worden, de rest van het beeld blijft onaangeroerd.
+ */
+export async function wisAchtergrond(
+  sb: SupabaseClient,
+  userId: string,
+  beeldUrl: string
+): Promise<string> {
+  const geknipt = await fal.subscribe(KNIP_MODEL, { input: { image_url: beeldUrl } as never });
+  const transparant =
+    (geknipt.data as { image?: { url: string } }).image?.url ??
+    (geknipt.data as { images?: { url: string }[] }).images?.[0]?.url;
+  if (!transparant) throw new Error("Achtergrond weghalen mislukt");
+
+  const bytes = Buffer.from(await (await fetch(transparant)).arrayBuffer());
+  const pad = `${userId}/editor/uitgeknipt/${randomUUID()}.png`;
+  const { error } = await sb.storage.from("scene-assets").upload(pad, bytes, {
+    contentType: "image/png",
+    upsert: true,
+  });
+  if (error) throw new Error(`Opslaan mislukt: ${error.message}`);
+  return sb.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl;
+}
+
+/**
  * Snijdt een stuk uit het beeld van de clip zelf en levert dat als los plaatje.
  *
  * Dit is het gum-en-stempel-gereedschap: kopieer een schoon stuk achtergrond en

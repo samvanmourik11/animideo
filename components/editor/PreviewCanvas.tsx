@@ -19,12 +19,25 @@ export default function PreviewCanvas({
   ratio,
   pen,
   onTekening,
+  onContext,
+  registreerMaat,
 }: {
   store: EditorStore;
   ratio: Ratio;
   /** Actieve pen; zolang die er is vangt de tekenlaag alle klikken af. */
   pen?: PenStijl | null;
   onTekening?: (bericht: string) => void;
+  /**
+   * Rechtsklik op het beeld. De maat komt mee omdat alleen de compositor weet
+   * hoe groot het element in beeld staat — nodig om tegen een rand uit te lijnen.
+   */
+  onContext?: (
+    punt: { x: number; y: number },
+    clipId: string,
+    maat: { halfW: number; halfH: number } | null
+  ) => void;
+  /** Geeft de shell een manier om de maat van de selectie op te vragen. */
+  registreerMaat?: (fn: () => { halfW: number; halfH: number } | null) => void;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const compRef = useRef<Compositor | null>(null);
@@ -64,8 +77,35 @@ export default function PreviewCanvas({
     store.select(comp.hitTest(compX, compY));
   }
 
+  useEffect(() => {
+    registreerMaat?.(() => {
+      const id = store.getState().selectedClipId;
+      const l = id ? compRef.current?.getClipLayout(id) : null;
+      return l ? { halfW: l.halfW, halfH: l.halfH } : null;
+    });
+  }, [registreerMaat, store]);
+
+  // Rechtsklik selecteert eerst wat eronder ligt en opent dan het menu daarvoor;
+  // anders krijg je een menu over de vorige selectie.
+  function onCanvasContext(e: React.MouseEvent) {
+    const host = hostRef.current;
+    const comp = compRef.current;
+    if (!host || !comp || !onContext) return;
+    e.preventDefault();
+    const rect = host.getBoundingClientRect();
+    const { doc } = store.getState();
+    const id = comp.hitTest(
+      ((e.clientX - rect.left) / rect.width) * doc.width,
+      ((e.clientY - rect.top) / rect.height) * doc.height
+    );
+    if (!id) return;
+    store.select(id);
+    const l = comp.getClipLayout(id);
+    onContext({ x: e.clientX, y: e.clientY }, id, l ? { halfW: l.halfW, halfH: l.halfH } : null);
+  }
+
   return (
-    <div className="flex-1 min-w-0 min-h-0 flex items-center justify-center bg-slate-200 p-6 overflow-hidden">
+    <div className="flex-1 min-w-0 min-h-0 flex items-center justify-center bg-[#e8edf7] p-6 overflow-hidden">
       <div
         className={`${ASPECT[ratio]} relative max-h-full max-w-full bg-black rounded-lg overflow-hidden shadow-[0_2px_24px_rgba(15,23,42,0.18)]`}
         style={{
@@ -73,7 +113,12 @@ export default function PreviewCanvas({
           height: ratio === "16:9" ? "auto" : "100%",
         }}
       >
-        <div ref={hostRef} className="w-full h-full" onPointerDown={onCanvasPointerDown} />
+        <div
+          ref={hostRef}
+          className="w-full h-full"
+          onPointerDown={onCanvasPointerDown}
+          onContextMenu={onCanvasContext}
+        />
         {/* Tijdens het tekenen geen selectiekader: dan zou elke streep meteen een
             sleep-actie op de vorige worden. */}
         {pen ? (
