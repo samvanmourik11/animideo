@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { EditorStore } from "@/lib/editor/store";
 import { EditorHistory } from "@/lib/editor/history";
 import HistoryPanel from "./HistoryPanel";
+import ChatPanel from "./ChatPanel";
 import type { Ratio, TimelineDoc } from "@/lib/editor/timeline";
 import PreviewCanvas from "./PreviewCanvas";
 import Transport from "./Transport";
@@ -67,8 +68,8 @@ export default function EditorShell({
         // Bewust niet awaiten: de montage mag nooit wachten op het bijwerken
         // van de geschiedenis. Mislukt het schrijven, dan blijft de bewerking
         // gewoon staan (en meldt de historie dat in de console).
-        onOp: (op, summary) => {
-          void history.record(op, summary, storeRef.current!.getState().doc);
+        onOp: (op, summary, bron) => {
+          void history.record(op, summary, storeRef.current!.getState().doc, bron);
         },
         onUndo: () => history.stapTerug(),
         onRedo: () => history.stapVooruit(),
@@ -94,6 +95,7 @@ export default function EditorShell({
   }, []);
 
   const [historieOpen, setHistorieOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   // ── Export ─────────────────────────────────────────────────
   const [exporting, setExporting] = useState(false);
@@ -195,7 +197,15 @@ export default function EditorShell({
           <Transport store={store} />
           <button
             type="button"
-            onClick={() => setHistorieOpen((o) => !o)}
+            onClick={() => { setChatOpen((o) => !o); setHistorieOpen(false); }}
+            title="Zeg in gewone taal wat er moet gebeuren"
+            className="text-xs px-2.5 py-1.5 rounded-md bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-200"
+          >
+            Monteur
+          </button>
+          <button
+            type="button"
+            onClick={() => { setHistorieOpen((o) => !o); setChatOpen(false); }}
             title="Wat er met deze montage is gebeurd, en terug naar een eerdere versie"
             className="text-xs px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/15 text-slate-300"
           >
@@ -210,6 +220,10 @@ export default function EditorShell({
           </button>
         </div>
       </header>
+
+      {chatOpen && (
+        <ChatPanel projectId={projectId} store={store} onClose={() => setChatOpen(false)} />
+      )}
 
       {historieOpen && historyRef.current && (
         <HistoryPanel

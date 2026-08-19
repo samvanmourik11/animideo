@@ -29,7 +29,7 @@ const KF_EPS = 0.05; // s: keyframes binnen deze afstand gelden als "op de playh
 
 /** Waar de store zijn bewerkingen naartoe meldt (de versiegeschiedenis). */
 export interface StoreHooks {
-  onOp?: (op: Op, summary: string) => void;
+  onOp?: (op: Op, summary: string, bron: "user" | "ai") => void;
   onUndo?: () => void;
   onRedo?: () => void;
 }
@@ -201,12 +201,12 @@ export class EditorStore {
    * zoals het was en komt de melding in `lastOpError` — de UI (en straks de
    * AI-chat) kan die tonen.
    */
-  dispatch(op: Op): OpResult {
+  dispatch(op: Op, bron: "user" | "ai" = "user"): OpResult {
     const res = applyOp(this.state.doc, op);
     if (res.ok) {
       this.state.lastOpError = null;
       this.setDoc(res.doc);
-      this.hooks.onOp?.(op, res.summary);
+      this.hooks.onOp?.(op, res.summary, bron);
     } else {
       this.state.lastOpError = res.error;
       this.notify();
