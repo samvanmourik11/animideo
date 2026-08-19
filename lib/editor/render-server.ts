@@ -79,10 +79,53 @@ function probeHasAudio(file: string): Promise<boolean> {
 // launchBrowser: gedeelde helper in @/lib/browser (lokaal volledige playwright,
 // op Vercel playwright-core + @sparticuz/chromium).
 
+// Frames gaan als JPEG naar ffmpeg, niet als PNG. PNG comprimeert verliesloos
+// en dat kost per frame meer tijd dan het renderen zelf; de frames gaan daarna
+// tóch door H.264 (ook lossy), dus die verliesloze tussenstap levert geen
+// zichtbare kwaliteit op. Kwaliteit 92 ligt ruim boven wat de video-encoder
+// eruit haalt. Zie docs/editor-render-benchmark.md voor de meting.
+const FRAME_QUALITY = 92;
+
+export interface RenderOptions {
+  /**
+   * Hoeveel tijd deze render maximaal mag kosten. Op Vercel draait de export in
+   * een functie die na `maxDuration` hard wordt gedood — inclusief de catch die
+   * de status op 'error' zet. Het gevolg was een stille mislukking: geen
+   * bestand, geen melding, en een project dat eeuwig op "rendering" bleef staan.
+   * Met een eigen budget (iets korter dan de functielimiet) stopt de render zelf
+   * op tijd, met een fout die de gebruiker wél te zien krijgt.
+   */
+  budgetMs?: number;
+}
+
+// Na dit aantal frames weten we hoe snel deze machine is en kunnen we
+// vooruitrekenen. Bewust laag: liever na acht seconden eerlijk zeggen dat het
+// niet gaat passen dan de gebruiker vier minuten laten wachten op niets.
+const CALIBRATIE_FRAMES = 45;
+
+/**
+ * Gaat deze render het halen, en zo niet: hoeveel video past er dan wél?
+ * Los van de renderlus zodat het te testen is zonder browser.
+ */
+export function budgetAdvies(
+  perFrameMs: number,
+  totalFrames: number,
+  fps: number,
+  resterendMs: number
+): { past: boolean; haalbareSeconden: number } {
+  if (perFrameMs <= 0) return { past: true, haalbareSeconden: Math.round(totalFrames / fps) };
+  const nodig = perFrameMs * totalFrames;
+  return {
+    past: nodig <= resterendMs,
+    haalbareSeconden: Math.max(0, Math.floor(resterendMs / perFrameMs / (fps || 30))),
+  };
+}
+
 export async function renderTimeline(
   doc: TimelineDoc,
   appUrl: string,
-  onProgress?: Progress
+  onProgress?: Progress,
+  options: RenderOptions = {}
 ): Promise<Buffer> {
   const fps = doc.fps || 30;
   const duration = computeDuration(doc);
@@ -131,7 +174,7 @@ export async function renderTimeline(
     // FFmpeg leest de frames via een pipe (image2pipe) — geen duizenden PNG's
     // naar de beperkte /tmp. Input 0 = de framestroom; daarna de audio-inputs.
     const final = path.join(dir, "final.mp4");
-    const args = ["-y", "-f", "image2pipe", "-framerate", String(fps), "-i", "pipe:0"];
+    const args = ["-y", "-f", "image2pipe", "-c:v", "mjpeg", "-framerate", String(fps), "-i", "pipe:0"];
     for (let k = 0; k < audioFiles.length; k++) {
       // Een lussende bron (het muziekbed) wordt oneindig herhaald; de atrim
       // hieronder kapt hem af op de clipduur, dus dit kan niet doorlopen.
@@ -184,7 +227,31 @@ export async function renderTimeline(
 
     onProgress?.(8, "Frames renderen");
     const totalFrames = Math.max(1, Math.round(duration * fps));
+    const frameStart = Date.now();
+    const deadline = options.budgetMs ? frameStart + options.budgetMs : Infinity;
+
     for (let f = 0; f < totalFrames; f++) {
+      // Zodra we weten hoe snel deze machine is: vooruitrekenen. Past het niet,
+      // dan stoppen we meteen met een advies in plaats van halverwege te worden
+      // afgekapt.
+      if (f === CALIBRATIE_FRAMES && Number.isFinite(deadline)) {
+        const verstreken = Date.now() - frameStart;
+        const advies = budgetAdvies(verstreken / f, totalFrames, fps, deadline - frameStart);
+        if (!advies.past) {
+          throw new Error(
+            `Deze video van ${Math.round(duration)} seconden is te lang om hier te exporteren. ` +
+              `Op deze server past ongeveer ${advies.haalbareSeconden} seconden binnen de beschikbare tijd. ` +
+              `Kort de video in, of exporteer hem in delen.`
+          );
+        }
+      }
+      if (Date.now() > deadline) {
+        const gedaan = Math.round((f / totalFrames) * 100);
+        throw new Error(
+          `De rendertijd is verstreken op ${gedaan}% — deze video is te lang voor de huidige exportomgeving.`
+        );
+      }
+
       const t = Math.min(duration, f / fps);
       await page.evaluate(
         (tt) =>
@@ -193,11 +260,12 @@ export async function renderTimeline(
           ),
         t
       );
-      const png = (await page.screenshot({
-        type: "png",
+      const frame = (await page.screenshot({
+        type: "jpeg",
+        quality: FRAME_QUALITY,
         clip: { x: 0, y: 0, width: doc.width, height: doc.height },
       })) as Buffer;
-      if (!ff.stdin.write(png)) {
+      if (!ff.stdin.write(frame)) {
         await new Promise<void>((r) => ff.stdin.once("drain", () => r()));
       }
       if (f % 4 === 0) onProgress?.(8 + Math.round((f / totalFrames) * 82), "Frames renderen");

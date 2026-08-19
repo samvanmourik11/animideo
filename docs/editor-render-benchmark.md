@@ -62,9 +62,40 @@ Ter vergelijking: hetzelfde formaat duurde lokaal ~96 seconden. Vercel is dus
 **minstens 3× langzamer** — te verwachten, want daar draait een uitgeklede
 Chromium op zwakkere CPU.
 
+## Reparatie 1 — frames als JPEG in plaats van PNG (19-8-2026)
+
+De renderlus maakte per frame een PNG. Dat is verliesloos comprimeren, en dat
+kost méér tijd dan het tekenen van het frame zelf — terwijl de frames daarna
+sowieso door H.264 gaan, dat óók lossy is. Die verliesloze tussenstap leverde
+dus niets op. Nu: JPEG kwaliteit 92.
+
+| Videolengte | PNG (was) | JPEG (nu) | Winst |
+|---|---|---|---|
+| 15s | 58,3s | 45,1s | 1,3× |
+| 30s | 95,8s | 48,2s | 2,0× |
+| 60s | 194,8s | 95,9s | 2,0× |
+
+Van ~3,05 naar **~1,55 seconde render per seconde video**; per frame van 100 naar
+53 ms. Visueel gecontroleerd op een frame met tekst en vlakke kleuren (het
+gevoeligste geval voor JPEG-artefacten): geen zichtbaar verschil.
+
+## Reparatie 2 — eerlijk falen in plaats van stil afkappen
+
+De renderlus krijgt nu een eigen tijdbudget (240s, ruim onder de functielimiet
+van 300s) en meet na 45 frames hoe snel de machine is. Past de video niet binnen
+het budget, dan stopt hij binnen ~10 seconden met een bruikbare melding:
+
+> Deze video van 60 seconden is te lang om hier te exporteren. Op deze server
+> past ongeveer 24 seconden binnen de beschikbare tijd. Kort de video in, of
+> exporteer hem in delen.
+
+Daarmee draait de foutafhandeling in de route wél (status wordt `error`, de
+gebruiker ziet de melding) in plaats van dat de functie halverwege wordt gedood.
+De rekensom staat los in `budgetAdvies()` en is getest.
+
 ## Conclusie
 
-1. **Het huidige plafond ligt rond de 25 seconden video.** Met de vuistregel
+1. **Vóór deze ingrepen lag het plafond rond de 25 seconden video.** Met de vuistregel
    hierboven en een factor 3 komt 300s functietijd overeen met ~90s render per
    30s video… en dat haalde het net niet. Alles daarboven wordt afgekapt.
 2. **De afkap is stil.** De functie wordt gedood, dus de `catch` die de status
@@ -72,12 +103,15 @@ Chromium op zwakkere CPU.
    gebruiker ziet geen foutmelding. Dat is een bug in de huidige editor, los van
    de AI-plannen: exporteren van een normale Studio-video van 30s mislukt nu
    zonder uitleg.
-3. **Renderen moet van Vercel af.** Niet vanwege de AI-editor, maar omdat de
-   editor vandaag al over de limiet gaat. Een langlopende worker (Trigger.dev of
-   een eigen container op Fly/Railway) heeft geen harde tijdslimiet, kan
-   parallel chunken en houdt de voortgang in de database bij.
-4. **Tot dat is opgelost:** v1 begrenzen op ~20 seconden export, én de UI
-   eerlijk laten falen (time-out afvangen, status op `error`, melding tonen).
+3. **Met de JPEG-winst verdubbelt het plafond** naar naar schatting 55-60
+   seconden op Vercel. Dat moet op productie gemeten worden voor we het als
+   waarheid opschrijven — lokaal meten zegt niets over die machine.
+4. **Voor langer dan een minuut is een worker alsnog nodig** (Trigger.dev of een
+   eigen container), of een hogere `maxDuration`: Vercel staat met Fluid Compute
+   tot 800s toe, wat een aanpassing van één regel in `vercel.json` zou zijn.
+   Uitzoeken welke van de twee bij het huidige abonnement past.
+5. **Ondertussen faalt het in elk geval eerlijk**, wat het verschil is tussen
+   "de knop doet niets" en "je video is te lang, kort hem in".
 
-Volgende stap: dit meten met een worker-opzet en dan vergelijken. De meting is
-herhaalbaar met het script hierboven, dus na elke ingreep opnieuw te draaien.
+De meting is herhaalbaar met het script hierboven — na elke ingreep opnieuw
+draaien, en op productie verifiëren.

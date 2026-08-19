@@ -6,6 +6,12 @@ import { renderTimeline } from "@/lib/editor/render-server";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
+// Eigen budget, ruim onder de functielimiet hierboven. Wat overblijft is voor
+// het uploaden van de MP4 en het afronden — als de functie zélf wordt gedood
+// draait de foutafhandeling niet meer en blijft het project op "rendering"
+// hangen, zonder dat de gebruiker iets te zien krijgt.
+const RENDER_BUDGET_MS = 240_000;
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const {
@@ -57,8 +63,11 @@ export async function POST(req: NextRequest) {
         await setStatus("rendering");
         emit({ type: "phase", phase: "Starten", pct: 1 });
 
-        const buf = await renderTimeline(doc, appUrl, (pct, label) =>
-          emit({ type: "progress", pct, label })
+        const buf = await renderTimeline(
+          doc,
+          appUrl,
+          (pct, label) => emit({ type: "progress", pct, label }),
+          { budgetMs: RENDER_BUDGET_MS }
         );
 
         const storagePath = `${user.id}/editor/${projectId}/export-${Date.now()}.mp4`;
