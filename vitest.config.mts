@@ -11,5 +11,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["lib/**/*.test.ts"],
+    // Shims voor de browserfuncties die de editor-store gebruikt.
+    setupFiles: ["./vitest.setup.ts"],
   },
 });

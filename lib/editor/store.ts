@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
+import { applyOp, type Op, type OpError, type OpResult } from "./core/ops";
 import {
   computeDuration,
   DEFAULT_TEXT_STYLE,
@@ -33,6 +34,8 @@ export interface EditorState {
   selectedClipId: string | null;
   pxPerSec: number; // timeline-zoom
   saveState: "idle" | "saving" | "saved" | "error";
+  /** Laatste geweigerde bewerking, zodat de UI kan zeggen wát er niet kon. */
+  lastOpError: OpError | null;
 }
 
 type Listener = () => void;
@@ -59,8 +62,15 @@ export class EditorStore {
   private future: TimelineDoc[] = [];
   private histTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingPast: TimelineDoc | null = null;
+  // Waar toegepaste ops naartoe gaan (straks: de op-log in Supabase, en de
+  // activiteitenfeed van de AI-chat). Ongezet = alleen lokaal bewerken.
+  private opSink?: (op: Op, summary: string) => void;
 
-  constructor(doc: TimelineDoc, persist?: (doc: TimelineDoc) => Promise<void>) {
+  constructor(
+    doc: TimelineDoc,
+    persist?: (doc: TimelineDoc) => Promise<void>,
+    onOp?: (op: Op, summary: string) => void
+  ) {
     this.state = {
       doc,
       currentTime: 0,
@@ -68,8 +78,31 @@ export class EditorStore {
       selectedClipId: null,
       pxPerSec: 80,
       saveState: "idle",
+      lastOpError: null,
     };
     this.persist = persist;
+    this.opSink = onOp;
+  }
+
+  /**
+   * De enige weg waarlangs het document hoort te veranderen.
+   *
+   * EditorCore valideert de op, houdt het videospoor magnetisch en weigert wat
+   * de tijdlijn kapot zou maken. Lukt het niet, dan blijft het document staan
+   * zoals het was en komt de melding in `lastOpError` — de UI (en straks de
+   * AI-chat) kan die tonen.
+   */
+  dispatch(op: Op): OpResult {
+    const res = applyOp(this.state.doc, op);
+    if (res.ok) {
+      this.state.lastOpError = null;
+      this.setDoc(res.doc);
+      this.opSink?.(op, res.summary);
+    } else {
+      this.state.lastOpError = res.error;
+      this.notify();
+    }
+    return res;
   }
 
   // ── External store wiring ──────────────────────────────────
@@ -478,15 +511,10 @@ export class EditorStore {
   }
 
   removeClip(id: string) {
-    const doc = this.state.doc;
-    this.setDoc({
-      ...doc,
-      tracks: doc.tracks.map((t) => ({
-        ...t,
-        clips: t.clips.filter((c) => c.id !== id),
-      })),
-    });
-    if (this.state.selectedClipId === id) this.select(null);
+    // Let op: op het videospoor schuift de rest nu automatisch door. Een gat in
+    // de video is zwart beeld, en dat mag een niet-editor nooit overkomen.
+    const res = this.dispatch({ op: "delete_clip", clipId: id });
+    if (res.ok && this.state.selectedClipId === id) this.select(null);
   }
 
   moveClip(id: string, newStart: number) {
@@ -507,35 +535,18 @@ export class EditorStore {
     this.setDoc(this.mapClip(id, (c) => ({ ...c, start: clamped })));
   }
 
-  /** Zet of verwijdert een overgang (fade) op de grens tussen twee clips:
-   *  fade-out op de linker, fade-in op de rechter. De compositor rendert dit als
-   *  opacity-fade, en omdat de export de compositor opneemt, wordt het identiek
-   *  geëxporteerd. */
+  /**
+   * Zet of verwijdert een overgang op de grens tussen twee clips: uitfade op de
+   * linker, infade op de rechter. De compositor rendert dat als opacity-fade, en
+   * omdat de export diezelfde compositor opneemt komt het identiek in de MP4.
+   *
+   * Twee ops, want elke op raakt één clip — zo is ook elke helft los terug te
+   * draaien in de geschiedenis.
+   */
   setBoundaryTransition(leftId: string, rightId: string, on: boolean) {
-    const doc = this.state.doc;
-    let leftDur = 0;
-    let rightDur = 0;
-    for (const tr of doc.tracks) {
-      for (const c of tr.clips) {
-        if (c.id === leftId) leftDur = c.duration;
-        if (c.id === rightId) rightDur = c.duration;
-      }
-    }
-    const d = Math.max(0.1, Math.min(0.5, leftDur / 2, rightDur / 2));
-    const trans = on ? { kind: "fade" as const, duration: d } : undefined;
-    this.setDoc({
-      ...doc,
-      tracks: doc.tracks.map((tr) => ({
-        ...tr,
-        clips: tr.clips.map((c) =>
-          c.id === leftId
-            ? { ...c, transitionOut: trans }
-            : c.id === rightId
-            ? { ...c, transitionIn: trans }
-            : c
-        ),
-      })),
-    });
+    const kind = on ? ("fade" as const) : null;
+    const links = this.dispatch({ op: "set_transition", clipId: leftId, edge: "out", kind, duration: 0.5 });
+    if (links.ok) this.dispatch({ op: "set_transition", clipId: rightId, edge: "in", kind, duration: 0.5 });
   }
 
   /** Linker trim-handle: verschuift start + bronpositie, behoudt eindpunt. */
@@ -568,38 +579,11 @@ export class EditorStore {
     );
   }
 
-  /** Knip de clip op absolute tijd t in twee. */
+  /** Knip de clip op absolute tijd t in twee; de tweede helft wordt geselecteerd. */
   splitClip(id: string, t: number) {
-    const doc = this.state.doc;
-    for (const track of doc.tracks) {
-      const clip = track.clips.find((c) => c.id === id);
-      if (!clip) continue;
-      const local = t - clip.start;
-      if (local <= MIN_CLIP || local >= clip.duration - MIN_CLIP) return;
-      const first = { ...clip, duration: local } as Clip;
-      const second = {
-        ...clip,
-        id: crypto.randomUUID(),
-        start: clip.start + local,
-        duration: clip.duration - local,
-      } as Clip;
-      if (second.type === "video" || second.type === "audio") {
-        second.trimIn = (clip.type === "video" || clip.type === "audio" ? clip.trimIn ?? 0 : 0) + local;
-      }
-      this.setDoc({
-        ...doc,
-        tracks: doc.tracks.map((tr) =>
-          tr.id === track.id
-            ? {
-                ...tr,
-                clips: tr.clips.flatMap((c) => (c.id === id ? [first, second] : [c])),
-              }
-            : tr
-        ),
-      });
-      this.select(second.id);
-      return;
-    }
+    const nieuweId = crypto.randomUUID();
+    const res = this.dispatch({ op: "split_clip", clipId: id, at: t, newClipId: nieuweId });
+    if (res.ok) this.select(nieuweId);
   }
 
   // ── Opslaan (gedebounced) ──────────────────────────────────
