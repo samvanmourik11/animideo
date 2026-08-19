@@ -72,6 +72,11 @@ export class EditorStore {
   // Waar bewerkingen naartoe gaan: de op-log in Supabase (en straks de
   // activiteitenfeed van de AI-chat). Ongezet = alleen lokaal bewerken.
   private hooks: StoreHooks;
+  // Stand van vóór een sleepbeweging. Tijdens het slepen updaten we het
+  // document direct (dat moet vloeiend zijn), maar bij loslaten zetten we die
+  // stand terug en doen we de héle beweging als één op. Anders zou één sleep
+  // tweehonderd regels in de geschiedenis opleveren.
+  private sleep: { doc: TimelineDoc; clipId: string; trackId: string } | null = null;
 
   constructor(
     doc: TimelineDoc,
@@ -89,6 +94,77 @@ export class EditorStore {
     };
     this.persist = persist;
     this.hooks = hooks;
+  }
+
+  /** Begin van een sleep- of trimbeweging: onthoud waar we vandaan komen. */
+  beginDrag(clipId: string) {
+    const spoor = this.spoorVan(clipId);
+    if (!spoor) return;
+    this.sleep = { doc: this.state.doc, clipId, trackId: spoor.id };
+  }
+
+  /**
+   * Einde van de beweging: één op die precies beschrijft wat er gebeurde.
+   *
+   * De op gaat over de stand van vóór het slepen, zodat EditorCore hem valideert
+   * en het videospoor magnetisch blijft — het resultaat kan dus iets afwijken
+   * van waar de muis losliet, en dat is de bedoeling.
+   */
+  commitDrag() {
+    const sessie = this.sleep;
+    this.sleep = null;
+    if (!sessie) return;
+
+    const voor = this.clipIn(sessie.doc, sessie.clipId);
+    const na = this.find(sessie.clipId);
+    const spoorNu = this.spoorVan(sessie.clipId);
+    if (!voor || !na || !spoorNu) return;
+
+    // Naar een andere laag gesleept: dat kent de commandolaag nog niet, dus
+    // laten we staan zoals het is (het document klopt, alleen de geschiedenis
+    // slaat deze stap over).
+    if (spoorNu.id !== sessie.trackId) return;
+
+    const dStart = na.start - voor.start;
+    const dDuur = na.duration - voor.duration;
+    const eps = 1e-3;
+    if (Math.abs(dStart) < eps && Math.abs(dDuur) < eps) return; // klik zonder beweging
+
+    const doelStart = na.start;
+    this.state.doc = sessie.doc; // terug naar vóór het slepen
+
+    if (Math.abs(dDuur) > eps && Math.abs(dStart + dDuur) < eps) {
+      // Voorkant versleept: start en lengte bewegen tegengesteld.
+      this.dispatch({ op: "trim_clip", clipId: sessie.clipId, edge: "in", deltaSeconds: dStart });
+    } else if (Math.abs(dDuur) > eps) {
+      this.dispatch({ op: "trim_clip", clipId: sessie.clipId, edge: "out", deltaSeconds: -dDuur });
+    } else if (this.isHoofdspoor(sessie.trackId)) {
+      // Op het videospoor bepaalt de volgorde de plek: waar is hij neergelegd?
+      const anderen = sessie.doc.tracks
+        .find((t) => t.id === sessie.trackId)!
+        .clips.filter((c) => c.id !== sessie.clipId)
+        .sort((a, b) => a.start - b.start);
+      const doel = anderen.find((c) => doelStart < c.start + c.duration / 2);
+      this.dispatch({ op: "reorder_clip", clipId: sessie.clipId, beforeClipId: doel?.id ?? null });
+    } else {
+      this.dispatch({ op: "move_clip", clipId: sessie.clipId, start: doelStart });
+    }
+  }
+
+  private clipIn(doc: TimelineDoc, id: string): Clip | null {
+    for (const t of doc.tracks) {
+      const c = t.clips.find((x) => x.id === id);
+      if (c) return c;
+    }
+    return null;
+  }
+
+  private spoorVan(clipId: string): Track | null {
+    return this.state.doc.tracks.find((t) => t.clips.some((c) => c.id === clipId)) ?? null;
+  }
+
+  private isHoofdspoor(trackId: string): boolean {
+    return this.state.doc.tracks.find((t) => t.kind === "video")?.id === trackId;
   }
 
   /**

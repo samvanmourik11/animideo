@@ -69,6 +69,8 @@ export default function Timeline({ store }: { store: EditorStore }) {
   ) {
     e.stopPropagation();
     store.select(clip.id);
+    // De hele beweging wordt straks één op; zie EditorStore.commitDrag().
+    store.beginDrag(clip.id);
     const startX = e.clientX;
     const orig = { start: clip.start, duration: clip.duration };
     const pps = store.getState().pxPerSec;
@@ -114,6 +116,7 @@ export default function Timeline({ store }: { store: EditorStore }) {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       store.pruneEmptyTracks();
+      store.commitDrag();
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
