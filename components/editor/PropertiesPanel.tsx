@@ -31,7 +31,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 const numCls =
   "w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-[13px] text-slate-900 focus:outline-none focus:border-blue-500";
 
-export default function PropertiesPanel({ store }: { store: EditorStore }) {
+export default function PropertiesPanel({ store , onClose }: { store: EditorStore , onClose?: () => void }) {
   const selectedId = useEditor(store, (s) => s.selectedClipId);
   const doc = useEditor(store, (s) => s.doc);
   const currentTime = useEditor(store, (s) => s.currentTime);
@@ -97,8 +97,18 @@ export default function PropertiesPanel({ store }: { store: EditorStore }) {
 
   return (
     <aside className="w-72 border-l border-slate-200 bg-white shrink-0 hidden lg:flex flex-col">
-      <div className="px-4 h-12 flex items-center text-[14px] font-semibold text-slate-900 border-b border-slate-200">
-        Eigenschappen
+      <div className="px-4 h-12 flex items-center gap-2 text-[14px] font-semibold text-slate-900 border-b border-slate-200">
+        <span className="flex-1">Eigenschappen</span>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Sluiten"
+            className="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-500 font-normal flex items-center justify-center"
+          >
+            ✕
+          </button>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         {!clip ? (

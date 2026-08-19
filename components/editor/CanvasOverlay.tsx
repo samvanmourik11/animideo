@@ -4,7 +4,16 @@ import { useEffect, useRef, useState } from "react";
 import { DEFAULT_TRANSFORM } from "@/lib/editor/timeline";
 import { useEditor, type EditorStore } from "@/lib/editor/store";
 
-type Box = { cx: number; cy: number; w: number; h: number; rot: number };
+type Box = {
+  cx: number; cy: number; w: number; h: number; rot: number;
+  /**
+   * Waar de menuknop komt te staan. Apart van het kader berekend en binnen de
+   * randen geklemd: een clip die het hele beeld vult heeft geen ruimte bóven
+   * zich, en het canvas snijdt alles af wat erbuiten valt — dan was de knop er
+   * gewoon niet.
+   */
+  mx: number; my: number;
+};
 type Layout = { cx: number; cy: number; halfW: number; halfH: number; rotation: number } | null;
 
 // Interactieve transform-laag boven het preview-canvas. Tekent een selectiekader
@@ -14,9 +23,16 @@ type Layout = { cx: number; cy: number; halfW: number; halfH: number; rotation: 
 export default function CanvasOverlay({
   store,
   getLayout,
+  onMenu,
 }: {
   store: EditorStore;
   getLayout: (id: string) => Layout;
+  /**
+   * Opent het uitklapmenu. Er staat een knopje bij de selectie omdat niet
+   * iedereen aan rechtsklikken denkt — en op een laptop zonder muis is het de
+   * enige manier.
+   */
+  onMenu?: (punt: { x: number; y: number }) => void;
 }) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const selectedId = useEditor(store, (s) => s.selectedClipId);
@@ -34,12 +50,15 @@ export default function CanvasOverlay({
         const layout = getLayout(id);
         const rect = el.getBoundingClientRect();
         if (layout && rect.width > 0) {
+          const cx = layout.cx * rect.width;
+          const cy = layout.cy * rect.height;
+          const w = layout.halfW * 2 * rect.width;
+          const h = layout.halfH * 2 * rect.height;
           const next: Box = {
-            cx: layout.cx * rect.width,
-            cy: layout.cy * rect.height,
-            w: layout.halfW * 2 * rect.width,
-            h: layout.halfH * 2 * rect.height,
+            cx, cy, w, h,
             rot: (layout.rotation * 180) / Math.PI,
+            mx: Math.max(20, Math.min(rect.width - 20, cx + w / 2 - 4)),
+            my: Math.max(20, Math.min(rect.height - 20, cy - h / 2 - 18)),
           };
           const p = lastRef.current;
           const changed =
@@ -48,7 +67,9 @@ export default function CanvasOverlay({
             Math.abs(p.cy - next.cy) > 0.5 ||
             Math.abs(p.w - next.w) > 0.5 ||
             Math.abs(p.h - next.h) > 0.5 ||
-            Math.abs(p.rot - next.rot) > 0.1;
+            Math.abs(p.rot - next.rot) > 0.1 ||
+            Math.abs(p.mx - next.mx) > 0.5 ||
+            Math.abs(p.my - next.my) > 0.5;
           if (changed) {
             lastRef.current = next;
             setBox(next);
@@ -185,6 +206,22 @@ export default function CanvasOverlay({
     <div ref={overlayRef} className="absolute inset-0 pointer-events-none">
       {guides.v && <div className="absolute top-0 bottom-0 left-1/2 w-px bg-pink-400" />}
       {guides.h && <div className="absolute left-0 right-0 top-1/2 h-px bg-pink-400" />}
+      {box && onMenu && (
+        <button
+          type="button"
+          style={{ left: box.mx, top: box.my }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            onMenu({ x: r.left, y: r.bottom + 6 });
+          }}
+          title="Meer acties"
+          className="absolute z-10 -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-white border border-slate-200 shadow-md text-slate-600 hover:bg-slate-50 pointer-events-auto flex items-center justify-center text-[15px] leading-none"
+        >
+          ⋯
+        </button>
+      )}
       {box && (
         <div
           className="absolute"

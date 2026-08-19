@@ -124,7 +124,16 @@ export default function PreviewCanvas({
         {pen ? (
           <TekenLaag store={store} pen={pen} onKlaar={(b) => onTekening?.(b)} />
         ) : (
-          <CanvasOverlay store={store} getLayout={(id) => compRef.current?.getClipLayout(id) ?? null} />
+          <CanvasOverlay
+            store={store}
+            getLayout={(id) => compRef.current?.getClipLayout(id) ?? null}
+            onMenu={(punt) => {
+              const id = store.getState().selectedClipId;
+              if (!id || !onContext) return;
+              const l = compRef.current?.getClipLayout(id);
+              onContext(punt, id, l ? { halfW: l.halfW, halfH: l.halfH } : null);
+            }}
+          />
         )}
       </div>
     </div>

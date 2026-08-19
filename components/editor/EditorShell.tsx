@@ -23,7 +23,6 @@ import type { Clip, Ratio, TimelineDoc, TrackKind } from "@/lib/editor/timeline"
 import type { PenStijl } from "@/lib/editor/tekening";
 import Rail, { type RailItem } from "./Rail";
 import ContextMenu, { type MenuPlek } from "./ContextMenu";
-import ContextBalk from "./ContextBalk";
 import HistoryPanel from "./HistoryPanel";
 import ChatPanel from "./ChatPanel";
 import ElementenPanel from "./panels/ElementenPanel";
@@ -119,7 +118,6 @@ export default function EditorShell({
   // alleen de opmaak. Ze leven hier omdat je in het ene element kopieert en in
   // het andere plakt.
   const [menu, setMenu] = useState<MenuPlek | null>(null);
-  const [menuMaat, setMenuMaat] = useState<{ halfW: number; halfH: number } | null>(null);
   const [klembord, setKlembord] = useState<{ clip: Clip; spoor: TrackKind } | null>(null);
   const maatRef = useRef<() => { halfW: number; halfH: number } | null>(() => null);
   const [stijlKlembord, setStijlKlembord] = useState<Clip | null>(null);
@@ -300,12 +298,6 @@ export default function EditorShell({
         )}
 
         <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-          <ContextBalk
-            store={store}
-            onMeer={() => setMeerOpen((o) => !o)}
-            meerOpen={meerOpen}
-            getMaat={() => maatRef.current()}
-          />
           {pen && (
             <div className="px-4 py-2 bg-blue-50 border-b border-blue-200 text-[13px] text-blue-800 flex items-center gap-3 shrink-0">
               <span>Teken op het beeld. Elke streep wordt een losse laag.</span>
@@ -321,8 +313,7 @@ export default function EditorShell({
             pen={pen}
             onTekening={setTekenMelding}
             registreerMaat={(fn) => { maatRef.current = fn; }}
-            onContext={(punt, clipId, maat) => {
-              setMenuMaat(maat);
+            onContext={(punt, clipId) => {
               // Iets naar binnen, zodat een menu bij de rechterrand niet half
               // buiten het scherm valt.
               setMenu({ x: Math.min(punt.x, window.innerWidth - 280), y: Math.min(punt.y, window.innerHeight - 380), clipId });
@@ -330,13 +321,12 @@ export default function EditorShell({
           />
         </div>
 
-        {meerOpen && <PropertiesPanel store={store} />}
+        {meerOpen && <PropertiesPanel store={store} onClose={() => setMeerOpen(false)} />}
       </div>
 
       <Timeline
         store={store}
         onContext={(punt, clipId) => {
-          setMenuMaat(maatRef.current());
           setMenu({
             x: Math.min(punt.x, window.innerWidth - 280),
             y: Math.min(punt.y, window.innerHeight - 380),
@@ -349,11 +339,12 @@ export default function EditorShell({
         <ContextMenu
           store={store}
           plek={menu}
-          maat={menuMaat}
+          getMaat={() => maatRef.current()}
           klembord={klembord}
           onKlembord={setKlembord}
           stijlKlembord={stijlKlembord}
           onStijlKlembord={setStijlKlembord}
+          onMeer={() => setMeerOpen(true)}
           onSluit={() => setMenu(null)}
         />
       )}
