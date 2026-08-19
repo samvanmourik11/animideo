@@ -11,6 +11,7 @@ import { uploadEditorMedia } from "@/lib/editor/media";
 import { useEditor, type EditorStore } from "@/lib/editor/store";
 import { heeftBeeld, huidigeClipId, nieuwId } from "@/lib/editor/plaatsing";
 import type { Clip } from "@/lib/editor/timeline";
+import { pakOp } from "@/lib/editor/sleep";
 import { Melding, PaneelKop, Sectie } from "../ui";
 
 interface Bestand {
@@ -123,7 +124,11 @@ export default function UploadsPanel({
                   type="button"
                   onClick={() => gebruik(b)}
                   disabled={b.clip.type === "image" && !heeftBeeld(store)}
-                  title={b.naam}
+                  draggable={b.clip.type === "image"}
+                  onDragStart={(e) =>
+                    b.clip.type === "image" && pakOp(e, { soort: "beeld", src: b.clip.src, label: b.naam, breedte: 0.4 })
+                  }
+                  title={b.clip.type === "image" ? `${b.naam} — klik of sleep naar het beeld` : b.naam}
                   className="rounded-lg bg-slate-100 hover:bg-slate-200 border border-transparent hover:border-slate-300 p-1.5 disabled:opacity-40"
                 >
                   <div className="aspect-square flex items-center justify-center overflow-hidden rounded">

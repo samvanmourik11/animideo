@@ -506,3 +506,19 @@ export function vormDataUri(id: string, stijl: Partial<VormStijl> = {}, breedteP
   const svg = vormSvg(id, stijl, breedtePx).replace(/\s+/g, " ").trim();
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
+
+/**
+ * Een effen vlak op de maat van de compositie.
+ *
+ * Gebruikt voor een lege scène: die moet het hele beeld vullen, en de compositor
+ * schaalt media passend in het kader — een vierkant vlak zou dus balken naast
+ * zich krijgen. Vandaar dat de verhouding hier meekomt.
+ */
+export function vlakDataUri(breedte: number, hoogte: number, kleur: string): string {
+  const b = Math.max(2, Math.round(breedte));
+  const h = Math.max(2, Math.round(hoogte));
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${b}" height="${h}" viewBox="0 0 ${b} ${h}">` +
+    `<rect width="${b}" height="${h}" fill="${kleur}" /></svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}

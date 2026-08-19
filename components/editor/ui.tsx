@@ -9,6 +9,7 @@
 // vanzelf hetzelfde uitziet en één wijziging overal doorwerkt.
 
 import { useState, type ReactNode } from "react";
+import { pakOp, type SleepLading } from "@/lib/editor/sleep";
 
 /** Kleuren van de editor. Alles wat licht/donker bepaalt staat hier. */
 export const KLEUR = {
@@ -152,26 +153,36 @@ export function GenereerVak({
   );
 }
 
-/** Tegel in een raster: een vorm, een icoon, een diagram. */
+/**
+ * Tegel in een raster: een vorm, een icoon, een diagram.
+ *
+ * Aanklikken zet hem in het midden; slepen zet hem op de plek waar je loslaat.
+ * Allebei, omdat allebei natuurlijk voelt en het verschil in moeite groot is.
+ */
 export function Tegel({
   onClick,
   titel,
   uit,
   children,
   vierkant = true,
+  sleep,
 }: {
   onClick: () => void;
   titel: string;
   uit?: boolean;
   children: ReactNode;
   vierkant?: boolean;
+  /** Wat er op het beeld belandt als je deze tegel erheen sleept. */
+  sleep?: SleepLading;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      title={titel}
+      title={sleep ? `${titel} — klik of sleep naar het beeld` : titel}
       disabled={uit}
+      draggable={!!sleep && !uit}
+      onDragStart={(e) => sleep && pakOp(e, sleep)}
       className={`${vierkant ? "aspect-square" : ""} rounded-lg bg-slate-100 hover:bg-slate-200 border border-transparent hover:border-slate-300 p-2 flex items-center justify-center transition-colors disabled:opacity-40 disabled:hover:bg-slate-100`}
     >
       {children}

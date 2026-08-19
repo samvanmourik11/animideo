@@ -108,10 +108,17 @@ export default function CanvasOverlay({
   function onBody(e: React.PointerEvent) {
     e.preventDefault();
     e.stopPropagation();
-    const id = selectedId;
+    let id = selectedId;
     const el = overlayRef.current;
     if (!id || !el) return;
+    // Slepen met Alt maakt eerst een kopie en versleept díe — zo laat je het
+    // origineel staan waar het stond, precies zoals in elk ontwerpprogramma.
+    if (e.altKey) {
+      const kopie = store.dupliceerOpZelfdePlek(id);
+      if (kopie) id = kopie;
+    }
     const rect = el.getBoundingClientRect();
+    if (store.find(id)?.locked) return;
     const orig = origTransform(id);
     const sx = e.clientX;
     const sy = e.clientY;

@@ -21,6 +21,7 @@ import {
 import type { EditorStore } from "@/lib/editor/store";
 import { heeftBeeld, huidigeClipId, nieuwId } from "@/lib/editor/plaatsing";
 import { DEFAULT_TEXT_STYLE, type TextStyle } from "@/lib/editor/timeline";
+import { pakOp } from "@/lib/editor/sleep";
 import { GenereerVak, Melding, PaneelKop, Sectie, Zoekbalk } from "../ui";
 
 export default function TekstPanel({ store, onSluit }: { store: EditorStore; onSluit: () => void }) {
@@ -120,6 +121,15 @@ export default function TekstPanel({ store, onSluit }: { store: EditorStore; onS
                 type="button"
                 disabled={leeg}
                 onClick={() => plaats(t.voorbeeld, t.stijl, t.id === "ondertitel" ? 0.82 : 0.5)}
+                draggable={!leeg}
+                onDragStart={(e) =>
+                  pakOp(e, {
+                    soort: "tekst",
+                    tekst: t.voorbeeld,
+                    stijl: { ...t.stijl, fontFamily: lettertypeStack(letter) },
+                  })
+                }
+                title="Klik of sleep naar het beeld"
                 className="w-full text-left rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 px-4 py-3 disabled:opacity-40"
                 style={{
                   fontFamily: lettertypeStack(letter),
@@ -143,7 +153,9 @@ export default function TekstPanel({ store, onSluit }: { store: EditorStore; onS
                 type="button"
                 disabled={leeg}
                 onClick={() => plaats(s.tekst, s.stijl, s.id === "ondertitel" ? 0.82 : 0.5)}
-                title={s.label}
+                draggable={!leeg}
+                onDragStart={(e) => pakOp(e, { soort: "tekst", tekst: s.tekst, stijl: s.stijl })}
+                title={`${s.label} — klik of sleep naar het beeld`}
                 className="rounded-xl bg-slate-900 hover:ring-2 hover:ring-blue-500 h-20 flex items-center justify-center px-2 overflow-hidden disabled:opacity-40"
               >
                 <span style={voorbeeldStijl(s.stijl)} className="text-center leading-tight truncate">

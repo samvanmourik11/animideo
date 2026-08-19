@@ -21,8 +21,10 @@ import { EditorStore } from "@/lib/editor/store";
 import { EditorHistory } from "@/lib/editor/history";
 import type { Clip, Ratio, TimelineDoc, TrackKind } from "@/lib/editor/timeline";
 import type { PenStijl } from "@/lib/editor/tekening";
+import { inInvoerveld, toetsNaarActie } from "@/lib/editor/sneltoetsen";
 import Rail, { type RailItem } from "./Rail";
 import ContextMenu, { type MenuPlek } from "./ContextMenu";
+import { huidigeClipId, nieuwId as nieuwElementId } from "@/lib/editor/plaatsing";
 import HistoryPanel from "./HistoryPanel";
 import ChatPanel from "./ChatPanel";
 import ElementenPanel from "./panels/ElementenPanel";
@@ -120,6 +122,16 @@ export default function EditorShell({
   const [menu, setMenu] = useState<MenuPlek | null>(null);
   const [klembord, setKlembord] = useState<{ clip: Clip; spoor: TrackKind } | null>(null);
   const maatRef = useRef<() => { halfW: number; halfH: number } | null>(() => null);
+  // Zoom van het beeld zelf (niet van de tijdlijn). 1 = passend in het venster.
+  const [zoom, setZoom] = useState(1);
+  const werkvlakRef = useRef<HTMLDivElement>(null);
+  const [tip, setTip] = useState<string | null>(null);
+
+  /** Korte melding onder in beeld, voor dingen die geen paneel verdienen. */
+  function meld(tekst: string) {
+    setTip(tekst);
+    window.setTimeout(() => setTip((t) => (t === tekst ? null : t)), 2600);
+  }
   const [stijlKlembord, setStijlKlembord] = useState<Clip | null>(null);
 
   // De pen hoort bij het tools-paneel: sluit je dat, dan stop je met tekenen.
@@ -185,60 +197,221 @@ export default function EditorShell({
 
   useEffect(() => () => store.destroy(), [store]);
 
-  // Sneltoetsen: spatie = afspelen/pauze, Delete = geselecteerde clip weg.
+  // Sneltoetsen. De vertaling van toets naar handeling staat in
+  // lib/editor/sneltoetsen.ts; hier gebeurt alleen het uitvoeren.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const target = e.target as HTMLElement;
-      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
-        e.preventDefault();
-        if (e.shiftKey) store.redo();
-        else store.undo();
-        return;
+      const doel = e.target as HTMLElement | null;
+      const uitkomst = toetsNaarActie(e);
+      if (!uitkomst) return;
+
+      // In een invoerveld hoort alleen het bewerken van tekst te werken; een
+      // losse "c" moet daar een letter zijn en geen cirkel op je video.
+      if (inInvoerveld(doel?.tagName)) {
+        const magInVeld = ["kopieer", "plak", "knip", "ongedaan", "opnieuw", "escape"];
+        if (!magInVeld.includes(uitkomst.actie)) return;
+        if (uitkomst.actie !== "escape") return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
-        e.preventDefault();
-        store.redo();
-        return;
-      }
-      // Tijdens het tekenen doet Escape wat je verwacht: pen weg.
-      if (e.key === "Escape" && pen) {
-        e.preventDefault();
-        setPen(null);
-        return;
-      }
-      const gekozen = store.getState().selectedClipId;
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey) {
-        const k = e.key.toLowerCase();
-        if (k === "c" && gekozen) {
+
+      const id = store.getState().selectedClipId;
+      const clip = store.find(id);
+      const stap = uitkomst.groot ? 10 : 1;
+
+      switch (uitkomst.actie) {
+        // ── Elementen ──────────────────────────────────────────────────────
+        case "tekst": {
           e.preventDefault();
-          const clip = store.find(gekozen);
-          if (clip) {
-            if (e.altKey) setStijlKlembord(clip);
-            else setKlembord({ clip, spoor: store.spoorKindVan(clip.id) ?? "overlay" });
-          }
+          const clipId = huidigeClipId(store);
+          if (!clipId) return meld("Zet eerst beeld op de tijdlijn.");
+          const nieuwId = nieuwElementId("tekst");
+          const r = store.dispatch({
+            op: "add_text", clipId, textId: nieuwId, text: "Jouw tekst", x: 0.5, y: 0.5,
+          });
+          if (r.ok) store.select(nieuwId);
           return;
         }
-        if (k === "v" && klembord) {
+        case "rechthoek":
+        case "cirkel":
+        case "lijn": {
+          e.preventDefault();
+          const clipId = huidigeClipId(store);
+          if (!clipId) return meld("Zet eerst beeld op de tijdlijn.");
+          const vormId =
+            uitkomst.actie === "rechthoek" ? "rechthoek-rond"
+            : uitkomst.actie === "cirkel" ? "cirkel" : "lijn";
+          const nieuwId = nieuwElementId("vorm");
+          const r = store.dispatch({ op: "add_vorm", clipId, vormId, elementId: nieuwId });
+          if (r.ok) store.select(nieuwId);
+          return;
+        }
+        case "zoeken":
+          e.preventDefault();
+          setPaneel("elementen");
+          // Het veld bestaat pas nadat het paneel is getekend.
+          window.setTimeout(() => {
+            document.querySelector<HTMLInputElement>('input[placeholder="Zoek een vorm of icoon"]')?.focus();
+          }, 60);
+          return;
+
+        // ── Tekst ──────────────────────────────────────────────────────────
+        case "vet":
+          if (clip?.type !== "text") return;
+          e.preventDefault();
+          store.setTextStyle(clip.id, { fontWeight: clip.style.fontWeight >= 700 ? 400 : 700 });
+          return;
+        case "cursief":
+          if (clip?.type !== "text") return;
+          e.preventDefault();
+          store.setTextStyle(clip.id, { italic: !clip.style.italic });
+          return;
+        case "onderstrepen":
+          if (clip?.type !== "text") return;
+          e.preventDefault();
+          store.setTextStyle(clip.id, { underline: !clip.style.underline });
+          return;
+        case "hoofdletters":
+          if (clip?.type !== "text") return;
+          e.preventDefault();
+          store.setTextStyle(clip.id, {
+            letters: clip.style.letters === "hoofdletters" ? "normaal" : "hoofdletters",
+          });
+          return;
+        case "groter":
+        case "kleiner":
+          if (clip?.type !== "text") return;
+          e.preventDefault();
+          store.setTextStyle(clip.id, {
+            fontSize: Math.max(8, Math.round(clip.style.fontSize * (uitkomst.actie === "groter" ? 1.1 : 1 / 1.1))),
+          });
+          return;
+        case "regelafstand-op":
+        case "regelafstand-neer":
+          if (clip?.type !== "text") return;
+          e.preventDefault();
+          store.setTextStyle(clip.id, {
+            lineHeight: Math.max(0.8, Math.min(2.4,
+              (clip.style.lineHeight ?? 1.2) + (uitkomst.actie === "regelafstand-op" ? 0.05 : -0.05))),
+          });
+          return;
+
+        // ── Algemeen ───────────────────────────────────────────────────────
+        case "kopieer":
+          if (!clip) return;
+          e.preventDefault();
+          setKlembord({ clip, spoor: store.spoorKindVan(clip.id) ?? "overlay" });
+          meld("Gekopieerd");
+          return;
+        case "kopieer-stijl":
+          if (!clip) return;
+          e.preventDefault();
+          setStijlKlembord(clip);
+          meld("Opmaak gekopieerd");
+          return;
+        case "knip":
+          if (!clip) return;
+          e.preventDefault();
+          setKlembord({ clip, spoor: store.spoorKindVan(clip.id) ?? "overlay" });
+          store.removeClip(clip.id);
+          return;
+        case "plak":
+          if (!klembord) return;
           e.preventDefault();
           store.plakClip(klembord.clip, klembord.spoor);
           return;
-        }
-        if (k === "d" && gekozen) {
+        case "dupliceer":
+          if (!clip) return;
           e.preventDefault();
-          store.dupliceerOpZelfdePlek(gekozen);
+          store.dupliceerOpZelfdePlek(clip.id);
           return;
-        }
-      }
-      if (e.code === "Space") {
-        e.preventDefault();
-        store.togglePlay();
-      } else if (e.key === "Delete" || e.key === "Backspace") {
-        const id = store.getState().selectedClipId;
-        if (id) {
+        case "ongedaan":
           e.preventDefault();
-          store.removeClip(id);
-        }
+          store.undo();
+          return;
+        case "opnieuw":
+          e.preventDefault();
+          store.redo();
+          return;
+        case "verwijder":
+          if (!clip) return;
+          e.preventDefault();
+          store.removeClip(clip.id);
+          return;
+        case "selecteer-alles":
+          e.preventDefault();
+          meld("Meerdere lagen tegelijk selecteren kan nog niet.");
+          return;
+
+        // ── Rangschikken ───────────────────────────────────────────────────
+        case "laag-voor":
+        case "laag-achter":
+        case "laag-vooraan":
+        case "laag-achteraan":
+          if (!clip) return;
+          e.preventDefault();
+          store.zetLaag(clip.id, {
+            "laag-voor": "voor", "laag-achter": "achter",
+            "laag-vooraan": "vooraan", "laag-achteraan": "achteraan",
+          }[uitkomst.actie] as "voor" | "achter" | "vooraan" | "achteraan");
+          return;
+        case "groepeer":
+        case "degroepeer":
+          e.preventDefault();
+          meld("Groeperen kan nog niet — daar is meervoudige selectie voor nodig.");
+          return;
+        case "vergrendel":
+          if (!clip) return;
+          e.preventDefault();
+          store.zetVergrendeld(clip.id, !clip.locked);
+          return;
+        case "links":
+        case "rechts":
+        case "omhoog":
+        case "omlaag":
+          if (!clip || clip.locked) return;
+          e.preventDefault();
+          store.verschuif(
+            clip.id,
+            uitkomst.actie === "links" ? -stap : uitkomst.actie === "rechts" ? stap : 0,
+            uitkomst.actie === "omhoog" ? -stap : uitkomst.actie === "omlaag" ? stap : 0
+          );
+          return;
+
+        // ── Weergave ───────────────────────────────────────────────────────
+        case "zoom-in":
+          e.preventDefault();
+          setZoom((z) => Math.min(4, Math.round(z * 1.25 * 100) / 100));
+          return;
+        case "zoom-uit":
+          e.preventDefault();
+          setZoom((z) => Math.max(0.25, Math.round((z / 1.25) * 100) / 100));
+          return;
+        case "zoom-100":
+          e.preventDefault();
+          setZoom(1);
+          return;
+        case "zoom-passend":
+          e.preventDefault();
+          setZoom(1);
+          meld("Passend in beeld");
+          return;
+        case "nieuwe-scene":
+          e.preventDefault();
+          store.nieuweScene();
+          meld("Lege scène achteraan gezet");
+          return;
+        case "presentatie":
+          e.preventDefault();
+          void werkvlakRef.current?.requestFullscreen?.().then(() => store.play()).catch(() => {});
+          return;
+        case "escape":
+          if (document.fullscreenElement) { void document.exitFullscreen().catch(() => {}); return; }
+          if (pen) { e.preventDefault(); setPen(null); return; }
+          store.select(null);
+          return;
+        case "afspelen":
+          e.preventDefault();
+          store.togglePlay();
+          return;
       }
     }
     window.addEventListener("keydown", onKey);
@@ -297,7 +470,7 @@ export default function EditorShell({
           </aside>
         )}
 
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+        <div ref={werkvlakRef} className="flex-1 min-w-0 min-h-0 flex flex-col bg-[#e8edf7]">
           {pen && (
             <div className="px-4 py-2 bg-blue-50 border-b border-blue-200 text-[13px] text-blue-800 flex items-center gap-3 shrink-0">
               <span>Teken op het beeld. Elke streep wordt een losse laag.</span>
@@ -310,6 +483,8 @@ export default function EditorShell({
           <PreviewCanvas
             store={store}
             ratio={ratio}
+            zoom={zoom}
+            onGeplaatst={meld}
             pen={pen}
             onTekening={setTekenMelding}
             registreerMaat={(fn) => { maatRef.current = fn; }}
@@ -319,6 +494,19 @@ export default function EditorShell({
               setMenu({ x: Math.min(punt.x, window.innerWidth - 280), y: Math.min(punt.y, window.innerHeight - 380), clipId });
             }}
           />
+          {(zoom !== 1 || tip) && (
+            <div className="shrink-0 h-8 flex items-center gap-3 px-4 bg-white border-t border-slate-200 text-[12px] text-slate-600">
+              {zoom !== 1 && (
+                <>
+                  <span>Zoom {Math.round(zoom * 100)}%</span>
+                  <button type="button" onClick={() => setZoom(1)} className="underline">
+                    Terug naar passend
+                  </button>
+                </>
+              )}
+              {tip && <span className="text-blue-700">{tip}</span>}
+            </div>
+          )}
         </div>
 
         {meerOpen && <PropertiesPanel store={store} onClose={() => setMeerOpen(false)} />}

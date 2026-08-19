@@ -52,7 +52,11 @@ export default function MuziekPanel({ store, onSluit }: { store: EditorStore; on
 
   function kies(slug: string, titel: string) {
     const res = store.dispatch({ op: "set_muziek", src: musicTrackUrl(slug), titel });
-    setMelding(res.ok ? `${titel} staat eronder` : res.error.message);
+    if (!res.ok) return setMelding(res.error.message);
+    // Meteen selecteren: dan zie je hem op het muziekspoor staan en kun je hem
+    // daar knippen, inkorten of verschuiven zonder eerst te zoeken.
+    store.select("muziekbed");
+    setMelding(`${titel} staat op het muziekspoor — knip of kort in op de tijdlijn`);
   }
 
   function haalWeg() {
@@ -74,13 +78,23 @@ export default function MuziekPanel({ store, onSluit }: { store: EditorStore; on
 
       {gekozen && (
         <div className="mx-4 mb-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 shrink-0">
-          <p className="text-[12px] text-blue-700 font-medium">Staat nu onder de video</p>
+          <p className="text-[12px] text-blue-700 font-medium">Staat nu op het muziekspoor</p>
           <div className="flex items-center justify-between gap-2 mt-0.5">
-            <span className="text-[14px] text-slate-900 truncate">{gekozen.title}</span>
+            <button
+              type="button"
+              onClick={() => store.select("muziekbed")}
+              className="text-[14px] text-slate-900 truncate text-left hover:underline"
+            >
+              {gekozen.title}
+            </button>
             <button type="button" onClick={haalWeg} className="text-[12px] text-slate-500 hover:text-red-600 shrink-0">
               Weghalen
             </button>
           </div>
+          <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+            Op de tijdlijn kun je hem inkorten, splitsen (knop Splitsen) en verschuiven.
+            Het volume staat bij Meer instellingen.
+          </p>
         </div>
       )}
 

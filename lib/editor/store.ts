@@ -2,6 +2,7 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 import { applyOp, type Op, type OpError, type OpResult } from "./core/ops";
+import { vlakDataUri } from "./shapes-svg";
 import {
   computeDuration,
   DEFAULT_TEXT_STYLE,
@@ -727,6 +728,40 @@ export class EditorStore {
       : richting === "centraal" ? { y: 0.5 }
       : { y: 1 - hh };
     this.setTransform(id, patch);
+  }
+
+  /**
+   * Verplaatsen met de pijltjestoetsen, in beeldpixels.
+   *
+   * De transform rekent in fracties, maar "een pixel opzij" is wat je verwacht
+   * als je op een pijltje drukt — en dat is bij 1920 breed iets heel anders dan
+   * bij 1080. Daarom rekenen we het hier om.
+   */
+  verschuif(id: string, dxPixels: number, dyPixels: number) {
+    const doc = this.state.doc;
+    const t = { ...DEFAULT_TRANSFORM, ...this.find(id)?.transform };
+    this.setTransform(id, {
+      x: Math.max(-0.5, Math.min(1.5, t.x + dxPixels / doc.width)),
+      y: Math.max(-0.5, Math.min(1.5, t.y + dyPixels / doc.height)),
+    });
+  }
+
+  /**
+   * Een lege scène achteraan de video. Het equivalent van "nieuwe pagina": een
+   * vlak in de achtergrondkleur waar je iets overheen kunt zetten.
+   */
+  nieuweScene(seconden = 3) {
+    const doc = this.state.doc;
+    const clip: Clip = {
+      id: crypto.randomUUID(),
+      type: "image",
+      src: vlakDataUri(doc.width, doc.height, doc.background),
+      start: 0, // addClip zet hem achteraan
+      duration: seconden,
+      meta: { label: "Lege scène", source: "leeg" },
+    };
+    this.addClip(clip);
+    return clip.id;
   }
 
   /** Op welk soort spoor staat deze clip nu? Nodig om er weer op te plakken. */

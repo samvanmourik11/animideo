@@ -15,6 +15,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { BrandKit } from "@/lib/types";
 import type { EditorStore } from "@/lib/editor/store";
 import { heeftBeeld, huidigeClipId, nieuwId } from "@/lib/editor/plaatsing";
+import { pakOp } from "@/lib/editor/sleep";
 import { Melding, PaneelKop, Sectie } from "../ui";
 
 export default function MerkPanel({ store, onSluit }: { store: EditorStore; onSluit: () => void }) {
@@ -100,6 +101,8 @@ export default function MerkPanel({ store, onSluit }: { store: EditorStore; onSl
                   type="button"
                   disabled={leeg}
                   onClick={() => plaatsBeeld(kit.logo_url!, `${kit.name}-logo`)}
+                  draggable={!leeg}
+                  onDragStart={(e) => pakOp(e, { soort: "beeld", src: kit.logo_url!, label: `${kit.name}-logo`, breedte: 0.3 })}
                   className="w-full rounded-xl bg-slate-100 hover:bg-slate-200 border border-transparent hover:border-slate-300 p-4 disabled:opacity-40"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -154,7 +157,11 @@ export default function MerkPanel({ store, onSluit }: { store: EditorStore; onSl
                       type="button"
                       disabled={leeg}
                       onClick={() => plaatsBeeld(b.url, b.element ?? b.description ?? "Merkbeeld")}
-                      title={b.description}
+                      draggable={!leeg}
+                      onDragStart={(e) =>
+                        pakOp(e, { soort: "beeld", src: b.url, label: b.element ?? b.description ?? "Merkbeeld", breedte: 0.3 })
+                      }
+                      title={`${b.description} — klik of sleep naar het beeld`}
                       className="rounded-lg bg-slate-100 hover:bg-slate-200 border border-transparent hover:border-slate-300 p-1.5 disabled:opacity-40"
                     >
                       <div className="aspect-square overflow-hidden rounded">

@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Compositor } from "@/lib/editor/compositor";
 import type { EditorStore } from "@/lib/editor/store";
 import type { Ratio } from "@/lib/editor/timeline";
 import CanvasOverlay from "./CanvasOverlay";
 import TekenLaag from "./TekenLaag";
 import type { PenStijl } from "@/lib/editor/tekening";
+import { isOnzeSleep, leesLading } from "@/lib/editor/sleep";
+import { huidigeClipId, nieuwId } from "@/lib/editor/plaatsing";
 
 const ASPECT: Record<Ratio, string> = {
   "16:9": "aspect-video",
@@ -21,6 +23,8 @@ export default function PreviewCanvas({
   onTekening,
   onContext,
   registreerMaat,
+  zoom = 1,
+  onGeplaatst,
 }: {
   store: EditorStore;
   ratio: Ratio;
@@ -38,7 +42,15 @@ export default function PreviewCanvas({
   ) => void;
   /** Geeft de shell een manier om de maat van de selectie op te vragen. */
   registreerMaat?: (fn: () => { halfW: number; halfH: number } | null) => void;
+  /**
+   * Vergroting van het beeld zelf. 1 = passend in het venster; groter laat je
+   * inzoomen om precies te kunnen plaatsen, en dan schuift het vlak eromheen.
+   */
+  zoom?: number;
+  /** Melding na een sleep-actie, bijvoorbeeld als er nog geen beeld staat. */
+  onGeplaatst?: (bericht: string) => void;
 }) {
+  const [sleept, setSleept] = useState(false);
   const hostRef = useRef<HTMLDivElement>(null);
   const compRef = useRef<Compositor | null>(null);
 
@@ -85,6 +97,44 @@ export default function PreviewCanvas({
     });
   }, [registreerMaat, store]);
 
+  /**
+   * Iets uit de zijbalk loslaten op het beeld. De plek waar je loslaat wordt de
+   * plek van het element — dat is het hele punt van slepen, anders had je net zo
+   * goed kunnen klikken.
+   */
+  function onDrop(e: React.DragEvent) {
+    const host = hostRef.current;
+    if (!host) return;
+    const lading = leesLading(e);
+    if (!lading) return;
+    e.preventDefault();
+    setSleept(false);
+
+    const clipId = huidigeClipId(store);
+    if (!clipId) {
+      onGeplaatst?.("Zet eerst beeld op de tijdlijn.");
+      return;
+    }
+    const r = host.getBoundingClientRect();
+    const x = Math.max(0.02, Math.min(0.98, (e.clientX - r.left) / r.width));
+    const y = Math.max(0.02, Math.min(0.98, (e.clientY - r.top) / r.height));
+
+    const id = nieuwId(lading.soort);
+    const res =
+      lading.soort === "vorm"
+        ? store.dispatch({ op: "add_vorm", clipId, vormId: lading.vormId, stijl: lading.stijl, elementId: id, x, y })
+        : lading.soort === "diagram"
+          ? store.dispatch({ op: "add_diagram", clipId, diagram: lading.diagram, elementId: id, x, y })
+          : lading.soort === "tekst"
+            ? store.dispatch({ op: "add_text", clipId, text: lading.tekst, textId: id, x, y, style: lading.stijl })
+            : store.dispatch({
+                op: "add_element", clipId, src: lading.src, label: lading.label,
+                elementId: id, x, y, scale: lading.breedte ?? 0.25,
+              });
+    if (res.ok) store.select(id);
+    onGeplaatst?.(res.ok ? "Geplaatst waar je losliet" : res.error.message);
+  }
+
   // Rechtsklik selecteert eerst wat eronder ligt en opent dan het menu daarvoor;
   // anders krijg je een menu over de vorige selectie.
   function onCanvasContext(e: React.MouseEvent) {
@@ -105,12 +155,16 @@ export default function PreviewCanvas({
   }
 
   return (
-    <div className="flex-1 min-w-0 min-h-0 flex items-center justify-center bg-[#e8edf7] p-6 overflow-hidden">
+    <div className={`flex-1 min-w-0 min-h-0 flex items-center justify-center bg-[#e8edf7] p-6 ${zoom > 1 ? "overflow-auto" : "overflow-hidden"}`}>
       <div
-        className={`${ASPECT[ratio]} relative max-h-full max-w-full bg-black rounded-lg overflow-hidden shadow-[0_2px_24px_rgba(15,23,42,0.18)]`}
+        className={`${ASPECT[ratio]} relative max-h-full max-w-full bg-black rounded-lg overflow-hidden shadow-[0_2px_24px_rgba(15,23,42,0.18)] shrink-0`}
         style={{
           width: ratio === "16:9" ? "100%" : "auto",
           height: ratio === "16:9" ? "auto" : "100%",
+          // Vergroten met een transform in plaats van met de breedte: dan hoeft
+          // Pixi het canvas niet opnieuw op te bouwen en blijft het scherp.
+          transform: zoom === 1 ? undefined : `scale(${zoom})`,
+          transformOrigin: "center center",
         }}
       >
         <div
@@ -118,7 +172,18 @@ export default function PreviewCanvas({
           className="w-full h-full"
           onPointerDown={onCanvasPointerDown}
           onContextMenu={onCanvasContext}
+          onDragOver={(e) => {
+            if (!isOnzeSleep(e)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+            setSleept(true);
+          }}
+          onDragLeave={() => setSleept(false)}
+          onDrop={onDrop}
         />
+        {sleept && (
+          <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-blue-500 bg-blue-500/10 rounded-lg" />
+        )}
         {/* Tijdens het tekenen geen selectiekader: dan zou elke streep meteen een
             sleep-actie op de vorige worden. */}
         {pen ? (

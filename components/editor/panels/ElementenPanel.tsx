@@ -24,6 +24,7 @@ import { ICONEN, ICON_CATEGORIEEN, iconUrl, zoekIconen, type IconCategorie } fro
 import type { EditorStore } from "@/lib/editor/store";
 import { heeftBeeld, huidigeClipId, nieuwId } from "@/lib/editor/plaatsing";
 import type { DiagramMeta } from "@/lib/editor/timeline";
+import { pakOp } from "@/lib/editor/sleep";
 import { Chip, GenereerVak, KleurKiezer, Melding, PaneelKop, Sectie, Tegel, Zoekbalk } from "../ui";
 
 type Weergave =
@@ -153,7 +154,8 @@ export default function ElementenPanel({ store, onSluit }: { store: EditorStore;
             <Sectie titel={`Vormen (${treffers.vormen.length})`}>
               <div className="grid grid-cols-5 gap-1.5">
                 {treffers.vormen.map((v) => (
-                  <Tegel key={v.id} titel={v.label} uit={leeg} onClick={() => plaatsVorm(v.id)}>
+                  <Tegel key={v.id} titel={v.label} uit={leeg} onClick={() => plaatsVorm(v.id)}
+                    sleep={{ soort: "vorm", vormId: v.id, stijl, label: v.label }}>
                     <VormBeeld id={v.id} stijl={stijl} />
                   </Tegel>
                 ))}
@@ -162,7 +164,8 @@ export default function ElementenPanel({ store, onSluit }: { store: EditorStore;
             <Sectie titel={`Iconen (${treffers.iconen.length})`}>
               <div className="grid grid-cols-5 gap-1.5">
                 {treffers.iconen.map((i) => (
-                  <Tegel key={i.slug} titel={i.label} uit={leeg} onClick={() => plaatsIcoon(iconUrl(i.slug), i.label)}>
+                  <Tegel key={i.slug} titel={i.label} uit={leeg} onClick={() => plaatsIcoon(iconUrl(i.slug), i.label)}
+                    sleep={{ soort: "beeld", src: iconUrl(i.slug), label: i.label, breedte: 0.18 }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={iconUrl(i.slug)} alt={i.label} loading="lazy" className="w-full h-full object-contain" />
                   </Tegel>
@@ -198,7 +201,8 @@ export default function ElementenPanel({ store, onSluit }: { store: EditorStore;
               <Sectie key={g.id} titel={g.label} alles={{ open: false, onWissel: () => setWeergave({ soort: "vormen", groep: g.id }) }}>
                 <div className="grid grid-cols-5 gap-1.5">
                   {VORMEN.filter((v) => v.groep === g.id).slice(0, 5).map((v) => (
-                    <Tegel key={v.id} titel={v.label} uit={leeg} onClick={() => plaatsVorm(v.id)}>
+                    <Tegel key={v.id} titel={v.label} uit={leeg} onClick={() => plaatsVorm(v.id)}
+                      sleep={{ soort: "vorm", vormId: v.id, stijl, label: v.label }}>
                       <VormBeeld id={v.id} stijl={stijl} />
                     </Tegel>
                   ))}
@@ -209,7 +213,8 @@ export default function ElementenPanel({ store, onSluit }: { store: EditorStore;
             <Sectie titel="Iconen" alles={{ open: false, onWissel: () => setWeergave({ soort: "iconen" }) }}>
               <div className="grid grid-cols-5 gap-1.5">
                 {ICONEN.slice(0, 10).map((i) => (
-                  <Tegel key={i.slug} titel={i.label} uit={leeg} onClick={() => plaatsIcoon(iconUrl(i.slug), i.label)}>
+                  <Tegel key={i.slug} titel={i.label} uit={leeg} onClick={() => plaatsIcoon(iconUrl(i.slug), i.label)}
+                    sleep={{ soort: "beeld", src: iconUrl(i.slug), label: i.label, breedte: 0.18 }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={iconUrl(i.slug)} alt={i.label} loading="lazy" className="w-full h-full object-contain" />
                   </Tegel>
@@ -230,7 +235,8 @@ export default function ElementenPanel({ store, onSluit }: { store: EditorStore;
               <Sectie key={g.id} titel={g.label}>
                 <div className="grid grid-cols-5 gap-1.5">
                   {VORMEN.filter((v) => v.groep === g.id).map((v) => (
-                    <Tegel key={v.id} titel={v.label} uit={leeg} onClick={() => plaatsVorm(v.id)}>
+                    <Tegel key={v.id} titel={v.label} uit={leeg} onClick={() => plaatsVorm(v.id)}
+                      sleep={{ soort: "vorm", vormId: v.id, stijl, label: v.label }}>
                       <VormBeeld id={v.id} stijl={stijl} />
                     </Tegel>
                   ))}
@@ -248,7 +254,8 @@ export default function ElementenPanel({ store, onSluit }: { store: EditorStore;
             </div>
             <div className="px-4 grid grid-cols-5 gap-1.5">
               {iconLijst.map((i) => (
-                <Tegel key={i.slug} titel={i.label} uit={leeg} onClick={() => plaatsIcoon(iconUrl(i.slug), i.label)}>
+                <Tegel key={i.slug} titel={i.label} uit={leeg} onClick={() => plaatsIcoon(iconUrl(i.slug), i.label)}
+                  sleep={{ soort: "beeld", src: iconUrl(i.slug), label: i.label, breedte: 0.18 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={iconUrl(i.slug)} alt={i.label} loading="lazy" className="w-full h-full object-contain" />
                 </Tegel>
@@ -264,6 +271,14 @@ export default function ElementenPanel({ store, onSluit }: { store: EditorStore;
                   type="button"
                   disabled={leeg}
                   onClick={() => plaatsDiagram(d.id)}
+                  draggable={!leeg}
+                  onDragStart={(e) =>
+                    pakOp(e, {
+                      soort: "diagram",
+                      diagram: { soort: d.id, data: VOORBEELD_DATA, kleuren: DIAGRAM_KLEUREN, toonWaarden: true },
+                    })
+                  }
+                  title="Klik of sleep naar het beeld"
                   className="rounded-lg bg-slate-100 hover:bg-slate-200 border border-transparent hover:border-slate-300 p-2 disabled:opacity-40"
                 >
                   <VormBeeld id={d.id} stijl={stijl} diagram={d.id} />

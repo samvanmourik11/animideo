@@ -42,6 +42,7 @@ export default function Timeline({
   const pxPerSec = useEditor(store, (s) => s.pxPerSec);
   const selectedId = useEditor(store, (s) => s.selectedClipId);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLDivElement>(null);
 
   const duration = computeDuration(doc);
   const contentW = Math.max(duration, 10) * pxPerSec;
@@ -192,9 +193,19 @@ export default function Timeline({
       </div>
 
       {/* Tracks */}
-      <div className="flex flex-1 min-h-0 overflow-y-auto">
+      {/*
+        Eén verticale scroller: het werkvlak rechts. De spoornamen links volgen
+        dat via onScroll. Allebei laten scrollen ging mis — de browser koos dan
+        het binnenste vlak en de namen bleven staan, waardoor "Muziek" ineens
+        naast het videospoor stond.
+      */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Labels */}
-        <div className="shrink-0 border-r border-slate-200 bg-slate-50" style={{ width: LABEL_W }}>
+        <div
+          ref={labelRef}
+          className="shrink-0 border-r border-slate-200 bg-slate-50 overflow-hidden"
+          style={{ width: LABEL_W }}
+        >
           <div style={{ height: RULER_H }} className="border-b border-slate-200" />
           {displayTracks.map((t) => (
             <div
@@ -208,7 +219,19 @@ export default function Timeline({
         </div>
 
         {/* Scrollbaar werkvlak */}
-        <div ref={scrollRef} className="flex-1 overflow-x-auto overflow-y-hidden relative">
+        {/*
+          Verticaal 'clip' en niet 'hidden': met hidden mag de browser dit vlak
+          tóch verschuiven bij een muiswiel, en dan lopen de spoornamen links uit
+          de pas met de sporen zelf. Nu vangt de container eromheen het wiel op
+          en schuiven ze samen.
+        */}
+        <div
+          ref={scrollRef}
+          onScroll={(e) => {
+            if (labelRef.current) labelRef.current.scrollTop = e.currentTarget.scrollTop;
+          }}
+          className="flex-1 overflow-auto relative"
+        >
           <div style={{ width: contentW }} className="relative">
             {/* Liniaal */}
             <div
