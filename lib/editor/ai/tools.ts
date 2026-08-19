@@ -137,6 +137,95 @@ export const EDITOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "bekijk_clip",
+      description:
+        "Kijk naar het beeld van een clip. Je krijgt een frame te zien met een hulpraster erover (lijnen om de 10%, dikkere om de 25%). Gebruik dit ALTIJD voordat je iets afdekt of tekst plaatst — zonder te kijken weet je niet waar iets staat.",
+      parameters: { type: "object", properties: { clipId: clipIdParam }, required: ["clipId"] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "dek_af",
+      description:
+        "Dek een stukje beeld af met een schoon stuk uit datzelfde beeld — het gum-en-stempel-gereedschap van een vormgever. Gebruik dit om een fout weg te werken: een verkeerd gespeld bordje, een lelijk detail, een artefact. Kopieer een stuk effen achtergrond ernaast en plak het eroverheen. Kost niets en verandert verder niets aan het beeld. Kijk eerst met bekijk_clip.",
+      parameters: {
+        type: "object",
+        properties: {
+          clipId: clipIdParam,
+          bronX: { type: "number", description: "Midden van het stuk dat je kopieert, 0..1 van links naar rechts." },
+          bronY: { type: "number", description: "Midden van het stuk dat je kopieert, 0..1 van boven naar beneden." },
+          breedte: { type: "number", description: "Breedte van het stuk, 0..1 van de beeldbreedte." },
+          hoogte: { type: "number", description: "Hoogte van het stuk, 0..1 van de beeldhoogte." },
+          doelX: { type: "number", description: "Midden van de plek waar het overheen moet, 0..1." },
+          doelY: { type: "number", description: "Midden van de plek waar het overheen moet, 0..1." },
+        },
+        required: ["clipId", "bronX", "bronY", "breedte", "hoogte", "doelX", "doelY"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "herstel_tekst",
+      description:
+        "Repareer verkeerde tekst in een AI-beeld: een spelfout op een bordje, een verhaspeld woord op een verpakking. Zeg wat er staat en wat er moet staan, en het wordt gevonden, netjes dichtgelegd in de kleur van het vlak eromheen, en voorzien van goede tekst. Dit is de juiste keus bij tekstfouten — je hoeft geen coördinaten te schatten, die worden gemeten. Kost niets.",
+      parameters: {
+        type: "object",
+        properties: {
+          clipId: clipIdParam,
+          foutieveTekst: { type: "string", description: "Wat er nu (verkeerd) staat, zo letterlijk mogelijk." },
+          nieuweTekst: { type: "string", description: "Wat er moet komen te staan." },
+          kleur: { type: "string", description: "Hex-kleur van de nieuwe letters. Weglaten = wit." },
+        },
+        required: ["clipId", "foutieveTekst", "nieuweTekst"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "vul_vlak",
+      description:
+        "Dek een gebied af met één effen kleur die je uit het beeld zelf aanwijst. Voor vlakke illustraties is dit de beste manier om verkeerde tekst of een artefact weg te werken: wijs een schoon punt van hetzelfde vlak aan (bijvoorbeeld het groen van een bordje náást de letters), geef het gebied op dat weg moet, en het wordt netjes dichtgelegd. Kost niets. Kijk eerst met bekijk_clip.",
+      parameters: {
+        type: "object",
+        properties: {
+          clipId: clipIdParam,
+          kleurX: { type: "number", description: "Punt waar de kleur vandaan komt, 0..1 van links naar rechts. Kies een schoon stuk van hetzelfde vlak." },
+          kleurY: { type: "number", description: "Punt waar de kleur vandaan komt, 0..1 van boven naar beneden." },
+          doelX: { type: "number", description: "Midden van het gebied dat weg moet, 0..1." },
+          doelY: { type: "number", description: "Midden van het gebied dat weg moet, 0..1." },
+          breedte: { type: "number", description: "Breedte van dat gebied, 0..1. Neem ruim: liever iets te groot dan letters die uitsteken." },
+          hoogte: { type: "number", description: "Hoogte van dat gebied, 0..1." },
+        },
+        required: ["clipId", "kleurX", "kleurY", "doelX", "doelY", "breedte", "hoogte"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "plaats_tekst",
+      description:
+        "Zet tekst in beeld op een plek die je aanwijst. Deterministisch: echte letters, scherp, geen model. Gebruik dit samen met dek_af om verkeerde tekst in een AI-beeld te vervangen door goede tekst.",
+      parameters: {
+        type: "object",
+        properties: {
+          clipId: clipIdParam,
+          tekst: { type: "string", description: "Wat er moet staan." },
+          x: { type: "number", description: "Midden van de tekst, 0..1 van links naar rechts. Standaard 0,5." },
+          y: { type: "number", description: "Midden van de tekst, 0..1 van boven naar beneden. Standaard 0,5." },
+          grootte: { type: "number", description: "Lettergrootte in pixels op een beeld van 1920 breed. Een bordje is ongeveer 40-70, een titel 100-160." },
+          kleur: { type: "string", description: "Hex-kleur, bijvoorbeeld #111111. Standaard wit." },
+        },
+        required: ["clipId", "tekst"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "bewerk_beeld",
       description:
         "Verander het beeld van een clip zelf: iets weghalen, vervangen of aanpassen ('remove the coffee mug'). Het bronbeeld wordt opnieuw getekend en de clip opnieuw geanimeerd. Kost 3 credits, duurt een minuut, en heeft twee bijwerkingen: tekst die in de video zit kan verdwijnen, en de nieuwe clip is 5 seconden (een langere scène wordt dus korter). Vraag hier ALTIJD eerst akkoord voor. Gebruik plaats_element als er alleen iets BIJ moet — dat is goedkoper en raakt de video niet aan.",
@@ -177,12 +266,15 @@ export const EDITOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 /** Tools die alleen kijken; die hoeven niet door de op-laag en kosten geen versie. */
 export const LEES_TOOLS = new Set(["get_timeline_summary", "search_transcript"]);
 
+/** Kijken naar het beeld zelf: levert een frame terug in het gesprek. */
+export const KIJK_TOOLS = new Set(["bekijk_clip"]);
+
 /**
  * Tools die eerst iets moeten laten máken (beeld genereren, opnieuw animeren)
  * voordat er een op uit komt. Die kosten credits en tijd, dus de route handelt
  * ze apart af en meldt onderweg wat er gebeurt.
  */
-export const MAAK_TOOLS = new Set(["plaats_element", "bewerk_beeld"]);
+export const MAAK_TOOLS = new Set(["plaats_element", "bewerk_beeld", "dek_af", "vul_vlak", "plaats_tekst", "herstel_tekst"]);
 
 export type ToolArgs = Record<string, unknown>;
 

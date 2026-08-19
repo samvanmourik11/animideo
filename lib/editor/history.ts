@@ -42,6 +42,10 @@ export interface GeladenGeschiedenis {
 export class EditorHistory {
   private versie = 0;
   private sindsCheckpoint = 0;
+  // Wachtrij: twee ops vlak na elkaar (de AI doet er soms twee in één beurt)
+  // mogen niet om hun versienummer racen, anders staat de geschiedenis in de
+  // verkeerde volgorde.
+  private wachtrij: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly sb: SupabaseClient,
@@ -139,7 +143,12 @@ export class EditorHistory {
    * Was er ongedaan gemaakt, dan verdwijnen de teruggedraaide regels eerst: de
    * geschiedenis blijft één rechte lijn, precies zoals de gebruiker hem ziet.
    */
-  async record(op: Op, summary: string, doc: TimelineDoc, source: "user" | "ai" = "user"): Promise<void> {
+  record(op: Op, summary: string, doc: TimelineDoc, source: "user" | "ai" = "user"): Promise<void> {
+    this.wachtrij = this.wachtrij.then(() => this.recordNu(op, summary, doc, source)).catch(() => {});
+    return this.wachtrij;
+  }
+
+  private async recordNu(op: Op, summary: string, doc: TimelineDoc, source: "user" | "ai"): Promise<void> {
     await this.sb.from("editor_ops_log").delete().eq("project_id", this.projectId).gt("version", this.versie);
     await this.sb.from("editor_checkpoints").delete().eq("project_id", this.projectId).gt("version", this.versie);
 

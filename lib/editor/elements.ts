@@ -123,6 +123,172 @@ export async function genereerElement(
 }
 
 /**
+ * Snijdt een stuk uit het beeld van de clip zelf en levert dat als los plaatje.
+ *
+ * Dit is het gum-en-stempel-gereedschap: kopieer een schoon stuk achtergrond en
+ * plak het over iets wat weg moet. Volledig deterministisch — geen model dat
+ * opnieuw mag gokken, dus er kan niets anders in beeld veranderen dan precies
+ * het rechthoekje dat je aanwijst.
+ *
+ * Alle coördinaten zijn fracties van het beeld (0..1).
+ */
+export async function snijUitFrame(
+  sb: SupabaseClient,
+  userId: string,
+  videoUrl: string,
+  seconde: number,
+  bron: { x: number; y: number; breedte: number; hoogte: number }
+): Promise<{ url: string; png: Buffer } | null> {
+  const dir = await mkdtemp(path.join(tmpdir(), "patch-"));
+  try {
+    const uit = path.join(dir, "patch.png");
+    // crop met fracties: ffmpeg rekent zelf met in_w/in_h, dus dit werkt bij elke
+    // bronresolutie. x/y zijn hier de LINKERBOVENHOEK van het uitgesneden stuk.
+    const links = Math.max(0, Math.min(1, bron.x - bron.breedte / 2));
+    const boven = Math.max(0, Math.min(1, bron.y - bron.hoogte / 2));
+    const crop = `crop=in_w*${bron.breedte.toFixed(4)}:in_h*${bron.hoogte.toFixed(4)}:in_w*${links.toFixed(4)}:in_h*${boven.toFixed(4)}`;
+    await run(ffmpegPath as unknown as string, [
+      "-ss", Math.max(0, seconde).toFixed(2),
+      "-i", videoUrl,
+      "-frames:v", "1",
+      "-vf", crop,
+      "-y", uit,
+    ], { maxBuffer: 1024 * 1024 * 32 });
+
+    const png = await readFile(uit);
+    const pad = `${userId}/editor/patches/${randomUUID()}.png`;
+    const { error } = await sb.storage.from("scene-assets").upload(pad, png, {
+      contentType: "image/png",
+      upsert: true,
+    });
+    if (error) throw new Error(`Uitsnede opslaan mislukt: ${error.message}`);
+    return { url: sb.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl, png };
+  } catch {
+    return null;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** Leest de kleur op één punt uit het beeld, als hex. */
+export async function leesKleur(
+  videoUrl: string,
+  seconde: number,
+  punt: { x: number; y: number }
+): Promise<string | null> {
+  const dir = await mkdtemp(path.join(tmpdir(), "kleur-"));
+  try {
+    const uit = path.join(dir, "pixel.raw");
+    await run(ffmpegPath as unknown as string, [
+      "-ss", Math.max(0, seconde).toFixed(2),
+      "-i", videoUrl,
+      "-frames:v", "1",
+      "-vf", `crop=1:1:in_w*${Math.min(0.999, Math.max(0, punt.x)).toFixed(4)}:in_h*${Math.min(0.999, Math.max(0, punt.y)).toFixed(4)},format=rgb24`,
+      "-f", "rawvideo", "-pix_fmt", "rgb24",
+      "-y", uit,
+    ], { maxBuffer: 1024 * 1024 });
+    const rgb = await readFile(uit);
+    if (rgb.length < 3) return null;
+    return `#${[rgb[0], rgb[1], rgb[2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+  } catch {
+    return null;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** Een effen vlak in een gegeven kleur, klaar om overheen te leggen. */
+export async function maakVlak(
+  sb: SupabaseClient,
+  userId: string,
+  kleur: string,
+  formaat: { breedte: number; hoogte: number }
+): Promise<{ url: string; png: Buffer } | null> {
+  const dir = await mkdtemp(path.join(tmpdir(), "vlak-"));
+  try {
+    const uit = path.join(dir, "vlak.png");
+    const breedtePx = Math.max(8, Math.round(formaat.breedte * 1920));
+    const hoogtePx = Math.max(8, Math.round(formaat.hoogte * 1080));
+    await run(ffmpegPath as unknown as string, [
+      "-f", "lavfi", "-i", `color=c=${kleur}:s=${breedtePx}x${hoogtePx}`,
+      "-frames:v", "1", "-y", uit,
+    ], { maxBuffer: 1024 * 1024 * 8 });
+    const png = await readFile(uit);
+    const pad = `${userId}/editor/patches/${randomUUID()}.png`;
+    const { error } = await sb.storage.from("scene-assets").upload(pad, png, { contentType: "image/png", upsert: true });
+    if (error) return null;
+    return { url: sb.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl, png };
+  } catch {
+    return null;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/** Een frame in de opslag zetten zodat externe modellen erbij kunnen. */
+export async function uploadFrame(sb: SupabaseClient, userId: string, png: Buffer): Promise<string | null> {
+  const pad = `${userId}/editor/frames/${randomUUID()}.png`;
+  const { error } = await sb.storage.from("scene-assets").upload(pad, png, { contentType: "image/png", upsert: true });
+  if (error) return null;
+  return sb.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl;
+}
+
+/**
+ * Leest de kleur op één punt uit het beeld en maakt daar een effen vlak van.
+ *
+ * Voor vlakke illustraties (wat onze tools maken) is dit betrouwbaarder dan een
+ * stukje beeld kopiëren: geen randjes van een verkeerd gekozen bronstuk, geen
+ * lucht over een groen bord. Je wijst een kleur aan, en krijgt precies dat
+ * rechthoekje in precies die kleur.
+ */
+export async function vulVlak(
+  sb: SupabaseClient,
+  userId: string,
+  videoUrl: string,
+  seconde: number,
+  monster: { x: number; y: number },
+  formaat: { breedte: number; hoogte: number }
+): Promise<{ url: string; png: Buffer; kleur: string } | null> {
+  const dir = await mkdtemp(path.join(tmpdir(), "vlak-"));
+  try {
+    // Eén pixel uitsnijden op het aangewezen punt en de kleur uitlezen.
+    const pixel = path.join(dir, "pixel.png");
+    await run(ffmpegPath as unknown as string, [
+      "-ss", Math.max(0, seconde).toFixed(2),
+      "-i", videoUrl,
+      "-frames:v", "1",
+      "-vf", `crop=1:1:in_w*${Math.min(0.999, Math.max(0, monster.x)).toFixed(4)}:in_h*${Math.min(0.999, Math.max(0, monster.y)).toFixed(4)},format=rgb24`,
+      "-f", "rawvideo", "-pix_fmt", "rgb24",
+      "-y", pixel,
+    ], { maxBuffer: 1024 * 1024 });
+    const rgb = await readFile(pixel);
+    if (rgb.length < 3) return null;
+    const kleur = `#${[rgb[0], rgb[1], rgb[2]].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+
+    // En daar een effen vlak van maken, ruim bemeten zodat schalen scherp blijft.
+    const uit = path.join(dir, "vlak.png");
+    const breedtePx = Math.max(8, Math.round(formaat.breedte * 1920));
+    const hoogtePx = Math.max(8, Math.round(formaat.hoogte * 1080));
+    await run(ffmpegPath as unknown as string, [
+      "-f", "lavfi",
+      "-i", `color=c=${kleur}:s=${breedtePx}x${hoogtePx}`,
+      "-frames:v", "1",
+      "-y", uit,
+    ], { maxBuffer: 1024 * 1024 * 8 });
+
+    const png = await readFile(uit);
+    const pad = `${userId}/editor/patches/${randomUUID()}.png`;
+    const { error } = await sb.storage.from("scene-assets").upload(pad, png, { contentType: "image/png", upsert: true });
+    if (error) throw new Error(`Vlak opslaan mislukt: ${error.message}`);
+    return { url: sb.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl, png, kleur };
+  } catch {
+    return null;
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+/**
  * Waar hoort het element in beeld? We laten een vision-model naar het frame
  * kijken en om coördinaten vragen. Zonder deze stap zou "op zijn bureau"
  * neerkomen op "ergens in het midden".

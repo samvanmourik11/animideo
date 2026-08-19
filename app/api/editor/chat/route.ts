@@ -18,8 +18,12 @@ import { applyOp } from "@/lib/editor/core/ops";
 import { migrateTimeline, type TimelineDoc } from "@/lib/editor/timeline";
 import { manifestAlsTekst, zoekInTekst } from "@/lib/editor/ai/manifest";
 import { buildEditorPrompt } from "@/lib/editor/ai/prompt";
-import { EDITOR_TOOLS, LEES_TOOLS, MAAK_TOOLS, toolCallNaarOp } from "@/lib/editor/ai/tools";
-import { bepaalPlek, bewerkClipBeeld, breedteNaarSchaal, genereerElement, maakBeweging, pakFrame, pngFormaat } from "@/lib/editor/elements";
+import { EDITOR_TOOLS, KIJK_TOOLS, LEES_TOOLS, MAAK_TOOLS, toolCallNaarOp } from "@/lib/editor/ai/tools";
+import { bepaalPlek, bewerkClipBeeld, breedteNaarSchaal, genereerElement, maakBeweging, pakFrame, pngFormaat, snijUitFrame, vulVlak } from "@/lib/editor/elements";
+import { breedteNaarCompositie, frameNaarCompositie, leesbareLetterkleur, vaakstVoorkomend } from "@/lib/editor/element-geometry";
+import { besteTreffer, zoekTekst } from "@/lib/editor/vision";
+import { leesKleur, maakVlak, uploadFrame } from "@/lib/editor/elements";
+import { applyOps } from "@/lib/editor/core/ops";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { Op } from "@/lib/editor/core/ops";
 import type OpenAI from "openai";
@@ -139,6 +143,37 @@ export async function POST(req: NextRequest) {
               continue;
             }
 
+            // Kijken naar het beeld: het antwoord op een tool-call kan geen
+            // afbeelding bevatten, dus we bevestigen de call en sturen het frame
+            // er als apart bericht achteraan. Vanaf de volgende ronde ziet het
+            // model het beeld en kan het over plekken redeneren.
+            if (KIJK_TOOLS.has(call.name)) {
+              const clip = doc.tracks.flatMap((t) => t.clips).find((c) => c.id === args.clipId);
+              const frameBuf =
+                clip && (clip.type === "video" || clip.type === "image")
+                  ? await pakFrame(clip.src, clip.type === "video" ? (clip.trimIn ?? 0) + clip.duration / 2 : 0, true)
+                  : null;
+              messages.push({
+                role: "tool",
+                tool_call_id: call.id,
+                content: frameBuf ? "Frame volgt hieronder." : "Ik kon geen beeld uit deze clip halen.",
+              });
+              if (frameBuf) {
+                messages.push({
+                  role: "user",
+                  content: [
+                    {
+                      type: "text",
+                      text: `Dit is het beeld van ${args.clipId}. Het raster is een hulpmiddel: dunne lijnen om de 10%, dikke om de 25%. Lees coördinaten af als fracties (0..1), waarbij 0,0 linksboven is.`,
+                    },
+                    { type: "image_url", image_url: { url: `data:image/png;base64,${frameBuf.toString("base64")}` } },
+                  ],
+                });
+                emit({ type: "bezig", tekst: "Naar het beeld gekeken" });
+              }
+              continue;
+            }
+
             // Tools die eerst iets moeten laten máken: die kosten credits en
             // tijd, dus we melden onderweg wat er gebeurt en leveren pas daarna
             // een op af.
@@ -156,7 +191,8 @@ export async function POST(req: NextRequest) {
                 emit({ type: "geweigerd", reden: uitkomst.reden });
                 continue;
               }
-              const res = applyOp(doc, uitkomst.op);
+              const ops = uitkomst.meerdereOps ?? (uitkomst.op ? [uitkomst.op] : []);
+              const res = applyOps(doc, ops);
               if (!res.ok) {
                 // Er is al beeld gemaakt en dus betaald. Wordt de op alsnog
                 // geweigerd, dan heeft de klant niets gekregen — terugstorten.
@@ -168,8 +204,11 @@ export async function POST(req: NextRequest) {
                 continue;
               }
               doc = res.doc;
-              emit({ type: "op", op: uitkomst.op, summary: uitkomst.summary ?? res.summary });
-              messages.push({ role: "tool", tool_call_id: call.id, content: `Toegepast: ${uitkomst.summary ?? res.summary}` });
+              const samenvatting = uitkomst.summary ?? res.summaries.join("; ");
+              for (let i = 0; i < ops.length; i++) {
+                emit({ type: "op", op: ops[i], summary: i === 0 ? samenvatting : res.summaries[i] });
+              }
+              messages.push({ role: "tool", tool_call_id: call.id, content: `Toegepast: ${samenvatting}` });
               continue;
             }
 
@@ -236,7 +275,9 @@ interface MaakContext {
   emit: (e: object) => void;
 }
 
-type MaakUitkomst = { ok: true; op: Op; summary?: string; kosten?: number } | { ok: false; reden: string };
+type MaakUitkomst =
+  | { ok: true; op?: Op; meerdereOps?: Op[]; summary?: string; kosten?: number }
+  | { ok: false; reden: string };
 
 /**
  * Voert de tools uit die eerst beeld moeten laten maken.
@@ -262,6 +303,167 @@ async function voerMaakToolUit(ctx: MaakContext): Promise<MaakUitkomst> {
   // raster als het beeld zelf bewerkt wordt — dan zouden de lijnen meegaan in
   // de bewerking.
   const frame = await pakFrame(clip.src, clip.type === "video" ? midden : 0, naam === "plaats_element");
+  // De monteur leest coördinaten af op het frame; de tijdlijn rekent in
+  // compositie-coördinaten. Bij een andere verhouding lopen die uiteen.
+  const frameFormaat = frame ? pngFormaat(frame) : null;
+  const naarBeeld = (p: { x: number; y: number }) =>
+    frameFormaat ? frameNaarCompositie(p, frameFormaat, { width: doc.width, height: doc.height }) : p;
+
+  if (naam === "herstel_tekst") {
+    const fout = typeof args.foutieveTekst === "string" ? args.foutieveTekst : "";
+    const nieuw = typeof args.nieuweTekst === "string" ? args.nieuweTekst.trim() : "";
+    if (!nieuw) return { ok: false, reden: "Ik weet niet wat er moet komen te staan" };
+    if (!frame || !frameFormaat) return { ok: false, reden: "Ik kon geen beeld uit deze clip halen" };
+
+    emit({ type: "bezig", tekst: "De tekst in beeld opzoeken…" });
+    const beeldUrl = await uploadFrame(supabase, userId, frame);
+    if (!beeldUrl) return { ok: false, reden: "Ik kon het beeld niet klaarzetten om te doorzoeken" };
+
+    const kaders = await zoekTekst(beeldUrl, frameFormaat.breedte, frameFormaat.hoogte);
+    const kader = besteTreffer(kaders, fout || nieuw);
+    if (!kader) {
+      const gevonden = kaders.map((k) => `"${k.label}"`).join(", ");
+      return {
+        ok: false,
+        reden: gevonden
+          ? `Ik vond die tekst niet in beeld. Wel gevonden: ${gevonden}`
+          : "Ik vond geen leesbare tekst in dit beeld",
+      };
+    }
+
+    // Ruim afdekken: letters die uitsteken zijn erger dan een iets groter vlak.
+    const marge = 1.25;
+    const vlakBreedte = Math.min(0.98, kader.breedte * marge);
+    const vlakHoogte = Math.min(0.98, kader.hoogte * marge * 1.15);
+
+    // De kleur van het vlak waar de letters op staan. Eén monster naast de tekst
+    // was een gok — net te ver en je zit op de muur naast het bordje. Daarom vier
+    // monsters rondom de tekst en de kleur die het vaakst voorkomt.
+    const tijd = clip.type === "video" ? midden : 0;
+    const monsters = await Promise.all([
+      leesKleur(clip.src, tijd, { x: kader.x, y: kader.y - kader.hoogte * 0.75 }),
+      leesKleur(clip.src, tijd, { x: kader.x, y: kader.y + kader.hoogte * 0.75 }),
+      leesKleur(clip.src, tijd, { x: kader.x - kader.breedte * 0.55, y: kader.y }),
+      leesKleur(clip.src, tijd, { x: kader.x + kader.breedte * 0.55, y: kader.y }),
+    ]);
+    const kleurVlak = vaakstVoorkomend(monsters) ?? "#ffffff";
+
+    emit({ type: "bezig", tekst: `Dichtleggen in ${kleurVlak} en nieuwe tekst zetten…` });
+    const vlak = await maakVlak(supabase, userId, kleurVlak, { breedte: vlakBreedte, hoogte: vlakHoogte });
+    if (!vlak) return { ok: false, reden: "Ik kon het afdekvlak niet maken" };
+
+    const comp = { width: doc.width, height: doc.height };
+    const formaat = pngFormaat(vlak.png) ?? { breedte: 100, hoogte: 100 };
+    const breedteInBeeld = breedteNaarCompositie(vlakBreedte, frameFormaat, comp);
+    const schaal = breedteNaarSchaal(breedteInBeeld, formaat, comp);
+    const positie = naarBeeld({ x: kader.x, y: kader.y });
+
+    // Lettergrootte uit de hoogte van de oude tekst: dan past het vanzelf.
+    const hoogteInBeeld = (kader.hoogte * frameFormaat.hoogte * Math.min(comp.width / frameFormaat.breedte, comp.height / frameFormaat.hoogte));
+    const fontSize = Math.max(16, Math.round(hoogteInBeeld * 0.95));
+
+    return {
+      ok: true,
+      meerdereOps: [
+        { op: "add_element", clipId, src: vlak.url, label: "Afdekking", x: positie.x, y: positie.y, scale: schaal },
+        {
+          op: "add_text",
+          clipId,
+          text: nieuw,
+          x: positie.x,
+          y: positie.y,
+          fontSize,
+          // Letters die je kunt lezen: donker op een licht vlak, wit op een donker.
+          color: typeof args.kleur === "string" ? args.kleur : leesbareLetterkleur(kleurVlak),
+        },
+      ],
+      summary: `"${kader.label}" vervangen door "${nieuw}"`,
+    } as MaakUitkomst;
+  }
+
+  if (naam === "plaats_tekst") {
+    const tekst = typeof args.tekst === "string" ? args.tekst.trim() : "";
+    if (!tekst) return { ok: false, reden: "Ik weet niet welke tekst er moet komen" };
+    const f = (v: unknown, standaard: number) => (typeof v === "number" && Number.isFinite(v) ? v : standaard);
+    const positie = naarBeeld({ x: f(args.x, 0.5), y: f(args.y, 0.5) });
+    return {
+      ok: true,
+      op: {
+        op: "add_text",
+        clipId,
+        text: tekst,
+        x: positie.x,
+        y: positie.y,
+        fontSize: typeof args.grootte === "number" ? args.grootte : undefined,
+        color: typeof args.kleur === "string" ? args.kleur : undefined,
+      },
+    };
+  }
+
+  if (naam === "vul_vlak") {
+    const f = (v: unknown, standaard: number) => (typeof v === "number" && Number.isFinite(v) ? v : standaard);
+    const breedte = Math.min(0.95, Math.max(0.01, f(args.breedte, 0.15)));
+    const hoogte = Math.min(0.95, Math.max(0.01, f(args.hoogte, 0.08)));
+
+    emit({ type: "bezig", tekst: "Kleur uitlezen en vlak dichtleggen…" });
+    const vlak = await vulVlak(
+      supabase, userId, clip.src, clip.type === "video" ? midden : 0,
+      { x: f(args.kleurX, 0.5), y: f(args.kleurY, 0.5) },
+      { breedte, hoogte }
+    );
+    if (!vlak) return { ok: false, reden: "Ik kon de kleur niet uitlezen uit dit beeld" };
+
+    const formaat = pngFormaat(vlak.png) ?? { breedte: 100, hoogte: 100 };
+    const breedteInBeeld = frameFormaat
+      ? breedteNaarCompositie(breedte, frameFormaat, { width: doc.width, height: doc.height })
+      : breedte;
+    const schaal = breedteNaarSchaal(breedteInBeeld, formaat, { width: doc.width, height: doc.height });
+    const doel = naarBeeld({ x: f(args.doelX, 0.5), y: f(args.doelY, 0.5) });
+    return {
+      ok: true,
+      op: { op: "add_element", clipId, src: vlak.url, label: "Afdekking", x: doel.x, y: doel.y, scale: schaal },
+      summary: `Vlak dichtgelegd in ${vlak.kleur}`,
+    };
+  }
+
+  if (naam === "dek_af") {
+    const f = (v: unknown, standaard: number) => (typeof v === "number" && Number.isFinite(v) ? v : standaard);
+    const breedte = Math.min(0.9, Math.max(0.01, f(args.breedte, 0.1)));
+    const hoogte = Math.min(0.9, Math.max(0.01, f(args.hoogte, 0.1)));
+
+    emit({ type: "bezig", tekst: "Stukje beeld kopiëren…" });
+    const uitsnede = await snijUitFrame(supabase, userId, clip.src, clip.type === "video" ? midden : 0, {
+      x: f(args.bronX, 0.5),
+      y: f(args.bronY, 0.5),
+      breedte,
+      hoogte,
+    });
+    if (!uitsnede) return { ok: false, reden: "Ik kon geen stuk uit dit beeld snijden" };
+
+    // De uitsnede is precies zo groot als het gevraagde stuk, dus we plaatsen
+    // hem op ware grootte over het doel. Geen credits: er komt geen model aan te pas.
+    const formaat = pngFormaat(uitsnede.png) ?? { breedte: 100, hoogte: 100 };
+    // De uitsnede moet in beeld even groot worden als het stuk dat hij afdekt,
+    // dus de breedte gaat eerst van frame- naar compositiematen.
+    const breedteInBeeld = frameFormaat
+      ? breedteNaarCompositie(breedte, frameFormaat, { width: doc.width, height: doc.height })
+      : breedte;
+    const schaal = breedteNaarSchaal(breedteInBeeld, formaat, { width: doc.width, height: doc.height });
+    const doel = naarBeeld({ x: f(args.doelX, 0.5), y: f(args.doelY, 0.5) });
+    return {
+      ok: true,
+      op: {
+        op: "add_element",
+        clipId,
+        src: uitsnede.url,
+        label: "Afdekking",
+        x: doel.x,
+        y: doel.y,
+        scale: schaal,
+      },
+      summary: "Stukje beeld eroverheen geplakt",
+    };
+  }
 
   if (naam === "plaats_element") {
     const wat = typeof args.wat === "string" ? args.wat.trim() : "";
@@ -282,10 +484,11 @@ async function voerMaakToolUit(ctx: MaakContext): Promise<MaakUitkomst> {
       // compositor rekent met een factor op het passend-gemaakte formaat.
       const formaat = pngFormaat(png) ?? { breedte: 1024, hoogte: 1024 };
       const schaal = breedteNaarSchaal(plek.scale, formaat, { width: doc.width, height: doc.height });
+      const positie = naarBeeld({ x: plek.x, y: plek.y });
 
       return {
         ok: true,
-        op: { op: "add_element", clipId, src, label: wat, x: plek.x, y: plek.y, scale: schaal },
+        op: { op: "add_element", clipId, src, label: wat, x: positie.x, y: positie.y, scale: schaal },
         summary: `${wat} in beeld gezet${plek.toelichting ? ` — ${plek.toelichting}` : ""}`,
         kosten: CREDIT_COSTS.IMAGE_GENERATION,
       };

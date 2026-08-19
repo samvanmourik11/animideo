@@ -13,7 +13,7 @@
 // klantprojecten bevatten soms al een overlap uit de tijd dat de UI dat toestond;
 // die mogen een nette bewerking niet blokkeren.
 
-import type { Clip, TimelineDoc, Track, Transition } from "../timeline";
+import { DEFAULT_TEXT_STYLE, type Clip, type TimelineDoc, type Track, type Transition } from "../timeline";
 import {
   checkInvariants,
   mainVideoTrack,
@@ -58,6 +58,23 @@ export type Op =
       x?: number;              // 0..1, midden van het element
       y?: number;
       scale?: number;
+    }
+  /**
+   * Tekstlaag over een clip. Deterministisch: geen model, gewoon letters op de
+   * plek die je aanwijst — precies wat een vormgever zou doen om een verkeerd
+   * gespeld bordje leesbaar te maken.
+   */
+  | {
+      op: "add_text";
+      clipId: string;
+      text: string;
+      textId?: string;
+      x?: number;
+      y?: number;
+      fontSize?: number;   // px op compositieschaal
+      color?: string;
+      align?: "left" | "center" | "right";
+      background?: string;
     }
   /**
    * Het beeldmateriaal van een clip vervangen (na een AI-bewerking van het
@@ -331,6 +348,44 @@ export function applyOp(doc: TimelineDoc, op: Op): OpResult {
           ok: true,
           doc: { ...doc, tracks: tracks.map((t) => (t.id === overlay!.id ? { ...t, clips: [...t.clips, element] } : t)) },
           summary: `${op.label ?? "Element"} toegevoegd over ${seconden(gevonden.clip.duration)}`,
+        };
+      }
+
+      case "add_text": {
+        const gevonden = vind(doc, op.clipId);
+        if (!gevonden) return fout("not_found", `Clip ${op.clipId} bestaat niet`);
+        const tekst = op.text.trim();
+        if (!tekst) return fout("invalid", "Lege tekst plaatsen heeft geen zin");
+
+        let spoor = doc.tracks.find((t) => t.kind === "text");
+        let tracks = doc.tracks;
+        if (!spoor) {
+          spoor = { id: `trk_tekst_${doc.tracks.length}`, kind: "text", name: "Tekst", clips: [] };
+          tracks = [...doc.tracks, spoor];
+        }
+        const id = op.textId ?? `txt_${gevonden.clip.id}_${spoor.clips.length}`;
+        if (vind(doc, id)) return fout("invalid", `Er bestaat al een tekst met id ${id}`);
+
+        const clip: Clip = {
+          id,
+          type: "text",
+          text: tekst,
+          style: {
+            ...DEFAULT_TEXT_STYLE,
+            fontSize: op.fontSize ?? DEFAULT_TEXT_STYLE.fontSize,
+            color: op.color ?? DEFAULT_TEXT_STYLE.color,
+            align: op.align ?? DEFAULT_TEXT_STYLE.align,
+            ...(op.background ? { background: op.background } : {}),
+          },
+          start: gevonden.clip.start,
+          duration: gevonden.clip.duration,
+          transform: { x: op.x ?? 0.5, y: op.y ?? 0.5, scale: 1, rotation: 0 },
+          meta: { label: tekst.slice(0, 30), source: "editor-tekst" },
+        };
+        return {
+          ok: true,
+          doc: { ...doc, tracks: tracks.map((t) => (t.id === spoor!.id ? { ...t, clips: [...t.clips, clip] } : t)) },
+          summary: `Tekst "${tekst.slice(0, 30)}" geplaatst`,
         };
       }
 
