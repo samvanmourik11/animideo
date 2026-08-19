@@ -41,9 +41,11 @@ genummerd bestand in `supabase/migrations/`, en de SQL daarna zelf plakken in de
 Supabase SQL-editor. Schrijf ze zo dat ze opnieuw gedraaid kunnen worden
 (`IF NOT EXISTS`, `DROP POLICY IF EXISTS`).
 
-**Mollie loopt via `lib/mollie.ts`.** De sleutel in `.env.local` is een
-placeholder; de echte staat in `~/.mollie_key` en geef je mee via de shell. Dat
-is een **live** sleutel: nooit testen tegen echte klanten. Wat er in het
+**Mollie loopt via `lib/mollie.ts`.** De sleutel staat in `.env.local` (kopie in
+`~/.mollie_key`). Sinds 18-08-2026 is dat de echte sleutel; stond daar nog de
+oude placeholder `live_xxx...`, dan weigert `lib/mollie.ts` hem en krijg je
+"MOLLIE_API_KEY ontbreekt of is een placeholder" op `/admin`. Het is een **live**
+sleutel: nooit testen tegen echte klanten. Wat er in het
 Mollie-dashboard gebeurt (opzeggingen!) synchroniseert niet vanzelf naar
 `profiles.subscription_status` — controleer bij twijfel Mollie zelf.
 
@@ -66,9 +68,13 @@ klanten hun eigen werk kwijt.
 ## Controleren
 
 - `npx tsc --noEmit` — de echte controle
+- `npm test` — vitest (+ fast-check voor property-based tests). Dekt de pure
+  logica onder de editor: het Timeline Document en straks EditorCore. Alles wat
+  het document muteert hoort een test te hebben — daar gaat de AI-editor op los.
 - `npm run dev` — dev-server op :3000
 - `npm run lint` werkt **niet**: er is geen ESLint-config in dit project
-- er zijn geen geautomatiseerde tests; testen doe je in de app zelf
+- de rest (UI, Pixi-compositor, render) test je in de app zelf; meld bij
+  oplevering eerlijk wat je wél en niet hebt zien werken
 
 ## Stijl
 

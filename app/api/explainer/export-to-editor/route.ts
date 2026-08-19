@@ -12,7 +12,7 @@ import { canUseEditor } from "@/lib/editor/access";
 import { canvasSize } from "@/lib/infographics/canvas-size";
 import { synthesizeNarration } from "@/lib/explainer/voiceover";
 import type { ExplainerSpec } from "@/lib/explainer/spec";
-import type { TimelineDoc, VideoClip, AudioClip } from "@/lib/editor/timeline";
+import { TIMELINE_VERSION, type TimelineDoc, type VideoClip, type AudioClip } from "@/lib/editor/timeline";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -140,13 +140,28 @@ export async function POST(req: NextRequest) {
       if (cErr) throw new Error("Clip upload mislukt: " + cErr.message);
       const curl = supabase.storage.from("scene-assets").getPublicUrl(cpath).data.publicUrl;
 
+      // De scene-inhoud reist mee als clip-context, zodat de editor (en straks de
+      // AI-editor) weet waar een clip over gaat zonder het beeld te analyseren.
+      const sc = spec.scenes[s];
+      const gesproken = (sc.narration ?? "").trim();
+      const meta = {
+        sceneIndex: s + 1,
+        transcript: gesproken || undefined,
+        label: sc.title?.trim() || (gesproken ? gesproken.slice(0, 40) : `Scène ${s + 1}`),
+        source: "explainer",
+      };
+
       videoClips.push({
         id: randomUUID(), type: "video", src: curl, start: starts[s], duration: dur,
-        trimIn: 0, naturalDuration: dur, volume: 0, speed: 1,
+        trimIn: 0, naturalDuration: dur, volume: 0, speed: 1, meta,
         ...(s > 0 ? { transitionIn: { kind: "fade", duration: XFADE } } : {}),
       });
       if (audio[s]?.url) {
-        audioClips.push({ id: randomUUID(), type: "audio", src: audio[s].url, start: starts[s], duration: Math.max(0.3, audio[s].dur), trimIn: 0, volume: 1 });
+        audioClips.push({
+          id: randomUUID(), type: "audio", src: audio[s].url, start: starts[s],
+          duration: Math.max(0.3, audio[s].dur), trimIn: 0, volume: 1,
+          meta: { ...meta, label: `Voice-over scène ${s + 1}` },
+        });
       }
     }
     await browser.close();
@@ -155,7 +170,7 @@ export async function POST(req: NextRequest) {
     // 3) TimelineDoc + editor-project.
     const ratio = spec.format === "9:16" ? "9:16" : "16:9";
     const timeline: TimelineDoc = {
-      version: 1, ratio, width, height, fps: FPS, background: "#000000",
+      version: TIMELINE_VERSION, ratio, width, height, fps: FPS, background: "#000000",
       tracks: [
         { id: randomUUID(), kind: "video", name: "Scenes", clips: videoClips },
         { id: randomUUID(), kind: "overlay", name: "Overlay", clips: [] },

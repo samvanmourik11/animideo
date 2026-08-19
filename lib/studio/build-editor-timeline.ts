@@ -13,17 +13,44 @@
 import {
   createEmptyTimeline,
   type AudioClip,
+  type ClipMeta,
   type ImageClip,
   type Ratio,
   type Track,
   type TimelineDoc,
   type VideoClip,
 } from "@/lib/editor/timeline";
-import type { Project } from "@/lib/types";
+import type { Project, Scene } from "@/lib/types";
 
 const DEFAULT_SCENE_DURATION = 5; // seconden, als een scène (nog) geen duur heeft
 
 const uid = () => crypto.randomUUID();
+
+
+/**
+ * Scène-context voor in `clip.meta`. `label` is wat de gebruiker in de tijdlijn
+ * en de chat ziet: de eerste woorden van de voice-over zeggen meer dan
+ * "Scène 4", maar zonder voice-over valt hij terug op het scènenummer.
+ */
+function sceneMeta(scene: Scene, index: number): ClipMeta {
+  const gesproken = (scene.voiceover_text ?? "").trim();
+  const nummer = scene.number || index + 1;
+  return {
+    sceneIndex: nummer,
+    genPrompt: scene.image_prompt || undefined,
+    transcript: gesproken || undefined,
+    label: gesproken ? kort(gesproken) : `Scène ${nummer}`,
+    source: "studio",
+  };
+}
+
+/** Eerste ~40 tekens, niet middenin een woord afgekapt. */
+function kort(tekst: string): string {
+  if (tekst.length <= 40) return tekst;
+  const stuk = tekst.slice(0, 40);
+  const spatie = stuk.lastIndexOf(" ");
+  return `${(spatie > 20 ? stuk.slice(0, spatie) : stuk).trim()}…`;
+}
 
 export function buildEditorTimeline(project: Project): TimelineDoc {
   const ratio: Ratio = project.format === "9:16" ? "9:16" : "16:9";
@@ -34,8 +61,13 @@ export function buildEditorTimeline(project: Project): TimelineDoc {
 
   // 1) Scènes sequentieel op de videotrack.
   let cursor = 0;
-  for (const scene of project.scenes ?? []) {
+  project.scenes?.forEach((scene, i) => {
     const duration = scene.duration && scene.duration > 0 ? scene.duration : DEFAULT_SCENE_DURATION;
+    // Wat de Studio van deze scène weet, reist mee de editor in: de AI-editor
+    // kan daardoor over de inhoud praten ("de scène waarin ze de prijs noemt")
+    // zonder de video te hoeven analyseren. Zonder dit is een clip in de editor
+    // niet meer dan een URL.
+    const meta = sceneMeta(scene, i);
 
     if (scene.video_url) {
       const clip: VideoClip = {
@@ -45,6 +77,7 @@ export function buildEditorTimeline(project: Project): TimelineDoc {
         start: cursor,
         duration,
         volume: 1,
+        meta,
       };
       videoTrack?.clips.push(clip);
     } else if (scene.image_url) {
@@ -55,12 +88,13 @@ export function buildEditorTimeline(project: Project): TimelineDoc {
         src: scene.image_url,
         start: cursor,
         duration,
+        meta,
       };
       videoTrack?.clips.push(clip);
     }
 
     cursor += duration;
-  }
+  });
 
   const total = cursor || DEFAULT_SCENE_DURATION;
 
@@ -73,6 +107,7 @@ export function buildEditorTimeline(project: Project): TimelineDoc {
       start: 0,
       duration: total,
       volume: 1,
+      meta: { label: "Voice-over", source: "studio" },
     };
     audioTrack.clips.push(vo);
   }
@@ -92,6 +127,7 @@ export function buildEditorTimeline(project: Project): TimelineDoc {
           duration: total,
           volume: 0.18,
           loop: true,
+          meta: { label: "Achtergrondmuziek", source: "studio" },
         } satisfies AudioClip,
       ],
     };

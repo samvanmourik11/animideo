@@ -15,7 +15,9 @@
 // migrateTimeline() opgehoogd. Breek dit contract nooit zonder de versie te
 // verhogen en een migratie toe te voegen.
 
-export const TIMELINE_VERSION = 1;
+// v2: `meta` per clip (zie ClipMeta). Oudere documenten missen dat veld; dat is
+// geen probleem, alles wat meta leest moet ermee omgaan dat het ontbreekt.
+export const TIMELINE_VERSION = 2;
 
 export type Ratio = "16:9" | "9:16" | "1:1";
 
@@ -52,10 +54,34 @@ export interface Track {
 
 // ── Clips ────────────────────────────────────────────────────────────────────
 
+/**
+ * Wat we van een clip wéten, los van hoe hij eruitziet.
+ *
+ * Onze clips komen uit onze eigen pijplijn, dus de beeld-prompt, de gesproken
+ * tekst en de scènevolgorde zijn al bekend op het moment dat een project naar
+ * de editor gaat. Die context reist mee zodat de AI-editor straks kan redeneren
+ * over wat er in beeld gebeurt ("de scène waarin ze de prijs noemt") zonder de
+ * video te hoeven analyseren. Puur beschrijvend: niets hierin beïnvloedt de
+ * weergave of de render.
+ */
+export interface ClipMeta {
+  /** 1-gebaseerd scènenummer uit het bronproject; zo praat de gebruiker erover. */
+  sceneIndex?: number;
+  /** De prompt waarmee het beeld is gegenereerd. */
+  genPrompt?: string;
+  /** De gesproken tekst die bij deze scène hoort. */
+  transcript?: string;
+  /** Korte, mensvriendelijke naam voor in de tijdlijn en de chat. */
+  label?: string;
+  /** Waar deze clip vandaan komt: 'studio', 'explainer', 'upload', … */
+  source?: string;
+}
+
 interface ClipBase {
   id: string;
   start: number; // positie op de timeline (s)
   duration: number; // lengte op de timeline (s)
+  meta?: ClipMeta;
   trimIn?: number; // seconden in de bron waar afspelen begint (video/audio)
   transform?: Transform;
   opacity?: number; // 0..1
@@ -314,6 +340,16 @@ export function keyframeValueAt(
   return fallback;
 }
 
+/**
+ * Versiegeschiedenis van het document:
+ *   v1 → v2  `meta` per clip (ClipMeta). Puur additief: een v1-document is een
+ *            geldig v2-document zonder context, en alles wat meta leest gaat
+ *            ervan uit dat het kan ontbreken. Daarom hoeft hier niets te
+ *            worden omgezet — deze migratie hoogt alleen het versienummer op.
+ *
+ * Er staan al klantprojecten in `editor_projects`, dus elke toekomstige
+ * wijziging hoort hier een regel te krijgen én een test in timeline.test.ts.
+ */
 export function migrateTimeline(doc: TimelineDoc): TimelineDoc {
   if (!doc || typeof doc !== "object") return createEmptyTimeline();
   const merged = {
