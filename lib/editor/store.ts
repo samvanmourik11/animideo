@@ -27,6 +27,13 @@ const KF_EPS = 0.05; // s: keyframes binnen deze afstand gelden als "op de playh
 // frame bij en alleen componenten die op tijd selecteren hoeven dan te
 // hertekenen. De compositor leest de state imperatief in zijn eigen ticker.
 
+/** Waar de store zijn bewerkingen naartoe meldt (de versiegeschiedenis). */
+export interface StoreHooks {
+  onOp?: (op: Op, summary: string) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+}
+
 export interface EditorState {
   doc: TimelineDoc;
   currentTime: number;
@@ -62,14 +69,14 @@ export class EditorStore {
   private future: TimelineDoc[] = [];
   private histTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingPast: TimelineDoc | null = null;
-  // Waar toegepaste ops naartoe gaan (straks: de op-log in Supabase, en de
+  // Waar bewerkingen naartoe gaan: de op-log in Supabase (en straks de
   // activiteitenfeed van de AI-chat). Ongezet = alleen lokaal bewerken.
-  private opSink?: (op: Op, summary: string) => void;
+  private hooks: StoreHooks;
 
   constructor(
     doc: TimelineDoc,
     persist?: (doc: TimelineDoc) => Promise<void>,
-    onOp?: (op: Op, summary: string) => void
+    hooks: StoreHooks = {}
   ) {
     this.state = {
       doc,
@@ -81,7 +88,33 @@ export class EditorStore {
       lastOpError: null,
     };
     this.persist = persist;
-    this.opSink = onOp;
+    this.hooks = hooks;
+  }
+
+  /**
+   * Zet een eerdere versie terug (vanuit het versiepaneel). De huidige stand
+   * gaat op de undo-stapel, zodat terugzetten zelf ook ongedaan te maken is.
+   */
+  herstelNaar(doc: TimelineDoc) {
+    this.past.push(this.state.doc);
+    this.future = [];
+    this.pendingPast = null;
+    this.state.doc = doc;
+    if (!this.find(this.state.selectedClipId)) this.state.selectedClipId = null;
+    this.notify();
+    this.schedulePersist();
+  }
+
+  /**
+   * Vul de undo-stapel met eerdere standen uit de opgeslagen geschiedenis.
+   * Daarmee werkt ongedaan maken ook ná een refresh — voorheen begon je dan
+   * met een lege stapel en was alles van vóór het herladen onbereikbaar.
+   */
+  hydrate(eerdereDocs: TimelineDoc[]) {
+    if (eerdereDocs.length === 0) return;
+    this.past = [...eerdereDocs];
+    this.future = [];
+    this.notify();
   }
 
   /**
@@ -97,7 +130,7 @@ export class EditorStore {
     if (res.ok) {
       this.state.lastOpError = null;
       this.setDoc(res.doc);
-      this.opSink?.(op, res.summary);
+      this.hooks.onOp?.(op, res.summary);
     } else {
       this.state.lastOpError = res.error;
       this.notify();
@@ -200,6 +233,7 @@ export class EditorStore {
     this.future.push(this.state.doc);
     this.state.doc = prev;
     if (!this.find(this.state.selectedClipId)) this.state.selectedClipId = null;
+    this.hooks.onUndo?.();
     this.notify();
     this.schedulePersist();
   }
@@ -209,6 +243,7 @@ export class EditorStore {
     this.past.push(this.state.doc);
     this.state.doc = next;
     if (!this.find(this.state.selectedClipId)) this.state.selectedClipId = null;
+    this.hooks.onRedo?.();
     this.notify();
     this.schedulePersist();
   }

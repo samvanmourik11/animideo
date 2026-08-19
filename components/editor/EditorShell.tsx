@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { EditorStore } from "@/lib/editor/store";
+import { EditorHistory } from "@/lib/editor/history";
+import HistoryPanel from "./HistoryPanel";
 import type { Ratio, TimelineDoc } from "@/lib/editor/timeline";
 import PreviewCanvas from "./PreviewCanvas";
 import Transport from "./Transport";
@@ -39,24 +41,59 @@ export default function EditorShell({
     router.push("/editor");
   }
 
-  // Store eenmalig aanmaken, met een persist-functie die naar Supabase schrijft.
+  // Store eenmalig aanmaken, met een persist-functie die naar Supabase schrijft
+  // en een geschiedenis die elke bewerking vastlegt.
   const storeRef = useRef<EditorStore | null>(null);
+  const historyRef = useRef<EditorHistory | null>(null);
   if (!storeRef.current) {
     const supabase = createClient();
-    storeRef.current = new EditorStore(initialTimeline, async (doc) => {
-      const { error } = await supabase
-        .from("editor_projects")
-        .update({
-          timeline: doc,
-          width: doc.width,
-          height: doc.height,
-          fps: doc.fps,
-        })
-        .eq("id", projectId);
-      if (error) throw error;
-    });
+    const history = new EditorHistory(supabase, projectId);
+    historyRef.current = history;
+    storeRef.current = new EditorStore(
+      initialTimeline,
+      async (doc) => {
+        const { error } = await supabase
+          .from("editor_projects")
+          .update({
+            timeline: doc,
+            width: doc.width,
+            height: doc.height,
+            fps: doc.fps,
+          })
+          .eq("id", projectId);
+        if (error) throw error;
+      },
+      {
+        // Bewust niet awaiten: de montage mag nooit wachten op het bijwerken
+        // van de geschiedenis. Mislukt het schrijven, dan blijft de bewerking
+        // gewoon staan (en meldt de historie dat in de console).
+        onOp: (op, summary) => {
+          void history.record(op, summary, storeRef.current!.getState().doc);
+        },
+        onUndo: () => history.stapTerug(),
+        onRedo: () => history.stapVooruit(),
+      }
+    );
   }
   const store = storeRef.current;
+
+  // Geschiedenis ophalen zodra de editor open is: daarmee werkt ongedaan maken
+  // ook over een refresh heen, in plaats van bij nul te beginnen.
+  useEffect(() => {
+    let afgebroken = false;
+    (async () => {
+      try {
+        const { eerdereDocs } = await historyRef.current!.load(initialTimeline);
+        if (!afgebroken) store.hydrate(eerdereDocs);
+      } catch (e) {
+        console.warn("[editor] geschiedenis laden mislukt:", e);
+      }
+    })();
+    return () => { afgebroken = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [historieOpen, setHistorieOpen] = useState(false);
 
   // ── Export ─────────────────────────────────────────────────
   const [exporting, setExporting] = useState(false);
@@ -143,7 +180,7 @@ export default function EditorShell({
   }, [store]);
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="relative flex flex-col h-full min-h-0">
       <header className="flex items-center justify-between px-4 h-12 border-b border-white/10 shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <button type="button" onClick={goBack} className="text-slate-400 hover:text-white text-sm">
@@ -157,6 +194,14 @@ export default function EditorShell({
         <div className="flex items-center gap-3">
           <Transport store={store} />
           <button
+            type="button"
+            onClick={() => setHistorieOpen((o) => !o)}
+            title="Wat er met deze montage is gebeurd, en terug naar een eerdere versie"
+            className="text-xs px-2.5 py-1.5 rounded-md bg-white/5 hover:bg-white/15 text-slate-300"
+          >
+            Versies
+          </button>
+          <button
             onClick={handleExport}
             disabled={exporting}
             className="btn-primary text-sm py-1.5 px-4"
@@ -165,6 +210,14 @@ export default function EditorShell({
           </button>
         </div>
       </header>
+
+      {historieOpen && historyRef.current && (
+        <HistoryPanel
+          history={historyRef.current}
+          store={store}
+          onClose={() => setHistorieOpen(false)}
+        />
+      )}
 
       {(exporting || exportUrl || exportError) && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center">
