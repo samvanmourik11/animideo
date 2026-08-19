@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { BrandKit } from "@/lib/types";
 import type { EditorStore } from "@/lib/editor/store";
-import { heeftBeeld, huidigeClipId } from "@/lib/editor/plaatsing";
+import { heeftBeeld, huidigeClipId, nieuwId } from "@/lib/editor/plaatsing";
 import { Melding, PaneelKop, Sectie } from "../ui";
 
 export default function MerkPanel({ store, onSluit }: { store: EditorStore; onSluit: () => void }) {
@@ -46,7 +46,9 @@ export default function MerkPanel({ store, onSluit }: { store: EditorStore; onSl
   function plaatsBeeld(url: string, label: string) {
     const clipId = huidigeClipId(store);
     if (!clipId) return setMelding("Zet eerst beeld op de tijdlijn.");
-    const res = store.dispatch({ op: "add_element", clipId, src: url, label, x: 0.5, y: 0.5, scale: 0.3 });
+    const id = nieuwId("merk");
+    const res = store.dispatch({ op: "add_element", clipId, src: url, label, elementId: id, x: 0.5, y: 0.5, scale: 0.3 });
+    if (res.ok) store.select(id);
     setMelding(res.ok ? `${label} toegevoegd` : res.error.message);
   }
 

@@ -19,3 +19,15 @@ export function huidigeClipId(store: EditorStore): string | null {
 export function heeftBeeld(store: EditorStore): boolean {
   return (store.getState().doc.tracks.find((t) => t.kind === "video")?.clips.length ?? 0) > 0;
 }
+
+/**
+ * Een id voor een nieuw element.
+ *
+ * De ops kunnen zelf een id verzinnen, maar dan weet de UI achteraf niet welke
+ * clip er bij kwam — en dan kun je het net geplaatste ding niet selecteren.
+ * Zonder dat moet je na elke plaatsing eerst zoeken wat je zojuist neerzette
+ * voor je de kleur kunt wijzigen.
+ */
+export function nieuwId(voorvoegsel: string): string {
+  return `${voorvoegsel}_${Math.random().toString(36).slice(2, 9)}`;
+}

@@ -68,6 +68,13 @@ export default function ContextBalk({
           </>
         )}
 
+        {clip.meta?.diagram && (
+          <>
+            <Knop onClick={onMeer}>Cijfers aanpassen</Knop>
+            <span className="w-px h-6 bg-slate-200 shrink-0" />
+          </>
+        )}
+
         {isTekst && (
           <>
             <Knop onClick={() => setOpen(open === "letter" ? null : "letter")}>

@@ -9,7 +9,7 @@
 import { useRef, useState } from "react";
 import { uploadEditorMedia } from "@/lib/editor/media";
 import { useEditor, type EditorStore } from "@/lib/editor/store";
-import { heeftBeeld, huidigeClipId } from "@/lib/editor/plaatsing";
+import { heeftBeeld, huidigeClipId, nieuwId } from "@/lib/editor/plaatsing";
 import type { Clip } from "@/lib/editor/timeline";
 import { Melding, PaneelKop, Sectie } from "../ui";
 
@@ -62,15 +62,18 @@ export default function UploadsPanel({
     if (b.clip.type === "image") {
       const clipId = huidigeClipId(store);
       if (!clipId) return setMelding("Zet eerst beeld op de tijdlijn.");
+      const id = nieuwId("upload");
       const res = store.dispatch({
         op: "add_element",
         clipId,
         src: b.clip.src,
         label: b.naam,
+        elementId: id,
         x: 0.5,
         y: 0.5,
         scale: 0.4,
       });
+      if (res.ok) store.select(id);
       setMelding(res.ok ? `${b.naam} toegevoegd` : res.error.message);
       return;
     }

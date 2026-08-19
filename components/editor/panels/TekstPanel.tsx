@@ -19,7 +19,7 @@ import {
   LETTERTYPEN, TEKST_SJABLONEN, TEKST_SOORTEN, lettertypeStack,
 } from "@/lib/editor/text-styles";
 import type { EditorStore } from "@/lib/editor/store";
-import { heeftBeeld, huidigeClipId } from "@/lib/editor/plaatsing";
+import { heeftBeeld, huidigeClipId, nieuwId } from "@/lib/editor/plaatsing";
 import { DEFAULT_TEXT_STYLE, type TextStyle } from "@/lib/editor/timeline";
 import { GenereerVak, Melding, PaneelKop, Sectie, Zoekbalk } from "../ui";
 
@@ -33,15 +33,20 @@ export default function TekstPanel({ store, onSluit }: { store: EditorStore; onS
   function plaats(tekst: string, stijl: Partial<TextStyle>, y = 0.5) {
     const clipId = huidigeClipId(store);
     if (!clipId) return setMelding("Zet eerst beeld op de tijdlijn.");
+    const id = nieuwId("tekst");
     const res = store.dispatch({
       op: "add_text",
       clipId,
       text: tekst,
+      textId: id,
       x: 0.5,
       y,
       style: { ...stijl, fontFamily: stijl.fontFamily ?? lettertypeStack(letter) },
     });
-    setMelding(res.ok ? "Tekst geplaatst — dubbelklik op het canvas om te typen" : res.error.message);
+    // Meteen selecteren: dan staan lettertype, grootte en effect boven het beeld
+    // klaar en kun je de tekst rechts overtypen zonder eerst te zoeken.
+    if (res.ok) store.select(id);
+    setMelding(res.ok ? "Tekst geplaatst — pas hem aan in de balk boven het beeld" : res.error.message);
   }
 
   async function schrijfMee(opdracht: string) {

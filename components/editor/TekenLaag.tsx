@@ -13,7 +13,7 @@ import { useRef, useState } from "react";
 import { alsDataUri, tekeningSvg, type PenStijl, type Punt } from "@/lib/editor/tekening";
 import { breedteNaarSchaal } from "@/lib/editor/element-geometry";
 import type { EditorStore } from "@/lib/editor/store";
-import { huidigeClipId } from "@/lib/editor/plaatsing";
+import { huidigeClipId, nieuwId } from "@/lib/editor/plaatsing";
 
 export default function TekenLaag({
   store,
@@ -77,6 +77,7 @@ export default function TekenLaag({
       clipId,
       src: alsDataUri(tekening.svg),
       label: "Tekening",
+      elementId: nieuwId("streek"),
       x: tekening.midden.x,
       y: tekening.midden.y,
       scale: breedteNaarSchaal(tekening.breedteFractie, tekening.formaat, doc),

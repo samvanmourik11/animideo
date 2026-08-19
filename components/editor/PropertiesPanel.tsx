@@ -16,6 +16,7 @@ const ADJUSTMENTS = [
   { kind: "saturation", label: "Verzadiging", min: -1, max: 1, step: 0.01 },
   { kind: "blur", label: "Blur", min: 0, max: 20, step: 0.5 },
 ] as const;
+import DiagramEditor from "./DiagramEditor";
 import { useEditor, type EditorStore } from "@/lib/editor/store";
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -105,6 +106,10 @@ export default function PropertiesPanel({ store }: { store: EditorStore }) {
         ) : (
           <>
             <div className="text-[13px] text-slate-500 capitalize">{clip.type}</div>
+
+            {clip.meta?.diagram && (
+              <DiagramEditor store={store} clipId={clip.id} diagram={clip.meta.diagram} />
+            )}
 
             {clip.type === "text" && (
               <div className="space-y-3">

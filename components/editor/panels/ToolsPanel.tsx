@@ -11,7 +11,7 @@ import { useState } from "react";
 import { PENNEN, alsDataUri, plakbriefjeSvg, tabelSvg, BRIEFJE_KLEUREN, type PenStijl } from "@/lib/editor/tekening";
 import { breedteNaarSchaal } from "@/lib/editor/element-geometry";
 import type { EditorStore } from "@/lib/editor/store";
-import { heeftBeeld, huidigeClipId } from "@/lib/editor/plaatsing";
+import { heeftBeeld, huidigeClipId, nieuwId } from "@/lib/editor/plaatsing";
 import { KleurKiezer, Melding, PaneelKop, Sectie } from "../ui";
 
 export default function ToolsPanel({
@@ -36,15 +36,18 @@ export default function ToolsPanel({
     const clipId = huidigeClipId(store);
     if (!clipId) return setMelding("Zet eerst beeld op de tijdlijn.");
     const doc = store.getState().doc;
+    const id = nieuwId("tool");
     const res = store.dispatch({
       op: "add_element",
       clipId,
       src: alsDataUri(svg),
       label,
+      elementId: id,
       x: 0.5,
       y: 0.5,
       scale: breedteNaarSchaal(breedte, formaat, doc),
     });
+    if (res.ok) store.select(id);
     setMelding(res.ok ? `${label} toegevoegd` : res.error.message);
   }
 

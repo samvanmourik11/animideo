@@ -22,7 +22,7 @@ import {
 } from "@/lib/editor/charts";
 import { ICONEN, ICON_CATEGORIEEN, iconUrl, zoekIconen, type IconCategorie } from "@/lib/editor/icons/library";
 import type { EditorStore } from "@/lib/editor/store";
-import { heeftBeeld, huidigeClipId } from "@/lib/editor/plaatsing";
+import { heeftBeeld, huidigeClipId, nieuwId } from "@/lib/editor/plaatsing";
 import type { DiagramMeta } from "@/lib/editor/timeline";
 import { Chip, GenereerVak, KleurKiezer, Melding, PaneelKop, Sectie, Tegel, Zoekbalk } from "../ui";
 
@@ -41,22 +41,34 @@ export default function ElementenPanel({ store, onSluit }: { store: EditorStore;
   const [iconCategorie, setIconCategorie] = useState<IconCategorie | "alle">("alle");
   const leeg = !heeftBeeld(store);
 
-  function meld(res: { ok: true; summary?: string } | { ok: false; error: { message: string } }, gelukt: string) {
+  /**
+   * Melding tonen en, als het lukte, het nieuwe element meteen selecteren — dan
+   * staan de kleurknoppen er direct voor klaar, zoals in Canva.
+   */
+  function meld(
+    res: { ok: true; summary?: string } | { ok: false; error: { message: string } },
+    gelukt: string,
+    id?: string
+  ) {
     setMelding(res.ok ? gelukt : res.error.message);
+    if (res.ok && id) store.select(id);
   }
 
   function plaatsVorm(vormId: string) {
     const clipId = huidigeClipId(store);
     if (!clipId) return setMelding("Zet eerst beeld op de tijdlijn.");
-    meld(store.dispatch({ op: "add_vorm", clipId, vormId, stijl }), "Geplaatst — sleep hem op zijn plek");
+    const id = nieuwId("vorm");
+    meld(store.dispatch({ op: "add_vorm", clipId, vormId, stijl, elementId: id }), "Geplaatst — sleep hem op zijn plek", id);
   }
 
   function plaatsIcoon(src: string, label: string) {
     const clipId = huidigeClipId(store);
     if (!clipId) return setMelding("Zet eerst beeld op de tijdlijn.");
+    const id = nieuwId("icoon");
     meld(
-      store.dispatch({ op: "add_element", clipId, src, label, x: 0.5, y: 0.35, scale: 0.18 }),
-      `${label} toegevoegd`
+      store.dispatch({ op: "add_element", clipId, src, label, x: 0.5, y: 0.35, scale: 0.18, elementId: id }),
+      `${label} toegevoegd`,
+      id
     );
   }
 
@@ -64,9 +76,11 @@ export default function ElementenPanel({ store, onSluit }: { store: EditorStore;
     const clipId = huidigeClipId(store);
     if (!clipId) return setMelding("Zet eerst beeld op de tijdlijn.");
     const diagram: DiagramMeta = { soort, data: VOORBEELD_DATA, kleuren: DIAGRAM_KLEUREN, toonWaarden: true };
+    const id = nieuwId("diagram");
     meld(
-      store.dispatch({ op: "add_diagram", clipId, diagram }),
-      "Diagram geplaatst — pas de cijfers rechts aan"
+      store.dispatch({ op: "add_diagram", clipId, diagram, elementId: id }),
+      "Diagram geplaatst — pas de cijfers aan bij Meer instellingen",
+      id
     );
   }
 

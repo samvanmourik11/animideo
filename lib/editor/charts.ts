@@ -67,9 +67,31 @@ function veilig(tekst: string): string {
 
 const LETTER = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 
+/**
+ * Zwart of wit, wat het beste afsteekt tegen deze kleur.
+ */
+function contrast(hex: string): string {
+  const m = /^#?([\da-f]{6})/i.exec(hex.trim());
+  if (!m) return "#000000";
+  const n = parseInt(m[1], 16);
+  const l = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return l > 0.55 ? "#000000" : "#ffffff";
+}
+
+/**
+ * Labels krijgen een dunne omlijning in de tegenkleur.
+ *
+ * Een diagram ligt over beeld dat we niet kennen: witte labels verdwijnen op een
+ * lichte lucht, zwarte op een donkere. Met `paint-order` komt de omlijning
+ * áchter de letter te liggen, zodat hij leesbaar blijft zonder dik te worden.
+ * Dit ging mis bij het eerste diagram op een licht huis: de maandnamen waren
+ * gewoon weg.
+ */
 function tekst(x: number, y: number, inhoud: string, grootte: number, kleur: string, anker = "middle", vet = 500): string {
   return `<text x="${nr(x)}" y="${nr(y)}" font-family="${LETTER}" font-size="${nr(grootte)}"
-    font-weight="${vet}" fill="${kleur}" text-anchor="${anker}" dominant-baseline="middle">${veilig(inhoud)}</text>`;
+    font-weight="${vet}" fill="${kleur}" stroke="${contrast(kleur)}" stroke-width="${nr(grootte * 0.16)}"
+    stroke-opacity="0.55" paint-order="stroke" stroke-linejoin="round"
+    text-anchor="${anker}" dominant-baseline="middle">${veilig(inhoud)}</text>`;
 }
 
 /** Netjes afgeronde waarde: 12,5 blijft 12,5 maar 12,50000001 wordt 12,5. */
