@@ -120,6 +120,43 @@ export const EDITOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "plaats_element",
+      description:
+        "Zet een nieuw voorwerp in beeld bij een clip: je beschrijft wat het is en waar het moet komen, en het wordt als losse laag over de video gelegd. Gebruik dit voor dingen TOEVOEGEN ('zet er een appel op het bureau', 'plak ons logo rechtsboven'). Kost 1 credit en duurt een halve minuut. Kan niet gebruikt worden om iets weg te halen.",
+      parameters: {
+        type: "object",
+        properties: {
+          clipId: clipIdParam,
+          wat: { type: "string", description: "Wat er moet komen, kort beschreven ('een rode appel', 'een koffiekopje')." },
+          waar: { type: "string", description: "Waar het ongeveer moet komen ('op het bureau', 'rechtsboven in de hoek'). Mag leeg." },
+        },
+        required: ["clipId", "wat"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "bewerk_beeld",
+      description:
+        "Verander het beeld van een clip zelf: iets weghalen, vervangen of aanpassen ('remove the coffee mug'). Het bronbeeld wordt opnieuw getekend en de clip opnieuw geanimeerd. Kost 3 credits, duurt een minuut, en heeft twee bijwerkingen: tekst die in de video zit kan verdwijnen, en de nieuwe clip is 5 seconden (een langere scène wordt dus korter). Vraag hier ALTIJD eerst akkoord voor. Gebruik plaats_element als er alleen iets BIJ moet — dat is goedkoper en raakt de video niet aan.",
+      parameters: {
+        type: "object",
+        properties: {
+          clipId: clipIdParam,
+          instructie: {
+            type: "string",
+            description:
+              "Wat er moet veranderen, in één korte zin IN HET ENGELS (het beeldmodel is Engelstalig). Beschrijf alleen de verandering, niet de hele scène. Bijvoorbeeld: 'remove the coffee mug from the desk'.",
+          },
+        },
+        required: ["clipId", "instructie"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "set_transition",
       description:
         "Zet of verwijder een overgang op een clipgrens. Gebruik 'fade' spaarzaam: de harde cut (geen overgang) is de norm, een fade alleen bij een sprong in tijd of sfeer.",
@@ -139,6 +176,13 @@ export const EDITOR_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 
 /** Tools die alleen kijken; die hoeven niet door de op-laag en kosten geen versie. */
 export const LEES_TOOLS = new Set(["get_timeline_summary", "search_transcript"]);
+
+/**
+ * Tools die eerst iets moeten laten máken (beeld genereren, opnieuw animeren)
+ * voordat er een op uit komt. Die kosten credits en tijd, dus de route handelt
+ * ze apart af en meldt onderweg wat er gebeurt.
+ */
+export const MAAK_TOOLS = new Set(["plaats_element", "bewerk_beeld"]);
 
 export type ToolArgs = Record<string, unknown>;
 

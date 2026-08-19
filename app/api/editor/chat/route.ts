@@ -18,11 +18,14 @@ import { applyOp } from "@/lib/editor/core/ops";
 import { migrateTimeline, type TimelineDoc } from "@/lib/editor/timeline";
 import { manifestAlsTekst, zoekInTekst } from "@/lib/editor/ai/manifest";
 import { buildEditorPrompt } from "@/lib/editor/ai/prompt";
-import { EDITOR_TOOLS, LEES_TOOLS, toolCallNaarOp } from "@/lib/editor/ai/tools";
+import { EDITOR_TOOLS, LEES_TOOLS, MAAK_TOOLS, toolCallNaarOp } from "@/lib/editor/ai/tools";
+import { bepaalPlek, bewerkClipBeeld, breedteNaarSchaal, genereerElement, maakBeweging, pakFrame, pngFormaat } from "@/lib/editor/elements";
+import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
+import type { Op } from "@/lib/editor/core/ops";
 import type OpenAI from "openai";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300; // beeld genereren + opnieuw animeren duurt tot een minuut
 
 // Hoe vaak het model achter elkaar gereedschap mag pakken. Genoeg voor "kijk
 // eerst, pas dan aan" en een correctie na een weigering; niet zoveel dat een
@@ -136,6 +139,40 @@ export async function POST(req: NextRequest) {
               continue;
             }
 
+            // Tools die eerst iets moeten laten máken: die kosten credits en
+            // tijd, dus we melden onderweg wat er gebeurt en leveren pas daarna
+            // een op af.
+            if (MAAK_TOOLS.has(call.name)) {
+              const uitkomst = await voerMaakToolUit({
+                naam: call.name,
+                args,
+                doc,
+                supabase,
+                userId: user.id,
+                emit,
+              });
+              if (!uitkomst.ok) {
+                messages.push({ role: "tool", tool_call_id: call.id, content: `Geweigerd: ${uitkomst.reden}` });
+                emit({ type: "geweigerd", reden: uitkomst.reden });
+                continue;
+              }
+              const res = applyOp(doc, uitkomst.op);
+              if (!res.ok) {
+                // Er is al beeld gemaakt en dus betaald. Wordt de op alsnog
+                // geweigerd, dan heeft de klant niets gekregen — terugstorten.
+                if (uitkomst.kosten) {
+                  await addCredits(user.id, uitkomst.kosten, "Refund: bewerking niet toegepast").catch(() => {});
+                }
+                messages.push({ role: "tool", tool_call_id: call.id, content: `Geweigerd: ${res.error.message}` });
+                emit({ type: "geweigerd", reden: res.error.message });
+                continue;
+              }
+              doc = res.doc;
+              emit({ type: "op", op: uitkomst.op, summary: uitkomst.summary ?? res.summary });
+              messages.push({ role: "tool", tool_call_id: call.id, content: `Toegepast: ${uitkomst.summary ?? res.summary}` });
+              continue;
+            }
+
             const op = toolCallNaarOp(call.name, args);
             if (!op) {
               messages.push({
@@ -187,4 +224,101 @@ function formatTreffers(treffers: { id: string; label: string; start: number; du
   return treffers
     .map((t) => `${t.id} (${t.label}, ${t.start.toFixed(1)}s–${(t.start + t.duration).toFixed(1)}s)${t.tekst ? `: "${t.tekst}"` : ""}`)
     .join("\n");
+}
+
+
+interface MaakContext {
+  naam: string;
+  args: Record<string, unknown>;
+  doc: TimelineDoc;
+  supabase: Awaited<ReturnType<typeof createClient>>;
+  userId: string;
+  emit: (e: object) => void;
+}
+
+type MaakUitkomst = { ok: true; op: Op; summary?: string; kosten?: number } | { ok: false; reden: string };
+
+/**
+ * Voert de tools uit die eerst beeld moeten laten maken.
+ *
+ * plaats_element legt een los element over de clip: dat raakt de video niet aan
+ * en kost één beeld-credit. bewerk_beeld verandert het beeld zélf en moet daarna
+ * opnieuw animeren — dat kost drie credits en ongeveer een minuut, en daarom
+ * melden we elke stap terwijl hij loopt.
+ */
+async function voerMaakToolUit(ctx: MaakContext): Promise<MaakUitkomst> {
+  const { naam, args, doc, supabase, userId, emit } = ctx;
+  const clipId = typeof args.clipId === "string" ? args.clipId : "";
+  const clip = doc.tracks.flatMap((t) => t.clips).find((c) => c.id === clipId);
+  if (!clip) return { ok: false, reden: `Clip ${clipId || "?"} bestaat niet` };
+  if (clip.type !== "video" && clip.type !== "image") {
+    return { ok: false, reden: "Dit werkt alleen op beeld, niet op een geluidsspoor" };
+  }
+
+  // Een frame uit het midden van de clip: representatief, en niet het zwakke
+  // eerste of laatste frame van een AI-generatie.
+  const midden = (clip.trimIn ?? 0) + clip.duration / 2;
+  // Met raster als we iets moeten plaatsen (dan zijn coördinaten nodig), zonder
+  // raster als het beeld zelf bewerkt wordt — dan zouden de lijnen meegaan in
+  // de bewerking.
+  const frame = await pakFrame(clip.src, clip.type === "video" ? midden : 0, naam === "plaats_element");
+
+  if (naam === "plaats_element") {
+    const wat = typeof args.wat === "string" ? args.wat.trim() : "";
+    if (!wat) return { ok: false, reden: "Ik weet niet wát er geplaatst moet worden" };
+    const waar = typeof args.waar === "string" ? args.waar : "";
+
+    const credit = await deductCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Element in beeld plaatsen");
+    if (!credit.success) return { ok: false, reden: `Te weinig credits (nodig: ${CREDIT_COSTS.IMAGE_GENERATION}, saldo: ${credit.credits})` };
+
+    try {
+      emit({ type: "bezig", tekst: `${wat} maken…` });
+      const { url: src, png } = await genereerElement(supabase, userId, wat);
+      const plek = frame
+        ? await bepaalPlek(frame, waar, wat)
+        : { x: 0.5, y: 0.6, scale: 0.15, toelichting: "midden-onder gezet — versleep hem gerust" };
+
+      // `plek.scale` is de gewenste breedte als deel van het beeld; de
+      // compositor rekent met een factor op het passend-gemaakte formaat.
+      const formaat = pngFormaat(png) ?? { breedte: 1024, hoogte: 1024 };
+      const schaal = breedteNaarSchaal(plek.scale, formaat, { width: doc.width, height: doc.height });
+
+      return {
+        ok: true,
+        op: { op: "add_element", clipId, src, label: wat, x: plek.x, y: plek.y, scale: schaal },
+        summary: `${wat} in beeld gezet${plek.toelichting ? ` — ${plek.toelichting}` : ""}`,
+        kosten: CREDIT_COSTS.IMAGE_GENERATION,
+      };
+    } catch (e) {
+      await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Refund: element mislukt").catch(() => {});
+      return { ok: false, reden: e instanceof Error ? e.message : "Het element maken lukte niet" };
+    }
+  }
+
+  // bewerk_beeld
+  const instructie = typeof args.instructie === "string" ? args.instructie.trim() : "";
+  if (!instructie) return { ok: false, reden: "Ik weet niet wat er aan het beeld moet veranderen" };
+  if (!frame) return { ok: false, reden: "Ik kon geen beeld uit deze clip halen" };
+
+  const kosten = CREDIT_COSTS.IMAGE_GENERATION + CREDIT_COSTS.VIDEO_GENERATION;
+  const credit = await deductCredits(userId, kosten, "Beeld bewerken + opnieuw animeren");
+  if (!credit.success) return { ok: false, reden: `Te weinig credits (nodig: ${kosten}, saldo: ${credit.credits})` };
+
+  try {
+    emit({ type: "bezig", tekst: "Beeld aanpassen…" });
+    const nieuwBeeld = await bewerkClipBeeld(supabase, userId, frame, instructie, doc.ratio);
+
+    emit({ type: "bezig", tekst: "De clip weer laten bewegen (dit duurt een halve minuut)…" });
+    const beweging = await maakBeweging(supabase, userId, nieuwBeeld, clip.meta?.genPrompt);
+
+    return {
+      ok: true,
+      op: { op: "replace_clip_source", clipId, src: beweging.url, mediaType: "video", naturalDuration: beweging.duur },
+      summary: `Beeld aangepast: ${instructie}`,
+      kosten,
+    };
+  } catch (e) {
+    await addCredits(userId, kosten, "Refund: beeld bewerken mislukt").catch(() => {});
+    return { ok: false, reden: e instanceof Error ? e.message : "Het bewerken lukte niet" };
+  }
 }

@@ -19,6 +19,8 @@ interface Bericht {
   stappen?: { summary: string; op: Op }[];
   /** Wat er is geweigerd, met de reden — eerlijker dan het stilhouden. */
   geweigerd?: string[];
+  /** Waar hij nu mee bezig is (beeld maken, animeren) — dat duurt even. */
+  bezigMet?: string;
 }
 
 export default function ChatPanel({
@@ -80,7 +82,7 @@ export default function ChatPanel({
         for (const deel of delen) {
           const regel = deel.split("\n").find((l) => l.startsWith("data: "));
           if (!regel) continue;
-          let ev: { type?: string; text?: string; op?: Op; summary?: string; reden?: string; message?: string };
+          let ev: { type?: string; text?: string; op?: Op; summary?: string; reden?: string; message?: string; tekst?: string };
           try { ev = JSON.parse(regel.slice(6)); } catch { continue; }
 
           if (ev.type === "delta" && ev.text) {
@@ -91,10 +93,12 @@ export default function ChatPanel({
             // blijft wat de monteur deed en wat jij zelf deed.
             const res2 = store.dispatch(ev.op, "ai");
             if (res2.ok) {
-              werkBij((b) => ({ ...b, stappen: [...(b.stappen ?? []), { summary: ev.summary ?? "", op: ev.op! }] }));
+              werkBij((b) => ({ ...b, bezigMet: undefined, stappen: [...(b.stappen ?? []), { summary: ev.summary ?? "", op: ev.op! }] }));
             } else {
               werkBij((b) => ({ ...b, geweigerd: [...(b.geweigerd ?? []), res2.error.message] }));
             }
+          } else if (ev.type === "bezig" && ev.tekst) {
+            werkBij((b) => ({ ...b, bezigMet: ev.tekst }));
           } else if (ev.type === "geweigerd" && ev.reden) {
             werkBij((b) => ({ ...b, geweigerd: [...(b.geweigerd ?? []), ev.reden!] }));
           } else if (ev.type === "error") {
@@ -105,6 +109,7 @@ export default function ChatPanel({
     } catch {
       werkBij((b) => ({ ...b, tekst: b.tekst || "Ik kon je vraag niet verwerken. Probeer het nog eens." }));
     } finally {
+      werkBij((b) => ({ ...b, bezigMet: undefined }));
       setBezig(false);
     }
   }
@@ -156,6 +161,10 @@ export default function ChatPanel({
                     </li>
                   ))}
                 </ul>
+              ) : null}
+
+              {b.bezigMet ? (
+                <p className="mt-1.5 text-[11px] text-slate-400">{b.bezigMet}</p>
               ) : null}
 
               {b.geweigerd && b.geweigerd.length > 0 ? (

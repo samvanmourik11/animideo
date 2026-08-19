@@ -16,6 +16,8 @@ import { computeDuration, type Clip, type TimelineDoc, type TrackKind } from "..
 
 export interface ManifestClip {
   id: string;
+  /** Scènenummer uit het bronproject; hiermee praat de klant ("scène 1"). */
+  sceneIndex?: number;
   /** Menselijke naam: uit meta.label, anders het scènenummer, anders het type. */
   label: string;
   start: number;
@@ -66,6 +68,7 @@ export function buildManifest(doc: TimelineDoc): TimelineManifest {
           .map((clip, i) => ({
             id: clip.id,
             label: labelVoor(clip, i),
+            sceneIndex: clip.meta?.sceneIndex,
             start: clip.start,
             duration: clip.duration,
             kind: clip.type,
@@ -97,13 +100,14 @@ export function manifestAlsTekst(doc: TimelineDoc): string {
     for (const c of spoor.clips) {
       const stuk = [
         `  ${c.id}`,
+        c.sceneIndex ? `[scène ${c.sceneIndex}]` : "",
         `${tijdstip(c.start)}-${tijdstip(c.start + c.duration)}`,
         `${c.duration.toFixed(1)}s`,
         c.label,
       ];
       if (c.tekst) stuk.push(`— "${c.tekst}"`);
       else if (c.beeld) stuk.push(`— beeld: ${c.beeld}`);
-      regels.push(stuk.join("  "));
+      regels.push(stuk.filter(Boolean).join("  "));
     }
   }
 

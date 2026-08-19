@@ -42,7 +42,28 @@ export type Op =
   /** Vrije positie op overlay-, tekst- en audiosporen. */
   | { op: "move_clip"; clipId: string; start: number }
   /** Overgang op een clipgrens; `kind: null` haalt hem weg. */
-  | { op: "set_transition"; clipId: string; edge: "in" | "out"; kind: "fade" | null; duration?: number };
+  | { op: "set_transition"; clipId: string; edge: "in" | "out"; kind: "fade" | null; duration?: number }
+  /**
+   * Los element (met transparante achtergrond) bovenop de video, voor de duur
+   * van één clip. Dit is de Premiere-manier: het ding ligt er los overheen, dus
+   * je kunt het verslepen, schalen en weer weghalen zonder het beeld eronder
+   * aan te raken.
+   */
+  | {
+      op: "add_element";
+      clipId: string;          // over welke clip het element komt te liggen
+      src: string;
+      elementId?: string;
+      label?: string;
+      x?: number;              // 0..1, midden van het element
+      y?: number;
+      scale?: number;
+    }
+  /**
+   * Het beeldmateriaal van een clip vervangen (na een AI-bewerking van het
+   * bronbeeld). Timing en positie blijven staan; alleen de bron verandert.
+   */
+  | { op: "replace_clip_source"; clipId: string; src: string; mediaType: "video" | "image"; naturalDuration?: number };
 
 export type OpKind = Op["op"];
 
@@ -274,6 +295,77 @@ export function applyOp(doc: TimelineDoc, op: Op): OpResult {
           ok: true,
           doc: vervangSpoor(doc, gevonden.track.id, clips),
           summary: `Clip verplaatst naar ${seconden(start)}`,
+        };
+      }
+
+      case "add_element": {
+        const gevonden = vind(doc, op.clipId);
+        if (!gevonden) return fout("not_found", `Clip ${op.clipId} bestaat niet`);
+        // Elementen gaan op het overlay-spoor: dat ligt boven de video en onder
+        // de tekst, en heeft geen magnetische regels — een element mag overal.
+        let overlay = doc.tracks.find((t) => t.kind === "overlay");
+        let tracks = doc.tracks;
+        if (!overlay) {
+          overlay = { id: `trk_overlay_${doc.tracks.length}`, kind: "overlay", name: "Overlay", clips: [] };
+          const vi = doc.tracks.findIndex((t) => t.kind === "video");
+          tracks = [...doc.tracks.slice(0, vi + 1), overlay, ...doc.tracks.slice(vi + 1)];
+        }
+        const id = op.elementId ?? `elm_${gevonden.clip.id}_${overlay.clips.length}`;
+        if (vind(doc, id)) return fout("invalid", `Er bestaat al een element met id ${id}`);
+
+        const element: Clip = {
+          id,
+          type: "image",
+          src: op.src,
+          start: gevonden.clip.start,
+          duration: gevonden.clip.duration,
+          transform: {
+            x: op.x ?? 0.5,
+            y: op.y ?? 0.5,
+            scale: op.scale ?? 0.25,
+            rotation: 0,
+          },
+          meta: { label: op.label ?? "Element", source: "ai-element" },
+        };
+        return {
+          ok: true,
+          doc: { ...doc, tracks: tracks.map((t) => (t.id === overlay!.id ? { ...t, clips: [...t.clips, element] } : t)) },
+          summary: `${op.label ?? "Element"} toegevoegd over ${seconden(gevonden.clip.duration)}`,
+        };
+      }
+
+      case "replace_clip_source": {
+        const gevonden = vind(doc, op.clipId);
+        if (!gevonden) return fout("not_found", `Clip ${op.clipId} bestaat niet`);
+        const { track, clip } = gevonden;
+
+        // Nieuw materiaal is vaak niet even lang als het oude: een opnieuw
+        // gegenereerde clip duurt 5 seconden, terwijl de scène er 8 was. Dan
+        // korten we de scène in tot wat er is. Uitrekken zou er slecht uitzien
+        // en de bron langer maken dan hij is; eerlijk inkorten is beter, en we
+        // zeggen het erbij zodat het niet stiekem gebeurt.
+        const bron = op.mediaType === "video" ? op.naturalDuration ?? clip.duration : clip.duration;
+        const duur = op.mediaType === "video" ? Math.min(clip.duration, snapToFrame(bron, fps)) : clip.duration;
+        if (duur < min) return fout("invalid", "Het nieuwe materiaal is te kort om te gebruiken");
+
+        const vervangen = {
+          ...clip,
+          type: op.mediaType,
+          src: op.src,
+          trimIn: 0,
+          duration: duur,
+          ...(op.mediaType === "video" ? { naturalDuration: snapToFrame(bron, fps) } : {}),
+        } as Clip;
+
+        const clips = track.clips.map((c) => (c.id === clip.id ? vervangen : c));
+        const ingekort = clip.duration - duur;
+        return {
+          ok: true,
+          doc: vervangSpoor(doc, track.id, isHoofdspoor(doc, track) ? pak(opTijd(clips), fps) : clips),
+          summary:
+            ingekort > 0.05
+              ? `Beeld vervangen; de scène is ${seconden(ingekort)} korter omdat de nieuwe clip zo lang is`
+              : "Beeld van de clip vervangen",
         };
       }
 

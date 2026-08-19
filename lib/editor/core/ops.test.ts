@@ -150,6 +150,88 @@ describe("set_transition", () => {
   });
 });
 
+describe("add_element", () => {
+  it("legt het element over de clip heen, op het overlay-spoor", () => {
+    const res = applyOp(driesporen(), {
+      op: "add_element", clipId: "b", src: "https://example.test/appel.png",
+      elementId: "elm_appel", label: "Appel", x: 0.6, y: 0.7, scale: 0.2,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    // De video zelf is niet aangeraakt.
+    expect(videoClips(res.doc).map((c) => c.id)).toEqual(["a", "b", "c"]);
+
+    const overlay = res.doc.tracks.find((t) => t.kind === "overlay")!;
+    expect(overlay.clips).toHaveLength(1);
+    const el = overlay.clips[0];
+    expect(el).toMatchObject({ id: "elm_appel", type: "image", start: 4, duration: 5 });
+    expect(el.transform).toMatchObject({ x: 0.6, y: 0.7, scale: 0.2 });
+    expect(checkInvariants(res.doc)).toEqual([]);
+  });
+
+  it("zet het element midden in beeld als er geen plek is opgegeven", () => {
+    const res = applyOp(driesporen(), { op: "add_element", clipId: "a", src: "x" });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const el = res.doc.tracks.find((t) => t.kind === "overlay")!.clips[0];
+    expect(el.transform).toMatchObject({ x: 0.5, y: 0.5 });
+  });
+
+  it("weigert een element op een clip die niet bestaat", () => {
+    expect(applyOp(driesporen(), { op: "add_element", clipId: "weg", src: "x" }).ok).toBe(false);
+  });
+});
+
+describe("replace_clip_source", () => {
+  it("vervangt het materiaal maar houdt plek en lengte", () => {
+    const res = applyOp(driesporen(), {
+      op: "replace_clip_source", clipId: "b", src: "https://example.test/nieuw.mp4",
+      mediaType: "video", naturalDuration: 5,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const b = videoClips(res.doc).find((c) => c.id === "b")!;
+    expect(b).toMatchObject({ src: "https://example.test/nieuw.mp4", start: 4, duration: 5, trimIn: 0 });
+    expect(checkInvariants(res.doc)).toEqual([]);
+  });
+
+  it("kort de scène in als de nieuwe clip korter is, en zegt dat erbij", () => {
+    // Het echte geval: een scène van 5s wordt vervangen door een opnieuw
+    // gegenereerde clip van 3s. Eerder werd dat geweigerd ("wijst buiten zijn
+    // bronmateriaal") nádat de klant er al voor betaald had.
+    const res = applyOp(driesporen(), {
+      op: "replace_clip_source", clipId: "b", src: "nieuw.mp4", mediaType: "video", naturalDuration: 3,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    const clips = videoClips(res.doc);
+    expect(clips.map((c) => [c.id, c.start, c.duration])).toEqual([
+      ["a", 0, 4],
+      ["b", 4, 3],
+      ["c", 7, 3],
+    ]);
+    expect(res.summary).toContain("korter");
+    expect(checkInvariants(res.doc)).toEqual([]);
+  });
+
+  it("laat de scène met rust als de nieuwe clip juist langer is", () => {
+    const res = applyOp(driesporen(), {
+      op: "replace_clip_source", clipId: "b", src: "nieuw.mp4", mediaType: "video", naturalDuration: 20,
+    });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(videoClips(res.doc).find((c) => c.id === "b")!.duration).toBe(5);
+  });
+
+  it("kan een bewegende clip vervangen door een stilstaand beeld", () => {
+    const res = applyOp(driesporen(), { op: "replace_clip_source", clipId: "a", src: "x.png", mediaType: "image" });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(videoClips(res.doc)[0].type).toBe("image");
+  });
+});
+
 describe("applyOps", () => {
   it("stopt bij de eerste fout en laat het document ongemoeid", () => {
     const doc = driesporen();
