@@ -24,6 +24,36 @@
 //     de stem loopt dan uit de pas met de mond. Eén spreker per clip lost dat op.
 
 import type { DialogueCastMember } from "./dialogue-schema";
+import { STORY_STYLE_PRESETS } from "./story-style";
+
+/**
+ * De gekozen tekenstijl, als zin voor een BEWERKINGS-prompt.
+ *
+ * Hier stond "Flat vector illustration, same art style as the source" hard in de
+ * tekst van elke bewerking. Koos de gebruiker Papercut of Marker Sketch, dan
+ * vochten die twee elkaar: het twee-shot werd wél in de gekozen stijl getekend
+ * (dat loopt via buildIllustrationPrompt) en élke bewerking daarvan kreeg
+ * vervolgens de opdracht er flat vector van te maken. Daardoor zag het ene beeld
+ * er anders uit dan het andere, en vielen de actiebeelden — die het verst van het
+ * twee-shot af staan — het hardst uit de toon.
+ */
+function stijlPreamble(styleId?: string | null): string {
+  return (STORY_STYLE_PRESETS.find((s) => s.id === styleId) ?? STORY_STYLE_PRESETS[0]).preamble.trim();
+}
+
+/** Stijlregel voor een beeldbewerking: houd exact de stijl van het bronbeeld aan. */
+function stijlBewerking(styleId?: string | null): string {
+  return (
+    `ART STYLE — this is the same video as the source image, so the drawing style must be IDENTICAL: ` +
+    `${stijlPreamble(styleId)} Match the source image's exact line quality, colour palette, texture and ` +
+    `level of detail. Do not switch to a different illustration style. No text overlays, no watermarks, no logos.`
+  );
+}
+
+/** Stijlregel voor een bewegingsprompt. */
+function stijlBeweging(styleId?: string | null): string {
+  return `Animation style: keep the exact look of the source image — ${stijlPreamble(styleId)}`;
+}
 
 /**
  * Natuurwetten voor elk beeld.
@@ -129,7 +159,8 @@ export function buildTwoShotBrief(setting: string, cast: DialogueCastMember[]): 
 export function buildTurnShotPrompt(
   spreker: DialogueCastMember,
   luisteraars: DialogueCastMember[],
-  emotion?: string | null
+  emotion?: string | null,
+  styleId?: string | null
 ): string {
   const emo = (emotion || "").trim();
   const emoZin = emo && emo !== "neutraal"
@@ -159,7 +190,7 @@ export function buildTurnShotPrompt(
     `A calm, receptive listening posture for everyone who is not speaking. ` +
     `To be completely clear: ${spreker.name} talks, ${luisteraarNamen} listen${luisteraars.length === 1 ? "s" : ""} ` +
     `in silence with a closed mouth. Do not swap these roles. ` +
-    `Flat vector illustration, same art style as the source. No text overlays, no watermarks, no logos.` +
+    stijlBewerking(styleId) +
     NATUURWETTEN
   );
 }
@@ -172,7 +203,8 @@ export function buildTurnShotPrompt(
  */
 export function buildDialogueMotionPrompt(
   spreker: DialogueCastMember,
-  luisteraars: DialogueCastMember[]
+  luisteraars: DialogueCastMember[],
+  styleId?: string | null
 ): string {
   const sprekerT = aanduiding(spreker, false);
   const luisterZinnen = luisteraars.map((l) =>
@@ -185,7 +217,7 @@ export function buildDialogueMotionPrompt(
   // Die aanwijzing herhalen we hier, want als het videomodel de rollen omdraait
   // komt de verkeerde stem uit de verkeerde persoon — de storendste fout die er is.
   return (
-    `Animate this flat 2D explainer illustration as a conversation. ` +
+    `Animate this illustration as a conversation. ` +
     `IMPORTANT: in the source image exactly one person already has an open mouth — that is the speaker. ` +
     `Keep it that way for the entire clip; never swap who is talking. ` +
     `${sprekerT.replace(/^the/, "The")} is the speaker and does the talking for the whole clip: mouth opening and closing ` +
@@ -194,7 +226,7 @@ export function buildDialogueMotionPrompt(
     `Exactly one person is talking in this clip and it is ${sprekerT}. ` +
     `The other person's mouth NEVER opens, not even briefly. ` +
     `Everyone keeps facing each other and never turns towards the viewer. ` +
-    `Flat 2D vector animation style, static locked camera. Keep the same people, same faces, clothing, ` +
+    `${stijlBeweging(styleId)} Static locked camera. Keep the same people, same faces, clothing, ` +
     `colours and background. Do not add another person, new objects or text.`
   );
 }
@@ -217,7 +249,11 @@ export function buildDialogueMotionPrompt(
  * Bronbeeld voor een actiebeeld: een bewerking van het scène-twee-shot waarin de
  * personages de beschreven handeling uitvoeren.
  */
-export function buildActionShotPrompt(cast: DialogueCastMember[], actie: string): string {
+export function buildActionShotPrompt(
+  cast: DialogueCastMember[],
+  actie: string,
+  styleId?: string | null
+): string {
   const wie = cast
     .map((c) => `${c.name}${(c.appearance ?? "").trim() ? ` (${(c.appearance ?? "").trim()})` : ""}`)
     .join(" and ");
@@ -230,20 +266,20 @@ export function buildActionShotPrompt(cast: DialogueCastMember[], actie: string)
     `NOBODY IS TALKING in this shot: every mouth is closed. They are doing something together, not having ` +
     `a conversation, so do not put them face to face unless the action itself calls for it. ` +
     `Show the action clearly — a wider shot is fine, the characters may be smaller in frame. ` +
-    `Flat vector illustration, same art style as the source. No text overlays, no watermarks, no logos.` +
+    stijlBewerking(styleId) +
     NATUURWETTEN
   );
 }
 
 /** Bewegingsinstructie voor een actiebeeld: de handeling zelf, geen gesprek. */
-export function buildActionMotionPrompt(actie: string): string {
+export function buildActionMotionPrompt(actie: string, styleId?: string | null): string {
   return (
-    `Animate this flat 2D explainer illustration. The shot shows: ${actie.trim()}. ` +
+    `Animate this illustration. The shot shows: ${actie.trim()}. ` +
     `Bring that action to life with clear, natural movement — the people and objects involved actually move ` +
     `and carry out what is described, at a calm and readable pace. ` +
     `NOBODY SPEAKS in this shot: all mouths stay CLOSED throughout. This is an action beat with music, ` +
     `not a conversation. ` +
-    `Flat 2D vector animation style. A slow, gentle camera move is allowed if it supports the action. ` +
+    `${stijlBeweging(styleId)} A slow, gentle camera move is allowed if it supports the action. ` +
     `Keep the same people, same faces, clothing and colours. Do not add another person, new text or logos. ` +
     `PHYSICAL RULES: only the PEOPLE move. Vehicles, machines, furniture and equipment stay exactly where ` +
     `they are and keep their shape — nothing drives, folds, opens, collapses, transforms, grows or shrinks. ` +

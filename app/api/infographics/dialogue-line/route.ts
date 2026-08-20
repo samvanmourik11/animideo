@@ -258,8 +258,8 @@ export async function POST(req: NextRequest) {
       try {
         const beeld = await generateImageWithStyle({
           prompt: isActieBeeld
-            ? buildActionShotPrompt(cast, actieTekst)
-            : buildTurnShotPrompt(spreker!, luisteraars, b.emotion),
+            ? buildActionShotPrompt(cast, actieTekst, b.styleId)
+            : buildTurnShotPrompt(spreker!, luisteraars, b.emotion, b.styleId),
           format,
           visualStyle: null,
           // Zonder seed bij een herkansing: dezelfde seed zou grofweg hetzelfde
@@ -327,7 +327,9 @@ export async function POST(req: NextRequest) {
         const { request_id } = await fal.queue.submit(SEEDANCE, {
           input: {
             image_url: shotImageUrl,
-            prompt: isActieBeeld ? buildActionMotionPrompt(actieTekst) : buildDialogueMotionPrompt(spreker!, luisteraars),
+            prompt: isActieBeeld
+              ? buildActionMotionPrompt(actieTekst, b.styleId)
+              : buildDialogueMotionPrompt(spreker!, luisteraars, b.styleId),
             duration: clipSec,
             resolution: "720p",
             camera_fixed: true,

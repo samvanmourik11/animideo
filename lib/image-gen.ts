@@ -130,8 +130,16 @@ export async function generateImageWithStyle(input: NanoBananaInput): Promise<Na
     // kapsel, leeftijd). De rendering-stijl komt uitsluitend uit de
     // style refs — anders trekt de character ref de generatie weg van
     // de gekozen stijl naar zijn eigen look.
+    // Waar de stijl vandaan komt hangt af van wat er meegaat. Zonder stijl-refs
+    // (de dialoog- en storytelling-tools sturen de stijl via de prompt) wees deze
+    // zin naar referenties die er niet waren, en trok het portret — vaak een
+    // fotoachtig plaatje — de generatie naar zijn eigen look. Dat is een van de
+    // redenen dat personages er per beeld nét anders uitzagen.
+    const stijlBron = styleRefs.length > 0
+      ? "the visual style of the style references"
+      : "the art style described in this prompt";
     promptParts.push(
-      "Use the character reference image(s) ONLY for the person's identity — their face, hair, build, age, and signature features. Do NOT copy the rendering style, line weight, color treatment, or technique of the character reference. Re-render the character entirely in the visual style of the style references. " +
+      `Use the character reference image(s) ONLY for the person's identity — their face, hair, build, age, and signature features. Do NOT copy the rendering style, line weight, color treatment, or technique of the character reference. Re-render the character entirely in ${stijlBron}. ` +
       "The reference is a neutral portrait: do NOT reproduce its centered, head-on, looking-at-camera pose or close-up framing. Place the person inside THIS scene exactly as the scene describes — their position, size in the frame, pose, action, gaze and camera distance. They may be in a wide shot, seen from the side or behind, small in the background, or not present at all if the scene has no person. Composition and context come from the scene; only the identity comes from the reference."
     );
   }

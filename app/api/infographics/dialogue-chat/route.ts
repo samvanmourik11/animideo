@@ -3,8 +3,9 @@ import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import {
   DRAAIBOEK_TOOL, HERZIE_DRAAIBOEK_TOOL, buildChatSysteem, buildSamenhangSysteem,
-  buildAanvulSysteem, ILLUSTREER_TOOL, buildIllustreerSysteem,
-  toonDraaiboek, type BibliotheekItem,
+  buildUitbreidSysteem, ILLUSTREER_TOOL, buildIllustreerSysteem,
+  toonDraaiboek,
+  type BibliotheekItem,
 } from "@/lib/infographics/dialogue-chat-tools";
 import { STORY_VOICES, kiesVertellerStem } from "@/lib/infographics/story-voices";
 import { MUSIC_CATEGORIES, MUSIC_TRACKS, musicTrackUrl, type MusicCategory } from "@/lib/music/library";
@@ -16,6 +17,7 @@ import {
   VIDEO_MAX_SEC,
   VIDEO_STANDAARD_SEC,
   VERTELLER_ID,
+  zonderHerhaling,
   SECONDEN_PER_REGEL,
   ACTIE_MIN_SEC,
   ACTIE_MAX_SEC,
@@ -415,43 +417,46 @@ function schatDuur(scenes: DialogueScene[]): number {
  * meten we en vragen we gericht om het ontbrekende deel, tot het klopt of tot we
  * er drie rondes over hebben gedaan — dan is doorgaan zinloos en duur.
  */
-async function vulAanTotLengte(
+/** Hoogstens drie aanvulrondes; daarna is een iets te korte video beter dan doorpompen. */
+const RONDES = 3;
+
+async function brengOpLengte(
   scenes: DialogueScene[],
   cast: DialogueCastMember[],
   taal: string,
-  doel: number
+  doel: number,
+  briefing?: string | null
 ): Promise<DialogueScene[]> {
   const naarCastId = maakVertaler(cast);
   let huidig = [...scenes];
 
-  for (let ronde = 1; ronde <= 3; ronde++) {
+  for (let ronde = 1; ronde <= RONDES; ronde++) {
     const duur = schatDuur(huidig);
     // Binnen 5% van het doel is klaar. Deze marge stond op 15%, maar dat kwam
     // neer op "een minuut" die 52 seconden werd — en dat verschil zie je wél.
-    // Nu de begrenzing hieronder overschieten voorkomt, kan hij strak.
     if (duur >= doel * 0.95) break;
 
     try {
       const completion = await openai.chat.completions.create({
         model: "gpt-4o",
         temperature: 0.6,
-        max_tokens: 8000,
+        max_tokens: 12000,
         tools: [HERZIE_DRAAIBOEK_TOOL],
         // AFDWINGEN dat er scènes terugkomen. Zonder dit antwoordde het model
         // regelmatig met gewone tekst, viel de lus stil en bleef het draaiboek op
         // de helft van de bestelde lengte steken — wie op "1 minuut" klikte kreeg
-        // dertig seconden. Bij het aanvullen is een tekstantwoord nooit bruikbaar.
+        // dertig seconden.
         tool_choice: { type: "function", function: { name: HERZIE_DRAAIBOEK_TOOL.function.name } },
         messages: [
-          { role: "system", content: buildAanvulSysteem(toonDraaiboek(cast, huidig), taal, duur, doel) },
-          { role: "user", content: "Geef alleen de nieuwe scènes die er achteraan komen." },
+          { role: "system", content: buildUitbreidSysteem(toonDraaiboek(cast, huidig), taal, duur, doel, briefing) },
+          { role: "user", content: "Geef het volledige draaiboek terug, met de nieuwe scènes op de juiste plek." },
         ],
       });
       const call = completion.choices[0]?.message?.tool_calls?.[0];
       if (!call) break;
 
       const uit = JSON.parse(call.function.arguments || "{}") as { scenes?: { setting?: string; lines?: RuweRegel[] }[] };
-      const extra: DialogueScene[] = (uit.scenes ?? [])
+      const nieuw: DialogueScene[] = (uit.scenes ?? [])
         .map((sc, i) => {
           const lines = (sc.lines ?? [])
             .map((l) => {
@@ -471,45 +476,62 @@ async function vulAanTotLengte(
               return { kind: "dialoog" as const, characterId: cid, text, emotion: (l.emotion ?? "").trim() || "neutraal" };
             })
             .filter((l): l is NonNullable<typeof l> => l !== null);
-          return { id: `scene-${huidig.length + i}`, setting: (sc.setting ?? "").trim(), lines };
+          return { id: huidig[i]?.id ?? `scene-${i}`, setting: (sc.setting ?? "").trim() || huidig[i]?.setting || "", lines };
         })
         .filter((sc) => sc.lines.length > 0);
 
-      if (extra.length === 0) break;
-
-      // Het model levert vrijwel altijd te veel: op een tekort van acht regels
-      // kwamen er zeventien terug, goed voor 160% van de bestelde lengte. We nemen
-      // daarom scènes aan tot het doel gehaald is en laten de rest liggen.
-      //
-      // De LAATSTE scène gaat altijd mee, ook als we eerder stoppen: de aanvulprompt
-      // verplaatst het slot naar zijn laatste scène, en zonder die scène eindigt de
-      // video midden in het verhaal.
-      const geaccepteerd: DialogueScene[] = [];
-      for (const sc of extra) {
-        // Vooruit kijken en STOPPEN voordat we eroverheen gaan. Achteraf toetsen
-        // liet één grote scène de video op 123% van de bestelde lengte komen;
-        // scènes verschillen nu eenmaal sterk in aantal regels.
-        const na = schatDuur([...huidig, ...geaccepteerd, sc]);
-        if (geaccepteerd.length > 0 && na > doel * 1.05) break;
-        geaccepteerd.push(sc);
+      // HARDE ZEEF tegen een verhaal dat zichzelf overdoet: in een video van twee
+      // minuten stond het hele verhaal er twee keer in. De prompt verbiedt dat al;
+      // dit is de bewaking die niet van een model afhangt.
+      const schoon = zonderHerhaling([], nieuw);
+      if (schoon.length !== nieuw.length) {
+        console.warn(`[dialogue-chat] ronde ${ronde}: herhaling weggegooid (${nieuw.length} → ${schoon.length} scènes)`);
       }
 
-      // De laatste scène van het model draagt het slot: de aanvulprompt verplaatst
-      // het einde daarheen. Zit hij er niet bij, dan VERVANGEN we de laatst
-      // aangenomen scène ermee — erbij plakken zou de lengte alsnog opblazen.
-      const slot = extra[extra.length - 1];
-      if (geaccepteerd[geaccepteerd.length - 1] !== slot) {
-        if (geaccepteerd.length > 0) geaccepteerd[geaccepteerd.length - 1] = slot;
-        else geaccepteerd.push(slot);
+      // Het is een UITBREIDING: korter terugkrijgen betekent dat het model het
+      // verhaal heeft ingekort in plaats van uitgewerkt. Dan liever het origineel,
+      // want inkorten is precies wat we hier proberen te repareren.
+      const nieuweDuur = schatDuur(schoon);
+      if (nieuweDuur <= duur) {
+        console.warn(`[dialogue-chat] ronde ${ronde}: kwam korter terug (${Math.round(duur)}s → ${Math.round(nieuweDuur)}s); origineel behouden`);
+        break;
       }
-
-      huidig = [...huidig, ...geaccepteerd];
+      huidig = knipOpMaat(schoon, doel);
     } catch (e) {
-      console.error("[dialogue-chat] aanvullen mislukt:", e);
+      console.error("[dialogue-chat] op lengte brengen mislukt:", e);
       break;
     }
   }
   return huidig;
+}
+
+/**
+ * Te lang geworden? Haal er muziekbeelden uit het MIDDEN uit.
+ *
+ * Bewust niet achteraan snoeien: daar staat het slot, en een video die vlak voor
+ * het einde ophoudt is erger dan een video van tien seconden te lang. Muziek-
+ * beelden zonder gesproken tekst zijn het minst dragend voor het verhaal, dus die
+ * gaan als eerste. Blijft het dan nog te lang, dan laten we het zo — liever iets
+ * over de tijd dan een verhaal met een gat erin.
+ */
+function knipOpMaat(scenes: DialogueScene[], doel: number): DialogueScene[] {
+  if (schatDuur(scenes) <= doel * 1.1) return scenes;
+
+  const uit = scenes.map((s) => ({ ...s, lines: [...s.lines] }));
+  const eerste = Math.max(1, Math.floor(uit.length * 0.25));
+  const laatste = Math.max(eerste, Math.floor(uit.length * 0.85));
+
+  for (let i = laatste; i >= eerste && schatDuur(uit) > doel * 1.1; i--) {
+    const scene = uit[i];
+    if (!scene) continue;
+    for (let j = scene.lines.length - 1; j >= 0 && schatDuur(uit) > doel * 1.1; j--) {
+      const l = scene.lines[j];
+      if (l.kind === "actie" && !(l.text ?? "").trim() && scene.lines.length > 1) {
+        scene.lines.splice(j, 1);
+      }
+    }
+  }
+  return uit.filter((s) => s.lines.length > 0);
 }
 
 /**
@@ -667,6 +689,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ reply: `${probleem} Kun je aangeven welke personages je wilt gebruiken?` });
     }
 
+    // Ook het EERSTE plan kan zichzelf al herhalen; dan hoort de aanvullus dat
+    // gat te vullen met iets nieuws in plaats van er nog een kopie bij te doen.
+    spec.scenes = zonderHerhaling([], spec.scenes);
+
     // Twee opruimrondes die het model zelf niet betrouwbaar doet. Ze draaien alleen
     // als er echt iets mis is, dus meestal kosten ze niets.
     await Promise.all([
@@ -681,11 +707,29 @@ export async function POST(req: NextRequest) {
     // Een gebruiker die op "1 minuut" klikte kreeg zo dertig seconden. Het laatste
     // woord over de lengte hoort bij de stap die over lengte gaat.
     spec.scenes = await controleerSamenhang(spec.scenes, spec.cast, spec.language ?? "Nederlands");
-    spec.scenes = await vulAanTotLengte(spec.scenes, spec.cast, spec.language ?? "Nederlands", gewensteLengte);
+    spec.scenes = await brengOpLengte(
+      spec.scenes,
+      spec.cast,
+      spec.language ?? "Nederlands",
+      gewensteLengte,
+      // De uitgebreidste beurt van de gebruiker is zijn briefing; korte
+      // tussenzinnen ("ja, ga verder") zeggen niets over wat hij wil zien.
+      berichten.filter((m) => m.role === "user").map((m) => m.content).sort((a, b) => b.length - a.length)[0]
+    );
 
     // ALS LAATSTE: zorgen dat er genoeg geïllustreerd wordt. Dit staat bewust
     // achteraan, want alle stappen hiervoor kunnen actiebeelden laten sneuvelen.
     spec.scenes = await voegIllustratiesToe(spec.scenes, spec.cast);
+
+    // Laatste zeef over het HELE draaiboek. Elke stap hierboven laat een model
+    // scènes schrijven, en elk van die stappen kan herhalen. Twee keer hetzelfde
+    // verhaal is het ergste wat er uit deze tool kan komen — de gebruiker betaalt
+    // per beeld — dus dit staat er als vangnet achter, na alles.
+    const voorZeef = spec.scenes.length;
+    spec.scenes = zonderHerhaling([], spec.scenes);
+    if (spec.scenes.length !== voorZeef) {
+      console.warn(`[dialogue-chat] eindzeef: ${voorZeef} → ${spec.scenes.length} scènes`);
+    }
 
     // De gebruiker heeft de lengte gekozen; die is leidend, niet wat het model
     // ervan maakte. Hij hoort ook bij de spec, zodat een herziening dezelfde maat

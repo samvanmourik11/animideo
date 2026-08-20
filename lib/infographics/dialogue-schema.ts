@@ -311,3 +311,102 @@ export function sprekerHelft(position: CastPosition, breedte: number, hoogte: nu
   const x = position === "left" ? 0 : w;
   return `${w}:${h}:${x}:0`;
 }
+
+// ---------------------------------------------------------------------------
+// HERHALING TEGENHOUDEN
+//
+// Een video van twee minuten kwam terug met het verhaal er TWEE KEER in: scène 13
+// tot en met 21 waren woord voor woord scène 1 tot en met 9. De oorzaak zit in de
+// aanvullus: die krijgt het draaiboek te zien met de opdracht "geef alleen de
+// nieuwe scènes", en een taalmodel dat te weinig nieuws weet te bedenken schrijft
+// dan gewoon over wat het net gelezen heeft.
+//
+// De prompt vraagt daar al uitdrukkelijk niet om. Dat bleek niet genoeg, en dit is
+// ook geen fout waar je een gebruiker mee kunt opzadelen: hij betaalt per beeld,
+// dus een gedupliceerd verhaal kost hem twee keer geld én levert een onbruikbare
+// video. Daarom staat er nu een harde zeef achter, die niet van een model afhangt.
+// ---------------------------------------------------------------------------
+
+/** Tekst zonder leestekens, hoofdletters en dubbele spaties — om te vergelijken. */
+function kaal(tekst: string): string {
+  return tekst
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Waar we een regel op herkennen: de gesproken zin, of anders de handeling.
+ *
+ * Bij een actiebeeld telt ALLEEN de handeling, niet de voice-over eroverheen.
+ * Eerst deden ze allebei mee, met het idee dat hetzelfde beeld met een nieuwe zin
+ * best mag. In de praktijk leverde dat precies de fout op die dit moest tegenhouden:
+ * het model plakte de hele reeks beelden er nog een keer achter, nu zonder tekst,
+ * en die glipten er dus doorheen. Twee keer exact hetzelfde shot is altijd fout.
+ */
+function regelVingerafdruk(l: DialogueLine): string {
+  if (isActie(l)) return `actie:${kaal(l.actie ?? "")}`;
+  return `zeg:${kaal(l.text ?? "")}`;
+}
+
+/** Woorden van een regel, voor het vergelijken van bijna-gelijke zinnen. */
+function woorden(vinger: string): string[] {
+  return vinger.slice(vinger.indexOf(":") + 1).split(" ").filter(Boolean);
+}
+
+/**
+ * Is dit in de kern dezelfde regel als een die er al staat?
+ *
+ * Letterlijk vergelijken was niet genoeg: het model schreef "Kom maar binnen, ik
+ * heb iets bijzonders" over als "Kom maar binnen, ik heb iets bijzonders om te
+ * laten zien" en ontliep de zeef met vier woorden. Daarom kijken we of de kortste
+ * van de twee vrijwel helemaal in de andere zit.
+ *
+ * De drempel staat hoog (90%) en korte regels doen niet mee. Liever een echte
+ * herhaling missen dan twee zinnen die toevallig op elkaar lijken weggooien —
+ * "dank je wel oma voor de wonderwagen" en "dank je wel oma voor de mooiste reis"
+ * moeten allebei mogen blijven staan.
+ */
+function lijktOp(vinger: string, eerder: Set<string>): boolean {
+  if (eerder.has(vinger)) return true;
+  const mijn = woorden(vinger);
+  if (mijn.length < 5) return false;
+  const soort = vinger.slice(0, vinger.indexOf(":"));
+
+  for (const ander of eerder) {
+    if (!ander.startsWith(`${soort}:`)) continue;
+    const hun = woorden(ander);
+    if (hun.length < 5) continue;
+    const [kort, lang] = mijn.length <= hun.length ? [mijn, hun] : [hun, mijn];
+    const langSet = new Set(lang);
+    const overlap = kort.filter((w) => langSet.has(w)).length;
+    if (overlap / kort.length >= 0.9) return true;
+  }
+  return false;
+}
+
+export function zonderHerhaling(bestaand: DialogueScene[], nieuw: DialogueScene[]): DialogueScene[] {
+  const gezien = new Set<string>();
+  for (const scene of bestaand) {
+    for (const l of scene.lines) gezien.add(regelVingerafdruk(l));
+  }
+
+  const uit: DialogueScene[] = [];
+  for (const scene of nieuw) {
+    const lines = scene.lines.filter((l) => {
+      const vinger = regelVingerafdruk(l);
+      // Te kort om iets over te zeggen: laten staan, maar wel onthouden.
+      const inhoud = `${kaal(l.text ?? "")} ${kaal(l.actie ?? "")}`.trim();
+      if (inhoud.split(" ").filter(Boolean).length < 3) {
+        gezien.add(vinger);
+        return true;
+      }
+      if (lijktOp(vinger, gezien)) return false;
+      gezien.add(vinger);
+      return true;
+    });
+    if (lines.length > 0) uit.push({ ...scene, lines });
+  }
+  return uit;
+}

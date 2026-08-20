@@ -392,6 +392,15 @@ De video moet als één doorlopend verhaal voelen, niet als losse fragmenten ach
 - Na een actiebeeld gaat het gesprek VERDER, het herhaalt niet wat we net gezien hebben.
 - De volgorde van de scènes vertelt een verhaal met een begin, een midden en een afsluiting. Elke scène brengt iets nieuws.
 
+DE VERHAALBOOG — verdeel de tijd goed
+Een verhaal dat alleen uit een opzet bestaat is geen verhaal. Verdeel de ${gewensteLengte} seconden ruwweg zo:
+  · het eerste vijfde  — de opzet: wie zijn dit, wat is er aan de hand, wat gaan ze doen
+  · de middelste drie vijfde — WAT ZE MEEMAKEN. Dit is waar de video over gaat en het krijgt dus de meeste scènes: ze zijn onderweg, ze komen ergens aan, ze ontdekken dingen, het loopt anders dan gedacht, ze proberen iets, ze beleven het samen — op verschillende plekken.
+  · het laatste vijfde — de afsluiting: een duidelijk einde waar het verhaal naartoe werkte.
+Kom je uit bij een draaiboek waarin ze pas in de LAATSTE scène aankomen op de plek waar het verhaal over gaat, dan heb je het verkeerd verdeeld. Aankomen hoort ongeveer op een derde; daarna wil de kijker zien wat daar gebeurt.
+
+Geeft de gebruiker zelf een lijstje scènes of beats, dan is dat het GERAAMTE en niet de hele film. Zijn het er minder dan de lengte vraagt, werk ze dan verder uit: meer regels per moment, en vooral extra scènes in het middendeel. Nooit oplossen door iets te herhalen wat al gebeurd is.
+
 HET GESPREK DAT JE SCHRIJFT
 - De personages spreken elkaar aan en wisselen elkaar af; nooit meer dan twee regels achter elkaar van dezelfde persoon.
 - Eén regel is één natuurlijke gesproken zin van ongeveer twaalf woorden. Reken op VIER SECONDEN per regel en drie regels per scène. De gewenste lengte bepaalt dus hoeveel je er schrijft:
@@ -522,33 +531,66 @@ Roep de functie aan met het complete draaiboek zoals het moet worden.`;
  * dan herschrijft het model onderweg wat er al stond en ben je de zinnen kwijt die
  * al goed waren.
  */
-export function buildAanvulSysteem(
+/**
+ * Een te kort draaiboek op lengte brengen door het te HERSCHRIJVEN, niet door er
+ * scènes achteraan te plakken.
+ *
+ * Aanvullen leek logisch en was het niet. Het model kreeg het draaiboek te zien
+ * met de vraag "wat komt hierna?", en een draaiboek dat al bij oma thuis was
+ * geëindigd kreeg dan gewoon nieuwe avonturen áchter het afscheid. In de test
+ * kwam het verhaal daardoor drie keer thuis: afscheid, jungle, afscheid, weiland.
+ * Bij aanvullen kan het slot per definitie niet meer op zijn plek komen.
+ *
+ * Nu levert het model het HELE draaiboek opnieuw op: bestaande scènes ongewijzigd
+ * overgenomen, de nieuwe ertussen, en het einde aan het eind. De volgorde klopt
+ * dan omdat hij in één keer geschreven is.
+ */
+export function buildUitbreidSysteem(
   draaiboek: string,
   taal: string,
   huidigeSeconden: number,
-  doelSeconden: number
+  doelSeconden: number,
+  briefing?: string | null
 ): string {
   const tekort = Math.max(0, doelSeconden - huidigeSeconden);
-  const { regels } = planVoorLengte(tekort);
-  const scenes = Math.max(1, Math.round(regels / REGELS_PER_SCENE));
+  // BEWUST ANDERHALF KEER het tekort vragen. Het model levert stelselmatig minder
+  // dan gevraagd: op een tekort van zestig seconden kwam er in drie rondes maar
+  // veertig bij, en dan is de video 80% van wat er besteld is. Te veel is geen
+  // probleem — knipOpMaat haalt de overtollige muziekbeelden er weer uit — maar te
+  // weinig kunnen we alleen repareren met nóg een ronde, en elke ronde kost de
+  // gebruiker een halve minuut wachten.
+  const { regels } = planVoorLengte(tekort * 1.5);
+  const opdracht = (briefing ?? "").trim();
 
-  return `Je breidt een bestaand draaiboek voor een geanimeerde dialoogvideo uit.
+  // De briefing hoort erbij. Zonder dat stuk kende deze stap alleen het draaiboek
+  // en niet de bedoeling: een verhaal over een eerste reis naar Suriname liep in
+  // de test door naar een bos, een tempel, een stad en een strand — keurig
+  // gevarieerd, maar niet meer het verhaal dat besteld was.
+  const opdrachtBlok = opdracht
+    ? `\nDIT HEEFT DE GEBRUIKER GEVRAAGD — blijf hierbinnen:\n"""\n${opdracht.slice(0, 2500)}\n"""\n`
+    : "";
 
-DIT STAAT ER AL (samen ongeveer ${Math.round(huidigeSeconden)} seconden):
+  return `Je maakt een draaiboek voor een geanimeerde dialoogvideo LANGER. Het verhaal klopt al, het duurt alleen te kort.
+${opdrachtBlok}
+HET HUIDIGE DRAAIBOEK (ongeveer ${Math.round(huidigeSeconden)} seconden):
 
 ${draaiboek}
 
 DE OPDRACHT
-De video moet ${doelSeconden} seconden worden, dus er is nog ongeveer ${Math.round(tekort)} seconden nodig: ruwweg ${regels} regels over ${scenes} nieuwe scènes.
+De video moet ${doelSeconden} seconden worden, dus er is minstens ${Math.round(tekort)} seconden bij nodig. Schrijf ruwweg ${regels} regels extra — liever iets te veel dan te weinig, want een te korte video is niet wat de gebruiker besteld heeft.
 
-Geef ALLEEN DE NIEUWE SCÈNES terug — niet wat er al staat. Ze worden achter het bestaande draaiboek geplakt.
+Geef het VOLLEDIGE draaiboek terug — de bestaande scènes én de nieuwe, in de goede volgorde. Bestaande scènes neem je letterlijk over; je herschrijft ze niet.
 
-HOE JE UITBREIDT
-- Het verhaal moet DOORLOPEN, niet opnieuw beginnen. Pak op waar de laatste scène eindigt.
-- Breng echt iets nieuws: een volgende stap, een nieuwe vraag, een complicatie, een ander onderwerp. Herhaal niet wat al gezegd is en laat het gesprek geen rondjes draaien.
-- Elke nieuwe scène speelt in een ANDERE omgeving dan de vorige.
-- Loopt het verhaal in de laatste bestaande scène al naar een slot toe, verplaats dat slot dan naar jouw laatste scène: het einde hoort aan het eind.
-- Wissel net als hiervoor dialoog af met actiebeelden, met en zonder voice-over.
+WAAR DE NIEUWE SCÈNES KOMEN
+- IN HET MIDDEN, niet erachter. Zoek de scène waarin het verhaal aankomt op de plek waar het over gaat, en bouw dáárna uit: wat maken ze daar mee, wat ontdekken ze, wat gaat er anders dan gedacht, wie komen ze tegen.
+- De slotscène van het huidige draaiboek BLIJFT de slotscène. Er komt niets achter het einde. Eindigt het verhaal met thuiskomen of afscheid nemen, dan gebeurt dat één keer, helemaal aan het eind.
+- Loopt het verhaal nu al te snel naar huis, verplaats dat afscheid dan naar achteren en zet je nieuwe scènes ervoor.
+
+WAT DE NIEUWE SCÈNES DOEN
+- Elke nieuwe scène brengt iets wat we nog niet gezien hebben, op een eigen plek.
+- Blijf in de wereld van de briefing. Gaat het verhaal over één bestemming, dan speelt het middendeel dáár — op verschillende plekken binnen die bestemming, niet in vijf willekeurige andere landen.
+- Herhaal geen enkele zin en geen enkel beeld dat er al staat. Letterlijke herhaling wordt er automatisch uitgefilterd, en dan wordt de video alsnog te kort.
+- Wissel dialoog af met actiebeelden, met en zonder voice-over — net als in het bestaande deel.
 - Gesproken tekst in het ${taal}; omgevingen en actiebeschrijvingen in het ENGELS.
 - Gebruik dezelfde cast-id's; er komen geen personages bij.`;
 }
