@@ -116,4 +116,9 @@ export interface StorySpec {
   language?: string | null;
   // Vast personage/mascotte (publieke URL) dat consistent in elke scène terugkomt.
   characterUrl?: string | null;
+  /**
+   * Wie dat vaste personage IS ("de monteur", "de klant"). Gaat mee in elke
+   * scène-prompt: zonder rol wisselde dezelfde mascotte per scène van beroep.
+   */
+  characterRole?: string | null;
 }

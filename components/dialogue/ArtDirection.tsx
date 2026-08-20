@@ -1,6 +1,7 @@
 "use client";
 
-import { STORY_STYLE_PRESETS, stylePreviewUrl } from "@/lib/infographics/story-style";
+import { STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
+import StylePicker from "@/components/style/StylePicker";
 
 // Beeldregie: de tekenstijl en een vrije briefing die voor ÉLK beeld in de video
 // geldt — de twee-shots per scène en de bronbeelden per gesproken regel.
@@ -33,34 +34,7 @@ export default function ArtDirection({
     <div className="space-y-3">
       <div>
         <span className="block text-[11px] text-slate-400 mb-1.5">Animatiestijl</span>
-        {/* Een voorbeeldbeeld zegt meer dan een naam: alle vier tonen dezelfde
-            scène, dus je ziet puur het stijlverschil. */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {STORY_STYLE_PRESETS.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => onStyle(s.id)}
-              disabled={disabled}
-              className={`rounded-lg border overflow-hidden text-left transition disabled:opacity-50 disabled:cursor-not-allowed ${
-                s.id === styleId
-                  ? "border-orange-400 ring-1 ring-orange-400/40"
-                  : "border-white/10 hover:border-white/30"
-              }`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={stylePreviewUrl(s.id)}
-                alt={`Voorbeeld van de stijl ${s.name}`}
-                className="w-full aspect-video object-cover bg-slate-800"
-                loading="lazy"
-              />
-              <span className={`block px-2 py-1.5 ${s.id === styleId ? "bg-orange-500/10" : "bg-slate-900/40"}`}>
-                <span className="block text-xs text-white font-medium">{s.name}</span>
-                <span className="block text-[10px] text-slate-500 leading-tight">{s.tagline}</span>
-              </span>
-            </button>
-          ))}
-        </div>
+        <StylePicker value={styleId} onChange={onStyle} disabled={disabled} />
       </div>
 
       <label className="block">

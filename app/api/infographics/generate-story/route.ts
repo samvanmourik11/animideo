@@ -5,7 +5,7 @@ import { buildStoryPrompt } from "@/lib/infographics/build-story-prompt";
 import { STORY_SPEC_SCHEMA, type StorySpec, type StoryScene } from "@/lib/infographics/story-schema";
 import { generateImageWithStyle, cleanupIllustration } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, CHARACTER_GUIDANCE } from "@/lib/infographics/story-style";
+import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, characterGuidance } from "@/lib/infographics/story-style";
 import { artDirectScenes } from "@/lib/infographics/art-direct";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
@@ -36,6 +36,7 @@ interface Body {
   angle?: string;
   // Vast personage/mascotte dat consistent moet terugkomen.
   characterUrl?: string;
+  characterRole?: string | null;
 }
 
 // Gemiddeld spreektempo (woorden/sec) en richtlengte per scene (sec), waaruit we
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
       topic: body.topic ?? spec.title ?? "",
       rawText,
       scenes: spec.scenes.map((s) => ({ voiceover: s.voiceover, headline: s.headline, bigNumber: s.bigNumber, numberLabel: s.numberLabel })),
+      characterRole: characterUrl ? body.characterRole : null,
     });
     if (art) {
       spec.scenes = spec.scenes.map((s, i) => (art.illustrations[i] ? { ...s, illustration: art.illustrations[i] } : s));
@@ -152,7 +154,7 @@ export async function POST(req: NextRequest) {
 
     const renderScene = async (scene: StoryScene, i: number, anchorUrl: string | null): Promise<StoryScene> => {
       try {
-        const extraContext = [paletteHint, characterUrl ? CHARACTER_GUIDANCE : "", anchorUrl ? STYLE_MATCH_ANCHOR : ""].filter(Boolean).join(" ").trim() || undefined;
+        const extraContext = [paletteHint, characterUrl ? characterGuidance(body.characterRole) : "", anchorUrl ? STYLE_MATCH_ANCHOR : ""].filter(Boolean).join(" ").trim() || undefined;
         const ingredientUrls = [characterUrl, anchorUrl].filter((u): u is string => !!u);
         const result = await generateImageWithStyle({
           prompt: buildIllustrationPrompt(scene.illustration, styleId, language),
@@ -188,7 +190,7 @@ export async function POST(req: NextRequest) {
     );
     const scenes: StoryScene[] = [first, ...rest];
 
-    return NextResponse.json({ spec: { ...spec, scenes, seed, anchorImageUrl, styleId, language, characterUrl } });
+    return NextResponse.json({ spec: { ...spec, scenes, seed, anchorImageUrl, styleId, language, characterUrl, characterRole: body.characterRole?.trim() || null } });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("generate-story failed:", msg);

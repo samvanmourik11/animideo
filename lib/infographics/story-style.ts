@@ -116,6 +116,25 @@ export const REFERENCE_PHOTO_GUIDANCE =
 
 // Vast personage/mascotte (verbeterplan F5): een terugkerend figuur dat in elke scène
 // consistent moet terugkomen. De referentie gaat als ingredient mee.
+/**
+ * Richtlijn voor het vaste personage, met zijn ROL erin.
+ *
+ * De vaste tekst hieronder houdt het uiterlijk consistent, maar zei niets over
+ * WIE die persoon is. Daardoor werd dezelfde mascotte in de ene scène een klant
+ * en in de volgende een monteur. De rol hoort in elke scène-prompt terug te komen,
+ * want een personage dat van beroep wisselt leest als een ander personage.
+ */
+export function characterGuidance(role?: string | null): string {
+  const rol = (role ?? "").trim();
+  if (!rol) return CHARACTER_GUIDANCE;
+  return (
+    CHARACTER_GUIDANCE +
+    ` This recurring character is ALWAYS the same person in the same role: ${rol}. ` +
+    `Keep that role consistent in every scene — same job, same function, same relationship to the ` +
+    `others — and dress them accordingly. Never turn them into someone else.`
+  );
+}
+
 export const CHARACTER_GUIDANCE =
   " A reference image of a RECURRING CHARACTER / mascot is provided. Wherever the scene has a main character, " +
   "draw THIS SAME character — match its design, face, hair, outfit, colours and proportions — redrawn in the " +

@@ -74,6 +74,8 @@ export async function artDirectScenes(input: {
   topic: string;
   rawText: string;
   scenes: ArtDirectScene[];
+  /** Rol van het vaste personage, als er een gekozen is. */
+  characterRole?: string | null;
 }): Promise<ArtDirectResult | null> {
   const n = input.scenes.length;
   if (n === 0) return null;
@@ -84,6 +86,16 @@ export async function artDirectScenes(input: {
         return `Scene ${i + 1}:\n  Voice-over: ${s.voiceover}\n  Tekst in beeld: ${s.headline ?? "(geen)"}${num}`;
       })
       .join("\n\n");
+
+    // De regie moet weten dat er een vast personage is, anders bedenkt hij per
+    // scène nieuwe mensen en verschuift de rol alsnog — de referentie-afbeelding
+    // repareert dan wel het gezicht, maar niet wie diegene is.
+    const rol = (input.characterRole ?? "").trim();
+    const rolRegel = rol
+      ? `\n\nVAST PERSONAGE: elke scène draait om dezelfde persoon, in dezelfde rol: ${rol}. ` +
+        `Benoem hem/haar in de illustratie-briefings als "${rol}" en geef die rol in elke scène ` +
+        `dezelfde functie, kleding en verhouding tot de anderen. Verzin geen ander hoofdpersoon.`
+      : "";
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -101,7 +113,7 @@ ${input.rawText.slice(0, 9000)}
 """
 
 SCRIPT (${n} scenes, in volgorde):
-${sceneList}
+${sceneList}${rolRegel}
 
 Geef nu de visual bible en per scene een sterke, bewuste illustratie-briefing als JSON.`,
         },

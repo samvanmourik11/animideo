@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle, editIllustration, cleanupIllustration } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, CHARACTER_GUIDANCE } from "@/lib/infographics/story-style";
+import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, characterGuidance } from "@/lib/infographics/story-style";
 import { refineEditInstruction } from "@/lib/infographics/refine-edit";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
@@ -34,6 +34,7 @@ interface Body {
   referencePhotoUrl?: string | null;
   // Vast personage/mascotte dat consistent moet terugkomen.
   characterUrl?: string | null;
+  characterRole?: string | null;
 }
 
 export async function POST(req: NextRequest) {
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
     const character = body.characterUrl?.trim() || null;
     const paletteHint = brandPaletteHint(body.brandColors?.primary, body.brandColors?.accent);
     const extraContext =
-      [paletteHint, refPhoto ? REFERENCE_PHOTO_GUIDANCE : "", character ? CHARACTER_GUIDANCE : "", anchor ? STYLE_MATCH_ANCHOR : ""]
+      [paletteHint, refPhoto ? REFERENCE_PHOTO_GUIDANCE : "", character ? characterGuidance(body.characterRole) : "", anchor ? STYLE_MATCH_ANCHOR : ""]
         .filter(Boolean).join(" ").trim() || undefined;
     // Ingredient-volgorde: referentiefoto, dan personage, dan het stijl-anker.
     const ingredientUrls = [refPhoto, character, anchor].filter((u): u is string => !!u);
