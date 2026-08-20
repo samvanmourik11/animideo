@@ -6,7 +6,9 @@ import StoryPlayer from "@/components/infographics/render/StoryPlayer";
 import PdfUploadButton from "@/components/infographics/PdfUploadButton";
 import { splitVoiceDurations, storyWindows } from "@/lib/infographics/story-layout";
 import { storyAspectRatio } from "@/lib/infographics/canvas-size";
-import { STORY_STYLE_PRESETS, DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
+import { DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
+import StylePicker from "@/components/style/StylePicker";
+import BibliotheekKiezer from "@/components/characters/BibliotheekKiezer";
 import { createClient } from "@/lib/supabase/client";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 import { DEFAULT_VOICE, voicePreviewUrl, voicesForLanguage, voiceForLanguage } from "@/lib/infographics/story-voices";
@@ -112,6 +114,10 @@ export default function StoryPage() {
   const [angle, setAngle] = useState("");
   const [characterUrl, setCharacterUrl] = useState<string | null>(null);
   const [characterBusy, setCharacterBusy] = useState(false);
+  // Wie het vaste personage IS. Gaat mee in elke scène-prompt, zodat dezelfde
+  // mascotte niet in scène twee opeens een ander beroep heeft.
+  const [characterRole, setCharacterRole] = useState("");
+  const [kiezerOpen, setKiezerOpen] = useState(false);
   // Gewenste videolengte in seconden; bepaalt hoeveel scenes de AI maakt.
   const [targetSeconds, setTargetSeconds] = useState(90);
   const [navy, setNavy] = useState("#16243f");
@@ -339,6 +345,23 @@ export default function StoryPage() {
     }
   }
 
+  // Personage en rol vastleggen. Ook in een al gegenereerd draaiboek, want daar
+  // wint spec.characterRole bij het maken van scènebeelden — zonder dit zou een
+  // rol die je ná het genereren aanpast stil genegeerd worden.
+  function zetPersonage(velden: { url?: string | null; rol?: string | null }) {
+    if (velden.url !== undefined) setCharacterUrl(velden.url);
+    if (velden.rol !== undefined) setCharacterRole(velden.rol ?? "");
+    setSpec((prev) =>
+      !prev
+        ? prev
+        : {
+            ...prev,
+            ...(velden.url !== undefined ? { characterUrl: velden.url } : {}),
+            ...(velden.rol !== undefined ? { characterRole: velden.rol?.trim() || null } : {}),
+          }
+    );
+  }
+
   // Vast personage/mascotte uploaden; komt daarna consistent in elke scène terug.
   async function uploadCharacter(file: File) {
     setErr(null);
@@ -349,7 +372,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/upload-scene-ref", { method: "POST", body: fd });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Personage uploaden mislukt"));
-      setCharacterUrl(d.url as string);
+      zetPersonage({ url: d.url as string });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -393,6 +416,7 @@ export default function StoryPage() {
     setVoice((huidig) => voiceForLanguage(huidig, spec?.language ?? language));
   }, [language, spec?.language]);
   useEffect(() => { if (spec?.characterUrl) setCharacterUrl(spec.characterUrl); }, [spec?.characterUrl]);
+  useEffect(() => { if (spec?.characterRole) setCharacterRole(spec.characterRole); }, [spec?.characterRole]);
 
   // Serie: splits het onderwerp/de bron in losse afleveringen.
   async function planSeries() {
@@ -451,7 +475,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/generate-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, text, mode, format, targetSeconds, styleId, language, tone, angle, characterUrl, brandColors: brandColorsPayload() }),
+        body: JSON.stringify({ topic, text, mode, format, targetSeconds, styleId, language, tone, angle, characterUrl, characterRole: characterRole.trim() || null, brandColors: brandColorsPayload() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiError(data, "Verhaal genereren mislukt"));
@@ -555,6 +579,7 @@ export default function StoryPage() {
           styleId: spec.styleId ?? styleId,
           language: spec.language ?? language,
           characterUrl: spec.characterUrl ?? characterUrl,
+          characterRole: characterRole.trim() || spec.characterRole || null,
           ...payload,
         }),
       });
@@ -956,19 +981,72 @@ export default function StoryPage() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={characterUrl} alt="personage" className="h-7 w-7 rounded object-contain bg-white/90 p-0.5" />
                 )}
-                <label className={`text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 cursor-pointer ${characterBusy ? "opacity-50 pointer-events-none" : ""}`} title="Upload een mascotte/typetje dat consistent in elke scène terugkomt (PNG, JPG of WEBP)">
-                  {characterBusy ? "Uploaden…" : characterUrl ? "Vervangen" : "⬆ Personage uploaden"}
+                {/* Kiezen gaat vóór uploaden: wie al personages heeft aangemaakt
+                    hoeft dezelfde afbeelding niet opnieuw van schijf te zoeken. */}
+                <button
+                  type="button"
+                  onClick={() => setKiezerOpen((o) => !o)}
+                  className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800"
+                  title="Kies een personage uit je bibliotheek"
+                >
+                  Uit bibliotheek
+                </button>
+                <label className={`text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-800 cursor-pointer ${characterBusy ? "opacity-50 pointer-events-none" : ""}`} title="Of upload een eigen afbeelding (PNG, JPG of WEBP)">
+                  {characterBusy ? "Uploaden…" : "⬆ Uploaden"}
                   <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadCharacter(f); e.currentTarget.value = ""; }} />
                 </label>
                 {characterUrl && (
-                  <button type="button" onClick={() => setCharacterUrl(null)} title="Personage verwijderen" className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-800">
+                  <button type="button" onClick={() => zetPersonage({ url: null, rol: null })} title="Personage verwijderen" className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-800">
                     Verwijderen
                   </button>
                 )}
               </div>
-              <span className="text-[10px] text-slate-500">Komt consistent in elke scène terug.</span>
+
+              {kiezerOpen && (
+                <BibliotheekKiezer
+                  onSluit={() => setKiezerOpen(false)}
+                  onKies={(ch) => {
+                    // De naam is een bruikbare eerste rol; je kunt hem overschrijven.
+                    zetPersonage({
+                      url: ch.image_url ?? undefined,
+                      rol: characterRole.trim() ? undefined : ch.name,
+                    });
+                    setKiezerOpen(false);
+                  }}
+                />
+              )}
+
+              {characterUrl && (
+                <label className="block mt-1">
+                  <span className="block text-[10px] text-slate-500 mb-0.5">Rol van dit personage</span>
+                  <input
+                    value={characterRole}
+                    onChange={(e) => zetPersonage({ rol: e.target.value })}
+                    placeholder="bijv. de monteur, de klant, de juf"
+                    title="Wie dit personage is. Gaat mee in elke scène, zodat de rol niet verschuift."
+                    className="bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white w-56 placeholder:text-slate-600"
+                  />
+                </label>
+              )}
+              <span className="text-[10px] text-slate-500">Komt consistent in elke scène terug, in dezelfde rol.</span>
             </div>
           </div>
+        </div>
+
+        {/* Tekenstijl op BEELD kiezen. "Papercut" en "Soft 3D" zeggen niets tot je
+            ze ziet, en de keuze bepaalt hoe de hele video eruit komt te zien.
+            Staat als eigen blok en niet tussen de selects: kaartjes hebben breedte
+            nodig. Zelfde kiezer als in de dialoogmodus. */}
+        <div className="mb-4">
+          <span className="block text-[11px] text-slate-400 mb-1.5">
+            Stijl {spec ? "(vast)" : ""}
+          </span>
+          <StylePicker
+            value={styleId}
+            onChange={setStyleId}
+            disabled={!!spec}
+            hint={spec ? "De stijl ligt vast voor dit verhaal. Klik “Nieuw verhaal” voor een andere stijl." : undefined}
+          />
         </div>
 
         <div className="flex flex-wrap items-end gap-4">
@@ -977,20 +1055,6 @@ export default function StoryPage() {
             <select value={mode} onChange={(e) => setMode(e.target.value as "story" | "report")} className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white">
               <option value="story">Verhaal</option>
               <option value="report">Rapport</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Stijl {spec ? "(vast)" : ""}</span>
-            <select
-              value={styleId}
-              onChange={(e) => setStyleId(e.target.value)}
-              disabled={!!spec}
-              title={spec ? "De stijl ligt vast voor dit verhaal. Klik 'Nieuw verhaal' voor een andere stijl." : "Kies de tekenstijl van de illustraties"}
-              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {STORY_STYLE_PRESETS.map((s) => (
-                <option key={s.id} value={s.id}>{s.emoji} {s.name}</option>
-              ))}
             </select>
           </label>
           <label className="block">
