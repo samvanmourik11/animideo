@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isBillingBlockedByEmail, BILLING_BLOCKED_MESSAGE } from "@/lib/chargeback";
+import { zoekBlokkade, BLOKKADE_MELDING } from "@/lib/billing-blocklist";
 
 const MOLLIE_BASE = "https://api.mollie.com/v2";
 
@@ -33,6 +34,9 @@ export async function POST(req: NextRequest) {
   // Terugboeking op dit e-mailadres: geen nieuw mandaat opzetten.
   if (await isBillingBlockedByEmail(email)) {
     return json({ error: BILLING_BLOCKED_MESSAGE }, 403);
+  }
+  if (await zoekBlokkade({ email })) {
+    return json({ error: BLOKKADE_MELDING }, 403);
   }
 
   const supabase = createServiceClient();

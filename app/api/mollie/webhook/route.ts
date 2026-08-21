@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { handleChargeback, revokeMollieBilling } from "@/lib/chargeback";
+import { zoekBlokkade } from "@/lib/billing-blocklist";
 
 const MOLLIE_BASE = "https://api.mollie.com/v2";
 
@@ -63,6 +64,41 @@ export async function POST(req: NextRequest) {
   // loopt op. Deze controle staat daarom bewust vóór alle andere takken: zonder
   // die volgorde zou een teruggeboekte incasso hieronder als geslaagde
   // vervolgbetaling worden gelezen en zouden er credits worden bíjgeschreven.
+  // ── Zwarte lijst ──────────────────────────────────────────────────────────
+  // Het rekeningnummer kennen we pas hier: bij het starten van de checkout is
+  // er alleen een e-mailadres, en dat verzint deze persoon elke keer opnieuw.
+  // Staat de rekening op de lijst, dan draaien we de betaling meteen terug in
+  // dienstverlening: abonnement eruit, mandaat eruit, geen account, geen
+  // credits. De betaling zelf laten we staan — terugstorten is een beslissing
+  // van een mens, niet van een webhook.
+  const rekening = payment.details?.consumerAccount as string | undefined;
+  const rekeninghouder = payment.details?.consumerName as string | undefined;
+  const zwarteLijst = await zoekBlokkade({ iban: rekening, naam: rekeninghouder });
+  if (zwarteLijst) {
+    console.warn(
+      `[webhook] betaling ${paymentId} geweigerd — ${zwarteLijst.soort} staat op de zwarte lijst (${zwarteLijst.reden ?? "geen reden vastgelegd"})`
+    );
+    if (customerId) {
+      await revokeMollieBilling(customerId).catch((e) =>
+        console.error("[webhook] intrekken bij Mollie mislukt:", e instanceof Error ? e.message : String(e))
+      );
+    }
+    if (guestCheckoutId) {
+      await supabase.from("pending_checkouts").update({ status: "blocked" }).eq("id", guestCheckoutId);
+    }
+    if (userId) {
+      await supabase
+        .from("profiles")
+        .update({
+          billing_blocked: true,
+          billing_blocked_at: new Date().toISOString(),
+          billing_blocked_reason: `Betaling ${paymentId} vanaf een geblokkeerde ${zwarteLijst.soort}`,
+        })
+        .eq("id", userId);
+    }
+    return NextResponse.json({ received: true });
+  }
+
   const teruggeboekt = Number(payment.amountChargedback?.value ?? 0) > 0;
   if (teruggeboekt) {
     await handleChargeback({

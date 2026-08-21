@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { zoekBlokkade, BLOKKADE_MELDING } from "@/lib/billing-blocklist";
 
 /**
  * Guest-signup zonder mailbevestiging.
@@ -25,6 +26,13 @@ export async function POST(req: NextRequest) {
   }
 
   const normalized = email.toLowerCase();
+
+  // Ook hier de zwarte lijst, als extra slot op de deur. In de praktijk komt
+  // iemand hier niet eens: zonder betaalde checkout stopt de route hieronder al.
+  if (await zoekBlokkade({ email: normalized })) {
+    return NextResponse.json({ error: BLOKKADE_MELDING }, { status: 403 });
+  }
+
   const supabase = createServiceClient();
 
   // Alleen vooraf-bevestigd account aanmaken als er een betaalde checkout is.
