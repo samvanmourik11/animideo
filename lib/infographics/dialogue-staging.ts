@@ -41,6 +41,19 @@ function stijlPreamble(styleId?: string | null): string {
   return (STORY_STYLE_PRESETS.find((s) => s.id === styleId) ?? STORY_STYLE_PRESETS[0]).preamble.trim();
 }
 
+/**
+ * Iedereen houdt dezelfde lichaamsbouw en lengte als op het bronbeeld.
+ *
+ * Twee kinderen van ongeveer dezelfde leeftijd hebben geen vaste maat in de ogen
+ * van een beeldmodel: in de ene scène stak Tyrell boven Lily uit en in de volgende
+ * andersom. De personages zelf bleven herkenbaar, maar hun onderlinge verhouding
+ * niet — en juist dat maakt dat het niet dezelfde twee lijken.
+ */
+const MAATVAST =
+  " SIZE — everyone keeps exactly the same body height, build and proportions as in the source image. " +
+  "Whoever is taller in the source stays taller by the same amount; nobody grows, shrinks or changes age. " +
+  "Keep heads, bodies and limbs in the same proportion to each other as in the source.";
+
 /** Stijlregel voor een beeldbewerking: houd exact de stijl van het bronbeeld aan. */
 function stijlBewerking(styleId?: string | null): string {
   return (
@@ -71,6 +84,9 @@ export const NATUURWETTEN =
   "NEXT TO or BEHIND equipment, tanks, containers, water, machines and vehicles — NEVER inside " +
   "them, never submerged, never standing in liquid, never merged with an object. Everyone has two " +
   "arms, two hands and five fingers per hand, in natural positions; no extra or missing limbs. " +
+  "If the location contains water — a river, the sea, a pool, a tank — the people stand on the DRY BANK " +
+  "or shore beside it, with the ground under their feet visible and their whole body above the waterline; " +
+  "the water is behind or beside them, never around their legs. " +
   "Objects keep their real-world size relative to people, and rest on a surface that could actually " +
   "support them — nothing floats. Anything a person holds is held in a way a hand can actually hold it. " +
   "If a screen, sign, label or document is visible, leave it BLANK or show only simple shapes and " +
@@ -142,8 +158,12 @@ export function buildTwoShotBrief(setting: string, cast: DialogueCastMember[]): 
   return (
     `${cast.length} colleagues having a conversation with each other in ${setting.trim()}. ` +
     `${opstelling}, turned three-quarters TOWARDS EACH OTHER, facing one another and clearly talking together — ` +
-    `NOT looking at the viewer. Medium-wide shot: everyone fully visible from the knees up, with space between them. ` +
-    `Relaxed, natural conversational posture.` +
+    `NOT looking at the viewer. Medium-wide shot: their WHOLE BODY is visible, feet included, with space between them, ` +
+    `standing on the solid floor or dry ground of this location with the room or landscape visible around and behind them. ` +
+    `Relaxed, natural conversational posture. ` +
+    // Dit twee-shot is het ANKER voor alle beelden van deze scène, dus de
+    // onderlinge lengte die hier ontstaat geldt de rest van de video.
+    `Give each person a body height that fits their age; people of the same age are about the same height.` +
     NATUURWETTEN
   );
 }
@@ -190,7 +210,7 @@ export function buildTurnShotPrompt(
     `A calm, receptive listening posture for everyone who is not speaking. ` +
     `To be completely clear: ${spreker.name} talks, ${luisteraarNamen} listen${luisteraars.length === 1 ? "s" : ""} ` +
     `in silence with a closed mouth. Do not swap these roles. ` +
-    stijlBewerking(styleId) +
+    stijlBewerking(styleId) + MAATVAST +
     NATUURWETTEN
   );
 }
@@ -227,7 +247,8 @@ export function buildDialogueMotionPrompt(
     `The other person's mouth NEVER opens, not even briefly. ` +
     `Everyone keeps facing each other and never turns towards the viewer. ` +
     `${stijlBeweging(styleId)} Static locked camera. Keep the same people, same faces, clothing, ` +
-    `colours and background. Do not add another person, new objects or text.`
+    `colours and background, and keep everyone exactly the same height and build as in the first frame. ` +
+    `Do not add another person, new objects or text.`
   );
 }
 
@@ -266,7 +287,7 @@ export function buildActionShotPrompt(
     `NOBODY IS TALKING in this shot: every mouth is closed. They are doing something together, not having ` +
     `a conversation, so do not put them face to face unless the action itself calls for it. ` +
     `Show the action clearly — a wider shot is fine, the characters may be smaller in frame. ` +
-    stijlBewerking(styleId) +
+    stijlBewerking(styleId) + MAATVAST +
     NATUURWETTEN
   );
 }

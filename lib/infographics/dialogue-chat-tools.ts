@@ -84,7 +84,9 @@ export const DRAAIBOEK_TOOL = {
                 type: "string",
                 enum: STORY_VOICES.map((v) => v.id),
                 description: STORY_VOICES.map((v) => `"${v.id}" = ${v.description}`).join("; ") +
-                  ". Laat geslacht kloppen met het personage en geef verschillende personages verschillende stemmen.",
+                  ". Laat geslacht kloppen met het personage en geef verschillende personages verschillende stemmen. " +
+                  "Is een personage een KIND, kies dan een jongens- of meisjesstem — een kind met een volwassen " +
+                  "stem haalt een verhaal helemaal onderuit. Volwassenen krijgen nooit een kinderstem.",
               },
               position: {
                 type: "string",
@@ -108,7 +110,11 @@ export const DRAAIBOEK_TOOL = {
                   "ENGELSE beschrijving van alleen de OMGEVING, bijv. \"a modern office with a desk and a laptop\". " +
                   "Noem NOOIT personages, namen, houdingen of handelingen — dus niet \"Marc and Eva smiling and " +
                   "discussing\", maar alleen de plek waar ze staan. Wie er staat en hoe bepalen wij uit de cast. " +
-                  "Geef elke scène een andere omgeving.",
+                  "Beschrijf de plek CONCREET genoeg om te tekenen: het soort ruimte, wat er staat, en of het " +
+                  "binnen of buiten is — een lege of vage omgeving levert een leeg beeld op. " +
+                  "Speelt een scène op een plek die eerder in dit draaiboek al voorkwam, gebruik dan LETTERLIJK " +
+                  "dezelfde beschrijving, woord voor woord. Zo blijft het dezelfde kamer en niet een kamer die " +
+                  "erop lijkt. Nieuwe plek = nieuwe beschrijving.",
               },
               lines: {
                 type: "array",

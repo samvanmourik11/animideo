@@ -16,11 +16,40 @@ export const STYLE_FRAMING =
   "The corners and all empty areas are clean and bare, containing nothing at all. The air is empty and clear. " +
   "Show ONLY the objects and people described in the scene, on this plain background, and nothing else.";
 
+// De tekstregel apart, want die geldt ALTIJD — ook in een beeld dat juist een
+// volle omgeving moet hebben. Verzonnen letterbrij op een bord of scherm is in
+// elk soort beeld fout.
+export const TEKST_NEGATIEF =
+  "Avoid text, letters, words, numbers and labels wherever possible — no captions or decorative writing on signs, screens, phones, price tags, bills, buttons, charts or packaging. ";
+
 export const STYLE_NEGATIVE =
   " No smoke, no steam, no vapor, no mist, no fog, no rising wisps, no clouds, no sky. " +
   "No plants, no leaves, no branches, no foliage, no flowers in the corners or background. " +
   "No sparkles, no floating shapes, no decorative background props or clutter. " +
-  "Avoid text, letters, words, numbers and labels wherever possible — no captions or decorative writing on signs, screens, phones, price tags, bills, buttons, charts or packaging. ";
+  TEKST_NEGATIEF;
+
+// ---------------------------------------------------------------------------
+// TWEE SOORTEN BEELD
+//
+// STYLE_FRAMING hierboven is geschreven voor de infographic-tool: een egaal wit
+// vlak met alleen het onderwerp erop. Dat is daar precies goed, en in de
+// DIALOOGmodus precies fout. Daar staan twee mensen een gesprek te voeren op een
+// plek die het draaiboek beschrijft — oma's woonkamer, een markt in Suriname —
+// en die plek werd stelselmatig weggepoetst tot een wit vlak, inclusief het
+// verbod op lucht, wolken en planten. Je zag mensen zweven in het niets.
+//
+// Vandaar een tweede kader: de omgeving IS het onderwerp en wordt volledig
+// getekend, van rand tot rand.
+// ---------------------------------------------------------------------------
+
+export const STYLE_OMGEVING =
+  " The described location is fully drawn as a real, believable environment that fills the entire frame " +
+  "from edge to edge: floor or ground, walls or horizon, background depth, and the furniture, objects and " +
+  "surroundings that belong in such a place. NEVER an empty white, off-white or plain flat background — " +
+  "the people are standing INSIDE this place, not floating in front of a blank backdrop. Light and colours " +
+  "match the location and the time of day. Keep the environment tidy and readable: enough to recognise the " +
+  "place instantly, without cluttering it. " +
+  TEKST_NEGATIEF;
 
 // Taalregel voor eventuele tekst in het beeld. Beeldmodellen negeren "geen tekst"
 // vaak en vullen dan Engelse labels in. Daarom: als er tóch tekst nodig/aanwezig
@@ -101,8 +130,15 @@ function langTextRule(language?: string | null): string {
     `Any and all text in the image MUST be in ${l} — never another language, and never garbled, made-up or misspelled words.`;
 }
 
-export function buildIllustrationPrompt(brief: string, styleId?: string | null, language?: string | null): string {
-  return `${storyStylePreamble(styleId)}Scene: ${brief.trim()}.${STYLE_FRAMING}${STYLE_NEGATIVE}${langTextRule(language)}`;
+export function buildIllustrationPrompt(
+  brief: string,
+  styleId?: string | null,
+  language?: string | null,
+  /** Speelt de scène op een PLEK die je moet zien (dialoogmodus)? Dan geen wit vlak. */
+  metOmgeving = false
+): string {
+  const kader = metOmgeving ? STYLE_OMGEVING : `${STYLE_FRAMING}${STYLE_NEGATIVE}`;
+  return `${storyStylePreamble(styleId)}Scene: ${brief.trim()}.${kader}${langTextRule(language)}`;
 }
 
 // Referentiefoto per scène (verbeterplan-feature): het échte product/logo/object dat

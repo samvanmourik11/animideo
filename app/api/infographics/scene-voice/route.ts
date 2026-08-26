@@ -22,6 +22,14 @@ const ALLOWED_VOICES = new Set([
   "02TPKkY2rZbgnKFIPrT9", // Katleen  — warme Vlaamse vrouwenstem
   "Yv0oyZ3obP9foTH7emqG", // Jeroen   — warme Vlaamse mannenstem
   "AgeYjqDIfXtkcA3mOcsH", // Gunther  — rustige Vlaamse verteller
+  // Kinderstemmen. ElevenLabs heeft geen Nederlandse kinderstemmen; dit zijn
+  // kinderstemmen uit andere talen die via eleven-v3 gewoon Nederlands spreken.
+  "5krdMTA5HonvWAlY2vSx", // Tuur — jongensstem, verwonderd
+  "ihKwLOjVUMG4lgUI6meZ", // Finn — jongensstem, nieuwsgierig
+  "XjGYkUkzth8BPs29fmcV", // Boaz — jongensstem, uitbundig
+  "EeQEodFZVtBkjtgK3HBc", // Fien — meisjesstem, expressief
+  "hO2yZ8lxM3axUxL8OeKX", // Saar — meisjesstem, hoog en vrolijk
+  "0luPAj5RsdhmnkZaiYcb", // Noor — meisjesstem, levendig
 ]);
 
 function probeDuration(file: string): Promise<number> {

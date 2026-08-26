@@ -9,6 +9,7 @@ import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
+import { STORY_VOICES } from "@/lib/infographics/story-voices";
 import {
   buildTurnShotPrompt, buildDialogueMotionPrompt,
   buildActionShotPrompt, buildActionMotionPrompt, illustratieContext,
@@ -33,9 +34,13 @@ export const maxDuration = 300;
 const SEEDANCE = "fal-ai/bytedance/seedance/v1/lite/image-to-video";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Uit de stemmenlijst zelf opgebouwd. Stond hier eerst met de hand overgetypt, en
+// liep daardoor achter: de Vlaamse stemmen en de kinderstemmen ontbraken erin.
 const ALLOWED_VOICES = new Set([
-  "Aria", "Roger", "Sarah", "Laura", "Charlie", "George", "Callum", "River", "Liam", "Charlotte",
-  "Alice", "Matilda", "Will", "Jessica", "Eric", "Chris", "Brian", "Daniel", "Lily", "Bill", "Rachel",
+  ...STORY_VOICES.map((v) => v.id),
+  // De overige vaste ElevenLabs-stemmen, voor oude projecten die er een bewaard hebben.
+  "Aria", "Roger", "Laura", "Charlie", "Callum", "River", "Liam",
+  "Alice", "Matilda", "Will", "Jessica", "Eric", "Chris", "Brian", "Lily", "Bill", "Rachel",
 ]);
 const LANGUAGE_TO_CODE: Record<string, string> = { Nederlands: "nl", Engels: "en", Duits: "de", Frans: "fr", Spaans: "es", Italiaans: "it" };
 

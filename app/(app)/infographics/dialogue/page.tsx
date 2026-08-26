@@ -11,7 +11,7 @@ import DialoguePlayer, { bouwFragmenten } from "@/components/dialogue/DialoguePl
 import FragmentEditor, { type HerstelActie } from "@/components/dialogue/FragmentEditor";
 import ArtDirection from "@/components/dialogue/ArtDirection";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
-import { regelKlaar, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
+import { regelKlaar, kaleSetting, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
 import { MusicPickerButton } from "@/components/music/MusicPicker";
 import { findMusicTrackByUrl } from "@/lib/music/library";
 
@@ -157,6 +157,21 @@ export default function DialoguePage() {
       let klaar = 0;
       setVoortgang(`Scènes opzetten (0/${zonderShot.length})…`);
       for (const { s, si } of zonderShot) {
+        // Speelt deze scène op een plek die we al getekend hebben, neem dan dát
+        // beeld over in plaats van de omgeving opnieuw te laten verzinnen. Oma's
+        // woonkamer kwam in één verhaal drie keer terug en zag er drie keer anders
+        // uit; nu is het letterlijk dezelfde kamer. Scheelt bovendien een credit.
+        const zelfdePlek = werk.scenes.find(
+          (sc) => sc.twoShotUrl && sc !== s && kaleSetting(sc.setting) === kaleSetting(s.setting)
+        );
+        if (zelfdePlek?.twoShotUrl) {
+          werk.scenes[si].twoShotUrl = zelfdePlek.twoShotUrl;
+          klaar++;
+          setVoortgang(`Scènes opzetten (${klaar}/${zonderShot.length})…`);
+          setSpec(structuredClone(werk));
+          continue;
+        }
+
         // Het eerste beschikbare twee-shot dient als anker; bij een hervatting kan
         // dat er dus al staan uit een eerdere ronde.
         const anker = werk.scenes.find((sc) => sc.twoShotUrl)?.twoShotUrl ?? null;

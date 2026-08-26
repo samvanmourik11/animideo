@@ -327,6 +327,18 @@ export function sprekerHelft(position: CastPosition, breedte: number, hoogte: nu
 // video. Daarom staat er nu een harde zeef achter, die niet van een model afhangt.
 // ---------------------------------------------------------------------------
 
+/**
+ * Twee omgevingsbeschrijvingen die op hetzelfde neerkomen, herkenbaar maken.
+ *
+ * Komt dezelfde plek later in het verhaal terug, dan hoort daar hetzelfde beeld
+ * bij. Het draaiboek beschrijft zo'n plek meestal woordelijk hetzelfde (daar
+ * stuurt de prompt op), maar een lidwoord of een komma verschil mag geen nieuwe
+ * kamer opleveren.
+ */
+export function kaleSetting(setting: string): string {
+  return kaal(setting).replace(/\b(a|an|the|with|and|of|in|on)\b/g, "").replace(/\s+/g, " ").trim();
+}
+
 /** Tekst zonder leestekens, hoofdletters en dubbele spaties — om te vergelijken. */
 function kaal(tekst: string): string {
   return tekst

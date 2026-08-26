@@ -79,9 +79,10 @@ export async function POST(req: NextRequest) {
     dir = await mkdtemp(path.join(tmpdir(), "dialogue-"));
 
     // ---------- 1. Per regel een segment op maat ----------
-    const segmenten: { file: string; dur: number }[] = [];
+    // `scene` bepaalt waar een overvloeier mag komen: alleen bij een scènewissel.
+    const segmenten: { file: string; dur: number; scene: number }[] = [];
     let n = 0;
-    for (const scene of spec.scenes) {
+    for (const [si, scene] of spec.scenes.entries()) {
       for (const regel of scene.lines) {
         if (!regel.videoUrl) continue;
 
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
             "-filter_complex", `[0:v]${scaleV}[v]`,
             "-map", "[v]", "-map", "1:a", "-t", duur.toFixed(3), ...ENC(fps), "-y", seg,
           ]);
-          segmenten.push({ file: seg, dur: duur });
+          segmenten.push({ file: seg, dur: duur, scene: si });
           continue;
         }
 
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
           `[0:v]${scaleV}[v];[1:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo[a]`,
           "-map", "[v]", "-map", "[a]", "-t", stemDuur.toFixed(3), ...ENC(fps), "-y", seg,
         ]);
-        segmenten.push({ file: seg, dur: stemDuur });
+        segmenten.push({ file: seg, dur: stemDuur, scene: si });
       }
     }
 
@@ -134,23 +135,54 @@ export async function POST(req: NextRequest) {
     }
 
     // ---------- 2. Aan elkaar vloeien ----------
+    //
+    // Een overvloeier hoort bij een SCÈNEWISSEL, niet bij elke gesproken regel.
+    // Binnen één scène komen alle beelden uit hetzelfde twee-shot: dezelfde
+    // mensen, dezelfde omgeving, alleen een andere mond en houding. Daar een
+    // dissolve overheen leggen ziet eruit als geflikker, en dat gebeurde bij élke
+    // zin — twintig keer in een video van twee minuten.
+    //
+    // Dus: binnen een scène harde lassen (concat), tussen scènes een korte fade.
+    const groepen: { file: string; dur: number }[] = [];
+    for (let i = 0; i < segmenten.length; ) {
+      const scene = segmenten[i].scene;
+      const groep: typeof segmenten = [];
+      while (i < segmenten.length && segmenten[i].scene === scene) groep.push(segmenten[i++]);
+
+      if (groep.length === 1) {
+        groepen.push({ file: groep[0].file, dur: groep[0].dur });
+        continue;
+      }
+      // Alle segmenten zijn met dezelfde ENC()-parameters gemaakt, dus ze mogen
+      // zonder omcodering aan elkaar. Toch via de concat-FILTER en niet de
+      // demuxer: die laatste struikelt over kleine verschillen in tijdbasis.
+      const samengevoegd = path.join(dir, `g${String(groepen.length).padStart(3, "0")}.mp4`);
+      const labels = groep.map((_, j) => `[${j}:v][${j}:a]`).join("");
+      await runFfmpeg([
+        ...groep.flatMap((g) => ["-i", g.file]),
+        "-filter_complex", `${labels}concat=n=${groep.length}:v=1:a=1[v][a]`,
+        "-map", "[v]", "-map", "[a]", ...ENC(fps), "-y", samengevoegd,
+      ]);
+      groepen.push({ file: samengevoegd, dur: groep.reduce((a, g) => a + g.dur, 0) });
+    }
+
     const samen = path.join(dir, "samen.mp4");
-    if (segmenten.length === 1) {
-      await runFfmpeg(["-i", segmenten[0].file, "-c", "copy", "-movflags", "+faststart", "-y", samen]);
+    if (groepen.length === 1) {
+      await runFfmpeg(["-i", groepen[0].file, "-c", "copy", "-movflags", "+faststart", "-y", samen]);
     } else {
-      // Eén filtergraph die alle segmenten aan elkaar vloeit. De offset van elke
+      // Eén filtergraph die alle scènes aan elkaar vloeit. De offset van elke
       // overgang is de som van de voorgaande lengtes minus de reeds gebruikte
       // overvloeitijd — anders schuift elke volgende overgang te ver naar achteren.
-      const invoer = segmenten.flatMap((s) => ["-i", s.file]);
+      const invoer = groepen.flatMap((g) => ["-i", g.file]);
       const delen: string[] = [];
-      let vLabel = "0:v", aLabel = "0:a", gelopen = segmenten[0].dur;
-      for (let i = 1; i < segmenten.length; i++) {
+      let vLabel = "0:v", aLabel = "0:a", gelopen = groepen[0].dur;
+      for (let i = 1; i < groepen.length; i++) {
         const offset = Math.max(0, gelopen - XFADE);
         const vUit = `v${i}`, aUit = `a${i}`;
         delen.push(`[${vLabel}][${i}:v]xfade=transition=fade:duration=${XFADE}:offset=${offset.toFixed(3)}[${vUit}]`);
         delen.push(`[${aLabel}][${i}:a]acrossfade=d=${XFADE}:c1=tri:c2=tri[${aUit}]`);
         vLabel = vUit; aLabel = aUit;
-        gelopen = offset + segmenten[i].dur;
+        gelopen = offset + groepen[i].dur;
       }
       await runFfmpeg([
         ...invoer, "-filter_complex", delen.join(";"),

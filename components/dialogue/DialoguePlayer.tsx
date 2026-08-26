@@ -31,6 +31,8 @@ const INFADE_MS = 1200;
 
 export interface Fragment {
   key: string;
+  /** Bij welke scène dit fragment hoort. Bepaalt of er overvloeid mag worden. */
+  scene: number;
   videoUrl: string;
   /** Leeg bij een actiebeeld zonder voice-over: daar draagt de muziek het beeld. */
   audioUrl: string | null;
@@ -53,12 +55,12 @@ export function bouwFragmenten(spec: DialogueSpec): Fragment[] {
       const isActie = l.kind === "actie";
       if (isActie && !stem) {
         uit.push({
-          key: `s${si}-l${li}`, videoUrl: l.videoUrl, audioUrl: null,
+          key: `s${si}-l${li}`, scene: si, videoUrl: l.videoUrl, audioUrl: null,
           duur: l.seconden ?? 4, mouthStart: 0, spreker: "", tekst: (l.actie ?? "").trim(),
         });
       } else if (l.audioUrl) {
         uit.push({
-          key: `s${si}-l${li}`, videoUrl: l.videoUrl, audioUrl: l.audioUrl,
+          key: `s${si}-l${li}`, scene: si, videoUrl: l.videoUrl, audioUrl: l.audioUrl,
           duur: l.audioDuration ?? 4,
           mouthStart: isActie ? 0 : l.mouthStart ?? 0,
           spreker: naam(l.characterId),
@@ -107,6 +109,10 @@ export default function DialoguePlayer({
 
   const huidig: Fragment | undefined = fragmenten[idx];
   const laag: 0 | 1 = (idx % 2) as 0 | 1;
+  // Overvloeien hoort bij een SCÈNEWISSEL. Binnen één scène komen alle beelden uit
+  // hetzelfde twee-shot — dezelfde mensen, dezelfde omgeving, alleen een andere
+  // mond — en dan leest een dissolve als geflikker. Dat gebeurde bij élke zin.
+  const nieuweScene = idx === 0 || fragmenten[idx]?.scene !== fragmenten[idx - 1]?.scene;
   const basisVol = typeof musicVolume === "number" ? musicVolume : MUZIEK_VOL;
 
   // De virtuele tijdlijn: waar begint elk fragment, en hoe lang is het geheel?
@@ -298,7 +304,10 @@ export default function DialoguePlayer({
                 ref={(el) => { videoRefs.current[n] = el; }}
                 src={bronnen[n]}
                 className="absolute inset-0 w-full h-full object-contain"
-                style={{ opacity: laag === n ? 1 : 0, transition: `opacity ${OVERVLOEI_MS}ms ease-in-out` }}
+                style={{
+                  opacity: laag === n ? 1 : 0,
+                  transition: `opacity ${nieuweScene ? OVERVLOEI_MS : 0}ms ease-in-out`,
+                }}
                 playsInline
                 muted
                 preload="auto"

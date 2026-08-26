@@ -4,6 +4,7 @@ import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
 import { buildTwoShotBrief, illustratieContext } from "@/lib/infographics/dialogue-staging";
+import { beoordeelBeeld } from "@/lib/infographics/dialogue-verify";
 import { MAX_CAST, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
@@ -61,30 +62,67 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Een afgekeurde poging is wél gemaakt en wordt dus wél afgerekend.
+    let besteedExtra = 0;
+
     const brief = buildTwoShotBrief(setting, cast);
     const anker = (body.anchorTwoShotUrl ?? "").trim();
     const ankerInstructie = anker
       ? " A reference image of these SAME two people from an earlier scene in this same video is provided. " +
-        "Keep the characters identical to that image — same faces, hair, clothing, colours, proportions and " +
-        "drawing style — and keep them standing in the same left/right arrangement. ONLY the surroundings " +
-        "change to the new location described above."
+        "Keep the characters identical to that image — same faces, hair, clothing, colours, drawing style, and " +
+        "the same body heights relative to each other (whoever is taller there stays taller here, by the same " +
+        "amount) — and keep them standing in the same left/right arrangement. ONLY the surroundings change to " +
+        "the new location described above."
       : "";
 
-    const result = await generateImageWithStyle({
-      prompt: buildIllustrationPrompt(brief, styleId, body.language ?? null),
-      format,
-      visualStyle: null,
-      seed: typeof body.seed === "number" ? body.seed : undefined,
-      // De portretten leveren de identiteit; de brief bepaalt houding en kader.
-      characterUrls: portretten,
-      // Het anker uit scène 1 houdt cast én look gelijk over alle scènes heen.
-      ingredientUrls: anker ? [anker] : undefined,
-      extraContext: [illustratieContext(body.illustrationBrief), ankerInstructie]
-        .filter(Boolean).join(" ").trim() || undefined,
-    });
-    const twoShotUrl = await persistFalAssetSoft(supabase, user.id, result.imageUrl, "image");
+    // Het twee-shot is het ANKER van de scène: elk bronbeeld erin is een bewerking
+    // hiervan. Een fout hier plant zich dus voort over alle regels van die scène,
+    // terwijl de controle tot nu toe pas op die bewerkingen stond. In een test
+    // stonden de kinderen tot hun middel ín een rivier — precies het soort fout
+    // dat één keer tegenhouden goedkoper is dan drie keer repareren.
+    let twoShotUrl: string | null = null;
+    let fouten: string[] = [];
+    for (let poging = 1; poging <= 2 && twoShotUrl === null; poging++) {
+      const result = await generateImageWithStyle({
+        // true = met omgeving. Zonder dit kwam elk gesprek op een leeg wit vlak
+        // terecht, want het standaardkader van de infographic-tool poetst de plek weg.
+        prompt: buildIllustrationPrompt(brief, styleId, body.language ?? null, true),
+        format,
+        visualStyle: null,
+        // Bij een herkansing geen seed: dezelfde seed geeft grofweg hetzelfde
+        // (foute) beeld terug en dan betalen we voor niets.
+        seed: poging === 1 && typeof body.seed === "number" ? body.seed : undefined,
+        // De portretten leveren de identiteit; de brief bepaalt houding en kader.
+        characterUrls: portretten,
+        // Het anker uit scène 1 houdt cast én look gelijk over alle scènes heen.
+        ingredientUrls: anker ? [anker] : undefined,
+        extraContext: [
+          illustratieContext(body.illustrationBrief),
+          ankerInstructie,
+          fouten.length
+            ? `The previous attempt was rejected for these mistakes — avoid them: ${fouten.join("; ")}.`
+            : "",
+        ].filter(Boolean).join(" ").trim() || undefined,
+      });
+      const kandidaat = await persistFalAssetSoft(supabase, user.id, result.imageUrl, "image");
 
-    return NextResponse.json({ twoShotUrl });
+      // Alleen de fysieke controle: er praat op een twee-shot nog niemand.
+      const oordeel = await beoordeelBeeld(kandidaat, null, cast);
+      fouten = oordeel.fouten;
+      // Bij de laatste poging nemen we wat we hebben: een scène zonder anker
+      // levert helemaal geen beelden op, en dat is erger dan een beeld met een smetje.
+      if (fouten.length === 0 || poging === 2) twoShotUrl = kandidaat;
+      else {
+        console.warn(`[dialogue-twoshot] afgekeurd (poging ${poging}): ${fouten.join("; ")}`);
+        besteedExtra += CREDIT_COSTS.IMAGE_GENERATION;
+      }
+    }
+
+    if (besteedExtra > 0) {
+      await deductCredits(user.id, besteedExtra, "Dialoog twee-shot (herkansing)");
+    }
+
+    return NextResponse.json({ twoShotUrl, beeldWaarschuwingen: fouten.length ? fouten : null });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("dialogue-twoshot failed:", msg);

@@ -25,8 +25,21 @@ async function loadEnv() {
   } catch {}
 }
 
-const VOICES = ["Charlotte", "Sarah", "Daniel", "George"];
-const SAMPLE = "Hoi! Zo klinkt mijn stem. Ik vertel jouw verhaal rustig, helder en met een glimlach.";
+// Lijst met de hand bijgehouden, maar wél compleet: hij liep achter op
+// lib/infographics/story-voices.ts, waardoor de Vlaamse stemmen nooit een preview
+// kregen. Kinderstemmen krijgen een eigen zin — een kind dat "ik vertel jouw
+// verhaal rustig en helder" zegt klinkt als een volwassene in een kinderlijf.
+const VOLWASSEN = "Hoi! Zo klinkt mijn stem. Ik vertel jouw verhaal rustig, helder en met een glimlach.";
+const KIND = "Hoi! Zo klinkt mijn stem. Kom je mee op avontuur? Het wordt echt heel erg leuk!";
+
+const VOICES = [
+  ["Charlotte", VOLWASSEN], ["Sarah", VOLWASSEN], ["Daniel", VOLWASSEN], ["George", VOLWASSEN],
+  // Vlaams
+  ["02TPKkY2rZbgnKFIPrT9", VOLWASSEN], ["Yv0oyZ3obP9foTH7emqG", VOLWASSEN], ["AgeYjqDIfXtkcA3mOcsH", VOLWASSEN],
+  // Kinderstemmen
+  ["5krdMTA5HonvWAlY2vSx", KIND], ["ihKwLOjVUMG4lgUI6meZ", KIND], ["XjGYkUkzth8BPs29fmcV", KIND],
+  ["EeQEodFZVtBkjtgK3HBc", KIND], ["hO2yZ8lxM3axUxL8OeKX", KIND], ["0luPAj5RsdhmnkZaiYcb", KIND],
+];
 
 async function main() {
   await loadEnv();
@@ -36,11 +49,11 @@ async function main() {
   const outDir = join(root, "public", "voice-previews");
   await mkdir(outDir, { recursive: true });
 
-  for (const voice of VOICES) {
+  for (const [voice, tekst] of VOICES) {
     process.stdout.write(`Genereren: ${voice}… `);
     const result = await fal.subscribe("fal-ai/elevenlabs/tts/eleven-v3", {
       input: {
-        text: SAMPLE,
+        text: tekst,
         voice,
         language_code: "nl",
         stability: 0.5,
