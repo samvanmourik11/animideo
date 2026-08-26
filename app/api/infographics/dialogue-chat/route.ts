@@ -3,7 +3,7 @@ import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import {
   DRAAIBOEK_TOOL, HERZIE_DRAAIBOEK_TOOL, buildChatSysteem, buildSamenhangSysteem,
-  buildUitbreidSysteem, ILLUSTREER_TOOL, buildIllustreerSysteem,
+  buildUitbreidSysteem, buildAanscherpSysteem, ILLUSTREER_TOOL, buildIllustreerSysteem,
   toonDraaiboek,
   type BibliotheekItem,
 } from "@/lib/infographics/dialogue-chat-tools";
@@ -62,7 +62,9 @@ interface RuwPlan {
   styleId?: string;
   illustrationBrief?: string;
   muziekCategorie?: string;
-  cast?: { id?: string; characterId?: string; name?: string; role?: string; appearance?: string; voice?: string; position?: string }[];
+  kern?: string;
+  wending?: string;
+  cast?: { id?: string; characterId?: string; name?: string; role?: string; wil?: string; spraak?: string; appearance?: string; voice?: string; position?: string }[];
   scenes?: { setting?: string; lines?: RuweRegel[] }[];
 }
 
@@ -139,6 +141,10 @@ function maakSpec(
       characterId: bron.id,
       name: (lid.name ?? "").trim() || bron.name,
       role: (lid.role ?? "").trim(),
+      // Verlangen en spraak gaan mee de spec in: elke latere stap die nog zinnen
+      // schrijft heeft ze nodig, anders vervlakken de personages halverwege alsnog.
+      wil: (lid.wil ?? "").trim() || null,
+      spraak: (lid.spraak ?? "").trim() || null,
       voice: lid.voice && STEMMEN.has(lid.voice) ? lid.voice : STORY_VOICES[i % STORY_VOICES.length].id,
       portraitUrl: bron.image_url,
       position: positie,
@@ -193,6 +199,8 @@ function maakSpec(
   const spec: DialogueSpec = {
     version: 1,
     title: (plan.title ?? "").trim() || "Naamloze dialoog",
+    kern: (plan.kern ?? "").trim() || null,
+    wending: (plan.wending ?? "").trim() || null,
     format: plan.format === "9:16" ? "9:16" : "16:9",
     cast,
     scenes,
@@ -425,7 +433,9 @@ async function brengOpLengte(
   cast: DialogueCastMember[],
   taal: string,
   doel: number,
-  briefing?: string | null
+  briefing?: string | null,
+  kern?: string | null,
+  wending?: string | null
 ): Promise<DialogueScene[]> {
   const naarCastId = maakVertaler(cast);
   let huidig = [...scenes];
@@ -448,7 +458,7 @@ async function brengOpLengte(
         // dertig seconden.
         tool_choice: { type: "function", function: { name: HERZIE_DRAAIBOEK_TOOL.function.name } },
         messages: [
-          { role: "system", content: buildUitbreidSysteem(toonDraaiboek(cast, huidig), taal, duur, doel, briefing) },
+          { role: "system", content: buildUitbreidSysteem(toonDraaiboek(cast, huidig), taal, duur, doel, briefing, kern, wending) },
           { role: "user", content: "Geef het volledige draaiboek terug, met de nieuwe scènes op de juiste plek." },
         ],
       });
@@ -532,6 +542,82 @@ function knipOpMaat(scenes: DialogueScene[], doel: number): DialogueScene[] {
     }
   }
   return uit.filter((s) => s.lines.length > 0);
+}
+
+/**
+ * Eindredactie op de gesproken zinnen: de flauwe eruit.
+ *
+ * Draait als LAATSTE, want elke stap hiervoor schrijft zelf ook zinnen. Raakt
+ * bewust niets anders aan dan de tekst — hetzelfde aantal regels, dezelfde
+ * sprekers, dezelfde actiebeelden. Klopt daar iets niet aan wat terugkomt, dan
+ * houden we het origineel: een iets te braaf verhaal is beter dan een verhaal
+ * waar de eindredacteur de helft uit gesloopt heeft.
+ */
+async function scherpDialoogAan(
+  scenes: DialogueScene[],
+  cast: DialogueCastMember[],
+  taal: string,
+  kern?: string | null,
+  wending?: string | null
+): Promise<DialogueScene[]> {
+  const gesproken = scenes.reduce((a, s) => a + s.lines.filter((l) => (l.text ?? "").trim()).length, 0);
+  if (gesproken === 0) return scenes;
+
+  const naarCastId = maakVertaler(cast);
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      // Hoger dan de andere opruimstappen: dit is de enige stap die iets moet
+      // BEDENKEN in plaats van controleren. Op 0.4 kwamen dezelfde brave zinnen terug.
+      temperature: 0.9,
+      max_tokens: 12000,
+      tools: [HERZIE_DRAAIBOEK_TOOL],
+      tool_choice: { type: "function", function: { name: HERZIE_DRAAIBOEK_TOOL.function.name } },
+      messages: [
+        { role: "system", content: buildAanscherpSysteem(toonDraaiboek(cast, scenes), taal, kern, wending) },
+        { role: "user", content: "Geef het volledige draaiboek terug met de aangescherpte zinnen." },
+      ],
+    });
+    const call = completion.choices[0]?.message?.tool_calls?.[0];
+    if (!call) return scenes;
+
+    const uit = JSON.parse(call.function.arguments || "{}") as { scenes?: { setting?: string; lines?: RuweRegel[] }[] };
+    const ruwe = Array.isArray(uit.scenes) ? uit.scenes : [];
+    if (ruwe.length !== scenes.length) {
+      console.warn(`[dialogue-chat] eindredactie gaf ${ruwe.length} van ${scenes.length} scènes terug; origineel behouden`);
+      return scenes;
+    }
+
+    // Alleen de TEKST overnemen, regel voor regel op zijn plek. Zo kan deze stap
+    // per definitie geen actiebeeld laten sneuvelen, geen spreker omdraaien en
+    // geen scène kwijtraken — de valkuilen waar eerdere modelstappen in liepen.
+    const nieuw = scenes.map((scene, i) => {
+      const bron = ruwe[i]?.lines ?? [];
+      if (bron.length !== scene.lines.length) return scene;
+      return {
+        ...scene,
+        lines: scene.lines.map((l, j) => {
+          const nieuweTekst = (bron[j]?.text ?? "").trim();
+          // Een regel zonder tekst houdt geen tekst, en een regel mét tekst
+          // verliest hem niet: dat zou een stille dialoogregel opleveren.
+          if (!(l.text ?? "").trim() || !nieuweTekst) return l;
+          // De spreker moet dezelfde blijven; anders komt de stem uit de
+          // verkeerde mond en is alle sprekercontrole voor niets geweest.
+          if (naarCastId(bron[j]?.characterId) !== l.characterId) return l;
+          return { ...l, text: nieuweTekst };
+        }),
+      };
+    });
+
+    const veranderd = nieuw.reduce(
+      (a, s, i) => a + s.lines.filter((l, j) => l.text !== scenes[i].lines[j].text).length, 0
+    );
+    console.log(`[dialogue-chat] eindredactie: ${veranderd} van ${gesproken} zinnen herschreven`);
+    return nieuw;
+  } catch (e) {
+    console.error("[dialogue-chat] eindredactie mislukt:", e);
+    return scenes;
+  }
 }
 
 /**
@@ -714,12 +800,20 @@ export async function POST(req: NextRequest) {
       gewensteLengte,
       // De uitgebreidste beurt van de gebruiker is zijn briefing; korte
       // tussenzinnen ("ja, ga verder") zeggen niets over wat hij wil zien.
-      berichten.filter((m) => m.role === "user").map((m) => m.content).sort((a, b) => b.length - a.length)[0]
+      berichten.filter((m) => m.role === "user").map((m) => m.content).sort((a, b) => b.length - a.length)[0],
+      spec.kern,
+      spec.wending
     );
 
     // ALS LAATSTE: zorgen dat er genoeg geïllustreerd wordt. Dit staat bewust
     // achteraan, want alle stappen hiervoor kunnen actiebeelden laten sneuvelen.
     spec.scenes = await voegIllustratiesToe(spec.scenes, spec.cast);
+
+    // ALLERLAATST: de eindredactie over de gesproken zinnen. Hierna schrijft
+    // niets meer, dus wat hier goed komt blijft goed.
+    spec.scenes = await scherpDialoogAan(
+      spec.scenes, spec.cast, spec.language ?? "Nederlands", spec.kern, spec.wending
+    );
 
     // Laatste zeef over het HELE draaiboek. Elke stap hierboven laat een model
     // scènes schrijven, en elk van die stappen kan herhalen. Twee keer hetzelfde

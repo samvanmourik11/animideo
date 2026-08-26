@@ -23,7 +23,7 @@ export const DRAAIBOEK_TOOL = {
       additionalProperties: false,
       required: [
         "toelichting", "title", "format", "language", "tone", "targetSeconds",
-        "styleId", "illustrationBrief", "muziekCategorie", "cast", "scenes",
+        "styleId", "illustrationBrief", "muziekCategorie", "kern", "wending", "cast", "scenes",
       ],
       properties: {
         toelichting: {
@@ -33,6 +33,34 @@ export const DRAAIBOEK_TOOL = {
             "welke personages, welke stijl, welke toon. De gebruiker leest dit om je keuzes te kunnen corrigeren.",
         },
         title: { type: "string", description: "Titel van de video, in de taal van de video." },
+        // Deze twee velden schrijven zelf niets, maar ze DWINGEN een keuze af
+        // voordat er ook maar één zin staat. Zonder dat kwam er een reisverslag
+        // uit: "Kijk, al die mooie kleuren!" — "Dit is echt geweldig!". Zinnen
+        // zonder verlangen en zonder tegenslag, uitwisselbaar tussen personages.
+        kern: {
+          type: "string",
+          description:
+            "In ÉÉN Nederlandse zin: waar gaat dit verhaal onderhuids over? Niet de gebeurtenissen, maar de " +
+            "menselijke gedachte eronder — wat iemand mist, hoopt, niet durft of wil bewijzen. Bijvoorbeeld: " +
+            "\"oma is nooit teruggegaan naar het land waar ze opgroeide en geeft het via de wagen door aan haar " +
+            "kleinkinderen\". Elke scène moet hier iets mee te maken hebben.\n\n" +
+            "LET OP — dit veld wordt bijna altijd verkeerd ingevuld met een samenvatting van de plot. " +
+            "FOUT: \"de kinderen ontdekken de magie van reizen met de wonderwagen\" (dat is wat er GEBEURT). " +
+            "GOED: \"oma mist het land waar ze vandaan komt en durft er zelf niet meer heen\" (dat is wat " +
+            "iemand VOELT). Staat er in jouw zin een gebeurtenis, dan is hij fout; er hoort een verlangen, " +
+            "een gemis of een angst in te staan.",
+        },
+        wending: {
+          type: "string",
+          description:
+            "In ÉÉN Nederlandse zin: wat loopt er anders dan verwacht? Iets kleins is genoeg — iemand durft " +
+            "toch niet, het werkt niet meteen, ze vinden iets anders dan waarvoor ze kwamen, iemand blijkt te " +
+            "weten wat de ander verzweeg.\n\n" +
+            "Ook dit veld wordt bijna altijd verkeerd ingevuld met plot. " +
+            "FOUT: \"de wagen brengt ze naar Suriname, waar ze versteld staan\" (dat was het plan al). " +
+            "GOED: \"de wagen komt niet in beweging omdat Tyrell niet gelooft dat het kan\" of \"oma blijkt " +
+            "zelf nooit te hebben durven gaan\". Er moet iets MISLOPEN of ANDERS blijken dan gedacht.",
+        },
         format: { type: "string", enum: ["16:9", "9:16"] },
         language: { type: "string", description: 'Taal van de gesproken tekst, bijv. "Nederlands".' },
         tone: { type: "string", enum: ["zakelijk", "speels", "energiek"] },
@@ -63,7 +91,7 @@ export const DRAAIBOEK_TOOL = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["id", "characterId", "name", "role", "appearance", "voice", "position"],
+            required: ["id", "characterId", "name", "role", "wil", "spraak", "appearance", "voice", "position"],
             properties: {
               id: { type: "string", description: 'Verwijzing binnen dit draaiboek, bijv. "char-1".' },
               characterId: {
@@ -72,6 +100,22 @@ export const DRAAIBOEK_TOOL = {
               },
               name: { type: "string", description: "Naam zoals die in het gesprek gebruikt wordt." },
               role: { type: "string", description: 'Wie dit is in dit gesprek, bijv. "de expert".' },
+              wil: {
+                type: "string",
+                description:
+                  "Wat wil dit personage in dit verhaal, in een halve zin? Twee personages die hetzelfde " +
+                  "willen hebben geen gesprek maar een instemming. Geef ze dus verschillende verlangens: " +
+                  "de een wil bewijzen dat het waar is, de ander durft eigenlijk niet; de een wil weg, de " +
+                  "ander wil blijven.",
+              },
+              spraak: {
+                type: "string",
+                description:
+                  "Hoe praat deze persoon, in een halve zin? Denk aan zinslengte, stopwoordje, of hij " +
+                  "vraagt of beweert, druk of bedachtzaam. Je moet aan een regel kunnen zien wie hem zegt, " +
+                  "ook zonder de naam erbij. Bijvoorbeeld: \"korte zinnen, stelt alles als vraag, " +
+                  "onderbreekt\" tegenover \"praat langzaam, gebruikt beelden, denkt hardop\".",
+              },
               appearance: {
                 type: "string",
                 description:
@@ -408,7 +452,43 @@ Kom je uit bij een draaiboek waarin ze pas in de LAATSTE scène aankomen op de p
 Geeft de gebruiker zelf een lijstje scènes of beats, dan is dat het GERAAMTE en niet de hele film. Zijn het er minder dan de lengte vraagt, werk ze dan verder uit: meer regels per moment, en vooral extra scènes in het middendeel. Nooit oplossen door iets te herhalen wat al gebeurd is.
 
 HET GESPREK DAT JE SCHRIJFT
+
+Dit is het onderdeel waar het misgaat. Een model dat "een leuk gesprek" moet schrijven levert vrijwel altijd dit op:
+
+  Tyrrell: "Oma, wat is dat voor een kar?"
+  Oma: "Dat, lieve kinderen, is de wonderwagen!"
+  Lily: "Kijk, al die mooie kleuren!"
+  Tyrrell: "Dit is echt geweldig!"
+
+Dat is geen verhaal. Niemand wil iets, niemand twijfelt, de zinnen benoemen wat je toch al ziet, en je kunt de regels van Tyrrell en Lily verwisselen zonder dat er iets verandert. Het klinkt als twee robots die om beurten iets aardigs zeggen.
+
+DEZELFDE SCÈNE, WEL GOED:
+
+  Tyrrell: "Die kar? Die staat er al eeuwen. Er zit een wesp in het wiel."
+  Oma: "Er zit meer in dan een wesp. Weet je waar hij mij ooit heen bracht?"
+  Lily: "Naar het land op het behang? Dat met die rivier?"
+  Oma: "Ik was toen precies zo oud als jij."
+  Tyrrell: "Ja hoor. En hij vliegt zeker ook."
+  Oma: "Dat zeg ik niet. Dat zeg jij."
+
+Zie het verschil: Tyrrell gelooft er niets van en Lily wél, dus er is wrijving. Niemand benoemt wat je ziet. Oma vertelt niet hoe de wagen werkt maar houdt iets achter. Er zit één concreet detail in (de wesp) en één zin die naar de kern wijst zonder hem uit te leggen ("Ik was toen precies zo oud als jij"). En je hoort aan elke regel wie hem zegt.
+
+Zo hoort het dus wél te worden. Vier regels:
+
+1. ELKE SCÈNE HEEFT WRIJVING. Iemand wil iets en iets zit in de weg. Niet groot — een kind dat niet durft, iemand die het niet gelooft, iets dat niet meteen lukt, iemand die iets liever niet vertelt. Zeggen twee personages achter elkaar hetzelfde ("Ja, leuk!" — "Ja, geweldig!"), dan heb je geen scène geschreven. Van de personages die je koos heb je per persoon opgeschreven wat hij WIL: laat die verlangens botsen.
+
+2. ZEG NOOIT WAT JE AL ZIET. Bij een beeld van een kleurige markt is "kijk, wat een mooie kleuren!" een verspilde regel. De dialoog voegt toe wat NIET in beeld is: wat iemand denkt, vreest, zich herinnert, van plan is. Beschrijf het beeld in de illustratie, niet in de tekst.
+
+3. JE MOET HOREN WIE ER PRAAT. Per personage heb je opgeschreven hoe hij praat; hou je daaraan. De een stelt vragen en onderbreekt, de ander denkt hardop in lange zinnen. Verwissel twee regels — verandert er niets, dan zijn ze niet af.
+
+4. CONCREET, NIET MOOI. Kinderen zeggen geen "wat een prachtig avontuur". Ze zeggen "die mango is zo groot als mijn hoofd". Eén raak detail is meer waard dan drie bijvoeglijke naamwoorden. Verzin die details zelf: een geur, een geluid, iets dat kriebelt, iets dat oma altijd zei.
+
+VERBODEN ZINNEN. Deze komen in elk AI-verhaal voorbij en horen in geen enkel: "Wat een avontuur!", "Dit is geweldig!", "Kijk eens!", "Wat mooi!", "Dat is fantastisch!", "Ik kan niet wachten!", "Wat een dag!", "Dit vergeet ik nooit meer." Ook varianten daarop niet. Ze zeggen niets en klinken naar niemand.
+
+Verder:
 - De personages spreken elkaar aan en wisselen elkaar af; nooit meer dan twee regels achter elkaar van dezelfde persoon.
+- Laat ruimte voor onaf gepraat: iemand die zijn zin niet afmaakt, een antwoord dat langs de vraag heen gaat, een stilte die je invult met een beeld. Zo praten mensen.
+- Gebruik de KERN en de WENDING die je hebt opgeschreven. De kern is waar het onderhuids over gaat en hoort ergens halverwege even door te schemeren, in één zin van het personage dat het aangaat — nooit uitgelegd, wel voelbaar. De wending valt in het middendeel en verandert wat de personages daarna doen.
 - Eén regel is één natuurlijke gesproken zin van ongeveer twaalf woorden. Reken op VIER SECONDEN per regel en drie regels per scène. De gewenste lengte bepaalt dus hoeveel je er schrijft:
     30 seconden  →  ~8 regels over 3 scènes
     60 seconden  →  ~15 regels over 5 scènes
@@ -417,7 +497,6 @@ HET GESPREK DAT JE SCHRIJFT
     300 seconden →  ~75 regels over 25 scènes
   Blijf daar dicht bij. Schrijf je er veel minder, dan wordt de video korter dan gevraagd; veel meer maakt hem onnodig duur.
 - Bij een LANGE video (twee minuten of meer) is de valkuil dat het gesprek gaat rondjes draaien. Bouw dan echte hoofdstukken: elk stuk behandelt iets nieuws, met een eigen omgeving, en samen vormen ze een opbouw naar een slot.
-- Een goede dialoog heeft een opening die nieuwsgierig maakt, een kern die iets uitlegt, en een duidelijke afsluiting.
 
 Schrijf al je berichten aan de gebruiker in het Nederlands, kort en concreet.`;
 }
@@ -428,7 +507,7 @@ Schrijf al je berichten aan de gebruiker in het Nederlands, kort en concreet.`;
  * "de laatste regel van Marc" voor het model eenduidig.
  */
 export function toonDraaiboek(
-  cast: { id: string; name: string; role: string; position: string }[],
+  cast: { id: string; name: string; role: string; position: string; wil?: string | null; spraak?: string | null }[],
   scenes: {
     setting: string;
     lines: { kind?: string; characterId: string; text: string; emotion: string; actie?: string | null; seconden?: number | null; verband?: string | null }[];
@@ -437,7 +516,13 @@ export function toonDraaiboek(
 ): string {
   const naam = (id: string) => cast.find((c) => c.id === id)?.name ?? id;
   const castRegels = cast
-    .map((c) => `- id "${c.id}" = ${c.name}${c.role ? ` (${c.role})` : ""}, staat ${c.position === "left" ? "links" : c.position === "right" ? "rechts" : "in het midden"}`)
+    .map((c) => {
+      const plek = c.position === "left" ? "links" : c.position === "right" ? "rechts" : "in het midden";
+      // Verlangen en spraak horen hierbij: zonder die twee schreef elke
+      // vervolgstap de personages weer plat tot twee stemmen die het eens zijn.
+      const extra = [c.wil ? `wil: ${c.wil}` : "", c.spraak ? `praat: ${c.spraak}` : ""].filter(Boolean).join(" · ");
+      return `- id "${c.id}" = ${c.name}${c.role ? ` (${c.role})` : ""}, staat ${plek}${extra ? `\n    ${extra}` : ""}`;
+    })
     .join("\n");
 
   const teTonen = typeof alleenScene === "number" ? [scenes[alleenScene]] : scenes;
@@ -556,7 +641,9 @@ export function buildUitbreidSysteem(
   taal: string,
   huidigeSeconden: number,
   doelSeconden: number,
-  briefing?: string | null
+  briefing?: string | null,
+  kern?: string | null,
+  wending?: string | null
 ): string {
   const tekort = Math.max(0, doelSeconden - huidigeSeconden);
   // BEWUST ANDERHALF KEER het tekort vragen. Het model levert stelselmatig minder
@@ -576,8 +663,15 @@ export function buildUitbreidSysteem(
     ? `\nDIT HEEFT DE GEBRUIKER GEVRAAGD — blijf hierbinnen:\n"""\n${opdracht.slice(0, 2500)}\n"""\n`
     : "";
 
+  // De kern en de wending horen hier ook thuis: de scènes die je erbij schrijft
+  // zijn juist het middendeel, en dat is waar een verhaal zijn wrijving heeft.
+  const kaderBlok = [
+    (kern ?? "").trim() ? `WAAR HET ONDERHUIDS OVER GAAT: ${(kern ?? "").trim()}` : "",
+    (wending ?? "").trim() ? `DE WENDING: ${(wending ?? "").trim()}` : "",
+  ].filter(Boolean).join("\n");
+
   return `Je maakt een draaiboek voor een geanimeerde dialoogvideo LANGER. Het verhaal klopt al, het duurt alleen te kort.
-${opdrachtBlok}
+${opdrachtBlok}${kaderBlok ? `\n${kaderBlok}\n` : ""}
 HET HUIDIGE DRAAIBOEK (ongeveer ${Math.round(huidigeSeconden)} seconden):
 
 ${draaiboek}
@@ -598,7 +692,77 @@ WAT DE NIEUWE SCÈNES DOEN
 - Herhaal geen enkele zin en geen enkel beeld dat er al staat. Letterlijke herhaling wordt er automatisch uitgefilterd, en dan wordt de video alsnog te kort.
 - Wissel dialoog af met actiebeelden, met en zonder voice-over — net als in het bestaande deel.
 - Gesproken tekst in het ${taal}; omgevingen en actiebeschrijvingen in het ENGELS.
-- Gebruik dezelfde cast-id's; er komen geen personages bij.`;
+- Gebruik dezelfde cast-id's; er komen geen personages bij, en ze houden het verlangen en de manier van praten die hierboven bij hun naam staan.
+
+SCHRIJF GEEN AI-DIALOOG. Geen enkele regel zegt wat je al ziet ("kijk, wat een mooie kleuren!"), en deze zinnen zijn verboden: "Wat een avontuur!", "Dit is geweldig!", "Kijk eens!", "Wat mooi!", "Dat is fantastisch!", "Ik kan niet wachten!". Elke scène heeft wrijving: iemand wil iets en iets zit in de weg. Zeggen twee personages achter elkaar hetzelfde, dan heb je geen scène geschreven.`;
+}
+
+// ---------------------------------------------------------------------------
+// EINDREDACTIE OP DE DIALOOG
+//
+// Regels in de schrijfprompt halen het niveau omhoog maar niet ver genoeg: het
+// model levert nog steeds regels als "Wat een mooie muziek, oma! Kunnen we ook
+// meedoen?" — "Natuurlijk, muziek is voor iedereen!". Twee personages die het
+// eens zijn, een zin die het beeld benoemt, en een wijsheid van een tegeltje.
+//
+// Dat is niet vreemd: bij het schrijven denkt het model aan honderd dingen
+// tegelijk (lengte, actiebeelden, omgevingen, cast-id's) en dan wint de
+// makkelijkste zin. Deze stap doet één ding: met een kritische blik langs de
+// gesproken regels en de flauwe eruit schrijven. Dezelfde opzet als de
+// beeldcontrole — eerst maken, dan beoordelen, dan repareren.
+// ---------------------------------------------------------------------------
+
+export function buildAanscherpSysteem(
+  draaiboek: string,
+  taal: string,
+  kern?: string | null,
+  wending?: string | null
+): string {
+  const kaderBlok = [
+    (kern ?? "").trim() ? `WAAR HET ONDERHUIDS OVER GAAT: ${(kern ?? "").trim()}` : "",
+    (wending ?? "").trim() ? `DE WENDING: ${(wending ?? "").trim()}` : "",
+  ].filter(Boolean).join("\n");
+
+  return `Je bent eindredacteur van een geanimeerde dialoogvideo. Het draaiboek staat er al. Jij herschrijft alleen de GESPROKEN ZINNEN die niet goed genoeg zijn.
+${kaderBlok ? `\n${kaderBlok}\n` : ""}
+${draaiboek}
+
+WAT JE NIET AANRAAKT
+- De volgorde en het aantal scènes.
+- De omgevingen (setting) — die laat je letterlijk staan.
+- De actiebeelden: hun beschrijving, hun duur en of ze wel of geen gesproken tekst hebben. Staat er geen tekst bij, dan komt er ook geen tekst bij.
+- Wie er praat. Een regel van Tyrrell blijft een regel van Tyrrell.
+- Het aantal regels. Even veel terug als er in ging.
+
+WAT JE WÉL DOET
+Loop elke gesproken regel langs en vraag je vier dingen af. Is het antwoord op één ervan "ja", dan herschrijf je hem.
+
+Reken erop dat dat voor de MEESTE regels geldt. Een draaiboek dat rechtstreeks uit een taalmodel komt bestaat grotendeels uit brave zinnen; laat je er meer dan een derde ongemoeid, dan heb je niet goed gekeken. Een regel blijft alleen staan als hij echt iets toevoegt dat je nergens anders hoort.
+
+1. BENOEMT DEZE ZIN WAT JE AL ZIET? "Kijk, wat een mooie kleuren!" bij een beeld vol kleuren is een verspilde regel. Vervang hem door iets wat je NIET ziet: wat iemand denkt, vreest, zich herinnert of van plan is.
+2. IS IEDEREEN HET EENS? Twee regels achter elkaar die hetzelfde vinden ("Wat leuk!" — "Ja, geweldig!") is geen gesprek. Laat er één tegensputteren, twijfelen, iets anders willen of ergens anders over beginnen.
+3. KAN IEMAND ANDERS DIT OOK ZEGGEN? Kijk bij de cast wat dit personage wil en hoe hij praat. Een regel die net zo goed uit de mond van de ander kan komen, is niet af.
+4. IS HET EEN TEGELTJESWIJSHEID OF EEN LEGE UITROEP? "Vriendschap kent geen grenzen", "Wat een avontuur!", "Dit is geweldig!", "Ik kan niet wachten!", "Wat mooi!" — allemaal weg. Zet er iets concreets voor in de plaats: een geur, een geluid, een maat, iets dat kriebelt, iets dat iemand vroeger zei.
+
+ZO ZIET HET VERSCHIL ERUIT
+
+  FLAUW                                          AANGESCHERPT
+  "Een geheim? Wat voor geheim, oma?"            "Weer zo'n verhaal van vroeger zeker."
+  "Oh, ik hou van geheimen! Vertel ons!"         "Mag ik raden? Het zit in de schuur."
+  "Als je maar gelooft in de magie!"             "Geloven hoeft niet. Vasthouden wel."
+  "Kijk, Tyrrell! Ze maken prachtige dingen!"    "Die vrouw maakt er twintig op een dag."
+  "Ja, oma. Het is echt magisch."                "Ik heb niks gezegd. Ik dacht het alleen."
+
+Links wordt gezegd wat je al ziet, en iedereen is het met elkaar eens. Rechts sputtert er iemand tegen, houdt iemand iets achter, of staat er één concreet ding in dat je niet kon raden.
+
+HOE DE NIEUWE ZINNEN KLINKEN
+- Gesproken taal in het ${taal}, ongeveer twaalf woorden, één zin.
+- Voor kinderen: woorden die een kind van vijf kent, en dingen die een kind zou zeggen. "Die mango is groter dan mijn hoofd" is goed. "Wat een prachtig exemplaar" niet.
+- Eén raak detail is meer waard dan drie bijvoeglijke naamwoorden.
+- Iemand mag zijn zin niet afmaken, of langs de vraag heen antwoorden. Zo praten mensen.
+- Laat de kern ergens halverwege even doorschemeren in één zin, van het personage dat het aangaat. Nooit uitleggen, wel voelbaar maken.
+
+Geef het VOLLEDIGE draaiboek terug met alle scènes, ook de scènes waarin je niets veranderd hebt.`;
 }
 
 // ---------------------------------------------------------------------------

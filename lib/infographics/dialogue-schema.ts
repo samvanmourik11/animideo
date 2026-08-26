@@ -88,6 +88,16 @@ export interface DialogueCastMember {
   name: string;
   // Wie dit personage is in dit gesprek ("de expert", "de klant").
   role: string;
+  /**
+   * Wat dit personage in dit verhaal WIL, en HOE het praat.
+   *
+   * Staan hier niet voor de sier: zonder botsende verlangens schreef het model
+   * personages die het steeds met elkaar eens waren, en zonder eigen spraak
+   * waren hun regels onderling verwisselbaar. Ze gaan mee naar elke stap die
+   * later nog zinnen schrijft, anders vervlakt het verhaal alsnog halverwege.
+   */
+  wil?: string | null;
+  spraak?: string | null;
   // Stem-id uit STORY_VOICES.
   voice: string;
   // Portret uit de bibliotheek: identiteits-anker voor elk twee-shot.
@@ -209,6 +219,10 @@ export interface DialogueScene {
 export interface DialogueSpec {
   version: 1;
   title: string;
+  /** Waar het verhaal onderhuids over gaat, in één zin. Stuurt elke schrijfstap. */
+  kern?: string | null;
+  /** Wat er anders loopt dan verwacht, in één zin. Zonder wending geen verhaal. */
+  wending?: string | null;
   format: "16:9" | "9:16";
   cast: DialogueCastMember[];
   scenes: DialogueScene[];
