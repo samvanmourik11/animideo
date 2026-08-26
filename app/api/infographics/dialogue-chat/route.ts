@@ -64,7 +64,7 @@ interface RuwPlan {
   muziekCategorie?: string;
   kern?: string;
   wending?: string;
-  cast?: { id?: string; characterId?: string; name?: string; role?: string; wil?: string; spraak?: string; appearance?: string; voice?: string; position?: string }[];
+  cast?: { id?: string; characterId?: string; name?: string; role?: string; leeftijd?: string; wil?: string; spraak?: string; appearance?: string; voice?: string; position?: string }[];
   scenes?: { setting?: string; lines?: RuweRegel[] }[];
 }
 
@@ -141,6 +141,7 @@ function maakSpec(
       characterId: bron.id,
       name: (lid.name ?? "").trim() || bron.name,
       role: (lid.role ?? "").trim(),
+      leeftijd: (lid.leeftijd ?? "").trim() || null,
       // Verlangen en spraak gaan mee de spec in: elke latere stap die nog zinnen
       // schrijft heeft ze nodig, anders vervlakken de personages halverwege alsnog.
       wil: (lid.wil ?? "").trim() || null,

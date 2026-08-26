@@ -108,6 +108,7 @@ interface Body {
   actie?: string;
   seconden?: number;
   twoShotUrl?: string;
+  castSheetUrl?: string;
   cast?: DialogueCastMember[];
   speakerId?: string;
   text?: string;
@@ -274,9 +275,20 @@ export async function POST(req: NextRequest) {
           // identiteit vast. Zonder die portretten dobberde elke bewerking een beetje
           // weg — haar, kleding en gezicht veranderden zichtbaar over negen regels.
           ingredientUrls: [b.twoShotUrl],
-          characterUrls: cast.map((c) => c.portraitUrl).filter(Boolean),
+          // Het castblad weegt het zwaarst: het legt de identiteit én de
+          // onderlinge lengte vast. Zonder blad (oudere projecten) doen de
+          // portretten dat werk, maar die zeggen niets over lichaamsbouw.
+          brandUrls: (b.castSheetUrl ?? "").trim() ? [(b.castSheetUrl ?? "").trim()] : undefined,
+          characterUrls: (b.castSheetUrl ?? "").trim()
+            ? undefined
+            : cast.map((c) => c.portraitUrl).filter(Boolean),
           extraContext: [
             illustratieContext(b.illustrationBrief),
+            (b.castSheetUrl ?? "").trim()
+              ? "One reference image is a CHARACTER LINE-UP SHEET of everyone in this video, full body. " +
+                "The people in this shot must match that sheet exactly — same faces, hair, clothing, build, " +
+                "and the same height difference between them."
+              : "",
             // Een gerichte correctie van de gebruiker op dít ene beeld weegt
             // zwaarder dan de algemene briefing, dus hij staat erachter.
             beeldInstructie ? `IMPORTANT CORRECTION for this specific shot: ${beeldInstructie}` : "",

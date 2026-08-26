@@ -89,6 +89,13 @@ export interface DialogueCastMember {
   // Wie dit personage is in dit gesprek ("de expert", "de klant").
   role: string;
   /**
+   * Leeftijd in dit verhaal ("7 jaar", "ongeveer 70").
+   *
+   * Bepaalt hoe groot iemand op het castblad getekend wordt. Zonder leeftijd
+   * kwam een meisje van zes eruit als een tiener die boven haar broertje uitstak.
+   */
+  leeftijd?: string | null;
+  /**
    * Wat dit personage in dit verhaal WIL, en HOE het praat.
    *
    * Staan hier niet voor de sier: zonder botsende verlangens schreef het model
@@ -236,6 +243,15 @@ export interface DialogueSpec {
   // Gaat als extra context mee naar elke beeldgeneratie.
   illustrationBrief?: string | null;
   seed?: number | null;
+  /**
+   * Het castblad: één beeld met de hele cast ten voeten uit naast elkaar.
+   *
+   * De identiteits- én maatreferentie voor elk beeld in de video. De portretten
+   * uit de bibliotheek zijn borstbeelden en zeggen niets over lichaamsbouw, dus
+   * verzon het beeldmodel dat per scène opnieuw — vandaar personages die van
+   * lengte wisselden. Hier staat het één keer vast.
+   */
+  castSheetUrl?: string | null;
   /**
    * Stem van de verteller. Bewust een andere stem dan die van de cast: een
    * verteller die klinkt als een van de personages verwart de kijker.

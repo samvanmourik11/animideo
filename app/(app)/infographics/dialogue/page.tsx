@@ -149,7 +149,36 @@ export default function DialoguePage() {
     let gestopt: string | null = null;
     const mislukt: string[] = [];
 
-    // Eerst per scène het twee-shot: elke regel is straks een bewerking daarvan.
+    // ALLEREERST het castblad: iedereen ten voeten uit naast elkaar. Dat is de
+    // identiteits- én maatreferentie voor élk beeld dat hierna komt. Zonder dat
+    // blad verzint het beeldmodel per scène opnieuw hoe groot iemand is — de
+    // reden dat de ene keer Tyrell boven Lily uitstak en de volgende keer andersom.
+    if (!werk.castSheetUrl) {
+      setVoortgang("Personages op maat zetten…");
+      try {
+        const r = await fetch("/api/infographics/dialogue-cast-sheet", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cast: werk.cast, styleId: werk.styleId, language: werk.language,
+            illustrationBrief: werk.illustrationBrief ?? "", seed: werk.seed,
+          }),
+        });
+        const d = await r.json();
+        if (!r.ok) {
+          if (d.error === "insufficient_credits") gestopt = creditFout(d);
+          // Zonder castblad kan de video wél gemaakt worden, alleen minder
+          // consistent. Dat is beter dan hier afbreken.
+          else mislukt.push("castblad");
+        } else {
+          werk.castSheetUrl = d.castSheetUrl;
+          setSpec(structuredClone(werk));
+        }
+      } catch { mislukt.push("castblad"); }
+    }
+    if (gestopt) return;
+
+    // Daarna per scène het twee-shot: elke regel is straks een bewerking daarvan.
     // BEWUST één voor één en niet parallel: het eerste twee-shot is het anker voor
     // alle volgende, zodat de personages tussen scènes niet veranderen.
     const zonderShot = werk.scenes.map((s, si) => ({ s, si })).filter(({ s }) => !s.twoShotUrl);
@@ -181,6 +210,7 @@ export default function DialoguePage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               setting: s.setting, cast: werk.cast, styleId: werk.styleId,
+              castSheetUrl: werk.castSheetUrl ?? null,
               format: werk.format, language: werk.language, seed: werk.seed,
               illustrationBrief: werk.illustrationBrief ?? "",
               anchorTwoShotUrl: anker,
@@ -224,7 +254,8 @@ export default function DialoguePage() {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                twoShotUrl: scene.twoShotUrl, cast: werk.cast, speakerId: regel.characterId,
+                twoShotUrl: scene.twoShotUrl, castSheetUrl: werk.castSheetUrl ?? null,
+                cast: werk.cast, speakerId: regel.characterId,
                 kind: regel.kind ?? "dialoog", actie: regel.actie ?? "", seconden: regel.seconden ?? undefined,
                 narratorVoice: werk.narratorVoice ?? undefined,
                 text: regel.text, emotion: regel.emotion, language: werk.language,
@@ -304,7 +335,8 @@ export default function DialoguePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          twoShotUrl: scene.twoShotUrl, cast: spec.cast, speakerId: regel.characterId,
+          twoShotUrl: scene.twoShotUrl, castSheetUrl: spec.castSheetUrl ?? null,
+          cast: spec.cast, speakerId: regel.characterId,
           kind: regel.kind ?? "dialoog", actie: regel.actie ?? "", seconden: regel.seconden ?? undefined,
           narratorVoice: spec.narratorVoice ?? undefined,
           text: regel.text, emotion: regel.emotion, language: spec.language,

@@ -26,6 +26,7 @@ interface Body {
   // Zonder dit anker werd elke scène los gegenereerd en dreven cast en look uit
   // elkaar — de laatste scène had andere mensen in een andere kamer.
   anchorTwoShotUrl?: string;
+  castSheetUrl?: string;
 }
 
 // Het basis-twee-shot van één scène: de cast tegenover elkaar in de omgeving.
@@ -67,6 +68,18 @@ export async function POST(req: NextRequest) {
 
     const brief = buildTwoShotBrief(setting, cast);
     const anker = (body.anchorTwoShotUrl ?? "").trim();
+    const castblad = (body.castSheetUrl ?? "").trim();
+    // Het castblad gaat als "merk-referentie" mee: dat is de enige categorie die
+    // vooraan in de rij staat en het zwaarst weegt. Precies wat we willen — de
+    // personages moeten hier exact van overgenomen worden, ook hun onderlinge
+    // lengte, terwijl de omgeving per scène verschilt.
+    const castbladInstructie = castblad
+      ? " One reference image is a CHARACTER LINE-UP SHEET showing every character in this video standing " +
+        "side by side, full body. That sheet defines exactly what these people look like AND how tall they " +
+        "are relative to each other. Copy them from it precisely: the same faces, hair, clothing, colours, " +
+        "body build and — this matters — the same height difference between them. Whoever is taller on the " +
+        "sheet is taller here, by the same amount. Do not restyle or re-age anyone."
+      : "";
     const ankerInstructie = anker
       ? " A reference image of these SAME two people from an earlier scene in this same video is provided. " +
         "Keep the characters identical to that image — same faces, hair, clothing, colours, drawing style, and " +
@@ -93,11 +106,15 @@ export async function POST(req: NextRequest) {
         // (foute) beeld terug en dan betalen we voor niets.
         seed: poging === 1 && typeof body.seed === "number" ? body.seed : undefined,
         // De portretten leveren de identiteit; de brief bepaalt houding en kader.
-        characterUrls: portretten,
+        // Zonder castblad blijven de portretten de identiteitsbron (oudere
+        // projecten hebben er nog geen).
+        characterUrls: castblad ? undefined : portretten,
+        brandUrls: castblad ? [castblad] : undefined,
         // Het anker uit scène 1 houdt cast én look gelijk over alle scènes heen.
         ingredientUrls: anker ? [anker] : undefined,
         extraContext: [
           illustratieContext(body.illustrationBrief),
+          castbladInstructie,
           ankerInstructie,
           fouten.length
             ? `The previous attempt was rejected for these mistakes — avoid them: ${fouten.join("; ")}.`

@@ -91,7 +91,7 @@ export const DRAAIBOEK_TOOL = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["id", "characterId", "name", "role", "wil", "spraak", "appearance", "voice", "position"],
+            required: ["id", "characterId", "name", "role", "leeftijd", "wil", "spraak", "appearance", "voice", "position"],
             properties: {
               id: { type: "string", description: 'Verwijzing binnen dit draaiboek, bijv. "char-1".' },
               characterId: {
@@ -100,6 +100,14 @@ export const DRAAIBOEK_TOOL = {
               },
               name: { type: "string", description: "Naam zoals die in het gesprek gebruikt wordt." },
               role: { type: "string", description: 'Wie dit is in dit gesprek, bijv. "de expert".' },
+              leeftijd: {
+                type: "string",
+                description:
+                  "Leeftijd van dit personage in dit verhaal, kort: \"7 jaar\", \"een jaar of 40\", \"ongeveer 70\". " +
+                  "Leid hem af uit de briefing en uit de beschrijving in de bibliotheek. Hier iets invullen is " +
+                  "geen formaliteit: hierop wordt bepaald hoe GROOT iemand getekend wordt ten opzichte van de " +
+                  "anderen. Ontbreekt het, dan wordt een kind van zeven zomaar even lang als een volwassene.",
+              },
               wil: {
                 type: "string",
                 description:
