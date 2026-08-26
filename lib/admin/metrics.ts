@@ -45,7 +45,27 @@ interface MolliePayment {
   createdAt: string;
   paidAt?: string | null;
   description?: string;
-  details?: { bankReason?: string; failureReason?: string; failureMessage?: string } | null;
+  details?: {
+    bankReason?: string;
+    failureReason?: string;
+    failureMessage?: string;
+    consumerName?: string;
+    consumerAccount?: string;
+  } | null;
+}
+
+/**
+ * Terugboeking (storno) zoals Mollie hem teruggeeft op /chargebacks. Die lijst
+ * gaat over álle betalingen, ook oudere dan het venster dat we voor de rest van
+ * het dashboard ophalen — precies wat je wilt, want een storno komt vaak weken
+ * ná de betaling binnen.
+ */
+interface MollieChargeback {
+  id: string;
+  amount?: { value: string; currency: string };
+  createdAt: string;
+  reason?: { code?: string; description?: string } | null;
+  paymentId: string;
 }
 
 // ---- Payload-types (gedeeld met de client) ----
@@ -114,6 +134,27 @@ export interface SubscriberRow {
   origin: string | null; // "trial" | "cursus" | null
   subscriptionId: string | null;
 }
+/** Eén terugboeking, met alles erbij wat je nodig hebt om te kunnen ingrijpen. */
+export interface ChargebackRow {
+  chargebackId: string;
+  paymentId: string;
+  date: string;
+  amount: number;
+  reason: string;
+  email: string;
+  name: string | null;
+  /** Rekening waarvan is teruggeboekt; de enige constante bij herhaald misbruik. */
+  iban: string | null;
+  accountName: string | null;
+  customerId: string | null;
+  subscriptionId: string | null;
+  /** Status in onze eigen database, zodat je ziet of er al is ingegrepen. */
+  userId: string | null;
+  billingBlocked: boolean;
+  /** Hoe vaak deze rekening al heeft teruggeboekt. */
+  aantalVanDezeRekening: number;
+}
+
 export interface DashboardData {
   generatedAt: string;
   kpi: KpiSet;
@@ -125,6 +166,7 @@ export interface DashboardData {
   engagement: Engagement;
   activity: ActivityItem[];
   subscribers: SubscriberRow[];
+  chargebacks: ChargebackRow[];
 }
 
 // ---- Helpers ----
@@ -144,6 +186,7 @@ function planOf(sub: MollieSub): string {
 const isMonthly = (sub: MollieSub) => (sub.interval ?? "").includes("month");
 
 interface SupaProfile {
+  id: string;
   email: string | null;
   name: string | null;
   plan: string;
@@ -151,6 +194,7 @@ interface SupaProfile {
   mollie_customer_id: string | null;
   mollie_subscription_id: string | null;
   credits: number;
+  billing_blocked: boolean | null;
 }
 
 /**
@@ -166,12 +210,15 @@ export async function buildDashboard(): Promise<DashboardData> {
 
   const service = createServiceClient();
 
-  const [subs, payments, profiles, pending, creditTx, projects] = await Promise.all([
+  const [subs, payments, chargebacksRaw, profiles, pending, creditTx, projects] = await Promise.all([
     molliePaginate<MollieSub>("/subscriptions", "subscriptions"),
     molliePaginate<MolliePayment>("/payments", "payments", { stopAtOlderThan: cutoff90, max: 2000 }),
+    // Losse lijst: een storno kan op een betaling van maanden geleden slaan en
+    // valt dan buiten het venster hierboven.
+    molliePaginate<MollieChargeback>("/chargebacks", "chargebacks", { max: 500 }).catch(() => [] as MollieChargeback[]),
     service
       .from("profiles")
-      .select("email,name,plan,subscription_status,mollie_customer_id,mollie_subscription_id,credits")
+      .select("id,email,name,plan,subscription_status,mollie_customer_id,mollie_subscription_id,credits,billing_blocked")
       .then((r) => (r.data ?? []) as SupaProfile[]),
     service
       .from("pending_checkouts")
@@ -366,6 +413,68 @@ export async function buildDashboard(): Promise<DashboardData> {
 
   const attention: AttentionInfo = { failedPayments, canceledStillActive, reconciliation };
 
+  // --- Terugboekingen (storno's) ---
+  // De betaling erbij zoeken levert de klant, het abonnement én het
+  // rekeningnummer op. Betalingen buiten het opgehaalde venster halen we los na
+  // — begrensd, want dit draait bij elke verversing van het dashboard.
+  const betalingById = new Map(payments.map((p) => [p.id, p]));
+  const ontbrekend = [...new Set(chargebacksRaw.map((c) => c.paymentId))]
+    .filter((id) => !betalingById.has(id))
+    .slice(0, 40);
+  await Promise.all(
+    ontbrekend.map(async (id) => {
+      try {
+        betalingById.set(id, await mollieFetch<MolliePayment>(`/payments/${id}`));
+      } catch {
+        /* zonder betaling tonen we de storno alsnog, met minder gegevens */
+      }
+    })
+  );
+
+  const profielById = new Map(profiles.map((p) => [p.id, p]));
+  const profielByEmail = new Map(
+    profiles.filter((p) => p.email).map((p) => [p.email!.toLowerCase(), p])
+  );
+  const profielByCust = new Map(
+    profiles.filter((p) => p.mollie_customer_id).map((p) => [p.mollie_customer_id!, p])
+  );
+
+  // Eerst tellen hoe vaak een rekening voorkomt: één storno is pech, vier keer
+  // dezelfde rekening is een patroon, en dat wil je in één oogopslag zien.
+  const perRekening = new Map<string, number>();
+  for (const c of chargebacksRaw) {
+    const iban = betalingById.get(c.paymentId)?.details?.consumerAccount;
+    if (iban) perRekening.set(iban, (perRekening.get(iban) ?? 0) + 1);
+  }
+
+  const chargebacks: ChargebackRow[] = chargebacksRaw
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    .map((c) => {
+      const bet = betalingById.get(c.paymentId);
+      const cust = bet?.customerId ?? null;
+      const email = (cust && emailByCust.get(cust)) || "—";
+      const profiel =
+        (cust ? profielByCust.get(cust) : undefined) ??
+        (email !== "—" ? profielByEmail.get(email.toLowerCase()) : undefined);
+      const iban = bet?.details?.consumerAccount ?? null;
+      return {
+        chargebackId: c.id,
+        paymentId: c.paymentId,
+        date: c.createdAt,
+        amount: num(c.amount),
+        reason: c.reason?.description ?? "Reden onbekend",
+        email,
+        name: (cust && nameByCust.get(cust)) || null,
+        iban,
+        accountName: bet?.details?.consumerName ?? null,
+        customerId: cust,
+        subscriptionId: bet?.subscriptionId ?? null,
+        userId: profiel?.id ?? null,
+        billingBlocked: profiel?.billing_blocked === true,
+        aantalVanDezeRekening: iban ? perRekening.get(iban) ?? 1 : 1,
+      };
+    });
+
   // --- Engagement (Supabase projects = activiteit; credit_transactions = verbruik) ---
   let creditsSpent30d = 0;
   for (const t of creditTx) if (t.amount < 0) creditsSpent30d += -t.amount;
@@ -446,6 +555,7 @@ export async function buildDashboard(): Promise<DashboardData> {
 
   return {
     generatedAt: now.toISOString(),
+    chargebacks,
     kpi,
     totals: {
       totalSubs: subs.length,

@@ -5,6 +5,7 @@ import type { DashboardData } from "@/lib/admin/metrics";
 import { Card, SectionTitle, KpiTile, MiniStat, Badge } from "./primitives";
 import { SignupsChart, PlanDonut, MethodDonut } from "./charts";
 import { SubscribersTable } from "./SubscribersTable";
+import { ChargebacksPanel } from "./ChargebacksPanel";
 import { eur, pct, dateNL, dateShort, timeNL, relTime } from "./format";
 
 const POLL_MS = 60_000;
@@ -154,6 +155,9 @@ export default function AdminDashboard({ endpoint = "/api/admin/dashboard" }: { 
               <ActivityFeed data={data} />
             </div>
           </div>
+
+          {/* Terugboekingen: wie stornoot, en de knop om er een eind aan te maken */}
+          <ChargebacksPanel rows={data.chargebacks} onKlaar={() => load(true)} />
 
           {/* Abonnee-tabel */}
           <SubscribersTable rows={data.subscribers} />

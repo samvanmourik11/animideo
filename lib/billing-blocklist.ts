@@ -69,14 +69,25 @@ export async function zoekBlokkade(vraag: BlokkadeVraag): Promise<Blokkade | nul
   }
 }
 
-/** Iets op de lijst zetten. Bestaat het al, dan gebeurt er niets. */
-export async function blokkeer(soort: BlokkadeSoort, waarde: string, reden: string): Promise<void> {
-  await createServiceClient()
+/**
+ * Iets op de lijst zetten. Bestaat het al, dan gebeurt er niets.
+ *
+ * Geeft de fout terug in plaats van te gooien: de Supabase-client gooit niet bij
+ * een ontbrekende tabel, dus een try/catch bij de aanroeper zou een niet-gedraaide
+ * migratie stilzwijgend als "gelukt" laten doorgaan.
+ */
+export async function blokkeer(
+  soort: BlokkadeSoort,
+  waarde: string,
+  reden: string
+): Promise<{ ok: boolean; fout?: string }> {
+  const { error } = await createServiceClient()
     .from("billing_blocklist")
     .upsert(
       { soort, waarde: normaliseer(soort, waarde), reden },
       { onConflict: "soort,waarde", ignoreDuplicates: true }
     );
+  return error ? { ok: false, fout: error.message } : { ok: true };
 }
 
 /**
