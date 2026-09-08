@@ -12,6 +12,7 @@ import { DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
 import StylePicker from "@/components/style/StylePicker";
 import BibliotheekKiezer from "@/components/characters/BibliotheekKiezer";
 import { createClient } from "@/lib/supabase/client";
+import { isAdminAccount } from "@/lib/studio/access";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 import { DEFAULT_VOICE, voicePreviewUrl, voicesForLanguage, voiceForLanguage } from "@/lib/infographics/story-voices";
 import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
@@ -98,6 +99,11 @@ export default function StoryPage() {
   const [pageUrl, setPageUrl] = useState("");
   const [pageBusy, setPageBusy] = useState(false);
   const [mode, setMode] = useState<"story" | "report" | "overheid">("story");
+  // De Overheidsstijl is nog in aanbouw: hij tekent zijn scenes zelf en die
+  // bibliotheek is nog te klein om klanten mee te laten werken. Daarom staat hij
+  // alleen in het menu op interne accounts, net als de andere tools die nog niet
+  // af zijn (zie lib/studio/access.ts).
+  const [intern, setIntern] = useState(false);
   const [format, setFormat] = useState<"16:9" | "9:16">("16:9");
   const [showSafeZone, setShowSafeZone] = useState(false);
   const [styleId, setStyleId] = useState<string>(DEFAULT_STORY_STYLE);
@@ -265,6 +271,13 @@ export default function StoryPage() {
       .then((r) => (r.ok ? r.json() : { brandKits: [] }))
       .then((d) => setBrandKits((d.brandKits ?? []) as BrandKit[]))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    createClient()
+      .auth.getUser()
+      .then(({ data }) => setIntern(isAdminAccount(data.user?.email)))
+      .catch(() => setIntern(false));
   }, []);
 
   // Past een brand kit toe: hoofdkleur ← primair (val terug op secundair) en
@@ -1087,7 +1100,7 @@ export default function StoryPage() {
             <select value={mode} onChange={(e) => setMode(e.target.value as "story" | "report" | "overheid")} className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white">
               <option value="story">Verhaal</option>
               <option value="report">Rapport</option>
-              <option value="overheid">Overheidsstijl</option>
+              {(intern || spec?.mode === "overheid") && <option value="overheid">Overheidsstijl</option>}
             </select>
           </label>
           <label className="block">

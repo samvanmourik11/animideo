@@ -1,0 +1,63 @@
+{
+  "_uitleg": "Assets uit losse SVG-bestanden. Nieuw asset toevoegen: teken het op een viewBox van 0 0 100 100, gebruik de plaatshouderkleuren (#ff00ff hoofdkleur, #00ffff steunkleur, #ffff00 accent, #00ff00 mint, #ff8800 roze, #ffffff wit vlak, #eeeeee papier), zet het bestand hier neer, voeg een regel toe en draai 'npm run assets'.",
+  "assets": [
+    {
+      "sleutel": "kaart",
+      "bestand": "nederland.svg",
+      "omschrijving": "Nederland, het hele land, landelijk, alle gemeenten",
+      "categorie": "decor",
+      "maat": 3,
+      "zweeft": true
+    },
+    {
+      "sleutel": "windturbine",
+      "bestand": "windturbine.svg",
+      "omschrijving": "windmolen, duurzame energie, klimaat, stroom",
+      "categorie": "gebouw",
+      "maat": 15
+    },
+    {
+      "sleutel": "spreekgestoelte",
+      "bestand": "spreekgestoelte.svg",
+      "omschrijving": "debat, Tweede Kamer, toespraak, verantwoording afleggen",
+      "categorie": "object",
+      "maat": 1.3
+    },
+    {
+      "sleutel": "standbeeld",
+      "bestand": "standbeeld.svg",
+      "omschrijving": "cultuur, erfgoed, monument, geschiedenis",
+      "categorie": "object",
+      "maat": 3.5
+    },
+    {
+      "sleutel": "kwast",
+      "bestand": "kwast.svg",
+      "omschrijving": "kunst, cultuur, creatieve sector",
+      "categorie": "object",
+      "maat": 0.4
+    },
+    {
+      "sleutel": "muzieknoten",
+      "bestand": "muzieknoten.svg",
+      "omschrijving": "muziek, cultuur, evenementen",
+      "categorie": "symbool",
+      "maat": 1,
+      "zweeft": true
+    },
+    {
+      "sleutel": "meetlat",
+      "bestand": "meetlat.svg",
+      "omschrijving": "meten, norm, grens, toets, inkomensgrens",
+      "categorie": "object",
+      "maat": 1.6
+    },
+    {
+      "sleutel": "documentenstapel",
+      "bestand": "documentenstapel.svg",
+      "omschrijving": "begroting, wetsvoorstel, dossiers, veel papierwerk",
+      "categorie": "object",
+      "maat": 0.5
+    }
+  ]
+}

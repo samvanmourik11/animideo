@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Nederland. Kleuren zijn plaatshouders (zie PLAATSHOUDERS in asset-register.ts):
+  #00ffff wordt de steunkleur, #eeeeee wordt de papierkleur voor het water.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <path fill="#00ffff" d="M26 25 L34 22 L42 20 L52 16 L61 13 L72 12 L78 18 L77 26 L80 33 L74 40 L77 46 L71 52 L74 58 L69 64 L72 72 L66 85 L61 92 L57 86 L61 74 L55 70 L47 72 L39 70 L33 72 L28 68 L20 70 L26 64 L17 63 L24 58 L22 48 L24 38 L23 30 Z"/>
+  <path fill="#eeeeee" d="M43 22 L53 25 L55 34 L47 39 L41 32 Z"/>
+  <ellipse fill="#00ffff" cx="36" cy="18" rx="5" ry="1.6" transform="rotate(-16 36 18)"/>
+  <ellipse fill="#00ffff" cx="47" cy="13" rx="4.4" ry="1.5" transform="rotate(-10 47 13)"/>
+  <ellipse fill="#00ffff" cx="58" cy="10" rx="3.8" ry="1.4" transform="rotate(-5 58 10)"/>
+</svg>

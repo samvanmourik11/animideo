@@ -11,6 +11,7 @@ import { ICOON_SLEUTELS, icoonKeuzelijst } from "@/lib/infographics/overheid-sce
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
 import { nlBeeldkennis } from "@/lib/infographics/nl-beeldkennis";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
+import { isAdminAccount } from "@/lib/studio/access";
 import type { InfographicFormat } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -69,7 +70,12 @@ export async function POST(req: NextRequest) {
     if (!rawText) return NextResponse.json({ error: "Geen brontekst opgegeven" }, { status: 400 });
 
     const format = (body.format === "9:16" ? "9:16" : "16:9") as InfographicFormat;
-    const mode = body.mode === "report" ? "report" : body.mode === "overheid" ? "overheid" : "story";
+    // De Overheidsstijl is nog in aanbouw en staat daarom alleen voor interne
+    // accounts in het menu. Een verborgen optie is geen grendel — wie de aanroep
+    // naspeelt zou hem alsnog krijgen — dus controleren we het hier ook.
+    const gevraagdeModus = body.mode === "report" ? "report" : body.mode === "overheid" ? "overheid" : "story";
+    const mode =
+      gevraagdeModus === "overheid" && !isAdminAccount(user.email) ? "story" : gevraagdeModus;
     // De overheidsmodus tekent diagrammen op een leeg vlak in plaats van scènes op
     // een plek, en negeert daarmee de gekozen tekenstijl (zie OVERHEID_FRAMING).
     const kader = mode === "overheid" ? ("overheid" as const) : ("verhaal" as const);

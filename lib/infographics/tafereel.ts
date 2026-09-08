@@ -1,4 +1,5 @@
 import { TEKENINGEN, grondbalk, boog as tekenBoog, muntlint, type TekenOpties } from "@/lib/infographics/illustrator";
+import { assetVan, assetMaat, assetZweeft } from "@/lib/infographics/asset-register";
 import type { OverheidKleuren } from "@/lib/infographics/overheid-scene";
 
 // DE COMPOSER.
@@ -23,29 +24,12 @@ import type { OverheidKleuren } from "@/lib/infographics/overheid-scene";
 // In meters, grof. Het gaat om de verhouding, niet om de precisie: zolang een
 // mens kleiner is dan een huis en groter dan een koffer, klopt het beeld.
 
-export const NATUURLIJKE_MAAT: Record<string, number> = {
-  // mensen
-  figuur: 1.7, persoon: 1.7, groep: 1.7, hand: 1.1,
-  // gebouwen
-  rijtjeshuis: 7, huis: 7, rijtjeshuizen: 7, kerk: 16, fabriek: 13, kantoor: 13,
-  stadhuis: 12, gebouw: 12, loket: 2.2,
-  // vervoer
-  auto: 1.5, fiets: 1.1,
-  // objecten
-  schatkist: 1.1, koffer: 0.5, munt: 0.28, muntstapel: 0.7, stapel: 0.7,
-  document: 0.35, formulier: 0.35, pasje: 0.14, envelop: 0.24, laptop: 0.4,
-  portemonnee: 0.2, bord: 1.8,
-  // natuur en decor
-  boom: 6, wolk: 9, kaart: 3,
-  // abstracte symbolen: geen echte maat, dus middelgroot zodat ze leesbaar zijn
-  hart: 1.2, kruis: 1.2, schild: 1.4, boek: 0.4, klok: 0.9, kalender: 0.7,
-  vinkje: 1, waarschuwing: 1, vlak: 1,
-};
-
-const maatVan = (asset: string) => NATUURLIJKE_MAAT[asset] ?? 1.2;
-
-/** Zweeft dit element (wolk) of staat het op de grond? */
-const ZWEVEND = new Set(["wolk", "kaart", "vinkje", "waarschuwing", "hart", "klok"]);
+// Maten en tekeningen komen uit het asset-register (asset-register.ts). Die
+// tabellen stonden hier eerst los, en liepen uit de pas zodra er een asset
+// bijkwam: een nieuwe tekening had dan wel een omschrijving maar geen maat, en
+// werd dus als "middelgroot" getekend.
+const maatVan = (asset: string) => assetMaat(asset);
+const ZWEEFT = (asset: string) => assetZweeft(asset);
 
 // ── Wat er in beeld staat ──────────────────────────────────────────────────
 
@@ -190,9 +174,9 @@ export function bouwTafereel(tafereel: Tafereel, o: TafereelOpties): string {
       const x = (elm.x ?? 0.5) * W - breedtePx / 2;
       const grondY = H * diepte.grond;
       // Zwevende dingen hangen in de lucht in plaats van op de grondlijn.
-      const y = ZWEVEND.has(elm.asset) ? H * 0.2 : grondY - hoogtePx + hoogtePx * 0.06;
+      const y = ZWEEFT(elm.asset) ? H * 0.2 : grondY - hoogtePx + hoogtePx * 0.06;
 
-      const tekenaar = TEKENINGEN[elm.asset] ?? TEKENINGEN.figuur;
+      const tekenaar = assetVan(elm.asset)?.teken ?? TEKENINGEN.figuur;
       const opties: TekenOpties = { variant: elm.variant, huid: elm.huid, haar: elm.haar, kleding: elm.kleding };
       const schaal = 0.94 + 0.06 * e + 0.05 * o.nadruk(t, at);
       const omhoog = (1 - e) * hoogtePx * 0.12;
@@ -210,9 +194,8 @@ export function bouwTafereel(tafereel: Tafereel, o: TafereelOpties): string {
         const objH = Math.max(echt, hoogtePx * 0.42);
         const handY = y + hoogtePx * 0.46;
         const handX = x + hoogtePx * 0.86;
-        inhoud += `<g transform="translate(${handX - objH / 2}, ${handY - objH / 2}) scale(${objH / 100})">${
-          (TEKENINGEN[objAsset] ?? TEKENINGEN.document)(k)
-        }</g>`;
+        const objTeken = assetVan(objAsset)?.teken ?? TEKENINGEN.document;
+        inhoud += `<g transform="translate(${handX - objH / 2}, ${handY - objH / 2}) scale(${objH / 100})">${objTeken(k)}</g>`;
       }
 
       const cx = x + breedtePx / 2;

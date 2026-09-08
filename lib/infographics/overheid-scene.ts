@@ -1,5 +1,6 @@
 import { storyCanvasSize } from "@/lib/infographics/canvas-size";
 import { TEKENINGEN, type TekenOpties } from "@/lib/infographics/illustrator";
+import { REGISTER, ASSET_SLEUTELS, assetVan, assetKeuzelijst } from "@/lib/infographics/asset-register";
 import { bouwTafereel } from "@/lib/infographics/tafereel";
 import type { InfographicFormat } from "@/lib/types";
 
@@ -187,226 +188,27 @@ export function nadruk(t: number, at: number): number {
   return Math.sin((d / 0.45) * Math.PI);
 }
 
-// ── Iconen ─────────────────────────────────────────────────────────────────
+// ── Tekeningen ─────────────────────────────────────────────────────────────
 //
-// Bewust opgebouwd uit rechthoeken, cirkels en driehoeken in plaats van
-// handgeschreven bezierpaden: dat past bij de vlakke stijl, is leesbaar op elk
-// formaat, en je kunt het lezen en aanpassen zonder een tekenprogramma.
-// Elk icoon tekent binnen een vak van 100×100 met de oorsprong linksboven.
+// Alles wat getekend kan worden staat in het asset-register: de code-tekeningen
+// uit illustrator.ts en de losse SVG-bestanden uit lib/infographics/assets/.
+// Deze module kiest alleen nog wat waar komt te staan.
 
-type IcoonTekenaar = (k: OverheidKleuren) => string;
-
-const r = (x: number, y: number, w: number, h: number, fill: string, rx = 0) =>
-  `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" fill="${fill}"/>`;
-const c = (cx: number, cy: number, rr: number, fill: string) =>
-  `<circle cx="${cx}" cy="${cy}" r="${rr}" fill="${fill}"/>`;
-const pad = (d: string, fill: string) => `<path d="${d}" fill="${fill}"/>`;
-
-export const ICONEN: Record<string, IcoonTekenaar> = {
-  // ── documenten en post ──
-  koffer: (k) => [
-    r(36, 18, 28, 12, k.accent, 4),
-    r(41, 23, 18, 5, k.vlak, 2),
-    r(14, 28, 72, 54, k.accent, 8),
-    r(14, 46, 72, 8, k.donker),
-    r(45, 44, 10, 12, k.donker, 2),
-  ].join(""),
-  document: (k) => [
-    r(24, 12, 52, 76, k.papier, 4),
-    pad("M60 12 L76 28 L60 28 Z", k.mint),
-    r(34, 34, 32, 5, k.donker),
-    r(34, 46, 32, 5, k.blauw),
-    r(34, 58, 22, 5, k.blauw),
-  ].join(""),
-  envelop: (k) => [
-    r(14, 26, 72, 48, k.blauw, 4),
-    pad("M14 30 L50 56 L86 30 L86 26 L14 26 Z", k.donker),
-    r(24, 58, 30, 8, k.paneel, 2),
-  ].join(""),
-  pasje: (k) => [
-    // Nederlands rijbewijs: roze pasje in liggend creditcardformaat.
-    r(10, 28, 80, 46, k.roze, 6),
-    c(31, 46, 9, k.paneel),
-    pad("M22 62 a9 9 0 0 1 18 0 Z", k.paneel),
-    r(48, 40, 32, 5, k.paneel),
-    r(48, 50, 32, 5, k.paneel),
-    r(48, 60, 20, 5, k.paneel),
-  ].join(""),
-  formulier: (k) => [
-    r(22, 12, 56, 76, k.papier, 4),
-    r(32, 26, 36, 6, k.donker),
-    c(35, 46, 5, k.blauw),
-    r(45, 43, 24, 6, k.donker),
-    c(35, 64, 5, k.blauw),
-    r(45, 61, 24, 6, k.donker),
-  ].join(""),
-  // ── geld ──
-  munt: (k) => [c(50, 50, 34, k.accent), c(50, 50, 26, k.papier), r(44, 32, 12, 36, k.accent)].join("") +
-    `<text x="50" y="63" font-size="34" font-weight="700" text-anchor="middle" fill="${k.accent}">€</text>`,
-  stapel: (k) => [
-    r(20, 62, 60, 14, k.accent, 7),
-    r(24, 46, 52, 14, k.accent, 7),
-    r(30, 30, 40, 14, k.accent, 7),
-    r(36, 14, 28, 14, k.accent, 7),
-  ].join(""),
-  portemonnee: (k) => [r(14, 28, 72, 48, k.donker, 8), r(56, 44, 30, 16, k.accent, 6), c(66, 52, 5, k.donker)].join(""),
-  // ── wonen en gebouwen ──
-  huis: (k) => [
-    pad("M50 12 L88 44 L78 44 L78 86 L22 86 L22 44 L12 44 Z", k.donker),
-    r(34, 56, 14, 30, k.accent),
-    r(56, 56, 14, 14, k.blauw),
-  ].join(""),
-  rijtjeshuizen: (k) => [
-    // Rijtjeshuizen: identieke smalle gevels tegen elkaar, met puntdaken.
-    pad("M8 40 L26 22 L44 40 L44 86 L8 86 Z", k.donker),
-    pad("M32 40 L50 22 L68 40 L68 86 L32 86 Z", k.blauw),
-    pad("M56 40 L74 22 L92 40 L92 86 L56 86 Z", k.donker),
-    r(16, 52, 10, 12, k.paneel), r(40, 52, 10, 12, k.paneel), r(64, 52, 10, 12, k.paneel),
-    r(18, 70, 8, 16, k.accent), r(42, 70, 8, 16, k.accent), r(66, 70, 8, 16, k.accent),
-  ].join(""),
-  gebouw: (k) => [
-    r(18, 24, 64, 62, k.donker, 3),
-    r(28, 36, 12, 12, k.paneel), r(46, 36, 12, 12, k.paneel), r(64, 36, 12, 12, k.paneel),
-    r(28, 56, 12, 12, k.paneel), r(64, 56, 12, 12, k.paneel),
-    r(44, 58, 16, 28, k.accent, 2),
-  ].join(""),
-  loket: (k) => [
-    // Balie met een medewerker erachter: hoofd, schouders, en een blad ervoor.
-    r(10, 16, 80, 44, k.papier, 4),
-    c(50, 34, 11, k.donker),
-    pad("M34 58 a16 16 0 0 1 32 0 Z", k.blauw),
-    r(6, 58, 88, 12, k.donker, 4),
-    r(14, 70, 72, 16, k.blauw, 3),
-  ].join(""),
-  // ── mensen ──
-  persoon: (k) => [c(50, 30, 16, k.donker), pad("M22 86 a28 28 0 0 1 56 0 Z", k.blauw)].join(""),
-  groep: (k) => [
-    c(30, 34, 13, k.donker), pad("M8 82 a22 22 0 0 1 44 0 Z", k.blauw),
-    c(70, 34, 13, k.accent), pad("M48 82 a22 22 0 0 1 44 0 Z", k.mint),
-  ].join(""),
-  handen: (k) => [
-    pad("M20 86 L20 50 a8 8 0 0 1 16 0 L36 40 a8 8 0 0 1 16 0 L52 44 a8 8 0 0 1 16 0 L68 86 Z", k.accent),
-  ].join(""),
-  // ── zorg, onderwijs, zekerheid ──
-  hart: (k) => [pad("M50 84 C10 56 16 24 40 24 C48 24 50 32 50 32 C50 32 52 24 60 24 C84 24 90 56 50 84 Z", k.roze)].join(""),
-  kruis: (k) => [c(50, 50, 36, k.papier), r(42, 26, 16, 48, k.roze, 3), r(26, 42, 48, 16, k.roze, 3)].join(""),
-  boek: (k) => [
-    r(16, 24, 68, 56, k.blauw, 4),
-    r(46, 24, 8, 56, k.donker),
-    r(24, 36, 18, 5, k.paneel), r(58, 36, 18, 5, k.paneel),
-    r(24, 48, 18, 5, k.paneel), r(58, 48, 18, 5, k.paneel),
-  ].join(""),
-  schild: (k) => [
-    pad("M50 12 L84 24 L84 52 C84 72 68 84 50 90 C32 84 16 72 16 52 L16 24 Z", k.blauw),
-    pad("M36 50 L46 60 L66 38 L72 44 L46 72 L30 56 Z", k.paneel),
-  ].join(""),
-  // ── tijd en proces ──
-  klok: (k) => [c(50, 50, 36, k.papier), r(47, 24, 6, 28, k.donker, 3), r(50, 47, 22, 6, k.blauw, 3),
-    `<circle cx="50" cy="50" r="36" fill="none" stroke="${k.donker}" stroke-width="6"/>`].join(""),
-  kalender: (k) => [
-    r(14, 22, 72, 64, k.papier, 6),
-    r(14, 22, 72, 18, k.donker, 6),
-    r(28, 14, 8, 16, k.donker, 3), r(64, 14, 8, 16, k.donker, 3),
-    r(26, 50, 14, 12, k.blauw, 2), r(46, 50, 14, 12, k.accent, 2), r(66, 50, 12, 12, k.blauw, 2),
-  ].join(""),
-  vinkje: (k) => [c(50, 50, 36, k.mint), pad("M32 50 L44 62 L70 36 L78 44 L44 78 L24 58 Z", k.paneel)].join(""),
-  waarschuwing: (k) => [pad("M50 12 L92 84 L8 84 Z", k.accent), r(45, 36, 10, 26, k.donker, 4), c(50, 72, 6, k.donker)].join(""),
-  laptop: (k) => [r(20, 24, 60, 40, k.donker, 4), r(26, 30, 48, 28, k.blauw), r(10, 66, 80, 8, k.donker, 4)].join(""),
-  // ── verkeer ──
-  fiets: (k) => [
-    `<circle cx="26" cy="66" r="18" fill="none" stroke="${k.donker}" stroke-width="6"/>`,
-    `<circle cx="74" cy="66" r="18" fill="none" stroke="${k.donker}" stroke-width="6"/>`,
-    pad("M26 66 L44 40 L64 40 L74 66 L44 66 Z", k.blauw),
-    r(40, 32, 22, 6, k.donker, 3),
-  ].join(""),
-  auto: (k) => [
-    pad("M14 62 L22 40 L78 40 L86 62 Z", k.blauw),
-    r(10, 60, 80, 16, k.donker, 6),
-    c(28, 78, 8, k.donker), c(72, 78, 8, k.donker),
-    r(38, 80, 24, 8, k.accent, 2),
-  ].join(""),
-  // Neutrale terugval, zodat een onbekend icoon nooit een gat achterlaat.
-  vlak: (k) => [c(50, 50, 32, k.blauw)].join(""),
-};
-
-// De illustrator (lib/infographics/illustrator.ts) tekent rijker dan de
-// pictogrammen hierboven: hele figuren, gebouwen met diepte, een schatkist. Waar
-// hij een betere tekening heeft, wint die. De oude sleutels blijven bestaan —
-// bestaande projecten verwijzen ernaar en de AI kent ze uit zijn keuzelijst.
-export const ICONEN_COMPLEET: Record<string, (k: OverheidKleuren, o?: TekenOpties) => string> = {
-  ...ICONEN,
-  ...TEKENINGEN,
-  persoon: (k, o) => TEKENINGEN.figuur(k, o),
-  handen: (k, o) => TEKENINGEN.hand(k, o),
-  huis: (k, o) => TEKENINGEN.rijtjeshuis(k, o),
-  stapel: (k, o) => TEKENINGEN.muntstapel(k, o),
-  // Een groep is twee figuren naast elkaar, met verschillende huid en kleding —
-  // één tekening tweemaal neerzetten leest als een kloon.
-  groep: (k) =>
-    `<g transform="translate(-14, 8) scale(0.78)">${TEKENINGEN.figuur(k, { huid: 0, haar: 0, kleding: k.blauw })}</g>` +
-    `<g transform="translate(38, 8) scale(0.78)">${TEKENINGEN.figuur(k, { huid: 3, haar: 1, kleding: k.roze, variant: 1 })}</g>`,
-};
-
-export const ICOON_SLEUTELS = Object.keys(ICONEN_COMPLEET);
+export const ICOON_SLEUTELS = ASSET_SLEUTELS;
 
 /**
- * Waar elk icoon voor staat, in gewone taal.
+ * De keuzelijst voor de AI: sleutel plus waar het voor staat.
  *
- * De regie kreeg eerst alleen de kale sleutels te zien en koos daardoor "vlak"
- * voor een rijbewijs — terwijl "pasje" precies dat is. Een sleutel zonder
- * betekenis is voor een taalmodel net zo leeg als voor een mens.
+ * Stond eerst als aparte tabel in dit bestand, náást de maten in tafereel.ts en
+ * de tekeningen in illustrator.ts. Drie lijsten die je alle drie moest bijwerken
+ * bij één nieuw asset — en dat ging natuurlijk mis. Nu staat het in het register.
  */
-export const ICOON_OMSCHRIJVING: Record<string, string> = {
-  koffer: "koffer, aktetas, begroting, Prinsjesdag",
-  document: "document, rapport, brief, aanvraag, formulier op papier",
-  envelop: "post, brief, blauwe envelop van de Belastingdienst",
-  pasje: "rijbewijs, identiteitskaart, pasje, legitimatie",
-  formulier: "formulier, checklist, regels, controle, administratie",
-  munt: "euro, geld, bedrag, kosten",
-  stapel: "stapel geld, budget, uitkering, bijstand, subsidie",
-  portemonnee: "portemonnee, inkomen, koopkracht",
-  huis: "huis, woning, wonen, hypotheek",
-  rijtjeshuizen: "woonwijk, straat, buurt, woningmarkt",
-  gebouw: "instantie, kantoor, organisatie, ministerie",
-  loket: "gemeente, loket, balie, hulp aanvragen, dienstverlening",
-  persoon: "één persoon, burger, inwoner, medewerker",
-  groep: "groep mensen, jongeren, gezinnen, iedereen, samenleving",
-  handen: "helpen, ondersteunen, mantelzorg, vertrouwen, samenwerken",
-  hart: "zorg, gezondheid, welzijn, aandacht",
-  kruis: "zorg, ziekenhuis, medisch, huisarts",
-  boek: "onderwijs, school, studie, kennis, wet",
-  schild: "zekerheid, bescherming, veiligheid, garantie, vertrouwen",
-  klok: "tijd, wachttijd, termijn, duur, sneller",
-  kalender: "datum, jaar, periode, ingangsdatum, planning",
-  vinkje: "goedgekeurd, klaar, voldoet, akkoord",
-  waarschuwing: "let op, probleem, risico, uitzondering",
-  laptop: "online, digitaal aanvragen, website, DigiD",
-  fiets: "fiets, vervoer, dagelijks leven",
-  auto: "auto, vervoer, rijden",
-  vlak: "neutrale vorm, als niets anders past",
-  // De rijkere tekeningen uit de illustrator.
-  figuur: "één persoon ten voeten uit, met gezicht en kleding",
-  hand: "hand die vanaf de rand het beeld in komt, iets aanreikt of aanwijst",
-  schatkist: "de schatkist van de rijksbegroting, met wapenschild",
-  kerk: "kerk, monument, historisch gebouw",
-  fabriek: "industrie, uitstoot, bedrijven, energie",
-  kantoor: "kantoor, bedrijf, werkgever",
-  stadhuis: "overheid, ministerie, rechtspraak, instituut",
-  bord: "presentatie, uitleg, cijfers op een bord",
-  kaart: "Nederland, het hele land, landelijk",
-  boom: "natuur, groen, buiten, leefomgeving",
-  wolk: "lucht, weer, buiten (alleen als decor)",
-  rijtjeshuis: "één huis, woning, koopwoning",
-  muntstapel: "stapel munten, bedrag, budget",
-};
-
-/** De iconenlijst zoals de AI hem moet zien: sleutel plus waar hij voor staat. */
 export function icoonKeuzelijst(): string[] {
-  return ICOON_SLEUTELS.map((k) => `${k} (${ICOON_OMSCHRIJVING[k] ?? k})`);
+  return assetKeuzelijst();
 }
 
 function tekenIcoon(sleutel: string, k: OverheidKleuren, x: number, y: number, maat: number, o?: TekenOpties): string {
-  const tekenaar = ICONEN_COMPLEET[sleutel] ?? ICONEN.vlak;
+  const tekenaar = assetVan(sleutel)?.teken ?? assetVan("vlak")?.teken ?? (() => "");
   const s = maat / 100;
   return `<g transform="translate(${x}, ${y}) scale(${s})">${tekenaar(k, o)}</g>`;
 }

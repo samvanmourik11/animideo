@@ -392,12 +392,95 @@ export const wolk: Tekening = (k) =>
 export const boom: Tekening = (k) =>
   [r(46, 58, 8, 36, "#8a6a4a", 2), c(50, 42, 26, k.mint), c(32, 52, 16, k.mint), c(68, 52, 16, k.mint)].join("");
 
+
+// ── Basisvormen ────────────────────────────────────────────────────────────
+//
+// Eenvoudige pictogrammen voor begrippen die geen tekening met diepte nodig
+// hebben (een vinkje, een klok, een schild). Ze stonden eerst los in
+// overheid-scene.ts, buiten het register om — waardoor ze geen maat hadden en in
+// een tafereel allemaal even groot werden getekend.
+
+export const BASIS_TEKENINGEN: Record<string, Tekening> = {
+  formulier: (k) => [
+    r(22, 12, 56, 76, k.papier, 4),
+    r(32, 26, 36, 6, k.donker),
+    c(35, 46, 5, k.blauw),
+    r(45, 43, 24, 6, k.donker),
+    c(35, 64, 5, k.blauw),
+    r(45, 61, 24, 6, k.donker),
+  ].join(""),
+  // ── geld ──
+  portemonnee: (k) => [r(14, 28, 72, 48, k.donker, 8), r(56, 44, 30, 16, k.accent, 6), c(66, 52, 5, k.donker)].join(""),
+  // ── wonen en gebouwen ──
+  rijtjeshuizen: (k) => [
+    // Rijtjeshuizen: identieke smalle gevels tegen elkaar, met puntdaken.
+    p("M8 40 L26 22 L44 40 L44 86 L8 86 Z", k.donker),
+    p("M32 40 L50 22 L68 40 L68 86 L32 86 Z", k.blauw),
+    p("M56 40 L74 22 L92 40 L92 86 L56 86 Z", k.donker),
+    r(16, 52, 10, 12, k.paneel), r(40, 52, 10, 12, k.paneel), r(64, 52, 10, 12, k.paneel),
+    r(18, 70, 8, 16, k.accent), r(42, 70, 8, 16, k.accent), r(66, 70, 8, 16, k.accent),
+  ].join(""),
+  gebouw: (k) => [
+    r(18, 24, 64, 62, k.donker, 3),
+    r(28, 36, 12, 12, k.paneel), r(46, 36, 12, 12, k.paneel), r(64, 36, 12, 12, k.paneel),
+    r(28, 56, 12, 12, k.paneel), r(64, 56, 12, 12, k.paneel),
+    r(44, 58, 16, 28, k.accent, 2),
+  ].join(""),
+  loket: (k) => [
+    // Balie met een medewerker erachter: hoofd, schouders, en een blad ervoor.
+    r(10, 16, 80, 44, k.papier, 4),
+    c(50, 34, 11, k.donker),
+    p("M34 58 a16 16 0 0 1 32 0 Z", k.blauw),
+    r(6, 58, 88, 12, k.donker, 4),
+    r(14, 70, 72, 16, k.blauw, 3),
+  ].join(""),
+  // ── mensen ──
+  hart: (k) => [p("M50 84 C10 56 16 24 40 24 C48 24 50 32 50 32 C50 32 52 24 60 24 C84 24 90 56 50 84 Z", k.roze)].join(""),
+  kruis: (k) => [c(50, 50, 36, k.papier), r(42, 26, 16, 48, k.roze, 3), r(26, 42, 48, 16, k.roze, 3)].join(""),
+  boek: (k) => [
+    r(16, 24, 68, 56, k.blauw, 4),
+    r(46, 24, 8, 56, k.donker),
+    r(24, 36, 18, 5, k.paneel), r(58, 36, 18, 5, k.paneel),
+    r(24, 48, 18, 5, k.paneel), r(58, 48, 18, 5, k.paneel),
+  ].join(""),
+  schild: (k) => [
+    p("M50 12 L84 24 L84 52 C84 72 68 84 50 90 C32 84 16 72 16 52 L16 24 Z", k.blauw),
+    p("M36 50 L46 60 L66 38 L72 44 L46 72 L30 56 Z", k.paneel),
+  ].join(""),
+  // ── tijd en proces ──
+  klok: (k) => [c(50, 50, 36, k.papier), r(47, 24, 6, 28, k.donker, 3), r(50, 47, 22, 6, k.blauw, 3),
+    `<circle cx="50" cy="50" r="36" fill="none" stroke="${k.donker}" stroke-width="6"/>`].join(""),
+  kalender: (k) => [
+    r(14, 22, 72, 64, k.papier, 6),
+    r(14, 22, 72, 18, k.donker, 6),
+    r(28, 14, 8, 16, k.donker, 3), r(64, 14, 8, 16, k.donker, 3),
+    r(26, 50, 14, 12, k.blauw, 2), r(46, 50, 14, 12, k.accent, 2), r(66, 50, 12, 12, k.blauw, 2),
+  ].join(""),
+  vinkje: (k) => [c(50, 50, 36, k.mint), p("M32 50 L44 62 L70 36 L78 44 L44 78 L24 58 Z", k.paneel)].join(""),
+  waarschuwing: (k) => [p("M50 12 L92 84 L8 84 Z", k.accent), r(45, 36, 10, 26, k.donker, 4), c(50, 72, 6, k.donker)].join(""),
+  fiets: (k) => [
+    `<circle cx="26" cy="66" r="18" fill="none" stroke="${k.donker}" stroke-width="6"/>`,
+    `<circle cx="74" cy="66" r="18" fill="none" stroke="${k.donker}" stroke-width="6"/>`,
+    p("M26 66 L44 40 L64 40 L74 66 L44 66 Z", k.blauw),
+    r(40, 32, 22, 6, k.donker, 3),
+  ].join(""),
+  auto: (k) => [
+    p("M14 62 L22 40 L78 40 L86 62 Z", k.blauw),
+    r(10, 60, 80, 16, k.donker, 6),
+    c(28, 78, 8, k.donker), c(72, 78, 8, k.donker),
+    r(38, 80, 24, 8, k.accent, 2),
+  ].join(""),
+  // Neutrale terugval, zodat een onbekend icoon nooit een gat achterlaat.
+  vlak: (k) => [c(50, 50, 32, k.blauw)].join(""),
+};
+
 // ── Register ───────────────────────────────────────────────────────────────
 //
 // De AI kiest een tekening op naam. Deze namen zijn dus een contract: verander
 // er geen zonder de omschrijvingen in overheid-scene.ts mee te nemen.
 
 export const TEKENINGEN: Record<string, Tekening> = {
+  ...BASIS_TEKENINGEN,
   figuur,
   hand: handVanRand,
   rijtjeshuis,

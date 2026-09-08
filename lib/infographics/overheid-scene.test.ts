@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { elementTijden, verschijning, nadruk, bouwOverheidSvg, ICONEN, type OverheidLayout } from "./overheid-scene";
+import { elementTijden, verschijning, nadruk, bouwOverheidSvg, type OverheidLayout } from "./overheid-scene";
+import { ASSET_SLEUTELS } from "./asset-register";
 
 // De timing is het hart van deze modus: een element hoort te verschijnen op het
 // moment dat de stem het noemt. Dat is pure rekenkunde en dus precies het soort
@@ -127,8 +128,8 @@ describe("bouwOverheidSvg", () => {
     }
   });
 
-  it("heeft voor elk icoon een tekenaar die iets oplevert", () => {
-    for (const sleutel of Object.keys(ICONEN)) {
+  it("heeft voor elk asset in het register een tekening die iets oplevert", () => {
+    for (const sleutel of ASSET_SLEUTELS) {
       const svg = bouwOverheidSvg(
         { template: "centraal", elementen: [{ icoon: sleutel, label: sleutel }] },
         { format: "16:9", t: 6, duur: 6 }
