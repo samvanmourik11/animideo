@@ -42,6 +42,7 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [copyingId, setCopyingId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     return projects.filter((p) => {
@@ -50,6 +51,30 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
       return matchSearch && matchStatus;
     });
   }, [projects, search, statusFilter]);
+
+  // Een project kopiëren onder een andere naam. De kopie verschijnt meteen
+  // bovenaan de lijst, zodat je ziet dát er iets gebeurd is.
+  async function handleCopy(project: Project) {
+    const voorstel = `${project.title} (kopie)`;
+    const naam = window.prompt("Naam voor de kopie:", voorstel);
+    if (naam === null) return;
+    setCopyingId(project.id);
+    try {
+      const res = await fetch("/api/duplicate-project", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, title: naam.trim() || voorstel }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error ?? "Kopiëren mislukt");
+      setProjects((prev) => [d.project as Project, ...prev]);
+      router.refresh();
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : "Kopiëren mislukt");
+    } finally {
+      setCopyingId(null);
+    }
+  }
 
   async function handleDelete(id: string) {
     setDeletingId(id);
@@ -191,6 +216,17 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
                       </button>
                     </div>
                   ) : (
+                    <div className="flex gap-1">
+                    <button
+                      onClick={(e) => { e.preventDefault(); void handleCopy(project); }}
+                      disabled={copyingId === project.id}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg bg-black/60 border border-white/10 text-slate-400 hover:text-white flex items-center justify-center disabled:opacity-40"
+                      title="Kopie maken onder een andere naam"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
                     <button
                       onClick={(e) => { e.preventDefault(); setConfirmDelete(project.id); }}
                       className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg bg-black/60 border border-white/10 text-slate-400 hover:text-red-400 flex items-center justify-center"
@@ -200,6 +236,7 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                     </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -261,6 +298,17 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
                     </button>
                   </div>
                 ) : (
+                  <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => void handleCopy(project)}
+                    disabled={copyingId === project.id}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-white disabled:opacity-40"
+                    title="Kopie maken onder een andere naam"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
                   <button
                     onClick={() => setConfirmDelete(project.id)}
                     className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-400"
@@ -270,6 +318,7 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
+                  </div>
                 )}
               </div>
             </div>
