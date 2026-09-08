@@ -28,8 +28,38 @@ const DEFAULT_MOTION =
 export const MICRO_MOTION_STEER =
   "Keep the entire image identical to the source and essentially motionless. The only allowed motion is an almost imperceptible living-illustration breath: a barely visible settling or sway of a subject that is already fully visible. Nothing changes position, nothing new appears, nothing enters the frame.";
 
-export function buildMotionPrompt(steer?: string): string {
+// ---------------------------------------------------------------------------
+// DE OVERHEIDSMODUS BEWEEGT ANDERS.
+//
+// Alles hierboven is geschreven voor een getekende scène die je "tot leven"
+// brengt: iemand knippert, een blad ritselt, verder staat alles stil. In een
+// motion-graphics uitleganimatie is dat juist dood. Daar schuiven vlakken in
+// beeld, groeit een stapel, en stroomt een sliert munten langs zijn lint — de
+// beweging IS de uitleg.
+//
+// Twee dingen blijven wel gelden en zijn hier zelfs strenger: er komt niets bij
+// wat niet in het bronbeeld staat, en tekst blijft haarscherp en onveranderd.
+// Bestaande elementen mogen hier wél van of naar de rand bewegen; dat is precies
+// het verschil met de gewone modus, waar dat een afkeurgrond is.
+// ---------------------------------------------------------------------------
+
+const OVERHEID_PRESERVE =
+  "STRICT RULE — every shape, icon, panel, figure, colour and word in the animation already exists in the source image. Do not add, draw, invent or duplicate anything new: no new text, letters, words, numbers, labels, icons, objects, people or decoration. Do NOT redraw, restyle, warp, morph, stretch or re-letter any existing text or number — text stays perfectly sharp, identical and readable at all times, and never distorts while it moves. Keep every element's own shape, proportions and colour exactly as in the source; elements may move, but they never change form.";
+
+const OVERHEID_STYLE_RULE =
+  "Flat 2D motion-graphics style, like a modern government explainer video. Static locked camera, no camera movement, no zoom, no pan, no parallax, no 3D, no realistic lighting and no shadows. Elements move along straight or gently curved paths with smooth ease-in and ease-out, as if animated in After Effects. The background stays a completely still, flat, empty surface.";
+
+const OVERHEID_MOTION =
+  "Animate this diagram the way a flat motion-graphics explainer moves. Use only the elements that are already in the image, and give them graphic motion: shapes and panels slide in from an edge or scale up into place, a row of items appears one after another in a quick sequence, a chain or ribbon of coins flows steadily along its own path, a stack or bar grows upward, arrows travel from one element to the next, and a flat figure may raise an arm or tilt slightly. Existing elements are allowed to enter or leave the frame along their path — that is part of this style — as long as nothing NEW ever appears. Keep the motion clean, even-paced and purposeful: one clear movement that explains what this image is about, not busy fidgeting in every corner.";
+
+export function buildMotionPrompt(steer?: string, mode?: "story" | "report" | "overheid"): string {
   const extra = (steer || "").trim();
+  if (mode === "overheid") {
+    const motion = extra
+      ? `Apply motion to the existing diagram as follows: ${extra}. ${OVERHEID_MOTION}`
+      : OVERHEID_MOTION;
+    return `Animate ONLY the elements in the existing image. ${motion} ${OVERHEID_STYLE_RULE} ${OVERHEID_PRESERVE}`.slice(0, 2500);
+  }
   // De vuistregel staat zowel voor- als achteraan, zodat hij het zwaarst weegt.
   const motion = extra
     ? `Apply motion to the existing illustration as follows: ${extra}. ${DEFAULT_MOTION}`

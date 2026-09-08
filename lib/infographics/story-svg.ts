@@ -1,57 +1,22 @@
-import { computeStoryLayout, logoBox } from "@/lib/infographics/story-layout";
-import { resolveStoryFont } from "@/lib/infographics/story-fonts";
-import type { StoryScene } from "@/lib/infographics/story-schema";
+import { logoBox } from "@/lib/infographics/story-layout";
+import { storyCanvasSize } from "@/lib/infographics/canvas-size";
 
 // Server-side variant van components/infographics/render/StoryScene.tsx: bouwt
-// exact dezelfde tekst-overlay als SVG-string, zodat de MP4-export die met resvg
-// kan rasteren ZONDER browser (betrouwbaar op Vercel). Houd dit in sync met
-// StoryScene; beide gebruiken computeStoryLayout, dus de posities zijn identiek.
+// exact dezelfde overlay als SVG-string, zodat de MP4-export die met resvg kan
+// rasteren ZONDER browser (betrouwbaar op Vercel). Houd dit in sync met
+// StoryScene.
+//
+// Sinds de koppen en grote getallen eruit zijn, bestaat de overlay alleen nog uit
+// het merklogo. Zonder logo is er niets te rasteren: dan geeft dit null terug en
+// slaat de export de overlay-laag over.
 
-function esc(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-// Eén scene-overlay als compleet SVG-document (transparante achtergrond). De
-// export rendert dit per scene op de exacte canvasmaat. enter=1 (geen
-// inanimatie): de timing/fade zit in de ffmpeg-laag.
 export function buildSceneSvg(
-  scene: StoryScene,
   format: "16:9" | "9:16",
-  navy = "#16243f",
-  accent = "#e8643c",
-  opts?: { fontFamily?: string | null; logoDataUri?: string | null }
-): string {
-  const L = computeStoryLayout(scene, format);
-  const font = resolveStoryFont(opts?.fontFamily);
-  let body = "";
-
-  // Kop met accentwoord (zelfde regel-/woordlogica als StoryScene).
-  for (let li = 0; li < L.lines.length; li++) {
-    const y = L.hy + L.hSize + li * L.lineH;
-    const words = L.lines[li].split(" ");
-    const tspans = words
-      .map((w, wi) => {
-        const isEmph = L.emph && w.toLowerCase().replace(/[.,:;!?]/g, "") === L.emph;
-        const txt = esc(w) + (wi < words.length - 1 ? " " : "");
-        return `<tspan fill="${isEmph ? accent : navy}">${txt}</tspan>`;
-      })
-      .join("");
-    body += `<text x="${L.hx}" y="${y}" font-family="${font}" font-size="${L.hSize}" font-weight="800" fill="${navy}" xml:space="preserve">${tspans}</text>`;
-  }
-
-  // Groot getal + label.
-  if (L.num) {
-    body += `<text x="${L.nx}" y="${L.ny + L.nSize}" font-family="${font}" font-size="${L.nSize}" font-weight="800" fill="${accent}">${esc(L.num)}</text>`;
-    if (scene.numberLabel) {
-      body += `<text x="${L.nx}" y="${L.ny + L.nSize + 44}" font-family="${font}" font-size="36" font-weight="600" fill="${navy}">${esc(scene.numberLabel)}</text>`;
-    }
-  }
-
-  // Merklogo rechtsboven (optioneel; als data-URI meegegeven).
-  if (opts?.logoDataUri) {
-    const b = logoBox(format);
-    body += `<image x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" href="${opts.logoDataUri}" preserveAspectRatio="xMaxYMin meet" />`;
-  }
-
-  return `<svg viewBox="0 0 ${L.W} ${L.H}" width="${L.W}" height="${L.H}" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
+  logoDataUri?: string | null
+): string | null {
+  if (!logoDataUri) return null;
+  const { width: W, height: H } = storyCanvasSize(format);
+  const b = logoBox(format);
+  const body = `<image x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" href="${logoDataUri}" preserveAspectRatio="xMaxYMin meet" />`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${body}</svg>`;
 }

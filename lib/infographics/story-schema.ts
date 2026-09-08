@@ -1,8 +1,14 @@
+import type { OverheidLayout } from "@/lib/infographics/overheid-scene";
+
 // Story-spec voor de storytelling-infographic (animatiemarkt-stijl).
 // De AI levert UITSLUITEND deze gestructureerde data: een verhaalboog van scenes,
-// elk met een gesproken voice-over, een korte beeldtekst (kop) en een Engelse
-// illustratie-briefing (zonder tekst). Het beeldmodel maakt per scene de platte
-// illustratie; de typografie en cijfers komen er deterministisch in SVG overheen.
+// elk met een gesproken voice-over en een Engelse illustratie-briefing (zonder
+// tekst). Het beeldmodel maakt per scene de illustratie, die het hele frame vult.
+//
+// Er komt GEEN tekst-overlay meer overheen: koppen, accentwoorden en grote
+// getallen zijn eruit gehaald. Ze vielen weg in de nu volledig ingetekende
+// beelden, en dubbelden bovendien met wat de voice-over al vertelt. Alleen het
+// merklogo ligt nog over het beeld.
 //
 // Strict-mode (OpenAI json_schema): elk object heeft ALLE properties in `required`
 // en `additionalProperties:false`; optionele velden zijn nullable.
@@ -10,21 +16,11 @@
 const storySceneSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["id", "voiceover", "headline", "emphasis", "bigNumber", "numberLabel", "illustration"],
+  required: ["id", "voiceover", "illustration"],
   properties: {
     id: { type: "string" },
     // Gesproken narratie voor deze scene (1 tot 2 zinnen, de verhaallijn).
     voiceover: { type: "string" },
-    // Korte tekst die IN beeld komt — OPTIONEEL. Alleen gevuld als hij echt iets
-    // toevoegt; anders null (niet elke scene heeft tekst in beeld nodig).
-    headline: { type: ["string", "null"] },
-    // Eén woord uit de headline dat de accentkleur krijgt (of null).
-    emphasis: { type: ["string", "null"] },
-    // Groot getal uit de brontekst (bijv. "5.500€", "170", "9,6 mln"). Nooit
-    // verzinnen; null als er geen hard cijfer bij deze scene hoort.
-    bigNumber: { type: ["string", "null"] },
-    // Klein label bij het getal (bijv. "subsidie", "soorten"). null indien geen.
-    numberLabel: { type: ["string", "null"] },
     // ENGELSE illustratie-briefing: beschrijf de platte vector-scene (objecten,
     // omgeving, karakters). GEEN tekst in het beeld.
     illustration: { type: "string" },
@@ -39,25 +35,81 @@ export const STORY_SPEC_SCHEMA = {
     version: { type: "integer", enum: [1] },
     title: { type: "string" },
     format: { type: "string", enum: ["16:9", "9:16"] },
-    mode: { type: "string", enum: ["story", "report"] },
+    mode: { type: "string", enum: ["story", "report", "overheid"] },
     scenes: { type: "array", items: storySceneSchema },
   },
 } as const;
 
+/**
+ * Eén bericht in de beeld-chat van een scene. De gebruiker typt wat er anders
+ * moet ("het logo op de auto klopt niet") en stuurt daar eventueel een foto bij;
+ * de assistent antwoordt kort en levert meestal een nieuw beeld.
+ *
+ * `previousImageUrl` is het beeld zoals het vóór deze beurt was. Daarmee is elke
+ * beurt terug te draaien zonder aparte undo-stack: het herstelpunt hangt aan het
+ * bericht dat de wijziging veroorzaakte.
+ */
+export interface SceneChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  text: string;
+  /** Meegestuurde referentiefoto (publieke URL), alleen bij role "user". */
+  photoUrl?: string | null;
+  /** Het beeld dat uit deze beurt kwam, alleen bij role "assistant". */
+  imageUrl?: string | null;
+  /** Het beeld van vóór deze beurt, zodat "terug" het kan herstellen. */
+  previousImageUrl?: string | null;
+  /** Idem voor een zelfgetekende scene: de opbouw van vóór deze beurt. */
+  previousLayout?: OverheidLayout | null;
+  /** Tijdstip (ms) — voor de datumscheiding in het chatverloop. */
+  at?: number;
+}
+
+/**
+ * Eén terugkerend personage in het verhaal, met een uiterlijk dat in élke scene
+ * gelijk hoort te blijven.
+ *
+ * De cast wordt bij het genereren door de art-director vastgelegd en daarna
+ * woordelijk in elke beeld-prompt herhaald. Daarvóór stond hij als losse zin in
+ * een "visual bible" die de route weggooide, en verzon het beeldmodel per scene
+ * nieuwe mensen — de taxateur was in scene 1 een ander dan in scene 4.
+ */
+export interface StoryCastMember {
+  name: string;
+  role: string;
+  appearance: string;
+}
+
 export interface StoryScene {
   id: string;
   voiceover: string;
-  headline: string | null;
-  emphasis: string | null;
-  bigNumber: string | null;
-  numberLabel: string | null;
   illustration: string;
+  /**
+   * Opbouw van de scene in de overheidsmodus: welk sjabloon, welke iconen en
+   * labels. Is dit gevuld, dan tekent de app de scene zelf als SVG en is er geen
+   * gegenereerd beeld — vandaar dat imageUrl dan leeg blijft.
+   */
+  layout?: OverheidLayout | null;
+  /** Namen uit spec.cast die in deze scene voorkomen. */
+  castNames?: string[];
+  /**
+   * De exacte woorden die IN het beeld mogen staan (meestal leeg).
+   *
+   * Beeldmodellen verzinnen uit zichzelf letterbrij, dus tekst is standaard
+   * verboden. Korte labels maken een uitleganimatie juist duidelijker — mits het
+   * precies deze woorden zijn en de spelling na afloop gecontroleerd wordt
+   * (zie lib/infographics/tekst-controle.ts).
+   */
+  labels?: string[];
   // Wordt na generatie gevuld met de URL van de gegenereerde illustratie.
   imageUrl?: string | null;
-  // Per-scene overlay-transform (Canva-stijl slepen/schalen). Undefined = de
-  // automatisch berekende standaardpositie/-grootte. In viewBox-coordinaten.
-  hx?: number; hy?: number; hSize?: number; // kop: top-left + fontgrootte
-  nx?: number; ny?: number; nSize?: number; // groot getal: top-left + fontgrootte
+  // Beeld-chat van deze scene: het gesprek waarmee de gebruiker het beeld
+  // bijstuurt. Wordt met het project meebewaard, zodat je bij het heropenen nog
+  // ziet wat je gevraagd hebt en naar eerdere beeldversies terug kunt.
+  chat?: SceneChatMessage[];
+  // Laatst meegestuurde referentiefoto (echt product/logo/object). Blijft aan de
+  // scene hangen zodat een volgende regeneratie datzelfde object weer klopt.
+  referencePhotoUrl?: string | null;
   // Ingesproken voice-over (ElevenLabs). voiceDuration stuurt de scene-lengte.
   voiceUrl?: string | null;
   voiceDuration?: number | null;
@@ -70,7 +122,12 @@ export interface StorySpec {
   version: 1;
   title: string;
   format: "16:9" | "9:16";
-  mode: "story" | "report";
+  /**
+   * "story" en "report" bepalen de toon van het script; "overheid" is een andere
+   * soort animatie (diagrammen op een leeg vlak, zie OVERHEID_FRAMING) met een
+   * zakelijk script. De modus stuurt dus zowel de tekst als de beeldregie.
+   */
+  mode: "story" | "report" | "overheid";
   scenes: StoryScene[];
   // Eén doorlopende voice-over over het hele verhaal (consistente stem, één
   // generatie). De scene-lengtes worden naar rato van de tekst verdeeld.
@@ -114,6 +171,12 @@ export interface StorySpec {
   styleId?: string | null;
   // Taal van script + voice-over (mensleesbaar NL, bijv. "Engels"). Leeg = Nederlands.
   language?: string | null;
+  // De vaste cast van dit verhaal en het castblad: één beeld waarop iedereen
+  // naast elkaar staat. Dat blad gaat als zwaarst wegende referentie mee naar
+  // elke scene en naar elke latere regeneratie, zodat dezelfde persoon overal
+  // hetzelfde gezicht, dezelfde kleding en dezelfde lengte houdt.
+  cast?: StoryCastMember[] | null;
+  castSheetUrl?: string | null;
   // Vast personage/mascotte (publieke URL) dat consistent in elke scène terugkomt.
   characterUrl?: string | null;
   /**

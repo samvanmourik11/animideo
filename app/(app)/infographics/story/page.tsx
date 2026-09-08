@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import EditableStoryScene from "@/components/infographics/render/EditableStoryScene";
+import SceneOverlay from "@/components/infographics/render/StoryScene";
+import OverheidSceneView from "@/components/infographics/render/OverheidSceneView";
+import SceneChat from "@/components/infographics/story/SceneChat";
 import StoryPlayer from "@/components/infographics/render/StoryPlayer";
 import PdfUploadButton from "@/components/infographics/PdfUploadButton";
 import { splitVoiceDurations, storyWindows } from "@/lib/infographics/story-layout";
@@ -10,14 +12,14 @@ import { DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
 import StylePicker from "@/components/style/StylePicker";
 import BibliotheekKiezer from "@/components/characters/BibliotheekKiezer";
 import { createClient } from "@/lib/supabase/client";
+import { isAdminAccount } from "@/lib/studio/access";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 import { DEFAULT_VOICE, voicePreviewUrl, voicesForLanguage, voiceForLanguage } from "@/lib/infographics/story-voices";
-import { STORY_FONTS, DEFAULT_STORY_FONT, nearestStoryFont, STORY_FONTS_CSS_HREF } from "@/lib/infographics/story-fonts";
 import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
 import { MusicPickerButton } from "@/components/music/MusicPicker";
 import { findMusicTrackByUrl } from "@/lib/music/library";
 import type { BrandKit } from "@/lib/types";
-import type { StoryScene } from "@/lib/infographics/story-schema";
+import type { StoryScene, SceneChatMessage } from "@/lib/infographics/story-schema";
 
 // Storytelling-infographic generator: onderwerp + brontekst in, AI schrijft een
 // verhaalboog en genereert per scene een platte illustratie; de typografie ligt
@@ -87,15 +89,6 @@ function toHex(raw?: string | null): string | null {
   return dutchColorToHex(str);
 }
 
-function SceneField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  return (
-    <label className="block">
-      <span className="block text-[11px] text-slate-400 mb-0.5">{label}</span>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white" />
-    </label>
-  );
-}
-
 export default function StoryPage() {
   const [topic, setTopic] = useState("");
   const [text, setText] = useState("");
@@ -105,7 +98,12 @@ export default function StoryPage() {
   // "Tekst uit webpagina": URL waarvan de brontekst wordt opgehaald.
   const [pageUrl, setPageUrl] = useState("");
   const [pageBusy, setPageBusy] = useState(false);
-  const [mode, setMode] = useState<"story" | "report">("story");
+  const [mode, setMode] = useState<"story" | "report" | "overheid">("story");
+  // De Overheidsstijl is nog in aanbouw: hij tekent zijn scenes zelf en die
+  // bibliotheek is nog te klein om klanten mee te laten werken. Daarom staat hij
+  // alleen in het menu op interne accounts, net als de andere tools die nog niet
+  // af zijn (zie lib/studio/access.ts).
+  const [intern, setIntern] = useState(false);
   const [format, setFormat] = useState<"16:9" | "9:16">("16:9");
   const [showSafeZone, setShowSafeZone] = useState(false);
   const [styleId, setStyleId] = useState<string>(DEFAULT_STORY_STYLE);
@@ -124,7 +122,6 @@ export default function StoryPage() {
   const [accent, setAccent] = useState("#e8643c");
   // Huisstijl-typografie (uit de brand kit; met keuze/override) en het logo, dat
   // de gebruiker zelf uploadt (niet uit de website of brand kit).
-  const [fontFamily, setFontFamily] = useState<string>(DEFAULT_STORY_FONT);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoEnabled, setLogoEnabled] = useState(false);
   const [logoBusy, setLogoBusy] = useState(false);
@@ -142,10 +139,7 @@ export default function StoryPage() {
   const [err, setErr] = useState<string | null>(null);
   const [imgBusy, setImgBusy] = useState<Record<string, boolean>>({});
   // Beeldhistorie per scene (vorige imageUrls) → "vorige versie" terugzetten.
-  const [imgHistory, setImgHistory] = useState<Record<string, string[]>>({});
-  const [editInstr, setEditInstr] = useState<Record<string, string>>({});
   // Referentiefoto per scène (sceneId → publieke URL van het geüploade product/logo).
-  const [sceneRef, setSceneRef] = useState<Record<string, string>>({});
   const [motionInstr, setMotionInstr] = useState<Record<string, string>>({});
   const [voiceBusy, setVoiceBusy] = useState(false);
   // Gekozen stem voor de voice-over + de stem die nu (als preview) speelt.
@@ -192,7 +186,7 @@ export default function StoryPage() {
       savingRef.current = true;
       if (!silent) setSaving(true);
       try {
-        const specToSave: StorySpec = { ...spec, navy, accent, voice, voiceSpeed, fontFamily, logoUrl, logoEnabled };
+        const specToSave: StorySpec = { ...spec, navy, accent, voice, voiceSpeed, logoUrl, logoEnabled };
         const res = await fetch("/api/infographics/save-story", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -215,7 +209,7 @@ export default function StoryPage() {
         if (!silent) setSaving(false);
       }
     },
-    [spec, navy, accent, voice, voiceSpeed, fontFamily, logoUrl, logoEnabled, projectId, topic]
+    [spec, navy, accent, voice, voiceSpeed, logoUrl, logoEnabled, projectId, topic]
   );
 
   // Een verhaal laden uit ?project=id (na een refresh of vanuit het overzicht).
@@ -241,7 +235,6 @@ export default function StoryPage() {
         if (loaded.accent) setAccent(loaded.accent);
         if (loaded.voice) setVoice(loaded.voice);
         if (loaded.voiceSpeed) setVoiceSpeed(loaded.voiceSpeed);
-        if (loaded.fontFamily) setFontFamily(loaded.fontFamily);
         if (loaded.logoUrl) setLogoUrl(loaded.logoUrl);
         if (typeof loaded.logoEnabled === "boolean") setLogoEnabled(loaded.logoEnabled);
       } catch (e) {
@@ -260,7 +253,7 @@ export default function StoryPage() {
     if (!spec || loadingProject) return;
     const t = setTimeout(() => { void save(true); }, 1500);
     return () => clearTimeout(t);
-  }, [spec, navy, accent, voice, voiceSpeed, fontFamily, logoUrl, logoEnabled, projectId, loadingProject, save]);
+  }, [spec, navy, accent, voice, voiceSpeed, logoUrl, logoEnabled, projectId, loadingProject, save]);
 
   // Vangnet: waarschuw alleen als er nog écht een opslag onderweg is bij het
   // wegklikken. Normaal is er niets te verliezen, want alles is al bewaard.
@@ -280,16 +273,22 @@ export default function StoryPage() {
       .catch(() => {});
   }, []);
 
-  // Past een brand kit toe: tekstkleur ← primair (val terug op secundair),
-  // accent ← accent, font ← dichtstbijzijnde gebundelde keuze. Alles blijft daarna
-  // handmatig overschrijfbaar. Het logo komt NIET uit de kit maar uploadt de
+  useEffect(() => {
+    createClient()
+      .auth.getUser()
+      .then(({ data }) => setIntern(isAdminAccount(data.user?.email)))
+      .catch(() => setIntern(false));
+  }, []);
+
+  // Past een brand kit toe: hoofdkleur ← primair (val terug op secundair) en
+  // accent ← accent. Die twee sturen het kleurpalet van de illustraties. Alles
+  // blijft daarna handmatig overschrijfbaar. Het logo komt NIET uit de kit maar uploadt de
   // gebruiker zelf; een reeds geüpload logo laten we hier dus staan.
   function applyKit(kit: BrandKit) {
     const text = toHex(kit.colors?.primary) || toHex(kit.colors?.secondary);
     const acc = toHex(kit.colors?.accent) || toHex(kit.colors?.secondary);
     if (text) setNavy(text);
     if (acc) setAccent(acc);
-    setFontFamily(nearestStoryFont(kit.fonts?.primary));
   }
 
   // Kiest een huisstijl uit de dropdown en neemt hem over. Lege keuze laat alles staan.
@@ -513,8 +512,7 @@ export default function StoryPage() {
   function blankScene(): StoryScene {
     return {
       id: `scene-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      voiceover: "", headline: "", emphasis: null, bigNumber: null, numberLabel: null,
-      illustration: "", imageUrl: null,
+      voiceover: "", illustration: "", imageUrl: null,
     };
   }
   function addScene(afterIndex: number) {
@@ -550,28 +548,50 @@ export default function StoryPage() {
       return { ...prev, scenes };
     });
   }
-  // Zet het vorige beeld van een scene terug (undo van een regeneratie/bewerking).
-  function revertImage(i: number) {
-    if (!spec) return;
-    const s = spec.scenes[i];
-    const hist = imgHistory[s.id];
-    if (!hist || hist.length === 0) return;
-    const prevUrl = hist[hist.length - 1];
-    setImgHistory((h) => ({ ...h, [s.id]: hist.slice(0, -1) }));
-    updateScene(i, { imageUrl: prevUrl });
-  }
-
-  async function sceneImage(i: number, payload: Record<string, unknown>) {
+  // Eén beurt in de beeld-chat van een scene. De server bepaalt wat het bericht
+  // betekent (beeld bijwerken, opnieuw tekenen, of alleen antwoorden) en levert
+  // meteen het resultaat; hier houden we alleen het verloop en het beeld bij.
+  //
+  // Het vorige beeld hangen we aan het antwoord (previousImageUrl), zodat elke
+  // beurt los terug te draaien is zonder aparte undo-stack.
+  async function sendSceneChat(i: number, text: string, file: File | null) {
     if (!spec) return;
     const s = spec.scenes[i];
     const prevImage = s.imageUrl ?? null;
+    const nu = Date.now();
     setErr(null);
     setImgBusy((b) => ({ ...b, [s.id]: true }));
+
+    // De vraag meteen tonen; het antwoord komt er zo onder te staan.
+    const vraag: SceneChatMessage = { id: `m-${nu}-u`, role: "user", text, at: nu };
+    const verloop = [...(s.chat ?? []), vraag];
+    updateScene(i, { chat: verloop });
+
     try {
-      const res = await fetch("/api/infographics/scene-image", {
+      // Een meegestuurde foto eerst uploaden: het beeldmodel heeft een publieke
+      // URL nodig, en zo blijft de foto ook bij het bericht zichtbaar.
+      let photoUrl: string | null = null;
+      if (file) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const up = await fetch("/api/infographics/upload-scene-ref", { method: "POST", body: fd });
+        const ud = await up.json();
+        if (!up.ok) throw new Error(apiError(ud, "Foto uploaden mislukt"));
+        photoUrl = ud.url as string;
+        vraag.photoUrl = photoUrl;
+        updateScene(i, { chat: [...verloop] });
+      }
+
+      const res = await fetch("/api/infographics/scene-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          message: text,
+          photoUrl,
+          illustration: s.illustration,
+          sourceImageUrl: s.imageUrl ?? null,
+          referencePhotoUrl: s.referencePhotoUrl ?? null,
+          history: (s.chat ?? []).map((m) => ({ role: m.role, text: m.text })),
           format: spec.format,
           // Consistentie: verhaal-seed + anker (behalve voor de anker-scene zelf).
           seed: spec.seed ?? undefined,
@@ -580,46 +600,70 @@ export default function StoryPage() {
           language: spec.language ?? language,
           characterUrl: spec.characterUrl ?? characterUrl,
           characterRole: characterRole.trim() || spec.characterRole || null,
-          ...payload,
+          brandColors: brandColorsPayload(),
+          // De cast + het castblad mee, anders tekent een regeneratie via de chat
+          // weer een andere hoofdpersoon dan de rest van de video.
+          mode: spec.mode,
+          layout: s.layout ?? null,
+          voiceover: s.voiceover,
+          labels: s.labels ?? null,
+          cast: spec.cast ?? null,
+          castNames: s.castNames ?? null,
+          castSheetUrl: spec.castSheetUrl ?? null,
         }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Beeld bijwerken mislukt"));
-      // Beeldhistorie: het vorige beeld bewaren zodat je terug kunt (undo).
-      if (prevImage) setImgHistory((h) => ({ ...h, [s.id]: [...(h[s.id] ?? []), prevImage].slice(-10) }));
-      // Nieuw beeld → oude bewegende clip wissen, anders speelt de player de
-      // verouderde video i.p.v. het nieuwe beeld (de "twee video's"-valkuil).
-      updateScene(i, { imageUrl: d.imageUrl, videoUrl: null });
-      // Nieuw beeld → tekst-status kan gewijzigd zijn; skip-melding wissen.
-      setMotionSkipped((m) => ({ ...m, [s.id]: "" }));
+
+      const antwoord: SceneChatMessage = {
+        id: `m-${Date.now()}-a`,
+        role: "assistant",
+        text: d.reply ?? "Klaar.",
+        at: Date.now(),
+        imageUrl: d.imageUrl ?? null,
+        previousImageUrl: d.imageUrl ? prevImage : null,
+        // Bij een zelfgetekende scene is de opbouw het herstelpunt.
+        previousLayout: d.layout ? s.layout ?? null : null,
+      };
+      const patch: Partial<StoryScene> = { chat: [...verloop, antwoord] };
+      if (d.layout) patch.layout = d.layout;
+      if (d.imageUrl) {
+        // Nieuw beeld → oude bewegende clip wissen, anders speelt de player de
+        // verouderde video i.p.v. het nieuwe beeld (de "twee video's"-valkuil).
+        patch.imageUrl = d.imageUrl;
+        patch.videoUrl = null;
+        setMotionSkipped((m) => ({ ...m, [s.id]: "" }));
+      }
+      // Bij een regeneratie herschrijft de server de briefing; die moet mee,
+      // anders valt een volgende beurt terug op de oude scène.
+      if (d.illustration) patch.illustration = d.illustration;
+      if (Array.isArray(d.labels)) patch.labels = d.labels;
+      if (d.referencePhotoUrl) patch.referencePhotoUrl = d.referencePhotoUrl;
+      updateScene(i, patch);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
+      // De vraag laten staan zou suggereren dat er iets gebeurd is; weghalen.
+      updateScene(i, { chat: s.chat ?? [] });
     } finally {
       setImgBusy((b) => ({ ...b, [s.id]: false }));
     }
   }
 
-  // Referentiefoto voor één scène uploaden en het beeld er meteen mee hergenereren,
-  // zodat het échte product/logo/object klopt. De referentie blijft bewaard, dus
-  // volgende regeneraties van deze scène gebruiken 'm ook.
-  async function uploadSceneRef(i: number, file: File) {
+  // Zet het beeld terug naar hoe het vóór deze chatbeurt was. De beurt zelf
+  // blijft in het verloop staan (je ziet dus wat je geprobeerd hebt), maar kan
+  // niet nog eens teruggedraaid worden.
+  function revertSceneChat(i: number, msg: SceneChatMessage) {
     if (!spec) return;
+    if (!msg.previousImageUrl && !msg.previousLayout) return;
     const s = spec.scenes[i];
-    setErr(null);
-    setImgBusy((b) => ({ ...b, [s.id]: true }));
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/infographics/upload-scene-ref", { method: "POST", body: fd });
-      const d = await res.json();
-      if (!res.ok) throw new Error(apiError(d, "Referentiefoto uploaden mislukt"));
-      setSceneRef((m) => ({ ...m, [s.id]: d.url as string }));
-      await sceneImage(i, { mode: "generate", illustration: s.illustration, referencePhotoUrl: d.url, brandColors: brandColorsPayload() });
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setImgBusy((b) => ({ ...b, [s.id]: false }));
-    }
+    const terug: Partial<StoryScene> = {
+      chat: (s.chat ?? []).map((m) =>
+        m.id === msg.id ? { ...m, previousImageUrl: null, previousLayout: null, text: `${m.text} (teruggedraaid)` } : m
+      ),
+    };
+    if (msg.previousLayout) terug.layout = msg.previousLayout;
+    if (msg.previousImageUrl) { terug.imageUrl = msg.previousImageUrl; terug.videoUrl = null; }
+    updateScene(i, terug);
   }
 
   async function genVoice() {
@@ -752,7 +796,7 @@ export default function StoryPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // Ankers voor het kritische oog: de voice-over, het bedoelde beeld en de titel.
-        body: JSON.stringify({ imageUrl: s.imageUrl, steer, voiceover: s.voiceover, illustration: s.illustration, title: spec?.title }),
+        body: JSON.stringify({ imageUrl: s.imageUrl, steer, voiceover: s.voiceover, illustration: s.illustration, title: spec?.title, mode: spec?.mode }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Animeren mislukt"));
@@ -813,7 +857,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/export-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spec, navy, accent, fontFamily, logoUrl: logoEnabled ? logoUrl : null }),
+        body: JSON.stringify({ spec, logoUrl: logoEnabled ? logoUrl : null }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Export mislukt"));
@@ -828,9 +872,8 @@ export default function StoryPage() {
   return (
     <div className="max-w-[1200px] mx-auto p-6">
       {/* Huisstijl-fonts voor de preview (dezelfde families als de export-TTF's). */}
-      <link rel="stylesheet" href={STORY_FONTS_CSS_HREF} />
       <h1 className="text-xl font-bold text-white mb-1">Storytelling-infographic</h1>
-      <p className="text-sm text-slate-400 mb-6">AI schrijft een verhaalboog en genereert per scene een platte illustratie. Tekst ligt er in SVG overheen.</p>
+      <p className="text-sm text-slate-400 mb-6">AI schrijft een verhaalboog en genereert per scene een illustratie die het hele beeld vult. De voice-over vertelt het verhaal; er komt geen tekst in beeld.</p>
       {loadingProject && <p className="text-sm text-blue-300 mb-4">Verhaal laden…</p>}
 
       <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3 mb-8">
@@ -923,17 +966,6 @@ export default function StoryPage() {
                   {brandBusy ? "Ophalen…" : "🌐 Uit website"}
                 </button>
               </div>
-            </label>
-            <label className="block">
-              <span className="block text-[11px] text-slate-400 mb-0.5">Lettertype</span>
-              <select
-                value={fontFamily}
-                onChange={(e) => setFontFamily(e.target.value)}
-                className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white"
-                style={{ fontFamily: `${fontFamily}, system-ui, sans-serif` }}
-              >
-                {STORY_FONTS.map((f) => (<option key={f.id} value={f.family}>{f.label}{f.note ? ` — ${f.note}` : ""}</option>))}
-              </select>
             </label>
             <div className="flex flex-col gap-1 pb-1.5">
               <span className="block text-[11px] text-slate-400">Logo</span>
@@ -1037,24 +1069,38 @@ export default function StoryPage() {
             ze ziet, en de keuze bepaalt hoe de hele video eruit komt te zien.
             Staat als eigen blok en niet tussen de selects: kaartjes hebben breedte
             nodig. Zelfde kiezer als in de dialoogmodus. */}
-        <div className="mb-4">
-          <span className="block text-[11px] text-slate-400 mb-1.5">
-            Stijl {spec ? "(vast)" : ""}
-          </span>
-          <StylePicker
-            value={styleId}
-            onChange={setStyleId}
-            disabled={!!spec}
-            hint={spec ? "De stijl ligt vast voor dit verhaal. Klik “Nieuw verhaal” voor een andere stijl." : undefined}
-          />
-        </div>
+        {/* De overheidsmodus is zelf een tekenstijl: vlakke diagrammen met een
+            vast, klein palet. De vier presets doen daar niets meer, dus tonen we
+            ze niet — een kiezer die niets verandert is erger dan geen kiezer. */}
+        {(spec?.mode ?? mode) === "overheid" ? (
+          <div className="mb-4">
+            <span className="block text-[11px] text-slate-400 mb-1.5">Stijl</span>
+            <p className="text-xs text-slate-400 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+              De overheidsstijl bepaalt zelf hoe de beelden eruitzien: vlakke diagrammen met iconen en panelen op een
+              lichtgrijs vlak, zonder omgevingen. De tekenstijlen hieronder gelden alleen voor Verhaal en Rapport.
+            </p>
+          </div>
+        ) : (
+          <div className="mb-4">
+            <span className="block text-[11px] text-slate-400 mb-1.5">
+              Stijl {spec ? "(vast)" : ""}
+            </span>
+            <StylePicker
+              value={styleId}
+              onChange={setStyleId}
+              disabled={!!spec}
+              hint={spec ? "De stijl ligt vast voor dit verhaal. Klik “Nieuw verhaal” voor een andere stijl." : undefined}
+            />
+          </div>
+        )}
 
         <div className="flex flex-wrap items-end gap-4">
           <label className="block">
             <span className="block text-[11px] text-slate-400 mb-0.5">Modus</span>
-            <select value={mode} onChange={(e) => setMode(e.target.value as "story" | "report")} className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white">
+            <select value={mode} onChange={(e) => setMode(e.target.value as "story" | "report" | "overheid")} className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white">
               <option value="story">Verhaal</option>
               <option value="report">Rapport</option>
+              {(intern || spec?.mode === "overheid") && <option value="overheid">Overheidsstijl</option>}
             </select>
           </label>
           <label className="block">
@@ -1111,16 +1157,22 @@ export default function StoryPage() {
             <span className="block text-[10px] text-slate-500 mt-0.5">elke scene ~{SECS_PER_SCENE} sec</span>
           </label>
           <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Tekstkleur{brandKitId ? " · uit huisstijl" : ""}</span>
+            <span className="block text-[11px] text-slate-400 mb-0.5">Hoofdkleur beeld{brandKitId ? " · uit huisstijl" : ""}</span>
             <input type="color" value={navy} onChange={(e) => { setNavy(e.target.value); setBrandKitId(""); }} className="h-9 w-14 bg-transparent border border-white/10 rounded cursor-pointer" />
           </label>
           <label className="block">
             <span className="block text-[11px] text-slate-400 mb-0.5">Accent{brandKitId ? " · uit huisstijl" : ""}</span>
             <input type="color" value={accent} onChange={(e) => { setAccent(e.target.value); setBrandKitId(""); }} className="h-9 w-14 bg-transparent border border-white/10 rounded cursor-pointer" />
           </label>
-          <button onClick={generate} disabled={loading || !text.trim()} title={!text.trim() ? "Vul eerst een brontekst in" : `Script schrijven is gratis, ${CREDIT_COSTS.IMAGE_GENERATION} credit per scene-beeld`} className="btn-primary text-sm disabled:opacity-50">
-            {loading ? "Genereren… (script + beelden)" : "Genereer verhaal"}
-            <span className="text-white/70 ml-1">· {CREDIT_COSTS.IMAGE_GENERATION}/scene cr.</span>
+          <button onClick={generate} disabled={loading || !text.trim()} title={!text.trim() ? "Vul eerst een brontekst in" : mode === "overheid"
+              ? "De overheidsstijl tekent zijn scenes zelf, zonder beeldmodel: alleen het script kost credits."
+              : `Script schrijven is gratis, ${CREDIT_COSTS.IMAGE_GENERATION} credit per scene-beeld. Komen er meerdere personages in voor, dan komt daar ${CREDIT_COSTS.IMAGE_GENERATION} credit bij voor het castblad dat ze in elke scene hetzelfde houdt.`} className="btn-primary text-sm disabled:opacity-50">
+            {loading ? (mode === "overheid" ? "Genereren… (script + scenes)" : "Genereren… (script + beelden)") : "Genereer verhaal"}
+            {/* In de overheidsmodus tekent de app de scenes zelf, dus er is geen
+                beeldmodel en geen tarief per scene. */}
+            <span className="text-white/70 ml-1">
+              {mode === "overheid" ? "· zonder beeldcredits" : `· ${CREDIT_COSTS.IMAGE_GENERATION}/scene cr.`}
+            </span>
           </button>
         </div>
         {err && <p className="text-red-400 text-sm break-words">{err}</p>}
@@ -1289,8 +1341,39 @@ export default function StoryPage() {
 
           <div className="bg-white/5 border border-white/10 rounded-xl p-4">
             <p className="text-xs font-semibold text-white mb-3">Voorvertoning (video)</p>
-            <StoryPlayer spec={spec} navy={navy} accent={accent} fontFamily={fontFamily} logoUrl={logoEnabled ? logoUrl : null} />
+            <StoryPlayer spec={spec} logoUrl={logoEnabled ? logoUrl : null} navy={navy} accent={accent} />
           </div>
+
+          {/* De cast: wie komt er in dit verhaal terug, en hoe ziet die eruit. Het
+              castblad gaat als referentie mee naar elke scene; hem hier tonen maakt
+              zichtbaar wie het model als "dezelfde persoon" beschouwt. */}
+          {(spec.cast?.length ?? 0) > 0 && (
+            <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
+              <p className="text-xs font-semibold text-white">Personages in dit verhaal</p>
+              <div className="flex gap-4 items-start">
+                {spec.castSheetUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={spec.castSheetUrl}
+                    alt="castblad"
+                    className="w-48 rounded-lg border border-white/10 bg-[#f3f1ec] shrink-0"
+                  />
+                )}
+                <ul className="text-xs text-slate-300 space-y-1.5">
+                  {(spec.cast ?? []).map((c) => (
+                    <li key={c.name}>
+                      <span className="text-white font-medium">{c.name}</span>
+                      {c.role ? <span className="text-slate-400"> · {c.role}</span> : null}
+                      <span className="block text-slate-500">{c.appearance}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p className="text-[10px] text-slate-500">
+                Deze mensen horen in elke scene hetzelfde eruit te zien. Klopt er iets niet, dan kun je het per scene in de chat bijsturen.
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-300">Scenes bewerken</h3>
@@ -1304,7 +1387,18 @@ export default function StoryPage() {
           {spec.scenes.map((scene, i) => (
             <div key={scene.id} className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
               <div className="relative rounded-xl overflow-hidden border border-white/10 bg-[#f3f1ec]" style={{ aspectRatio: aspect }}>
-                {scene.videoUrl ? (
+                {scene.layout ? (
+                  <OverheidSceneView
+                    layout={scene.layout}
+                    format={spec.format}
+                    t={99}
+                    duur={scene.voiceDuration ?? 6}
+                    voiceover={scene.voiceover}
+                    navy={navy}
+                    accent={accent}
+                    logoUrl={logoEnabled ? logoUrl : null}
+                  />
+                ) : scene.videoUrl ? (
                   <video src={scene.videoUrl} autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover" />
                 ) : scene.imageUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -1312,7 +1406,7 @@ export default function StoryPage() {
                 ) : (
                   <div className="absolute inset-0 grid place-items-center text-slate-400 text-xs">geen illustratie</div>
                 )}
-                <EditableStoryScene scene={scene} format={spec.format} navy={navy} accent={accent} fontFamily={fontFamily} logoUrl={logoEnabled ? logoUrl : null} onChange={(patch) => updateScene(i, patch)} />
+                <SceneOverlay format={spec.format} logoUrl={logoEnabled ? logoUrl : null} />
                 {spec.format === "9:16" && showSafeZone && (
                   <div className="absolute inset-0 z-20 pointer-events-none">
                     <div className="absolute inset-x-0 top-0 h-[10%] bg-red-500/10 border-b border-dashed border-red-400/50" />
@@ -1333,19 +1427,7 @@ export default function StoryPage() {
                     <button onClick={() => duplicateScene(i)} title="Scene dupliceren" className="px-1.5 hover:text-white">⧉</button>
                     <button onClick={() => addScene(i)} title="Nieuwe scene hieronder" className="px-1.5 hover:text-white">＋</button>
                     <button onClick={() => deleteScene(i)} disabled={spec.scenes.length <= 1} title="Scene verwijderen" className="px-1.5 hover:text-red-300 disabled:opacity-30">🗑</button>
-                    <button
-                      onClick={() => updateScene(i, { hx: undefined, hy: undefined, hSize: undefined, nx: undefined, ny: undefined, nSize: undefined })}
-                      className="text-[10px] text-slate-500 hover:text-slate-300 ml-1"
-                    >
-                      reset positie
-                    </button>
                   </div>
-                </div>
-                <SceneField label="Kop (in beeld)" value={scene.headline ?? ""} onChange={(v) => updateScene(i, { headline: v || null })} />
-                <SceneField label="Accentwoord" value={scene.emphasis ?? ""} onChange={(v) => updateScene(i, { emphasis: v || null })} />
-                <div className="grid grid-cols-2 gap-2">
-                  <SceneField label="Groot getal" value={scene.bigNumber ?? ""} onChange={(v) => updateScene(i, { bigNumber: v || null })} />
-                  <SceneField label="Label bij getal" value={scene.numberLabel ?? ""} onChange={(v) => updateScene(i, { numberLabel: v || null })} />
                 </div>
                 <label className="block">
                   <span className="block text-[11px] text-slate-400 mb-0.5">Voice-over</span>
@@ -1355,44 +1437,39 @@ export default function StoryPage() {
 
                 <div className="pt-2 mt-1 border-t border-white/10 space-y-2">
                   <p className="text-[11px] uppercase tracking-wide text-slate-500">Beeld</p>
-                  <label className="block">
-                    <span className="block text-[11px] text-slate-400 mb-0.5">Illustratie-briefing (Engels)</span>
-                    <textarea value={scene.illustration} onChange={(e) => updateScene(i, { illustration: e.target.value })} rows={3} className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-slate-200" />
-                  </label>
-                  <button
-                    onClick={() => sceneImage(i, { mode: "generate", illustration: scene.illustration, referencePhotoUrl: sceneRef[scene.id], brandColors: brandColorsPayload() })}
-                    disabled={imgBusy[scene.id]}
-                    title={`Kost ${CREDIT_COSTS.IMAGE_GENERATION} credit`}
-                    className="text-xs bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md disabled:opacity-50 w-full"
-                  >
-                    Regenereer beeld <span className="text-slate-400">· {creditLabel(CREDIT_COSTS.IMAGE_GENERATION)}</span>
-                  </button>
-                  <label className={`block text-xs px-3 py-1.5 rounded-md text-center cursor-pointer ${sceneRef[scene.id] ? "bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20" : "bg-white/10 hover:bg-white/15 text-white"} ${imgBusy[scene.id] ? "opacity-50 pointer-events-none" : ""}`}>
-                    {sceneRef[scene.id] ? "✓ Referentiefoto · vervangen" : "📷 Referentiefoto (echt product/logo)"}
-                    <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadSceneRef(i, f); e.target.value = ""; }} />
-                  </label>
-                  {(imgHistory[scene.id]?.length ?? 0) > 0 && (
-                    <button onClick={() => revertImage(i)} title="Zet het vorige beeld terug" className="text-[11px] text-slate-400 hover:text-white underline">
-                      ↩ vorige versie terugzetten
-                    </button>
+                  {/* Wat er aan tekst in dit beeld hoort te staan. Zichtbaar maken
+                      scheelt zoeken: zie je in het beeld een ander of fout woord,
+                      dan is de spellingcontrole eroverheen gegaan en kun je het
+                      via de chat rechtzetten. */}
+                  {(scene.labels?.length ?? 0) > 0 && (
+                    <p className="text-[10px] text-slate-400">
+                      Tekst in beeld:{" "}
+                      {(scene.labels ?? []).map((l, li) => (
+                        <span key={li} className="text-slate-200">
+                          {li > 0 ? " · " : ""}{l}
+                        </span>
+                      ))}
+                    </p>
                   )}
-                  <label className="block">
-                    <span className="block text-[11px] text-slate-400 mb-0.5">Of pas iets aan in dit beeld</span>
-                    <input
-                      value={editInstr[scene.id] ?? ""}
-                      onChange={(e) => setEditInstr((m) => ({ ...m, [scene.id]: e.target.value }))}
-                      placeholder="bijv. verwijder het prijskaartje"
-                      className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white"
-                    />
-                  </label>
-                  <button
-                    onClick={() => sceneImage(i, { mode: "edit", sourceImageUrl: scene.imageUrl, instruction: editInstr[scene.id] ?? "", illustration: scene.illustration })}
-                    disabled={imgBusy[scene.id] || !scene.imageUrl || !(editInstr[scene.id] ?? "").trim()}
-                    title={`Kost ${CREDIT_COSTS.IMAGE_GENERATION} credit`}
-                    className="text-xs bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md disabled:opacity-50 w-full"
-                  >
-                    Pas beeld aan <span className="text-slate-400">· {creditLabel(CREDIT_COSTS.IMAGE_GENERATION)}</span>
-                  </button>
+                  <SceneChat
+                    messages={scene.chat ?? []}
+                    busy={!!imgBusy[scene.id]}
+                    creditLabel={creditLabel(CREDIT_COSTS.IMAGE_GENERATION)}
+                    gratis={!!scene.layout}
+                    onSend={(text, file) => sendSceneChat(i, text, file)}
+                    onRevert={(msg) => revertSceneChat(i, msg)}
+                  />
+                  {scene.layout ? (
+                    // Een zelfgetekende scene beweegt al uit zichzelf: elementen
+                    // schuiven in op het moment dat de voice-over ze noemt. Hem
+                    // door Seedance halen zou precies de glitches terugbrengen
+                    // waarvoor deze modus bestaat.
+                    <p className="text-[10px] text-slate-500">
+                      Deze scene wordt door de app zelf getekend en beweegt mee met de voice-over: elk element verschijnt op het
+                      moment dat het genoemd wordt. Geen AI-animatie, dus geen vervormingen — en de tekst blijft haarscherp.
+                    </p>
+                  ) : (
+                    <>
                   <label className="block">
                     <span className="block text-[11px] text-slate-400 mb-0.5">Beweging bijsturen (optioneel)</span>
                     <input
@@ -1420,6 +1497,8 @@ export default function StoryPage() {
                     <p className="text-[10px] text-emerald-300/90">{motionNote[scene.id]}</p>
                   )}
                   <p className="text-[10px] text-slate-500">Vuistregel: het model voegt niks toe wat niet in het beeld staat, het maakt alleen het bestaande bewegend. Een kritisch oog vergelijkt elke poging met het bronbeeld; komt er iets bij (bijv. een hand), dan wordt die poging nooit getoond en volgt automatisch (gratis) een nieuwe, voorzichtiger poging. Ook beelden met tekst worden geanimeerd; verandert de tekst ook maar iets, dan wordt die poging afgekeurd.</p>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

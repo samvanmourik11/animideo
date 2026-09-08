@@ -61,6 +61,7 @@ export async function critiqueMotion(opts: {
   title?: string | null;
   plan?: string | null; // vooraf bepaalde beweging waartegen we toetsen
   sourceImageUrl?: string | null; // het originele stilstaande beeld (referentie)
+  mode?: "story" | "report" | "overheid";
 }): Promise<MotionVerdict> {
   // Kan er niet beoordeeld worden, dan niet blokkeren — maar ook niet als
   // "perfect" tellen, anders wint een ONgecontroleerde poging het van een
@@ -97,8 +98,10 @@ Beoordeel STRENG. Keur AF (ok=false) bij één van deze:
 - glitches/AI-fouten: vervormde/morphende lichamen, gezichten of objecten; extra, verdwijnende of verdubbelde ledematen; onnatuurlijk verspringen;
 - TEKST, cijfers, labels of logo's in het beeld die veranderen: vervormen, vervagen, verspringen, andere letters krijgen of onleesbaar worden. Tekst moet exact identiek en haarscherp blijven;
 - NIEUWE elementen die niet in het ${opts.sourceImageUrl ? "bronbeeld" : "eerste frame"} staan: objecten, planten, tekst, extra personen, en in het bijzonder een hand, vinger, arm of ander lichaamsdeel dat in beeld komt of iets vastpakt;
-- iets dat vanaf een rand het beeld IN komt;
-- personen of objecten die (deels) UIT BEELD bewegen of naar de rand schuiven;
+${opts.mode === "overheid"
+  ? `- LET OP: in deze motion-graphics stijl mogen BESTAANDE elementen wél in- en uitschuiven, groeien of langs een baan bewegen. Dat is geen fout. Keur alleen af als er iets verschijnt dat niet in het bronbeeld stond, of als een element van vorm verandert, vervormt of morpht;`
+  : `- iets dat vanaf een rand het beeld IN komt;
+- personen of objecten die (deels) UIT BEELD bewegen of naar de rand schuiven;`}
 ${opts.plan
   ? `- ELKE afwijking van de vooraf bepaalde beweging: iets beweegt dat stil had moeten blijven, of de beweging is groter/anders/heftiger dan bepaald.`
   : `- overdreven of onnatuurlijke beweging die niet bij de scène past.`}
@@ -107,7 +110,7 @@ Keur alleen GOED (ok=true) als de clip ${opts.plan ? "PRECIES de vooraf bepaalde
 
 Geef ook een kwaliteits-SCORE van 0 tot 10 (10 = precies de bepaalde beweging, subtiel en volledig glitch-vrij; 0 = ernstige glitches/vervorming of duidelijk fout). Zo kan de beste van meerdere pogingen gekozen worden.
 
-Zet "addedElements" op true zodra er ook maar iets in beeld verschijnt dat niet in het ${opts.sourceImageUrl ? "bronbeeld" : "eerste frame"} staat — een hand/vinger/arm, een extra persoon, een object, decor of tekst. Bij twijfel: true.
+Zet "addedElements" op true zodra er ook maar iets in beeld verschijnt dat niet in het ${opts.sourceImageUrl ? "bronbeeld" : "eerste frame"} staat${opts.mode === "overheid" ? " (een bestaand element dat inschuift telt NIET als toegevoegd)" : ""} — een hand/vinger/arm, een extra persoon, een object, decor of tekst. Bij twijfel: true.
 
 Antwoord met JSON: {"ok": boolean, "score": <0-10>, "addedElements": boolean, "reason": "<korte reden in het Nederlands>", "betterSteer": "<kortere, nóg voorzichtiger NL-bijsturing die dichter bij de bepaalde beweging blijft, of null als ok=true>"}.`;
 

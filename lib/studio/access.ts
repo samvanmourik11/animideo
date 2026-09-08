@@ -19,3 +19,20 @@ export function canUseStudio(email: string | null | undefined): boolean {
   if (STUDIO_OPEN_TO_ALL) return true;
   return !!email && STUDIO_ALLOWED.has(email.toLowerCase());
 }
+
+/**
+ * Interne accounts die ook de tools mogen zien die nog niet af zijn.
+ *
+ * Bewust los van canUseStudio: die kan met STUDIO_OPEN_TO_ALL in één klap voor
+ * iedereen open, en dan zou een half afgebouwde tool ongewild meeliften. Nu in
+ * gebruik voor de Overheidsstijl in de storytelling-tool: die tekent zijn scenes
+ * zelf uit een assetbibliotheek, en die bibliotheek is nog te klein om klanten
+ * mee te laten werken.
+ */
+export const ADMIN_ACCOUNTS = new Set<string>([
+  "sam@jouwanimatievideo.nl",
+]);
+
+export function isAdminAccount(email: string | null | undefined): boolean {
+  return !!email && ADMIN_ACCOUNTS.has(email.toLowerCase());
+}

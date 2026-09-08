@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { imageUrl, steer, prompt, voiceover, illustration, title } = (await req.json()) as {
+    const { imageUrl, steer, prompt, voiceover, illustration, title, mode } = (await req.json()) as {
       imageUrl?: string;
       steer?: string;
       prompt?: string;
@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
       voiceover?: string;
       illustration?: string;
       title?: string;
+      // Beeldmodus van het verhaal: "overheid" beweegt als motion graphics.
+      mode?: "story" | "report" | "overheid";
     };
     if (!imageUrl) return NextResponse.json({ error: "Geen beeld" }, { status: 400 });
 
@@ -62,7 +64,7 @@ export async function POST(req: NextRequest) {
 
     // Eén animatie-poging: submit + poll → tijdelijke video-URL (of null).
     async function generateClip(steerText: string | undefined): Promise<string | null> {
-      const safePrompt = buildMotionPrompt(steerText);
+      const safePrompt = buildMotionPrompt(steerText, mode);
       const { request_id } = await fal.queue.submit(SEEDANCE_LITE, {
         input: { image_url: imageUrl, prompt: safePrompt, duration: "5", resolution: "720p", camera_fixed: true } as never,
       });
@@ -78,7 +80,7 @@ export async function POST(req: NextRequest) {
     }
 
     // VOORAF: bepaal exact de (minimale) beweging voor deze specifieke scène.
-    const plan = await planMotion({ imageUrl, voiceover, illustration, title, steer: steer ?? prompt });
+    const plan = await planMotion({ imageUrl, voiceover, illustration, title, steer: steer ?? prompt, mode });
     let currentSteer = plan ?? steer ?? prompt;
     // "Schoon" = het kritische oog zag niets in beeld verschijnen dat niet in het
     // bronbeeld stond. Alleen zulke pogingen mogen getoond worden.
@@ -100,13 +102,15 @@ export async function POST(req: NextRequest) {
 
       // Kritisch oog: toets STRENG tegen het plan (en het bronbeeld) én geef een score.
       const frames = await extractFrames(tempUrl, 4);
-      const verdict = await critiqueMotion({ frames, voiceover, illustration, title, plan, sourceImageUrl: imageUrl });
+      const verdict = await critiqueMotion({ frames, voiceover, illustration, title, plan, sourceImageUrl: imageUrl, mode });
       lastReason = verdict.reason;
       if (verdict.addedElements) {
         // Harde veto: er kwam iets bij (hand, persoon, object). Deze clip komt
         // NOOIT in beeld, ook niet als "beste poging".
         sawAddedElements = true;
-        currentSteer = `${verdict.betterSteer || currentSteer} Absolutely nothing new may appear: no hand, finger, arm, person or object that is not already in the source image, and nothing enters the frame from any edge. If in doubt, keep the image almost completely still.`;
+        currentSteer = mode === "overheid"
+          ? `${verdict.betterSteer || currentSteer} Absolutely nothing new may appear: every shape, icon and word in the animation must already exist in the source image. Existing elements may slide or grow, but nothing is added and nothing changes shape.`
+          : `${verdict.betterSteer || currentSteer} Absolutely nothing new may appear: no hand, finger, arm, person or object that is not already in the source image, and nothing enters the frame from any edge. If in doubt, keep the image almost completely still.`;
         continue;
       }
       // Onthoud de BESTE schone poging tot nu toe (op score).
