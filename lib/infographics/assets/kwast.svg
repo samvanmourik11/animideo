@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Rechtopstaande kwast: steel, metalen band, haren, en een klodder verf. -->
+  <rect fill="#ff8800" x="42" y="6" width="16" height="46" rx="8"/>
+  <rect fill="#eeeeee" x="39" y="50" width="22" height="12" rx="3"/>
+  <path fill="#ff00ff" d="M39 62 L61 62 L57 84 a12 12 0 0 1 -16 0 Z"/>
+  <ellipse fill="#00ffff" cx="50" cy="92" rx="18" ry="6"/>
+</svg>

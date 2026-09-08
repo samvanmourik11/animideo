@@ -6,21 +6,18 @@ import { storyCanvasSize } from "@/lib/infographics/canvas-size";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 
 // Headless render-doel voor de MP4-export. Twee modi:
-// - default: één scene (illustratie + tekst) statisch, voor stills.
-// - ?textonly=1: ALLEEN de tekst-overlay op transparante achtergrond, zodat de
-//   export die laag over de (bewegende) video of het beeld kan leggen.
+// - default: één scene (illustratie + logo) statisch, voor stills.
+// - ?textonly=1: ALLEEN de overlay op transparante achtergrond, zodat de export
+//   die laag over de (bewegende) video of het beeld kan leggen. Die overlay is
+//   sinds het vervallen van de koppen nog enkel het merklogo.
 // Playwright zet per scene window.__storySetScene(i) en maakt een screenshot.
 export default function StoryVideoRender() {
   const [spec, setSpec] = useState<StorySpec | null>(null);
-  const [navy, setNavy] = useState("#16243f");
-  const [accent, setAccent] = useState("#e8643c");
   const [idx, setIdx] = useState(0);
   const [textOnly, setTextOnly] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setNavy(params.get("navy") || "#16243f");
-    setAccent(params.get("accent") || "#e8643c");
     const to = params.get("textonly") === "1";
     setTextOnly(to);
     if (to) {
@@ -57,7 +54,7 @@ export default function StoryVideoRender() {
         // eslint-disable-next-line @next/next/no-img-element
         <img src={scene.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       )}
-      {scene && <StoryScene scene={scene} format={spec.format} navy={navy} accent={accent} enter={1} />}
+      {scene && <StoryScene format={spec.format} logoUrl={spec.logoEnabled ? spec.logoUrl : null} enter={1} />}
     </div>
   );
 }

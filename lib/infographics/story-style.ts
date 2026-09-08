@@ -16,11 +16,58 @@ export const STYLE_FRAMING =
   "The corners and all empty areas are clean and bare, containing nothing at all. The air is empty and clear. " +
   "Show ONLY the objects and people described in the scene, on this plain background, and nothing else.";
 
+// De tekstregel apart, want die geldt ALTIJD — ook in een beeld dat juist een
+// volle omgeving moet hebben. Verzonnen letterbrij op een bord of scherm is in
+// elk soort beeld fout.
+export const TEKST_NEGATIEF =
+  "Avoid text, letters, words, numbers and labels wherever possible — no captions or decorative writing on signs, screens, phones, price tags, bills, buttons, charts or packaging. ";
+
 export const STYLE_NEGATIVE =
   " No smoke, no steam, no vapor, no mist, no fog, no rising wisps, no clouds, no sky. " +
   "No plants, no leaves, no branches, no foliage, no flowers in the corners or background. " +
   "No sparkles, no floating shapes, no decorative background props or clutter. " +
-  "Avoid text, letters, words, numbers and labels wherever possible — no captions or decorative writing on signs, screens, phones, price tags, bills, buttons, charts or packaging. ";
+  TEKST_NEGATIEF;
+
+// ---------------------------------------------------------------------------
+// DRIE SOORTEN BEELD
+//
+// STYLE_FRAMING hierboven was het kader van de infographic-tool: een egaal wit
+// vlak met alleen het onderwerp erop. Dat bleek in de praktijk overal fout —
+// zowel in de storytelling-infographic (uitgeknipte poppetjes zonder plek) als in
+// de DIALOOGmodus. Daar staan twee mensen een gesprek te voeren op een
+// plek die het draaiboek beschrijft — oma's woonkamer, een markt in Suriname —
+// en die plek werd stelselmatig weggepoetst tot een wit vlak, inclusief het
+// verbod op lucht, wolken en planten. Je zag mensen zweven in het niets.
+//
+// Vandaar STYLE_OMGEVING: de plek wordt volledig getekend, van rand tot rand.
+// En daar bovenop STYLE_VERHAAL_COMPOSITIE voor de storytelling-infographic,
+// waar de omgeving ook nog eens de drager is van de typografie eroverheen.
+// STYLE_FRAMING blijft alleen over voor het castblad (één personage, geen plek).
+// ---------------------------------------------------------------------------
+
+export const STYLE_OMGEVING =
+  " The described location is fully drawn as a real, believable environment that fills the entire frame " +
+  "from edge to edge: floor or ground, walls or horizon, background depth, and the furniture, objects and " +
+  "surroundings that belong in such a place. NEVER an empty white, off-white or plain flat background — " +
+  "the people are standing INSIDE this place, not floating in front of a blank backdrop. Light and colours " +
+  "match the location and the time of day. Keep the environment tidy and readable: enough to recognise the " +
+  "place instantly, without cluttering it. " +
+  "No sparkles, no glitter, no floating icons or symbols hanging in the air, no decorative props that do not " +
+  "belong in this place. " +
+  TEKST_NEGATIEF;
+
+// Extra compositieregels voor de storytelling-infographic. Daar is het beeld geen
+// losse illustratie maar een compleet videoframe: het vult het scherm en er ligt
+// alleen nog een klein merklogo rechtsboven overheen (koppen en grote getallen
+// zijn vervallen). Vandaar de eis van een echte establishing shot met diepte, en
+// een rustige rechterbovenhoek voor dat logo.
+export const STYLE_VERHAAL_COMPOSITIE =
+  " Compose this as a wide establishing shot of that place, with clear depth: a foreground, a middle ground " +
+  "and a background that runs all the way to the top edge of the frame (sky, horizon, wall or far scenery). " +
+  "This image fills a whole video frame, so let it read from edge to edge and keep the main subject in the " +
+  "centre or the lower half. A small brand logo is placed in the top-right corner afterwards: keep that corner " +
+  "calm, open and light in tone, with no busy detail or dark masses there. Use a muted, natural, harmonious " +
+  "colour palette with soft flat shapes. ";
 
 // Taalregel voor eventuele tekst in het beeld. Beeldmodellen negeren "geen tekst"
 // vaak en vullen dan Engelse labels in. Daarom: als er tóch tekst nodig/aanwezig
@@ -101,8 +148,98 @@ function langTextRule(language?: string | null): string {
     `Any and all text in the image MUST be in ${l} — never another language, and never garbled, made-up or misspelled words.`;
 }
 
-export function buildIllustrationPrompt(brief: string, styleId?: string | null, language?: string | null): string {
-  return `${storyStylePreamble(styleId)}Scene: ${brief.trim()}.${STYLE_FRAMING}${STYLE_NEGATIVE}${langTextRule(language)}`;
+// ---------------------------------------------------------------------------
+// OVERHEIDSSTIJL — de derde modus.
+//
+// Dit is geen vijfde tekenstijl maar een andere soort animatie. De vier presets
+// hierboven bepalen HOE er getekend wordt (vector, marker, papier, 3D); deze
+// modus bepaalt WAT er in beeld staat. Naar het voorbeeld van de Rijksoverheid-
+// explainers: geen scènes en geen omgevingen, maar diagrammen — objecten,
+// iconen en vlakke uitgeknipte mensen op een egaal lichtgrijs vlak, vaak binnen
+// witte panelen. Vandaar dat hij de kaderkeuze "overheid" krijgt in plaats van
+// "verhaal": die twee spreken elkaar tegen (rand-tot-rand omgeving vs. leeg vlak).
+// ---------------------------------------------------------------------------
+
+/** Tekenstijl van de overheidsmodus. Vervangt de gekozen preset volledig. */
+export const OVERHEID_PREAMBLE =
+  "Flat vector motion-graphics illustration in the style of a modern Dutch government explainer video. " +
+  "Completely flat geometric shapes with no outlines, no gradients, no shading and no texture: every element is a " +
+  "solid colour shape. Clean, calm and diagrammatic. ";
+
+/** Kader van de overheidsmodus: een diagram op een leeg vlak, geen plek. */
+export const OVERHEID_FRAMING =
+  " COMPOSITION — this is a diagram, not a scene. The background is one single flat, very light grey surface, " +
+  "completely plain and empty: no room, no street, no landscape, no horizon and no floor. Arrange the elements as a " +
+  "clear graphic composition on that surface, using simple white geometric panels where it helps: rounded rectangles " +
+  "as cards, a row or grid of equal panels, or one large white arch/dome shape behind the subject. Keep the layout " +
+  "symmetrical and generously spaced, with plenty of empty light grey around it. " +
+  "PEOPLE — any people are flat cut-out figures standing directly on the empty background with nothing underneath " +
+  "them; simple faces, no outlines. Often only hands and forearms reach into the frame from the edge to hold or point " +
+  "at something. Never place people inside a drawn location. " +
+  "OBJECTS — draw concrete objects and icons at a large size (a briefcase, a stack of coins, a building, a document), " +
+  "and show relationships graphically: a chain of coins as a flowing ribbon, a stack splitting in two, arrows and " +
+  "flows between panels. " +
+  "COLOUR — a small flat palette: a deep navy blue, a bright blue, a warm amber yellow, with soft mint green and pink " +
+  "as accents, on the light grey background. No other colours. ";
+
+/**
+ * Welk kader het beeld krijgt:
+ * - "vlak": alleen het onderwerp op een egaal off-white vlak (castblad/model sheet).
+ * - "omgeving": de plek is volledig getekend en vult het frame (dialoogmodus).
+ * - "verhaal": als "omgeving", plus de compositieregels voor een videoframe waar
+ *   later typografie overheen komt (storytelling-infographic).
+ * - "overheid": diagram op een leeg lichtgrijs vlak, zonder omgeving — de
+ *   overheidsmodus. Dit kader bepaalt óók de tekenstijl en negeert de preset.
+ */
+export type BeeldKader = "vlak" | "omgeving" | "verhaal" | "overheid";
+
+/**
+ * Tekstregel voor een beeld dat WEL tekst mag bevatten.
+ *
+ * Beeldmodellen verzinnen uit zichzelf letterbrij, dus we verbieden tekst
+ * standaard. Maar korte labels maken een uitleganimatie juist duidelijker (de
+ * categorie bij een stapel, de naam bij een gebouw). De oplossing is niet
+ * "tekst mag", maar: precies deze woorden, letterlijk zo gespeld, en verder niets.
+ * Wat er daarna echt op het beeld staat, wordt nog een keer gecontroleerd —
+ * zie lib/infographics/tekst-controle.ts.
+ */
+export function labelGuidance(labels?: string[] | null): string {
+  const woorden = (labels ?? []).map((l) => l.trim()).filter(Boolean).slice(0, 3);
+  if (woorden.length === 0) return "";
+  const lijst = woorden.map((w) => `"${w}"`).join(", ");
+  return (
+    ` TEXT — this image contains text, and these are the ONLY words allowed in it: ${lijst}. ` +
+    `Spell each one exactly as written here, character for character, including any accents or capitals. ` +
+    `Set them in a clean, plain sans-serif at a size that is comfortably readable, placed beside or under the DRAWN ` +
+    `element they belong to, with enough contrast against the background. Each label accompanies a picture and never ` +
+    `replaces one: never put a word in an otherwise empty box or panel, and never let text be the main element of the ` +
+    `image. Do not translate them, do not abbreviate them, do not ` +
+    `pluralise them and do not add a single other word, letter, number, caption, heading or watermark anywhere in the image.`
+  );
+}
+
+export function buildIllustrationPrompt(
+  brief: string,
+  styleId?: string | null,
+  language?: string | null,
+  kaderKeuze: BeeldKader = "vlak",
+  /** Exacte woorden die in beeld mogen staan. Leeg = beeld blijft tekstvrij. */
+  labels?: string[] | null
+): string {
+  const tekstRegel = (labels ?? []).filter((l) => l?.trim()).length > 0
+    ? labelGuidance(labels)
+    : null;
+  // De overheidsmodus is een andere soort animatie, geen variant op de presets:
+  // die worden hier dus bewust genegeerd, anders vecht "papercut" of "soft 3D"
+  // met de vlakke diagramstijl.
+  if (kaderKeuze === "overheid") {
+    return `${OVERHEID_PREAMBLE}Subject: ${brief.trim()}.${OVERHEID_FRAMING}${tekstRegel ?? `${TEKST_NEGATIEF}${langTextRule(language)}`}`;
+  }
+  const kader =
+    kaderKeuze === "verhaal" ? `${STYLE_OMGEVING}${STYLE_VERHAAL_COMPOSITIE}`
+    : kaderKeuze === "omgeving" ? STYLE_OMGEVING
+    : `${STYLE_FRAMING}${STYLE_NEGATIVE}`;
+  return `${storyStylePreamble(styleId)}Scene: ${brief.trim()}.${kader}${tekstRegel ?? langTextRule(language)}`;
 }
 
 // Referentiefoto per scène (verbeterplan-feature): het échte product/logo/object dat
@@ -157,12 +294,91 @@ export function brandPaletteHint(primary?: string | null, accent?: string | null
 // de personen of de compositie. Anders kloont het model dezelfde figuur in elke
 // scene (alle poppetjes identiek). Elke scene houdt dus zijn eigen, verschillende
 // mensen/onderwerp; alleen de stijl blijft gelijk.
+/**
+ * Het stijlanker (scene 1) als referentie voor de overige scenes.
+ *
+ * Deze tekst verbood eerst uitdrukkelijk om personen over te nemen: "draw new and
+ * distinct individuals ... never clone the same person across scenes". Dat was
+ * bedoeld tegen beelden waarin élk poppetje dezelfde man was, maar het maakte de
+ * hoofdpersoon óók onherkenbaar: de taxateur uit scene 1 was in scene 4 een
+ * andere man, en de kijker kon niet meer volgen wie wie was.
+ *
+ * Het onderscheid dat wél klopt is niet "wel/niet dezelfde persoon", maar of
+ * iemand tot de CAST hoort. Castleden blijven exact gelijk; figuranten variëren.
+ */
 export const STYLE_MATCH_ANCHOR =
-  " A style-reference image from the same video is provided. Copy ONLY its visual STYLE: the flat vector art style, colour palette, " +
+  " A style-reference image from an earlier scene of this same video is provided. Copy its visual STYLE exactly: the art style, colour palette, " +
   "line weight, shapes, level of detail and the general way characters are drawn (proportions, simplicity, shading). " +
-  "Do NOT copy or reproduce the specific people, faces, hair, clothing, poses, objects or composition from the reference — " +
-  "THIS scene has its own, DIFFERENT subjects, people and layout exactly as described above. Where the scene needs people, " +
-  "draw new and distinct individuals (varied faces, ages, clothing) in that same art style; never clone the same person across scenes.";
+  "Do NOT copy its composition, location, poses or objects — THIS scene has its own layout and subject as described above. " +
+  "People: anyone belonging to the recurring cast described in this prompt must look EXACTLY the same as in the reference " +
+  "(same face, hair, build, clothing and colours) — they are literally the same person in a later moment of the same story. " +
+  "Other, unnamed background people are new and distinct individuals (varied faces, ages and clothing) in that same art style.";
+
+/**
+ * De vaste cast, woordelijk in elke beeld-prompt.
+ *
+ * `namesInScene` bepaalt wie er in DEZE scene voorkomt. De rest van de cast
+ * noemen we niet: dan tekent het model ze er prompt bij.
+ */
+export function castGuidance(cast?: StoryCastMemberLike[] | null, namesInScene?: string[] | null): string {
+  const leden = (cast ?? []).filter((c) => c?.name?.trim() && c?.appearance?.trim());
+  if (leden.length === 0) return "";
+  const namen = (namesInScene ?? []).map((n) => n.trim().toLowerCase()).filter(Boolean);
+  // Geen opgave van wie er in beeld is? Dan de hele cast meegeven: te veel
+  // beschrijving is minder erg dan een hoofdpersoon die van gezicht wisselt.
+  const inBeeld = namen.length ? leden.filter((c) => namen.includes(c.name.trim().toLowerCase())) : leden;
+  if (inBeeld.length === 0) return "";
+  const lijst = inBeeld
+    .map((c) => `${c.name.trim().toUpperCase()} — ${c.role.trim() ? `${c.role.trim()}; ` : ""}${c.appearance.trim()}`)
+    .join(" | ");
+  return (
+    ` RECURRING CAST — these people appear in several scenes of this video and MUST be drawn identically every time, ` +
+    `as the same person in a different moment: ${lijst}. ` +
+    `Match each one's face, hair, build, clothing and colours exactly as described; never re-age them, never change their ` +
+    `outfit or hair colour, and never swap their roles. Any other people in the scene are extras and must look clearly ` +
+    `different from the cast, so the viewer can always tell who is who.`
+  );
+}
+
+/** Minimale vorm van een castlid (zie StoryCastMember in story-schema). */
+export interface StoryCastMemberLike {
+  name: string;
+  role: string;
+  appearance: string;
+}
+
+/**
+ * Het castblad als referentiebeeld bij een scene.
+ *
+ * Dezelfde ingreep als in de dialoogmodus: een tekstbeschrijving houdt kleding en
+ * kleur wel vast, maar een gezicht en de onderlinge lengte niet. Één blad waarop
+ * iedereen naast elkaar staat, doet dat wel.
+ */
+export const CAST_SHEET_GUIDANCE =
+  " One of the reference images is a CHARACTER LINE-UP SHEET showing every recurring character of this video standing " +
+  "side by side, full body, against a plain background. That sheet defines what these people look like and how tall they " +
+  "are relative to each other. Draw the cast members in this scene exactly as they appear on that sheet: same faces, hair, " +
+  "clothing, colours, body build and the same height differences. Do not restyle or re-age anyone, and do not copy the " +
+  "line-up pose or its plain background — this scene has its own location and action.";
+
+/**
+ * Briefing voor het castblad zelf: iedereen ten voeten uit, naast elkaar.
+ * Bewust op een egaal vlak (kader "vlak"), want dit blad is een referentie en
+ * geen scène uit de video.
+ */
+export function buildCastSheetBrief(cast: StoryCastMemberLike[]): string {
+  const wie = cast
+    .map((c, i) => `${i + 1}. ${c.name.trim()}${c.role.trim() ? ` (${c.role.trim()})` : ""} — ${c.appearance.trim()}`)
+    .join(" ");
+  return (
+    `A character line-up sheet for an animated explainer video: ${cast.length} character${cast.length === 1 ? "" : "s"} ` +
+    `standing side by side in a row, facing the viewer. From left to right: ${wie} ` +
+    `Each character is shown FULL BODY from head to feet, standing upright on the same ground line, arms relaxed at their ` +
+    `sides, with a neutral friendly expression. Draw them at the same scale as if photographed together, so their relative ` +
+    `heights match their described age and build. Even spacing, nobody overlapping, everyone fully visible. ` +
+    `No text, no names, no labels anywhere in the image.`
+  );
+}
 
 // Pad naar het ingebakken voorbeeldbeeld van een tekenstijl. Vooraf gegenereerd
 // in public/style-previews/<id>.jpg — net als de voice-previews kost bekijken dus
