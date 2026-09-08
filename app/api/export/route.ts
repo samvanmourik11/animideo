@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { spawn } from "node:child_process";
-import { mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdir, writeFile, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -24,9 +24,17 @@ const EXPORT_FPS = 30;
 const FONT_PATH = join(process.cwd(), "lib/export/Inter-Bold.ttf");
 
 // Per-plan kwaliteit — exact dezelfde tabel als de oude browser-export had.
+// LET OP bij het aanpassen van `preset`: die bepaalt niet de kwaliteit (dat doet
+// crf) maar wél hoe GROOT de tussenbestanden worden, en daar zit een harde grens.
+// De export draait in een Vercel-functie met ~512 MB schijf, en die was met
+// "ultrafast" al bij vier minuten vol: één scene van 34 seconden werd daarmee
+// 37,5 MB, tegen 4,5 MB met "veryfast" — acht keer zo groot, bij precies dezelfde
+// crf en dus dezelfde beeldkwaliteit. Het verschil in rekentijd is 0,7 seconde per
+// scene. Een klant met een film van 4:02 kreeg hierdoor "No space left on device"
+// op elke computer die ze probeerde.
 const QUALITY = {
-  free:    { width: 1280, height: 720,  crf: "30", preset: "ultrafast" },
-  starter: { width: 1920, height: 1080, crf: "24", preset: "ultrafast" },
+  free:    { width: 1280, height: 720,  crf: "30", preset: "veryfast" },
+  starter: { width: 1920, height: 1080, crf: "24", preset: "veryfast" },
   pro:     { width: 1920, height: 1080, crf: "18", preset: "fast" },
   agency:  { width: 1920, height: 1080, crf: "15", preset: "fast" },
 } as const;
@@ -165,6 +173,22 @@ export async function POST(req: NextRequest) {
         //   videoScenes.length > 1 && videoScenes.slice(0,-1).some(s => (s.transition_out ?? "cut") !== "cut")
         const hasNonCutTransition = false;
 
+        // SCHIJFBEWAKING. De export draait in een Vercel-functie met ~512 MB
+        // schijfruimte, en die liep bij een film van vier minuten vol: ffmpeg viel
+        // om met "No space left on device", middenin het wegschrijven van het
+        // eindbestand. Voor de klant zag dat eruit als een fout op haar eigen
+        // computer — ze probeerde het op meerdere machines.
+        //
+        // We schatten niet vooraf maar METEN onderweg: na elke scene weten we
+        // hoeveel MB per seconde video dit project kost, en dus wat het geheel
+        // gaat worden. De piek is grofweg twee keer de som van de tussenbestanden
+        // (de tussenbestanden zelf plus het eindbestand, dat er een kopie van is).
+        // Past dat niet, dan stoppen we mét uitleg in plaats van met een
+        // ffmpeg-dump aan het eind.
+        const SCHIJF_BUDGET_MB = 400;
+        let getrimdMB = 0;
+        let getrimdeSeconden = 0;
+
         const trimmedPaths: string[] = [];
         for (let i = 0; i < videoScenes.length; i++) {
           const sceneDur = videoScenes[i].duration;
@@ -191,6 +215,25 @@ export async function POST(req: NextRequest) {
             trimmedPath,
           ]);
           trimmedPaths.push(trimmedPath);
+
+          getrimdMB += (await stat(trimmedPath)).size / 1e6;
+          getrimdeSeconden += trimDur;
+          const perSeconde = getrimdMB / Math.max(1, getrimdeSeconden);
+          const verwachtePiek = perSeconde * totalExpectedDuration * 2;
+          if (verwachtePiek > SCHIJF_BUDGET_MB) {
+            const minuten = Math.floor(totalExpectedDuration / 60);
+            throw new Error(
+              `Deze video is te lang om in één keer te exporteren: ${minuten} minuten ` +
+              `beeld heeft ongeveer ${Math.round(verwachtePiek)} MB werkruimte nodig en er is ` +
+              `${SCHIJF_BUDGET_MB} MB beschikbaar. Splits de film in twee kortere delen en ` +
+              `exporteer die apart, of neem contact op met support.`
+            );
+          }
+
+          // De bronclip is nu overbodig en mag van de schijf af. Ze bleven tot het
+          // eind staan en telden bij een film van vier minuten voor ruim 60 MB mee
+          // in een ruimte van 512 MB.
+          await rm(clipPaths[i], { force: true }).catch(() => {});
           emit({ type: "progress", pct: 20 + Math.round(((i + 1) / videoScenes.length) * 30) });
         }
 

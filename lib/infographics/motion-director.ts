@@ -14,6 +14,7 @@ export async function planMotion(opts: {
   illustration?: string | null;
   title?: string | null;
   steer?: string | null;
+  mode?: "story" | "report" | "overheid";
 }): Promise<string | null> {
   const context = [
     opts.title ? `Verhaal: ${opts.title}` : "",
@@ -21,6 +22,22 @@ export async function planMotion(opts: {
     opts.illustration ? `Bedoeld beeld: ${opts.illustration}` : "",
     opts.steer?.trim() ? `Wens van de gebruiker (verwerk, maar houd het minimaal): ${opts.steer.trim()}` : "",
   ].filter(Boolean).join("\n");
+
+  // In de overheidsmodus is "zo min mogelijk bewegen" precies de verkeerde
+  // opdracht: daar draagt de beweging de uitleg. Wat blijft gelden is dat er
+  // niets bij verzonnen wordt en dat tekst niet vervormt.
+  const overheidInstructie = `Je bent een motion-graphics regisseur. Bepaal welke beweging deze vlakke uitleg-illustratie krijgt als korte (5s) animatie.
+
+${context}
+
+HOE JE KIEST:
+- Kies ÉÉN duidelijke, grafische beweging die uitlegt waar deze scène over gaat: een vlak of paneel dat inschuift, een rij items die één voor één verschijnt, een stapel of balk die groeit, een sliert munten die langs zijn baan stroomt, een pijl die van het ene naar het andere element loopt.
+- Beschrijf UITSLUITEND elementen die op dit beeld al volledig zichtbaar zijn. Noem nooit iets wat je niet letterlijk ziet staan — het videomodel tekent alles wat je noemt er anders bij.
+- Bestaande elementen mogen langs hun baan het beeld in of uit bewegen; dat hoort bij deze stijl.
+- Tekst, cijfers en labels bewegen hooguit mee als geheel en blijven daarbij haarscherp en onveranderd: nooit vervormen, morphen of andere letters krijgen.
+- Er komt NIETS bij en niets verandert van vorm; de camera staat vast en de achtergrond blijft stil.
+
+Geef het als één korte, heel concrete ENGELSE zin die precies zegt WAT er beweegt en HOE, en dat al het andere stil blijft. UITSLUITEND die zin, geen uitleg.`;
 
   const instruction = `Je bent een animatie-regisseur. Bepaal VOORAF exact welke beweging deze stilstaande illustratie krijgt als korte (5s) animatie.
 
@@ -44,7 +61,7 @@ Geef het als één korte, heel concrete ENGELSE zin die precies zegt WAT er bewe
         role: "user",
         content: [
           { type: "image_url", image_url: { url: opts.imageUrl, detail: "low" } },
-          { type: "text", text: instruction },
+          { type: "text", text: opts.mode === "overheid" ? overheidInstructie : instruction },
         ],
       }],
     });

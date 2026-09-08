@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
       const result = await generateImageWithStyle({
         // true = met omgeving. Zonder dit kwam elk gesprek op een leeg wit vlak
         // terecht, want het standaardkader van de infographic-tool poetst de plek weg.
-        prompt: buildIllustrationPrompt(brief, styleId, body.language ?? null, true),
+        prompt: buildIllustrationPrompt(brief, styleId, body.language ?? null, "omgeving"),
         format,
         visualStyle: null,
         // Bij een herkansing geen seed: dezelfde seed geeft grofweg hetzelfde

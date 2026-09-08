@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import StoryScene from "./StoryScene";
+import OverheidSceneView from "./OverheidSceneView";
 import { storyLayers, storyWindows, kenBurns } from "@/lib/infographics/story-layout";
 import { storyAspectRatio } from "@/lib/infographics/canvas-size";
 import type { StorySpec } from "@/lib/infographics/story-schema";
@@ -47,8 +48,8 @@ function SceneVideo({ src, duration, playing, playKey }: { src: string; duration
 }
 
 // Speelt het verhaal af als animatievideo: scenes met crossfades, subtiele
-// camerabeweging (Ken Burns) op het beeld, tekst die inanimeert, en één
-// doorlopende voice-over synchroon met de tijdlijn.
+// camerabeweging (Ken Burns) op het beeld en één doorlopende voice-over
+// synchroon met de tijdlijn.
 // Waar het muziekbed staat op tijdstip t. De bibliotheeknummers zijn korter of
 // langer dan de video; korter betekent doorlussen (net als in de export), dus
 // rekenen we modulo de nummerlengte. Zonder dit springt een seek voorbij het
@@ -60,16 +61,15 @@ function muziekTijd(el: HTMLAudioElement, t: number): number {
 
 export default function StoryPlayer({
   spec,
-  navy = "#16243f",
-  accent = "#e8643c",
-  fontFamily,
   logoUrl,
+  navy,
+  accent,
 }: {
   spec: StorySpec;
-  navy?: string;
-  accent?: string;
-  fontFamily?: string | null;
   logoUrl?: string | null;
+  /** Huisstijlkleuren; sturen het palet van de zelfgetekende overheidsscenes. */
+  navy?: string | null;
+  accent?: string | null;
 }) {
   const aspect = storyAspectRatio(spec.format);
   const { total } = storyLayers(spec.scenes, 0);
@@ -135,7 +135,21 @@ export default function StoryPlayer({
           const kb = kenBurns(l.index, l.p);
           return (
             <div key={l.index} className="absolute inset-0" style={{ opacity: l.opacity }}>
-              {scene?.videoUrl ? (
+              {scene?.layout ? (
+                // Overheidsmodus: de scene wordt hier zelf getekend en beweegt op
+                // zijn eigen tijdlijn. Geen Ken Burns — die hoort bij een foto,
+                // niet bij een diagram dat al uit zichzelf beweegt.
+                <OverheidSceneView
+                  layout={scene.layout}
+                  format={spec.format}
+                  t={l.p * (windows[l.index]?.duration ?? 5)}
+                  duur={windows[l.index]?.duration ?? 5}
+                  voiceover={scene.voiceover}
+                  navy={navy}
+                  accent={accent}
+                  logoUrl={logoUrl}
+                />
+              ) : scene?.videoUrl ? (
                 <SceneVideo src={scene.videoUrl} duration={windows[l.index]?.duration ?? 5} playing={playing} playKey={playGen} />
               ) : scene?.imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -146,7 +160,7 @@ export default function StoryPlayer({
                   style={{ transform: `scale(${kb.scale}) translate(${kb.tx}%, ${kb.ty}%)`, transformOrigin: "center" }}
                 />
               ) : null}
-              <StoryScene scene={scene} format={spec.format} navy={navy} accent={accent} fontFamily={fontFamily} logoUrl={logoUrl} enter={l.enter} />
+              {!scene?.layout && <StoryScene format={spec.format} logoUrl={logoUrl} enter={l.enter} />}
             </div>
           );
         })}

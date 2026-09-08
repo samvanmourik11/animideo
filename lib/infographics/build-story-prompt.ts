@@ -4,7 +4,7 @@ export interface BuildStoryPromptArgs {
   topic: string;
   rawText: string;
   format: InfographicFormat;
-  mode: "story" | "report";
+  mode: "story" | "report" | "overheid";
   brand?: { name?: string | null; toneOfVoice?: string | null } | null;
   language?: string;
   // Gewenste videolengte in seconden plus het daaruit afgeleide aantal scenes en
@@ -33,8 +33,7 @@ function sentenceHint(words: number): string {
 
 // Bouwt de prompt voor de storytelling-infographic. De AI is hier geen
 // datavisualisatie-designer maar een VERHAALREGISSEUR: ze schrijft een boog en
-// regisseert per scene een gesproken voice-over, een korte beeldtekst en een
-// illustratie-briefing. Puur (geen side effects) zodat de route dun blijft.
+// regisseert per scene een gesproken voice-over en een illustratie-briefing. Puur (geen side effects) zodat de route dun blijft.
 export function buildStoryPrompt(args: BuildStoryPromptArgs): { system: string; user: string } {
   const lang = args.language || "Nederlands";
   // Vlaams is geen apart taalmodel maar een andere manier van Nederlands
@@ -58,11 +57,11 @@ VLAAMS (BELGISCH-NEDERLANDS) — DIT IS BELANGRIJK:
     : "";
   const keepTerms = (args.keepTerms ?? []).map((t) => t.trim()).filter(Boolean);
   const keepLine = keepTerms.length
-    ? `\n- Laat deze merk-/eigennamen EXACT ongewijzigd (nooit vertalen, verbuigen of fonetisch verbasteren), in zowel de voice-over als de headline: ${keepTerms.map((t) => `"${t}"`).join(", ")}.`
+    ? `\n- Laat deze merk-/eigennamen EXACT ongewijzigd (nooit vertalen, verbuigen of fonetisch verbasteren), in de voice-over: ${keepTerms.map((t) => `"${t}"`).join(", ")}.`
     : "";
   const avoidTerms = (args.avoidTerms ?? []).map((t) => t.trim()).filter(Boolean);
   const avoidLine = avoidTerms.length
-    ? `\n- Noem deze namen/merken NERGENS (niet in de voice-over, niet in de headline): ${avoidTerms.map((t) => `"${t}"`).join(", ")}. Verwijs er hooguit omschrijvend naar (bijv. "een bedrijf in deze sector").`
+    ? `\n- Noem deze namen/merken NERGENS (niet in de voice-over, nergens): ${avoidTerms.map((t) => `"${t}"`).join(", ")}. Verwijs er hooguit omschrijvend naar (bijv. "een bedrijf in deze sector").`
     : "";
   const toneLine =
     args.tone === "speels" ? "\n- TOON: luchtig, speels en toegankelijk — vlot, met een glimlach, maar nog steeds helder."
@@ -74,7 +73,9 @@ VLAAMS (BELGISCH-NEDERLANDS) — DIT IS BELANGRIJK:
 
   const modeLine =
     args.mode === "report"
-      ? "MODUS: RAPPORT. Houd het zakelijk en feitelijk, maar nog steeds als doorlopend verhaal met een kop, opbouw en conclusie. Cijfers spelen een hoofdrol."
+      ? "MODUS: RAPPORT. Houd het zakelijk en feitelijk, maar nog steeds als doorlopend verhaal met een opening, opbouw en conclusie. Cijfers spelen een hoofdrol."
+      : args.mode === "overheid"
+      ? "MODUS: UITLEG (OVERHEIDSSTIJL). Leg het onderwerp zakelijk en feitelijk uit, zoals een publieksvoorlichting: rustig, helder, zonder verkooptoon en zonder dramatiek. Bouw het op als een uitleg met een begin, een kern en een afsluiting; cijfers en verhoudingen spelen een hoofdrol."
       : "MODUS: VERHAAL. Vertel het als een meeslepend verhaal. Cijfers ondersteunen het verhaal, ze zijn niet het doel. Open met een herkenbare situatie of spanning.";
 
   const targetSeconds = args.targetSeconds ?? 60;
@@ -83,7 +84,16 @@ VLAAMS (BELGISCH-NEDERLANDS) — DIT IS BELANGRIJK:
   const voiceHint = sentenceHint(wordsPerScene);
   const lengthLine = `GEWENSTE VIDEOLENGTE: ongeveer ${targetSeconds} seconden gesproken video. Schrijf daarom PRECIES ${sceneCount} scenes en houd elke voice-over rond de ${wordsPerScene} woorden, zodat de som ongeveer op deze lengte uitkomt. Een langere video betekent MEER scenes en iets uitgebreidere narratie per scene, nooit herhaling, opvulling of verzonnen feiten.`;
 
-  const system = `Je bent een verhaalregisseur en scriptschrijver voor geanimeerde explainer-infographics, in de stijl van studio's als Yum Yum Videos. Je output is UITSLUITEND een gestructureerde JSON-spec die later wordt gerenderd: per scene een platte illustratie (door een beeldmodel) met daarover heen typografie en cijfers. Je tekent zelf geen pixels en schrijft geen opmaak.
+  // De illustratie-briefing verschilt fundamenteel per modus. In Verhaal en
+  // Rapport is het beeld een échte scène op een plek; in de overheidsmodus is het
+  // een diagram op een leeg vlak. Die twee sluiten elkaar uit — vandaar twee
+  // aparte instructies in plaats van één met uitzonderingen.
+  const illustratieRegel =
+    args.mode === "overheid"
+      ? `een ENGELSE briefing voor het beeld van deze scene. Het beeld is een DIAGRAM, geen scène: beschrijf welke objecten, iconen en vlakke figuren er op een leeg vlak staan, hoe groot ze zijn en hoe ze zich tot elkaar verhouden (naast elkaar, in een rij witte panelen, met een stroom of pijl ertussen). Noem GEEN plek en GEEN omgeving: geen kamer, straat, landschap of horizon. Mensen zijn losse uitgeknipte figuren, of alleen handen en onderarmen die het beeld binnenkomen om iets vast te houden of aan te wijzen. Kies concrete, herkenbare objecten die letterlijk uit de voice-over volgen (een koffer, een stapel munten, een gebouw, een document) en toon verhoudingen grafisch. GEEN tekst, cijfers of letters in het beeld. Houd het rustig en symmetrisch: één duidelijk idee per beeld, met veel lege ruimte eromheen, en een kalme rechterbovenhoek waar het merklogo overheen komt.`
+      : `een ENGELSE briefing voor de platte vector-illustratie van deze scene. Beschrijf ÉÉN concrete, letterlijke scène (wie, wat, waar, welke handeling) die precies toont wat de voice-over van deze scene zegt — specifiek voor dit onderwerp (bijv. "a worried family looking at a high energy bill in their living room"). GEEN tekst, cijfers of UI in het beeld. GEEN cliché-stockmetaforen (gloeilamp = idee, handdruk, tandwielen, zwevende vinkjes) en GEEN losse icoontjes/denkwolkjes/symboolverzamelingen. Teken abstracte begrippen niet letterlijk; kies een echte menselijke scène. Benoem altijd de PLEK erbij (waar speelt het, wat zie je eromheen en erachter): de omgeving wordt volledig getekend en vult het hele beeld — nooit een wit of leeg vlak, nooit een uitgeknipt onderwerp dat zweeft. Houd het wel rustig: één brandpunt, en een kalme rechterbovenhoek waar het merklogo overheen komt.`;
+
+  const system = `Je bent een verhaalregisseur en scriptschrijver voor geanimeerde explainer-infographics, in de stijl van studio's als Yum Yum Videos. Je output is UITSLUITEND een gestructureerde JSON-spec die later wordt gerenderd: per scene een illustratie (door een beeldmodel) met daaronder de ingesproken voice-over. Er komt GEEN tekst in beeld — het beeld en de stem vertellen samen het verhaal. Je tekent zelf geen pixels en schrijft geen opmaak.
 
 DENK ALS EEN VERHAAL, NIET ALS EEN DASHBOARD:
 - Bouw een duidelijke boog over PRECIES ${sceneCount} scenes: open met een hook of herkenbare situatie, bouw daarna stap voor stap context en cijfers op, werk toe naar een kerninzicht of climax, en sluit af met een conclusie of call-to-action. Verdeel de boog evenwichtig over alle ${sceneCount} scenes.
@@ -95,17 +105,14 @@ ${lengthLine}
 ${modeLine}
 
 PER SCENE LEVER JE:
-- "voiceover": de gesproken narratie in ${lang}, ${voiceHint} (rond de ${wordsPerScene} woorden), natuurlijk en vloeiend (dit is wat een stem inspreekt). Schrijf getallen, prijzen, percentages, data en afkortingen VOLUIT zoals ze uitgesproken worden (bijv. "tweehonderdvijftig euro", "negen komma zes miljoen", "vierentwintig uur per dag", "tachtig procent") — nooit als los cijfer of symbool, zodat de stem ze correct voorleest.
-- "headline": een korte tekst die IN beeld verschijnt — ALLEEN als die echt iets toevoegt. Zet 'm bij een hook, een kernboodschap, een climax/conclusie of als anker bij een groot getal; laat 'm WEG (null) bij puur verbindende, rustige of overgangsscenes. Liever een paar krachtige headlines dan bij elke scene tekst. Puntig, max ~6 woorden, een fragment of kernwoord uit de voice-over (niet de hele zin) — anders null.
-- "emphasis": precies één woord uit de headline dat de accentkleur krijgt (het belangrijkste woord), of null. Altijd null als "headline" null is.
-- "bigNumber": een hard getal uit de brontekst als dat de scene versterkt (bijv. "5.500€", "170", "9,6 mln"), anders null. VERZIN NOOIT cijfers; gebruik alleen wat letterlijk in de bron staat.
-- "numberLabel": een kort label bij dat getal (bijv. "subsidie", "soorten"), of null.
-- "illustration": een ENGELSE briefing voor de platte vector-illustratie van deze scene. Beschrijf ÉÉN concrete, letterlijke scène (wie, wat, waar, welke handeling) die precies toont wat de voice-over van deze scene zegt — specifiek voor dit onderwerp (bijv. "a worried family looking at a high energy bill in their living room"). GEEN tekst, cijfers of UI in het beeld. GEEN cliché-stockmetaforen (gloeilamp = idee, handdruk, tandwielen, zwevende vinkjes) en GEEN losse icoontjes/denkwolkjes/symboolverzamelingen. Teken abstracte begrippen niet letterlijk; kies een echte menselijke scène. Houd het simpel: één brandpunt, en laat ruimte voor een kop.
+- "voiceover": de gesproken narratie in ${lang}, ${voiceHint} (rond de ${wordsPerScene} woorden), natuurlijk en vloeiend (dit is wat een stem inspreekt, en het enige wat de kijker hoort). Schrijf getallen, prijzen, percentages, data en afkortingen VOLUIT zoals ze uitgesproken worden (bijv. "tweehonderdvijftig euro", "negen komma zes miljoen", "vierentwintig uur per dag", "tachtig procent") — nooit als los cijfer of symbool, zodat de stem ze correct voorleest.
+- "illustration": ${illustratieRegel}
 
 HARDE REGELS:
 - Gebruik alleen feiten en cijfers die letterlijk in de brontekst staan.
-- Alle zichtbare teksten (voiceover, en headline/numberLabel indien aanwezig) in ${lang}. De "illustration" is altijd in het Engels.
-- Varieer de scenes visueel: niet 5 keer hetzelfde beeld. Wissel close-ups, omgevingen en perspectieven af, zoals een goede explainer-video.
+- De voice-over is in ${lang}. De "illustration" is altijd in het Engels.
+- Er verschijnt geen tekst in beeld: cijfers en kernwoorden moeten dus in de voice-over zelf zitten, niet als losse kop worden "geparkeerd". Gebruik alleen cijfers die letterlijk in de bron staan.
+- Varieer de scenes visueel: niet 5 keer hetzelfde beeld. ${args.mode === "overheid" ? "Wissel af tussen één groot object, een rij panelen naast elkaar, een stroom of vergelijking, en mensen of handen in beeld." : "Wissel close-ups, omgevingen en perspectieven af, zoals een goede explainer-video."}
 ${brandLine ? `- ${brandLine}` : ""}${keepLine}${avoidLine}${toneLine}${angleLine}${vlaamsLine}`;
 
   const user = `ONDERWERP / TITEL:

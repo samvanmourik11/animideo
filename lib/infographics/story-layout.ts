@@ -1,73 +1,16 @@
 import { storyCanvasSize } from "@/lib/infographics/canvas-size";
 import type { StoryScene } from "@/lib/infographics/story-schema";
 
-// Eén bron van waarheid voor de overlay-layout van een storytelling-scene.
-// Zowel de editor (EditableStoryScene), de statische renderer (StoryScene) als
-// de player gebruiken dit, zodat wat je sleept/schaalt exact zo afspeelt en
-// exporteert. Houdt rekening met handmatige overrides (hx/hy/hSize, nx/ny/nSize).
-
-export function wrap(text: string, maxChars: number, maxLines: number): string[] {
-  const words = text.trim().split(/\s+/);
-  const lines: string[] = [];
-  let cur = "";
-  for (const w of words) {
-    if (cur && (cur + " " + w).length > maxChars) {
-      lines.push(cur);
-      cur = w;
-      if (lines.length === maxLines - 1) break;
-    } else cur = cur ? cur + " " + w : w;
-  }
-  const used = lines.join(" ").split(/\s+/).filter(Boolean).length;
-  const rest = words.slice(used).join(" ");
-  if (rest) lines.push(rest);
-  else if (cur && lines.length < maxLines) lines.push(cur);
-  return lines.slice(0, maxLines);
-}
-
-export interface StoryLayout {
-  W: number; H: number; padX: number;
-  emph: string;
-  lines: string[];
-  hx: number; hy: number; hSize: number; lineH: number;
-  headW: number; headH: number;
-  num: string;
-  nx: number; ny: number; nSize: number;
-  numW: number; numH: number;
-}
-
-export function computeStoryLayout(scene: StoryScene, format: "16:9" | "9:16"): StoryLayout {
-  const { width: W, height: H } = storyCanvasSize(format);
-  const padX = format === "9:16" ? 70 : 110;
-  const emph = (scene.emphasis ?? "").trim().toLowerCase();
-  const lines = scene.headline ? wrap(scene.headline, format === "9:16" ? 15 : 20, 3) : [];
-
-  const hSize0 = format === "9:16" ? 74 : 84;
-  const startTop = 110;
-  const hHead0 = Math.max(1, lines.length) * hSize0 * 1.1;
-
-  const num = (scene.bigNumber ?? "").trim();
-  const numBase = format === "9:16" ? 140 : 150;
-  const estW = 0.6 * numBase * Math.max(1, num.length);
-  const maxNumW = W - padX * 2;
-  const nSize0 = num ? (estW > maxNumW ? Math.floor((numBase * maxNumW) / estW) : numBase) : 0;
-  const ny0 = startTop + hHead0 + (format === "9:16" ? 34 : 28);
-
-  const hx = scene.hx ?? padX;
-  const hy = scene.hy ?? startTop;
-  const hSize = scene.hSize ?? hSize0;
-  const nx = scene.nx ?? padX;
-  const ny = scene.ny ?? ny0;
-  const nSize = scene.nSize ?? nSize0;
-
-  const lineH = hSize * 1.1;
-  const maxLineLen = lines.reduce((m, l) => Math.max(m, l.length), 0);
-  const headW = Math.max(120, maxLineLen * hSize * 0.55);
-  const headH = Math.max(1, lines.length) * lineH;
-  const numW = Math.max(80, num.length * nSize * 0.6);
-  const numH = nSize;
-
-  return { W, H, padX, emph, lines, hx, hy, hSize, lineH, headW, headH, num, nx, ny, nSize, numW, numH };
-}
+// Gedeelde reken-helpers voor de storytelling-infographic: de positie van het
+// merklogo, de tijdlijn (scene-duur, crossfades, Ken Burns) en de verdeling van
+// één doorlopende voice-over over de scenes. De editor, de player en de
+// MP4-export gebruiken alle drie deze functies, zodat preview en export gelijk
+// lopen.
+//
+// De tekst-overlay (kop, accentwoord, groot getal) is vervallen: de beelden zijn
+// nu volledig ingetekend en die typografie viel er sowieso in weg. Daarmee is ook
+// de layout-berekening ervoor verdwenen — er ligt nog maar één element over het
+// beeld, en dat is het logo.
 
 // Positie/grootte van het merklogo (rechtsboven), gedeeld door preview, editor en
 // export. Met preserveAspectRatio="xMaxYMin meet" past het logo binnen deze box
@@ -88,7 +31,7 @@ export const STORY_FPS = 24;
 // scene die lengte; anders een schatting op spreektempo (~2,6 woorden/sec).
 export function sceneDuration(scene: StoryScene): number {
   if (scene.voiceDuration && scene.voiceDuration > 0) return scene.voiceDuration;
-  const words = (scene.voiceover || scene.headline || "").trim().split(/\s+/).filter(Boolean).length;
+  const words = (scene.voiceover || "").trim().split(/\s+/).filter(Boolean).length;
   return Math.max(2.6, Math.min(13, words / 2.6));
 }
 
