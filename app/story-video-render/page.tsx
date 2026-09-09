@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import StoryScene from "@/components/infographics/render/StoryScene";
 import { storyCanvasSize } from "@/lib/infographics/canvas-size";
-import type { StorySpec } from "@/lib/infographics/story-schema";
+import { tekstInBeeldAan, type StorySpec } from "@/lib/infographics/story-schema";
 
 // Headless render-doel voor de MP4-export. Twee modi:
 // - default: één scene (illustratie + logo) statisch, voor stills.
@@ -54,7 +54,18 @@ export default function StoryVideoRender() {
         // eslint-disable-next-line @next/next/no-img-element
         <img src={scene.imageUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
       )}
-      {scene && <StoryScene format={spec.format} logoUrl={spec.logoEnabled ? spec.logoUrl : null} enter={1} />}
+      {scene && (
+        <StoryScene
+          scene={scene}
+          format={spec.format}
+          tekst={tekstInBeeldAan(spec)}
+          navy={spec.navy ?? undefined}
+          accent={spec.accent ?? undefined}
+          fontFamily={spec.fontFamily}
+          logoUrl={spec.logoEnabled ? spec.logoUrl : null}
+          enter={1}
+        />
+      )}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import StoryScene from "./StoryScene";
 import OverheidSceneView from "./OverheidSceneView";
 import { storyLayers, storyWindows, kenBurns } from "@/lib/infographics/story-layout";
 import { storyAspectRatio } from "@/lib/infographics/canvas-size";
-import type { StorySpec } from "@/lib/infographics/story-schema";
+import { tekstInBeeldAan, type StorySpec } from "@/lib/infographics/story-schema";
 
 // Achtergrond-clip van een scene. Is de scene langer dan de clip (Seedance levert
 // ~5s), dan vertragen we de clip zodat hij de hele scene vult in plaats van te
@@ -64,13 +64,17 @@ export default function StoryPlayer({
   logoUrl,
   navy,
   accent,
+  fontFamily,
 }: {
   spec: StorySpec;
   logoUrl?: string | null;
-  /** Huisstijlkleuren; sturen het palet van de zelfgetekende overheidsscenes. */
+  /** Huisstijlkleuren: tekst in beeld én het palet van de overheidsscenes. */
   navy?: string | null;
   accent?: string | null;
+  fontFamily?: string | null;
 }) {
+  // Eén regel voor de hele video, zodat preview en export niet uit elkaar lopen.
+  const toonTekst = tekstInBeeldAan(spec);
   const aspect = storyAspectRatio(spec.format);
   const { total } = storyLayers(spec.scenes, 0);
 
@@ -160,7 +164,18 @@ export default function StoryPlayer({
                   style={{ transform: `scale(${kb.scale}) translate(${kb.tx}%, ${kb.ty}%)`, transformOrigin: "center" }}
                 />
               ) : null}
-              {!scene?.layout && <StoryScene format={spec.format} logoUrl={logoUrl} enter={l.enter} />}
+              {!scene?.layout && (
+                <StoryScene
+                  scene={scene}
+                  format={spec.format}
+                  tekst={toonTekst}
+                  navy={navy ?? undefined}
+                  accent={accent ?? undefined}
+                  fontFamily={fontFamily}
+                  logoUrl={logoUrl}
+                  enter={l.enter}
+                />
+              )}
             </div>
           );
         })}

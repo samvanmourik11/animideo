@@ -10,9 +10,9 @@ import { storyCanvasSize } from "@/lib/infographics/canvas-size";
 import { storyWindows, STORY_FPS } from "@/lib/infographics/story-layout";
 import { buildSceneSvg } from "@/lib/infographics/story-svg";
 import { bouwOverheidSvg, kleurenUitHuisstijl } from "@/lib/infographics/overheid-scene";
-import { STORY_FONT_FILES } from "@/lib/infographics/story-fonts";
+import { STORY_FONT_FILES, resolveStoryFont } from "@/lib/infographics/story-fonts";
 import { mkdir } from "node:fs/promises";
-import type { StorySpec } from "@/lib/infographics/story-schema";
+import { tekstInBeeldAan, type StorySpec } from "@/lib/infographics/story-schema";
 import { renderMusicBed } from "@/lib/music/bed";
 
 export const runtime = "nodejs";
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = (await req.json()) as { spec?: StorySpec; logoUrl?: string | null };
+    const body = (await req.json()) as { spec?: StorySpec; navy?: string; accent?: string; fontFamily?: string; logoUrl?: string | null };
     const spec = body.spec;
     if (!spec || !Array.isArray(spec.scenes) || spec.scenes.length === 0) {
       return NextResponse.json({ error: "Geen scenes om te exporteren" }, { status: 400 });
@@ -125,14 +125,31 @@ export async function POST(req: NextRequest) {
       } catch {}
     }
 
-    // De overlay is voor elke scene identiek (alleen het logo), dus rasteren we
-    // hem één keer. Zonder logo is er niets te leggen en slaan we de laag over.
-    const svg = buildSceneSvg(spec.format, logoDataUri);
-    let overlayPath: string | null = null;
-    if (svg) {
-      const png = new Resvg(svg, { fitTo: { mode: "width", value: W } }).render().asPng();
-      overlayPath = path.join(dir, "overlay.png");
-      await writeFile(overlayPath, png);
+    // De overlay per scene. Staat de tekst uit, dan is hij voor elke scene gelijk
+    // (alleen het logo) en rasteren we hem één keer; staat hij aan, dan heeft elke
+    // scene zijn eigen kop en getal en dus zijn eigen laag.
+    const toonTekst = tekstInBeeldAan(spec);
+    const navy = body.navy ?? spec.navy ?? "#16243f";
+    const accent = body.accent ?? spec.accent ?? "#e8643c";
+    const fontFamily = resolveStoryFont(body.fontFamily ?? spec.fontFamily);
+    const rasterOpties = {
+      fitTo: { mode: "width" as const, value: W },
+      font: { fontFiles: FONT_FILES, defaultFontFamily: fontFamily, loadSystemFonts: false },
+    };
+
+    const overlays: (string | null)[] = [];
+    let gedeeldeOverlay: string | null = null;
+    for (let i = 0; i < N; i++) {
+      if (!toonTekst && gedeeldeOverlay !== null) { overlays.push(gedeeldeOverlay); continue; }
+      const svg = buildSceneSvg(spec.scenes[i], spec.format, navy, accent, {
+        fontFamily, logoDataUri, tekst: toonTekst,
+      });
+      if (!svg) { overlays.push(null); continue; }
+      const png = new Resvg(svg, rasterOpties).render().asPng();
+      const pad = path.join(dir, `overlay-${String(i).padStart(3, "0")}.png`);
+      await writeFile(pad, png);
+      overlays.push(pad);
+      if (!toonTekst) gedeeldeOverlay = pad;
     }
 
     // ── 3. Voice-over + muziekbed downloaden (optioneel) ────────────
@@ -211,6 +228,7 @@ export async function POST(req: NextRequest) {
         const z = i % 2 === 0 ? "min(1.001+0.0010*on,1.12)" : "max(1.12-0.0010*on,1.0)";
         segFilter = `[0:v]scale=${W * 2}:${H * 2}:flags=lanczos,zoompan=z='${z}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=${df}:s=${W}x${H}:fps=${STORY_FPS},setsar=1,format=yuv420p[bg];`;
       }
+      const overlayPath = overlays[i];
       segFilter += overlayPath ? `[bg][1:v]overlay=0:0,format=yuv420p[v]` : `[bg]null[v]`;
       const segPath = segPathVoor;
       await runFfmpeg([

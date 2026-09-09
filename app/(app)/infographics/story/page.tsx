@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import SceneOverlay from "@/components/infographics/render/StoryScene";
+import EditableStoryScene from "@/components/infographics/render/EditableStoryScene";
 import OverheidSceneView from "@/components/infographics/render/OverheidSceneView";
 import SceneChat from "@/components/infographics/story/SceneChat";
 import StoryPlayer from "@/components/infographics/render/StoryPlayer";
@@ -16,6 +17,8 @@ import { isAdminAccount } from "@/lib/studio/access";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 import { DEFAULT_VOICE, voicePreviewUrl, voicesForLanguage, voiceForLanguage } from "@/lib/infographics/story-voices";
 import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
+import { STORY_FONTS, DEFAULT_STORY_FONT, nearestStoryFont, STORY_FONTS_CSS_HREF } from "@/lib/infographics/story-fonts";
+import { tekstInBeeldAan } from "@/lib/infographics/story-schema";
 import { MusicPickerButton } from "@/components/music/MusicPicker";
 import { findMusicTrackByUrl } from "@/lib/music/library";
 import type { BrandKit } from "@/lib/types";
@@ -89,6 +92,15 @@ function toHex(raw?: string | null): string | null {
   return dutchColorToHex(str);
 }
 
+function SceneField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="block">
+      <span className="block text-[11px] text-slate-400 mb-0.5">{label}</span>
+      <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white" />
+    </label>
+  );
+}
+
 export default function StoryPage() {
   const [topic, setTopic] = useState("");
   const [text, setText] = useState("");
@@ -119,6 +131,11 @@ export default function StoryPage() {
   // Gewenste videolengte in seconden; bepaalt hoeveel scenes de AI maakt.
   const [targetSeconds, setTargetSeconds] = useState(90);
   const [navy, setNavy] = useState("#16243f");
+  const [fontFamily, setFontFamily] = useState<string>(DEFAULT_STORY_FONT);
+  // Tekst in beeld: koppen, accentwoorden en grote getallen. Uit voor nieuwe
+  // verhalen, aan zodra een bestaand verhaal die tekst al heeft — anders zou een
+  // klant die er weken aan gewerkt heeft haar werk kwijtraken.
+  const [tekstInBeeld, setTekstInBeeld] = useState(false);
   const [accent, setAccent] = useState("#e8643c");
   // Huisstijl-typografie (uit de brand kit; met keuze/override) en het logo, dat
   // de gebruiker zelf uploadt (niet uit de website of brand kit).
@@ -186,7 +203,7 @@ export default function StoryPage() {
       savingRef.current = true;
       if (!silent) setSaving(true);
       try {
-        const specToSave: StorySpec = { ...spec, navy, accent, voice, voiceSpeed, logoUrl, logoEnabled };
+        const specToSave: StorySpec = { ...spec, navy, accent, voice, voiceSpeed, fontFamily, logoUrl, logoEnabled, tekstInBeeld };
         const res = await fetch("/api/infographics/save-story", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -209,7 +226,7 @@ export default function StoryPage() {
         if (!silent) setSaving(false);
       }
     },
-    [spec, navy, accent, voice, voiceSpeed, logoUrl, logoEnabled, projectId, topic]
+    [spec, navy, accent, voice, voiceSpeed, fontFamily, logoUrl, logoEnabled, tekstInBeeld, projectId, topic]
   );
 
   // Een verhaal laden uit ?project=id (na een refresh of vanuit het overzicht).
@@ -232,6 +249,9 @@ export default function StoryPage() {
         setProjectId(id);
         if (loaded.title) setTopic(loaded.title);
         if (loaded.navy) setNavy(loaded.navy);
+        if (loaded.fontFamily) setFontFamily(loaded.fontFamily);
+        // Bestaand verhaal met koppen erin: die tekst hoort gewoon te blijven staan.
+        setTekstInBeeld(tekstInBeeldAan(loaded));
         if (loaded.accent) setAccent(loaded.accent);
         if (loaded.voice) setVoice(loaded.voice);
         if (loaded.voiceSpeed) setVoiceSpeed(loaded.voiceSpeed);
@@ -253,7 +273,7 @@ export default function StoryPage() {
     if (!spec || loadingProject) return;
     const t = setTimeout(() => { void save(true); }, 1500);
     return () => clearTimeout(t);
-  }, [spec, navy, accent, voice, voiceSpeed, logoUrl, logoEnabled, projectId, loadingProject, save]);
+  }, [spec, navy, accent, voice, voiceSpeed, fontFamily, logoUrl, logoEnabled, tekstInBeeld, projectId, loadingProject, save]);
 
   // Vangnet: waarschuw alleen als er nog écht een opslag onderweg is bij het
   // wegklikken. Normaal is er niets te verliezen, want alles is al bewaard.
@@ -289,6 +309,7 @@ export default function StoryPage() {
     const acc = toHex(kit.colors?.accent) || toHex(kit.colors?.secondary);
     if (text) setNavy(text);
     if (acc) setAccent(acc);
+    setFontFamily(nearestStoryFont(kit.fonts?.primary));
   }
 
   // Kiest een huisstijl uit de dropdown en neemt hem over. Lege keuze laat alles staan.
@@ -600,6 +621,7 @@ export default function StoryPage() {
           language: spec.language ?? language,
           characterUrl: spec.characterUrl ?? characterUrl,
           characterRole: characterRole.trim() || spec.characterRole || null,
+          tekstInBeeld,
           brandColors: brandColorsPayload(),
           // De cast + het castblad mee, anders tekent een regeneratie via de chat
           // weer een andere hoofdpersoon dan de rest van de video.
@@ -873,6 +895,7 @@ export default function StoryPage() {
     <div className="max-w-[1200px] mx-auto p-6">
       {/* Huisstijl-fonts voor de preview (dezelfde families als de export-TTF's). */}
       <h1 className="text-xl font-bold text-white mb-1">Storytelling-infographic</h1>
+      {tekstInBeeld && <link rel="stylesheet" href={STORY_FONTS_CSS_HREF} />}
       <p className="text-sm text-slate-400 mb-6">AI schrijft een verhaalboog en genereert per scene een illustratie die het hele beeld vult. De voice-over vertelt het verhaal; er komt geen tekst in beeld.</p>
       {loadingProject && <p className="text-sm text-blue-300 mb-4">Verhaal laden…</p>}
 
@@ -967,6 +990,24 @@ export default function StoryPage() {
                 </button>
               </div>
             </label>
+            <div className="flex flex-col gap-1 pb-1.5">
+              <span className="block text-[11px] text-slate-400">Tekst in beeld</span>
+              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer" title="Zet een korte kop, een accentwoord en een groot getal over de illustratie. Standaard uit: in een volledig ingetekend beeld leidt tekst vaak af.">
+                <input type="checkbox" checked={tekstInBeeld} onChange={(e) => setTekstInBeeld(e.target.checked)} className="accent-blue-500" />
+                Koppen en cijfers tonen
+              </label>
+              {tekstInBeeld && (
+                <select
+                  value={fontFamily}
+                  onChange={(e) => setFontFamily(e.target.value)}
+                  className="mt-1 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white"
+                  style={{ fontFamily: `${fontFamily}, system-ui, sans-serif` }}
+                >
+                  {STORY_FONTS.map((f) => (<option key={f.id} value={f.family}>{f.label}{f.note ? ` — ${f.note}` : ""}</option>))}
+                </select>
+              )}
+            </div>
+
             <div className="flex flex-col gap-1 pb-1.5">
               <span className="block text-[11px] text-slate-400">Logo</span>
               <div className="flex items-center gap-2">
@@ -1341,7 +1382,7 @@ export default function StoryPage() {
 
           <div className="bg-white/5 border border-white/10 rounded-xl p-4">
             <p className="text-xs font-semibold text-white mb-3">Voorvertoning (video)</p>
-            <StoryPlayer spec={spec} logoUrl={logoEnabled ? logoUrl : null} navy={navy} accent={accent} />
+            <StoryPlayer spec={{ ...spec, tekstInBeeld }} logoUrl={logoEnabled ? logoUrl : null} navy={navy} accent={accent} fontFamily={fontFamily} />
           </div>
 
           {/* De cast: wie komt er in dit verhaal terug, en hoe ziet die eruit. Het
@@ -1406,7 +1447,19 @@ export default function StoryPage() {
                 ) : (
                   <div className="absolute inset-0 grid place-items-center text-slate-400 text-xs">geen illustratie</div>
                 )}
-                <SceneOverlay format={spec.format} logoUrl={logoEnabled ? logoUrl : null} />
+                {tekstInBeeld ? (
+                  <EditableStoryScene
+                    scene={scene}
+                    format={spec.format}
+                    navy={navy}
+                    accent={accent}
+                    fontFamily={fontFamily}
+                    logoUrl={logoEnabled ? logoUrl : null}
+                    onChange={(patch) => updateScene(i, patch)}
+                  />
+                ) : (
+                  <SceneOverlay format={spec.format} logoUrl={logoEnabled ? logoUrl : null} />
+                )}
                 {spec.format === "9:16" && showSafeZone && (
                   <div className="absolute inset-0 z-20 pointer-events-none">
                     <div className="absolute inset-x-0 top-0 h-[10%] bg-red-500/10 border-b border-dashed border-red-400/50" />
@@ -1434,6 +1487,28 @@ export default function StoryPage() {
                   <textarea value={scene.voiceover} onChange={(e) => updateScene(i, { voiceover: e.target.value })} rows={2} className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-slate-200" />
                 </label>
                 {scene.voiceDuration ? <p className="text-[10px] text-slate-500">scene-tijd: {scene.voiceDuration.toFixed(1)}s</p> : null}
+
+                {tekstInBeeld && (
+                  <div className="pt-2 mt-1 border-t border-white/10 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Tekst in beeld</p>
+                      <button
+                        onClick={() => updateScene(i, { hx: undefined, hy: undefined, hSize: undefined, nx: undefined, ny: undefined, nSize: undefined })}
+                        title="Zet de kop en het getal terug op hun automatische plek"
+                        className="text-[10px] text-slate-500 hover:text-slate-300"
+                      >
+                        reset positie
+                      </button>
+                    </div>
+                    <SceneField label="Kop (in beeld)" value={scene.headline ?? ""} onChange={(v) => updateScene(i, { headline: v || null })} />
+                    <SceneField label="Accentwoord" value={scene.emphasis ?? ""} onChange={(v) => updateScene(i, { emphasis: v || null })} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <SceneField label="Groot getal" value={scene.bigNumber ?? ""} onChange={(v) => updateScene(i, { bigNumber: v || null })} />
+                      <SceneField label="Label bij getal" value={scene.numberLabel ?? ""} onChange={(v) => updateScene(i, { numberLabel: v || null })} />
+                    </div>
+                    <p className="text-[10px] text-slate-500">Je kunt de kop en het getal in het beeld verslepen en schalen.</p>
+                  </div>
+                )}
 
                 <div className="pt-2 mt-1 border-t border-white/10 space-y-2">
                   <p className="text-[11px] uppercase tracking-wide text-slate-500">Beeld</p>

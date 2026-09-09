@@ -17,6 +17,8 @@ export interface BuildStoryPromptArgs {
   keepTerms?: string[];
   // Merk-/eigennamen die NERGENS genoemd mogen worden (bron-anoniem).
   avoidTerms?: string[];
+  // Staat er tekst in beeld? Dan schrijft de AI ook koppen en cijfers.
+  tekstInBeeld?: boolean;
   // Verteltoon: "zakelijk" (default) | "speels" | "energiek".
   tone?: string;
   // Optionele invalshoek/hoek van waaruit het onderwerp benaderd wordt.
@@ -93,6 +95,16 @@ VLAAMS (BELGISCH-NEDERLANDS) — DIT IS BELANGRIJK:
       ? `een ENGELSE briefing voor het beeld van deze scene. Het beeld is een DIAGRAM, geen scène: beschrijf welke objecten, iconen en vlakke figuren er op een leeg vlak staan, hoe groot ze zijn en hoe ze zich tot elkaar verhouden (naast elkaar, in een rij witte panelen, met een stroom of pijl ertussen). Noem GEEN plek en GEEN omgeving: geen kamer, straat, landschap of horizon. Mensen zijn losse uitgeknipte figuren, of alleen handen en onderarmen die het beeld binnenkomen om iets vast te houden of aan te wijzen. Kies concrete, herkenbare objecten die letterlijk uit de voice-over volgen (een koffer, een stapel munten, een gebouw, een document) en toon verhoudingen grafisch. GEEN tekst, cijfers of letters in het beeld. Houd het rustig en symmetrisch: één duidelijk idee per beeld, met veel lege ruimte eromheen, en een kalme rechterbovenhoek. Noem NOOIT een logo, merk of watermerk in je briefing.`
       : `een ENGELSE briefing voor de platte vector-illustratie van deze scene. Beschrijf ÉÉN concrete, letterlijke scène (wie, wat, waar, welke handeling) die precies toont wat de voice-over van deze scene zegt — specifiek voor dit onderwerp (bijv. "a worried family looking at a high energy bill in their living room"). GEEN tekst, cijfers of UI in het beeld. GEEN cliché-stockmetaforen (gloeilamp = idee, handdruk, tandwielen, zwevende vinkjes) en GEEN losse icoontjes/denkwolkjes/symboolverzamelingen. Teken abstracte begrippen niet letterlijk; kies een echte menselijke scène. Benoem altijd de PLEK erbij (waar speelt het, wat zie je eromheen en erachter): de omgeving wordt volledig getekend en vult het hele beeld — nooit een wit of leeg vlak, nooit een uitgeknipt onderwerp dat zweeft. Houd het wel rustig: één brandpunt, en een kalme rechterbovenhoek. Noem NOOIT een logo, merk, watermerk of beeldmerk in je briefing — het beeldmodel tekent er dan een verzonnen exemplaar bij, precies over het echte logo van de klant heen.`;
 
+  // Tekst in beeld is een keuze per video. Staat hij uit, dan vraagt de prompt er
+  // ook niet om — anders schrijft het model koppen die nergens getoond worden.
+  const tekstRegels = args.tekstInBeeld
+    ? `- "headline": een korte tekst die IN beeld verschijnt — ALLEEN als die echt iets toevoegt. Zet 'm bij een hook, een kernboodschap of een conclusie; laat 'm WEG (null) bij verbindende of rustige scenes. Puntig, max ~6 woorden, een fragment uit de voice-over — anders null.
+- "emphasis": precies één woord uit de headline dat de accentkleur krijgt, of null. Altijd null als "headline" null is.
+- "bigNumber": een hard getal uit de brontekst als dat de scene versterkt (bijv. "5.500€", "170"), anders null. VERZIN NOOIT cijfers.
+- "numberLabel": een kort label bij dat getal (bijv. "subsidie"), of null.
+`
+    : "";
+
   const system = `Je bent een verhaalregisseur en scriptschrijver voor geanimeerde explainer-infographics, in de stijl van studio's als Yum Yum Videos. Je output is UITSLUITEND een gestructureerde JSON-spec die later wordt gerenderd: per scene een illustratie (door een beeldmodel) met daaronder de ingesproken voice-over. Er komt GEEN tekst in beeld — het beeld en de stem vertellen samen het verhaal. Je tekent zelf geen pixels en schrijft geen opmaak.
 
 DENK ALS EEN VERHAAL, NIET ALS EEN DASHBOARD:
@@ -106,11 +118,11 @@ ${modeLine}
 
 PER SCENE LEVER JE:
 - "voiceover": de gesproken narratie in ${lang}, ${voiceHint} (rond de ${wordsPerScene} woorden), natuurlijk en vloeiend (dit is wat een stem inspreekt, en het enige wat de kijker hoort). Schrijf getallen, prijzen, percentages, data en afkortingen VOLUIT zoals ze uitgesproken worden (bijv. "tweehonderdvijftig euro", "negen komma zes miljoen", "vierentwintig uur per dag", "tachtig procent") — nooit als los cijfer of symbool, zodat de stem ze correct voorleest.
-- "illustration": ${illustratieRegel}
+${tekstRegels}- "illustration": ${illustratieRegel}
 
 HARDE REGELS:
 - Gebruik alleen feiten en cijfers die letterlijk in de brontekst staan.
-- De voice-over is in ${lang}. De "illustration" is altijd in het Engels.
+- De voice-over${args.tekstInBeeld ? ", de headline en het numberLabel zijn" : " is"} in ${lang}. De "illustration" is altijd in het Engels.
 - Er verschijnt geen tekst in beeld: cijfers en kernwoorden moeten dus in de voice-over zelf zitten, niet als losse kop worden "geparkeerd". Gebruik alleen cijfers die letterlijk in de bron staan.
 - Varieer de scenes visueel: niet 5 keer hetzelfde beeld. ${args.mode === "overheid" ? "Wissel af tussen één groot object, een rij panelen naast elkaar, een stroom of vergelijking, en mensen of handen in beeld." : "Wissel close-ups, omgevingen en perspectieven af, zoals een goede explainer-video."}
 ${brandLine ? `- ${brandLine}` : ""}${keepLine}${avoidLine}${toneLine}${angleLine}${vlaamsLine}`;

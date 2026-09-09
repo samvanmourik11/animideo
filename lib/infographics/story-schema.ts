@@ -27,18 +27,46 @@ const storySceneSchema = {
   },
 } as const;
 
-export const STORY_SPEC_SCHEMA = {
+// Variant mét tekst in beeld. Strict-mode eist dat élke property in `required`
+// staat, dus is dit een apart schema in plaats van een paar optionele velden.
+const storySceneSchemaMetTekst = {
   type: "object",
   additionalProperties: false,
-  required: ["version", "title", "format", "mode", "scenes"],
+  required: ["id", "voiceover", "illustration", "headline", "emphasis", "bigNumber", "numberLabel"],
   properties: {
-    version: { type: "integer", enum: [1] },
-    title: { type: "string" },
-    format: { type: "string", enum: ["16:9", "9:16"] },
-    mode: { type: "string", enum: ["story", "report", "overheid"] },
-    scenes: { type: "array", items: storySceneSchema },
+    ...storySceneSchema.properties,
+    // Korte tekst die IN beeld komt — alleen als hij echt iets toevoegt.
+    headline: { type: ["string", "null"] },
+    // Eén woord uit de kop dat de accentkleur krijgt (of null).
+    emphasis: { type: ["string", "null"] },
+    // Hard getal uit de brontekst. Nooit verzinnen; null als er geen cijfer is.
+    bigNumber: { type: ["string", "null"] },
+    // Klein label bij dat getal.
+    numberLabel: { type: ["string", "null"] },
   },
 } as const;
+
+function specSchema(sceneSchema: unknown) {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["version", "title", "format", "mode", "scenes"],
+    properties: {
+      version: { type: "integer", enum: [1] },
+      title: { type: "string" },
+      format: { type: "string", enum: ["16:9", "9:16"] },
+      mode: { type: "string", enum: ["story", "report", "overheid"] },
+      scenes: { type: "array", items: sceneSchema },
+    },
+  } as const;
+}
+
+export const STORY_SPEC_SCHEMA = specSchema(storySceneSchema);
+
+/** Het schema dat bij deze video hoort: met of zonder tekst in beeld. */
+export function storySpecSchema(tekstInBeeld: boolean) {
+  return tekstInBeeld ? specSchema(storySceneSchemaMetTekst) : STORY_SPEC_SCHEMA;
+}
 
 /**
  * Eén bericht in de beeld-chat van een scene. De gebruiker typt wat er anders
@@ -84,6 +112,25 @@ export interface StoryScene {
   id: string;
   voiceover: string;
   illustration: string;
+  // ── Tekst in beeld ──
+  //
+  // Deze velden zijn een tijd lang niet meer getoond: donkerblauwe koppen vielen
+  // weg in de nu volledig ingetekende illustraties. Ze zijn nooit uit de opgeslagen
+  // projecten verdwenen, en dat bleek maar goed ook — er zijn klanten die de tekst
+  // juist als ondersteuning in hun e-learnings gebruiken. Nu weer in gebruik, maar
+  // als KEUZE per verhaal (zie StorySpec.tekstInBeeld).
+  /** Korte tekst die in beeld verschijnt. Leeg/null = geen kop bij deze scene. */
+  headline?: string | null;
+  /** Eén woord uit de kop dat de accentkleur krijgt. */
+  emphasis?: string | null;
+  /** Groot getal uit de brontekst ("5.500€", "170"). */
+  bigNumber?: string | null;
+  /** Klein label bij dat getal ("subsidie", "soorten"). */
+  numberLabel?: string | null;
+  // Per-scene positie en grootte van kop en getal (Canva-stijl slepen/schalen),
+  // in viewBox-coordinaten. Undefined = de automatisch berekende plek.
+  hx?: number; hy?: number; hSize?: number;
+  nx?: number; ny?: number; nSize?: number;
   /**
    * Opbouw van de scene in de overheidsmodus: welk sjabloon, welke iconen en
    * labels. Is dit gevuld, dan tekent de app de scene zelf als SVG en is er geen
@@ -116,6 +163,20 @@ export interface StoryScene {
   // Bewegende versie van de illustratie (image-to-video). Als gezet, gebruiken
   // preview en player deze clip i.p.v. het stilstaande beeld.
   videoUrl?: string | null;
+}
+
+/**
+ * Toont dit verhaal tekst in beeld?
+ *
+ * Bewust één functie, gebruikt door de editor, de player en de export. Stond die
+ * regel op drie plekken, dan zou een bestaand project in de preview wel tekst
+ * tonen en in de export niet.
+ */
+export function tekstInBeeldAan(spec: Pick<StorySpec, "tekstInBeeld" | "scenes">): boolean {
+  if (typeof spec.tekstInBeeld === "boolean") return spec.tekstInBeeld;
+  return (spec.scenes ?? []).some(
+    (s) => (s.headline ?? "").trim().length > 0 || (s.bigNumber ?? "").trim().length > 0
+  );
 }
 
 export interface StorySpec {
@@ -171,6 +232,15 @@ export interface StorySpec {
   styleId?: string | null;
   // Taal van script + voice-over (mensleesbaar NL, bijv. "Engels"). Leeg = Nederlands.
   language?: string | null;
+  /**
+   * Staat er tekst in beeld (koppen, accentwoorden, grote getallen)?
+   *
+   * Niet gezet = afleiden uit de inhoud: heeft een scene een kop of een getal,
+   * dan stond die tekst er en hoort hij er te blijven. Zo blijven bestaande
+   * projecten precies zoals de klant ze achterliet, terwijl nieuwe verhalen
+   * standaard zonder tekst beginnen.
+   */
+  tekstInBeeld?: boolean | null;
   // De vaste cast van dit verhaal en het castblad: één beeld waarop iedereen
   // naast elkaar staat. Dat blad gaat als zwaarst wegende referentie mee naar
   // elke scene en naar elke latere regeneratie, zodat dezelfde persoon overal
