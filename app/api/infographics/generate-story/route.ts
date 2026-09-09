@@ -265,14 +265,15 @@ export async function POST(req: NextRequest) {
         } catch (e) {
           console.error(`[generate-story] cleanup scene ${i} mislukt, ruw beeld behouden:`, e);
         }
-        // Staat er tekst in beeld, dan moet die kloppen: een fout gespeld woord
-        // valt meer op dan geen woord. Controleren en zo nodig herstellen.
-        if ((scene.labels ?? []).length > 0) {
-          try {
-            cleanUrl = (await borgBeeldtekst(cleanUrl, scene.labels ?? [], format, language)).imageUrl;
-          } catch (e) {
-            console.error(`[generate-story] tekstcontrole scene ${i} mislukt:`, e);
-          }
+        // Controleren wat er écht in beeld staat. Dit liep eerst alleen als de
+        // regie labels had opgegeven — en juist in Verhaal en Rapport zijn die er
+        // niet, dus daar keek niemand mee. Zo haalde letterbrij als
+        // "ENERGISVERSUIK" en een verzonnen logo het tot in de video. Geen
+        // bedoelde tekst betekent niet "niet controleren", maar "alles eruit".
+        try {
+          cleanUrl = (await borgBeeldtekst(cleanUrl, scene.labels ?? [], format, language)).imageUrl;
+        } catch (e) {
+          console.error(`[generate-story] tekstcontrole scene ${i} mislukt:`, e);
         }
         // Tijdelijke fal-URL meteen naar onze eigen bucket kopieren, zodat het
         // verhaal zijn beelden houdt nadat de fal-link verloopt.

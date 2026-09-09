@@ -253,7 +253,10 @@ export async function cleanupSceneIllustration(sourceImageUrl: string, format?: 
     "Remove ONLY the floating clutter that does not belong to the place itself: sparkles, glitter, bubbles, floating icons, symbols, speech bubbles, stray dots and decorative shapes hanging in the air.",
     labels.length
       ? `Keep these words exactly as they are and spelled exactly like this: ${labels.map((l) => `"${l}"`).join(", ")}. Any OTHER text must be removed.`
-      : "Any text, label or word that remains in the image MUST be in correct, natural Dutch: translate every English or other-language word into Dutch, and fix any garbled or misspelled text. Remove meaningless decorative text, watermarks and logos.",
+      : "Any text, label or word that remains in the image MUST be in correct, natural Dutch: translate every English or other-language word into Dutch, and fix any garbled or misspelled text. Remove meaningless decorative text.",
+    // Altijd, ook als er labels blijven staan: het échte logo komt er als aparte
+    // laag overheen, dus elk merkteken dat het model zelf tekent is er één te veel.
+    "Remove every logo, brand mark, badge, emblem, watermark and signature, in every corner and on every object.",
   ].filter(Boolean).join(" ").slice(0, 4000);
 
   const result = await fal.subscribe(EDIT_MODEL, {

@@ -18,6 +18,8 @@ export interface TekstOordeel {
   ok: boolean;
   /** Wat er letterlijk in beeld staat, zoals het vision-model het leest. */
   gevonden: string[];
+  /** Staat er een logo, badge of watermerk in beeld dat er niet hoort? */
+  merkteken: boolean;
   /** Korte beschrijving van wat er mis is (leeg als ok). */
   probleem: string;
 }
@@ -33,7 +35,7 @@ export interface TekstOordeel {
  * Overtypen is een makkelijkere taak dan beoordelen, en het oordeel zelf doen we
  * daarna in code: een tekenvergelijking liegt niet.
  */
-async function leesBeeldtekst(imageUrl: string): Promise<string[]> {
+async function leesBeeldtekst(imageUrl: string): Promise<{ tekst: string[]; merkteken: boolean }> {
   try {
     const res = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -54,18 +56,24 @@ async function leesBeeldtekst(imageUrl: string): Promise<string[]> {
                 `verdubbelde of ontbrekende letters, of onzinwoorden. Verbeter niets en vul niets aan. Typ exact de ` +
                 `lettervolgorde over die je ziet, ook als het woord daardoor fout of onzinnig is. Zie je "Vertrouwnen", ` +
                 `dan schrijf je "Vertrouwnen".\n\n` +
-                `Antwoord met JSON: {"tekst": ["elk los tekstblok, letterlijk overgetypt"]}. Staat er geen enkele tekst ` +
-                `in het beeld, dan een lege lijst.`,
+                `Kijk daarnaast of er een LOGO, beeldmerk, badge, embleem, watermerk of handtekening in het beeld ` +
+                `staat — vaak klein in een hoek. Het échte logo van de klant wordt er later als aparte laag overheen ` +
+                `gelegd, dus alles wat het beeldmodel zelf aan merktekens tekent is fout.\n\n` +
+                `Antwoord met JSON: {"tekst": ["elk los tekstblok, letterlijk overgetypt"], "merkteken": boolean}. ` +
+                `Staat er geen enkele tekst in het beeld, dan een lege lijst.`,
             },
           ],
         },
       ],
     });
-    const parsed = JSON.parse(res.choices[0]?.message?.content ?? "{}") as { tekst?: unknown };
-    return Array.isArray(parsed.tekst) ? parsed.tekst.map((t) => String(t).trim()).filter(Boolean) : [];
+    const parsed = JSON.parse(res.choices[0]?.message?.content ?? "{}") as { tekst?: unknown; merkteken?: unknown };
+    return {
+      tekst: Array.isArray(parsed.tekst) ? parsed.tekst.map((t) => String(t).trim()).filter(Boolean) : [],
+      merkteken: parsed.merkteken === true,
+    };
   } catch (e) {
     console.error("[tekst-controle] overtypen mislukt:", e);
-    return [];
+    return { tekst: [], merkteken: false };
   }
 }
 
@@ -81,17 +89,28 @@ function normaliseer(t: string): string {
 
 export async function controleerBeeldtekst(
   imageUrl: string,
-  labels: string[]
+  labels: string[],
+  /**
+   * Hoort er een merkteken in beeld? Waar. als de gebruiker zelf een logo of
+   * product heeft meegestuurd ("zet dit logo op de auto"). Zonder deze uitzondering
+   * zou de controle precies weghalen waar hij om gevraagd heeft.
+   */
+  merkToegestaan = false
 ): Promise<TekstOordeel> {
   const bedoeld = labels.map((l) => l.trim()).filter(Boolean);
-  const gevonden = await leesBeeldtekst(imageUrl);
-  // Niets kunnen lezen betekent meestal: er staat niets. Dat is alleen fout als er
-  // wél iets hoorde te staan; maar dan is een correctie-edit zinloos (het model kan
-  // geen tekst toevoegen die de illustratie niet heeft), dus laten we het beeld staan.
-  if (gevonden.length === 0) return { ok: true, gevonden: [], probleem: "" };
+  const { tekst: gevonden, merkteken } = await leesBeeldtekst(imageUrl);
 
   const bedoeldNorm = bedoeld.map(normaliseer);
   const problemen: string[] = [];
+  // Een verzonnen logo is altijd fout, met of zonder tekst in beeld.
+  if (merkteken && !merkToegestaan) problemen.push("er staat een verzonnen logo of watermerk in beeld");
+
+  // Niets gelezen en geen merkteken: dan is er niets aan de hand. Hoorde er wél
+  // tekst te staan, dan helpt een correctie niet — het model kan geen woorden
+  // toevoegen die de illustratie niet heeft — dus laten we het beeld staan.
+  if (gevonden.length === 0) {
+    return { ok: problemen.length === 0, gevonden: [], merkteken, probleem: problemen.join("; ") };
+  }
 
   // 1. Staat elk bedoeld woord er exact zo?
   for (let i = 0; i < bedoeld.length; i++) {
@@ -111,6 +130,7 @@ export async function controleerBeeldtekst(
   return {
     ok: problemen.length === 0,
     gevonden,
+    merkteken,
     probleem: problemen.slice(0, 4).join("; "),
   };
 }
@@ -126,32 +146,39 @@ export async function borgBeeldtekst(
   imageUrl: string,
   labels: string[],
   format?: string,
-  language = "Nederlands"
+  language = "Nederlands",
+  /** Waar als de gebruiker zelf een logo/product meestuurde; dat merk mag blijven. */
+  merkToegestaan = false
 ): Promise<{ imageUrl: string; hersteld: boolean; tekstVerwijderd: boolean }> {
   const bedoeld = labels.map((l) => l.trim()).filter(Boolean);
-  const oordeel = await controleerBeeldtekst(imageUrl, bedoeld);
+  const oordeel = await controleerBeeldtekst(imageUrl, bedoeld, merkToegestaan);
   if (oordeel.ok) return { imageUrl, hersteld: false, tekstVerwijderd: false };
 
   const woorden = bedoeld.map((w) => `"${w}"`).join(", ");
+  // Alleen merktekens weghalen als ze er niet horen. Heeft de gebruiker een logo
+  // meegestuurd, dan laten we dat met rust.
+  const merkRegel = merkToegestaan
+    ? ""
+    : ", and remove every logo, brand mark, badge, emblem, watermark or signature, in every corner and on every object";
   try {
     const correctie = bedoeld.length
       ? `Fix the text in this image. The only words that may appear are ${woorden}, each spelled exactly like that, ` +
         `character for character, in ${language === "Nederlands" ? "Dutch" : language}. Correct every misspelled or garbled word to the exact spelling given, ` +
-        `remove every other word, letter, number, caption and watermark, and fill the freed area with the surrounding ` +
+        `remove every other word, letter, number and caption${merkRegel}. Fill the freed area with the surrounding ` +
         `flat colour. Keep the composition, all shapes, objects, figures, colours and the illustration style exactly the same.`
-      : `Remove every letter, word, number, label, caption and watermark from this image, and fill the freed area with the ` +
+      : `Remove every letter, word, number, label and caption from this image${merkRegel}. Fill the freed area with the ` +
         `surrounding flat colour. Keep the composition, all shapes, objects, figures, colours and the illustration style exactly the same.`;
     const hersteld = await editIllustration(imageUrl, correctie, format);
 
     // Eén hercontrole. Nog steeds fout? Dan liever helemaal geen tekst.
-    const naOordeel = await controleerBeeldtekst(hersteld.imageUrl, bedoeld);
+    const naOordeel = await controleerBeeldtekst(hersteld.imageUrl, bedoeld, merkToegestaan);
     if (naOordeel.ok) return { imageUrl: hersteld.imageUrl, hersteld: true, tekstVerwijderd: false };
 
     const kaal = await editIllustration(
       hersteld.imageUrl,
-      `Remove every letter, word, number, label, caption, watermark and logo from this image, and fill the freed area ` +
-        `with the surrounding flat colour. Keep the composition, all shapes, objects, figures, colours and the ` +
-        `illustration style exactly the same.`,
+      `Remove every letter, word, number, label and caption from this image${merkRegel}, and ` +
+        `fill the freed area with the surrounding flat colour. Keep the composition, all shapes, objects, figures, ` +
+        `colours and the illustration style exactly the same.`,
       format
     );
     return { imageUrl: kaal.imageUrl, hersteld: true, tekstVerwijderd: true };
