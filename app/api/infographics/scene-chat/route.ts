@@ -172,14 +172,14 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Tekst in beeld moet kloppen — ook na een bewerking, want een edit kan een
-      // woord net zo goed verminken als een generatie.
-      if (plan.labels.length > 0) {
-        try {
-          rawUrl = (await borgBeeldtekst(rawUrl, plan.labels, format, body.language)).imageUrl;
-        } catch (e) {
-          console.error("[scene-chat] tekstcontrole mislukt:", e);
-        }
+      // Tekst en merktekens controleren — ook na een bewerking, want een edit kan
+      // een woord net zo goed verminken of een logo bijtekenen als een generatie.
+      try {
+        // Stuurde de gebruiker een logo of product mee, dan hoort dat merk in beeld
+        // en mag de controle het niet weghalen.
+        rawUrl = (await borgBeeldtekst(rawUrl, plan.labels, format, body.language, !!referencePhoto)).imageUrl;
+      } catch (e) {
+        console.error("[scene-chat] tekstcontrole mislukt:", e);
       }
       const imageUrl = await persistFalAssetSoft(supabase, user.id, rawUrl, "image");
       return NextResponse.json({

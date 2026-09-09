@@ -19,8 +19,21 @@ export const STYLE_FRAMING =
 // De tekstregel apart, want die geldt ALTIJD — ook in een beeld dat juist een
 // volle omgeving moet hebben. Verzonnen letterbrij op een bord of scherm is in
 // elk soort beeld fout.
+/**
+ * Geen verzonnen merktekens.
+ *
+ * Beeldmodellen zetten uit zichzelf een logo-achtig vlekje in een hoek — een
+ * badge, een watermerk, een handtekening. Dat is altijd fout: het échte logo van
+ * de klant komt er als aparte laag overheen, en twee logo's naast elkaar zorgt
+ * ervoor dat de kijker het verkeerde ziet. Bij een demo bleek dat pijnlijk.
+ */
+export const MERK_NEGATIEF =
+  "There is no logo, brand mark, badge, emblem, watermark, signature, stamp or app icon anywhere in the image, " +
+  "in no corner and on no object — not even a small or blurred one. ";
+
 export const TEKST_NEGATIEF =
-  "Avoid text, letters, words, numbers and labels wherever possible — no captions or decorative writing on signs, screens, phones, price tags, bills, buttons, charts or packaging. ";
+  "Avoid text, letters, words, numbers and labels wherever possible — no captions or decorative writing on signs, screens, phones, price tags, bills, buttons, charts or packaging. " +
+  MERK_NEGATIEF;
 
 export const STYLE_NEGATIVE =
   " No smoke, no steam, no vapor, no mist, no fog, no rising wisps, no clouds, no sky. " +
@@ -57,17 +70,20 @@ export const STYLE_OMGEVING =
   TEKST_NEGATIEF;
 
 // Extra compositieregels voor de storytelling-infographic. Daar is het beeld geen
-// losse illustratie maar een compleet videoframe: het vult het scherm en er ligt
-// alleen nog een klein merklogo rechtsboven overheen (koppen en grote getallen
-// zijn vervallen). Vandaar de eis van een echte establishing shot met diepte, en
-// een rustige rechterbovenhoek voor dat logo.
+// losse illustratie maar een compleet videoframe dat het scherm vult.
+//
+// LET OP bij het aanpassen: hier stond eerst dat er "a small brand logo" in de
+// rechterbovenhoek komt. Bedoeld als uitleg waarom die hoek rustig moest blijven,
+// maar een beeldmodel tekent wat je noemt — en dus verscheen er precies daar een
+// VERZONNEN logo, dat over het echte logo van de klant heen viel. Noem nooit een
+// logo, merk of watermerk in een beeldprompt, ook niet als toelichting. Zeg wat je
+// wilt zien, niet wat er later overheen komt.
 export const STYLE_VERHAAL_COMPOSITIE =
   " Compose this as a wide establishing shot of that place, with clear depth: a foreground, a middle ground " +
   "and a background that runs all the way to the top edge of the frame (sky, horizon, wall or far scenery). " +
   "This image fills a whole video frame, so let it read from edge to edge and keep the main subject in the " +
-  "centre or the lower half. A small brand logo is placed in the top-right corner afterwards: keep that corner " +
-  "calm, open and light in tone, with no busy detail or dark masses there. Use a muted, natural, harmonious " +
-  "colour palette with soft flat shapes. ";
+  "centre or the lower half. Keep the top-right corner calm, open and light in tone, with no busy detail or dark " +
+  "masses there. Use a muted, natural, harmonious colour palette with soft flat shapes. ";
 
 // Taalregel voor eventuele tekst in het beeld. Beeldmodellen negeren "geen tekst"
 // vaak en vullen dan Engelse labels in. Daarom: als er tóch tekst nodig/aanwezig
@@ -214,7 +230,8 @@ export function labelGuidance(labels?: string[] | null): string {
     `element they belong to, with enough contrast against the background. Each label accompanies a picture and never ` +
     `replaces one: never put a word in an otherwise empty box or panel, and never let text be the main element of the ` +
     `image. Do not translate them, do not abbreviate them, do not ` +
-    `pluralise them and do not add a single other word, letter, number, caption, heading or watermark anywhere in the image.`
+    `pluralise them and do not add a single other word, letter, number, caption or heading anywhere in the image. ` +
+    MERK_NEGATIEF
   );
 }
 
