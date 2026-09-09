@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { buildStoryPrompt } from "@/lib/infographics/build-story-prompt";
-import { STORY_SPEC_SCHEMA, type StorySpec, type StoryScene, type StoryCastMember } from "@/lib/infographics/story-schema";
+import { storySpecSchema, type StorySpec, type StoryScene, type StoryCastMember } from "@/lib/infographics/story-schema";
 import { generateImageWithStyle, cleanupSceneIllustration, cleanupFlatGraphic } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, characterGuidance, castGuidance, CAST_SHEET_GUIDANCE, buildCastSheetBrief } from "@/lib/infographics/story-style";
@@ -21,6 +21,8 @@ interface Body {
   topic?: string;
   text?: string;
   mode?: "story" | "report" | "overheid";
+  // Tekst in beeld (koppen, accentwoorden, grote getallen).
+  tekstInBeeld?: boolean;
   format?: InfographicFormat;
   // Gewenste videolengte in seconden. Stuurt het aantal scenes (hoe langer, hoe
   // meer scenes) en de voice-over-lengte per scene.
@@ -100,7 +102,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // De overheidsmodus tekent zijn eigen scenes en heeft geen losse tekstlaag.
+    const tekstInBeeld = body.tekstInBeeld === true && mode !== "overheid";
     const { system, user: userPrompt } = buildStoryPrompt({
+      tekstInBeeld,
       topic: body.topic ?? "",
       rawText,
       format,
@@ -130,7 +135,7 @@ export async function POST(req: NextRequest) {
       ],
       response_format: {
         type: "json_schema",
-        json_schema: { name: "story_spec", strict: true, schema: STORY_SPEC_SCHEMA as unknown as Record<string, unknown> },
+        json_schema: { name: "story_spec", strict: true, schema: storySpecSchema(tekstInBeeld) as unknown as Record<string, unknown> },
       },
     });
 
@@ -145,6 +150,7 @@ export async function POST(req: NextRequest) {
     }
     spec.format = format;
     spec.mode = mode;
+    spec.tekstInBeeld = tekstInBeeld;
 
     // 2a. OVERHEIDSMODUS — geen beeldmodel, maar een opbouw die de app zelf
     // tekent en animeert (zie lib/infographics/overheid-scene.ts). Hier eindigt
