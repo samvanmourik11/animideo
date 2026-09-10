@@ -9,11 +9,12 @@ interface Props {
   characters: Character[];
   onAdd:      (c: Character) => void;
   onRemove:   (id: string) => void;
+  onRename:   (c: Character) => void;
 }
 
 type Mode = "upload" | "generate";
 
-export default function CharacterStudio({ characters, onAdd, onRemove }: Props) {
+export default function CharacterStudio({ characters, onAdd, onRemove, onRename }: Props) {
   const [mode, setMode] = useState<Mode>("upload");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -29,6 +30,10 @@ export default function CharacterStudio({ characters, onAdd, onRemove }: Props) 
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState("");
+  const [editingId, setEditingId] = useState("");
+  const [editName, setEditName] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [renameError, setRenameError] = useState("");
 
   function reset() {
     setName(""); setDescription(""); setGender(""); setAgeRange("");
@@ -100,6 +105,49 @@ export default function CharacterStudio({ characters, onAdd, onRemove }: Props) 
     } finally {
       setSubmitting(false);
       setProgress("");
+    }
+  }
+
+  function startRename(c: Character) {
+    setEditingId(c.id);
+    setEditName(c.name);
+    setRenameError("");
+  }
+
+  function cancelRename() {
+    setEditingId("");
+    setEditName("");
+    setRenameError("");
+  }
+
+  async function saveRename(id: string) {
+    const trimmed = editName.trim();
+    if (!trimmed) { setRenameError("Naam mag niet leeg zijn"); return; }
+    // Niets veranderd? Dan geen request — scheelt een rondje en houdt de
+    // sortering op updated_at intact.
+    const current = characters.find(c => c.id === id);
+    if (current && current.name === trimmed) { cancelRename(); return; }
+
+    setSavingName(true);
+    setRenameError("");
+    try {
+      const res = await fetch(`/api/characters/${id}`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ name: trimmed }),
+      });
+      const isJson = res.headers.get("content-type")?.includes("application/json");
+      const data = isJson ? await res.json() : null;
+      if (!res.ok || !data?.character) {
+        setRenameError(data?.error ?? "Hernoemen mislukt");
+        return;
+      }
+      onRename(data.character as Character);
+      cancelRename();
+    } catch (err: unknown) {
+      setRenameError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSavingName(false);
     }
   }
 
@@ -271,20 +319,74 @@ export default function CharacterStudio({ characters, onAdd, onRemove }: Props) 
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={c.image_url} alt={c.name} className="w-full h-full object-cover" />
                   )}
-                  <button
-                    onClick={() => handleDelete(c.id)}
-                    disabled={deletingId === c.id}
-                    className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded disabled:opacity-50"
-                    title="Verwijderen"
-                  >
-                    {deletingId === c.id ? "..." : "×"}
-                  </button>
+                  <div className="absolute top-1 right-1 flex gap-1">
+                    <button
+                      onClick={() => startRename(c)}
+                      className="bg-black/70 text-white text-xs px-1.5 py-0.5 rounded"
+                      title="Naam wijzigen"
+                    >
+                      ✏️
+                    </button>
+                    <button
+                      onClick={() => handleDelete(c.id)}
+                      disabled={deletingId === c.id}
+                      className="bg-black/70 text-white text-xs px-1.5 py-0.5 rounded disabled:opacity-50"
+                      title="Verwijderen"
+                    >
+                      {deletingId === c.id ? "..." : "×"}
+                    </button>
+                  </div>
                 </div>
                 <div className="p-2">
-                  <p className="text-xs font-medium text-white truncate">{c.name}</p>
-                  <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">
-                    {[c.gender, c.age_range, c.style].filter(Boolean).join(" · ")}
-                  </p>
+                  {editingId === c.id ? (
+                    <div>
+                      <input
+                        type="text"
+                        value={editName}
+                        autoFocus
+                        maxLength={80}
+                        disabled={savingName}
+                        onChange={e => setEditName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") { e.preventDefault(); saveRename(c.id); }
+                          if (e.key === "Escape") { e.preventDefault(); cancelRename(); }
+                        }}
+                        className="w-full bg-slate-900/60 border border-cyan-600/60 rounded px-1.5 py-1 text-xs text-white disabled:opacity-60"
+                      />
+                      <div className="flex gap-1 mt-1">
+                        <button
+                          onClick={() => saveRename(c.id)}
+                          disabled={savingName}
+                          className="flex-1 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 text-white text-[10px] font-medium py-1 rounded"
+                        >
+                          {savingName ? "Opslaan..." : "Opslaan"}
+                        </button>
+                        <button
+                          onClick={cancelRename}
+                          disabled={savingName}
+                          className="flex-1 bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] py-1 rounded disabled:opacity-50"
+                        >
+                          Annuleer
+                        </button>
+                      </div>
+                      {renameError && (
+                        <p className="text-[10px] text-red-300 mt-1">{renameError}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <p
+                        onClick={() => startRename(c)}
+                        title="Klik om de naam te wijzigen"
+                        className="text-xs font-medium text-white truncate cursor-pointer hover:text-cyan-300"
+                      >
+                        {c.name}
+                      </p>
+                      <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">
+                        {[c.gender, c.age_range, c.style].filter(Boolean).join(" · ")}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             ))}

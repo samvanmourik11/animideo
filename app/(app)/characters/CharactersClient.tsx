@@ -17,6 +17,9 @@ export default function CharactersClient({
   function removeCharacter(id: string) {
     setCharacters((prev) => prev.filter((c) => c.id !== id));
   }
+  function renameCharacter(updated: Character) {
+    setCharacters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+  }
 
   return (
     <div>
@@ -30,6 +33,7 @@ export default function CharactersClient({
         characters={characters}
         onAdd={addCharacter}
         onRemove={removeCharacter}
+        onRename={renameCharacter}
       />
     </div>
   );

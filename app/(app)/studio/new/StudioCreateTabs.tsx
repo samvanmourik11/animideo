@@ -23,6 +23,9 @@ export default function StudioCreateTabs({ userId, brandKits, characters: initia
   function removeCharacter(id: string) {
     setCharacters(prev => prev.filter(c => c.id !== id));
   }
+  function renameCharacter(updated: Character) {
+    setCharacters(prev => prev.map(c => (c.id === updated.id ? updated : c)));
+  }
 
   return (
     <div>
@@ -60,6 +63,7 @@ export default function StudioCreateTabs({ userId, brandKits, characters: initia
           characters={characters}
           onAdd={addCharacter}
           onRemove={removeCharacter}
+          onRename={renameCharacter}
         />
       )}
     </div>
