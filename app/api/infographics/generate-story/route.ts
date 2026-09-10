@@ -230,34 +230,36 @@ export async function POST(req: NextRequest) {
     // houdt kleding en kleur wel vast, maar een gezicht en de onderlinge lengte
     // niet; dat is precies waarom dezelfde persoon per scene een ander mens leek.
     // Alleen zinvol vanaf twee terugkerende personen — bij één (of geen) doet de
-    // tekstuele castbeschrijving het werk en besparen we de gebruiker een credit.
+    // tekstuele castbeschrijving het werk.
+    //
+    // Het castblad kost de gebruiker NIETS. Het is geen beeld dat hij bestelt maar
+    // gereedschap van de tool om de scenes die hij wél betaalt consistent te
+    // krijgen; daar een credit voor rekenen straft juist de video's met meerdere
+    // personages. De providerkosten van deze ene generatie zijn voor ons.
     let castSheetUrl: string | null = null;
     if (cast.length >= 2 || castRefs.length >= 2) {
-      const castCredit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Story castblad");
-      if (castCredit.success) {
-        try {
-          const sheet = await generateImageWithStyle({
-            // Kader "vlak" (de standaard): dit is een referentieblad, geen scène.
-            prompt: buildIllustrationPrompt(buildCastSheetBrief(cast), styleId, language),
-            format,
-            visualStyle: null,
-            seed,
-            // Alle gekozen portretten als character-refs: het castblad is het
-            // ene beeld waarop iedereen naast elkaar staat, dus hier moeten ze
-            // allemaal in — daarna erft elke scene de identiteit van dit blad.
-            characterUrls: castRefUrls.length ? castRefUrls : undefined,
-            extraContext: [
-              paletteHint,
-              castRefGuidance(castRefsMetNaam),
-              castSheetRefLine(castRefsMetNaam),
-            ].filter(Boolean).join(" ").trim() || undefined,
-          });
-          castSheetUrl = await persistFalAssetSoft(supabase, user.id, sheet.imageUrl, "image");
-        } catch (e) {
-          // Zonder castblad valt het verhaal terug op de tekstuele cast: minder
-          // strak, maar beter dan helemaal geen beelden.
-          console.error("[generate-story] castblad mislukt, verder zonder:", e);
-        }
+      try {
+        const sheet = await generateImageWithStyle({
+          // Kader "vlak" (de standaard): dit is een referentieblad, geen scène.
+          prompt: buildIllustrationPrompt(buildCastSheetBrief(cast), styleId, language),
+          format,
+          visualStyle: null,
+          seed,
+          // Alle gekozen portretten als character-refs: het castblad is het
+          // ene beeld waarop iedereen naast elkaar staat, dus hier moeten ze
+          // allemaal in — daarna erft elke scene de identiteit van dit blad.
+          characterUrls: castRefUrls.length ? castRefUrls : undefined,
+          extraContext: [
+            paletteHint,
+            castRefGuidance(castRefsMetNaam),
+            castSheetRefLine(castRefsMetNaam),
+          ].filter(Boolean).join(" ").trim() || undefined,
+        });
+        castSheetUrl = await persistFalAssetSoft(supabase, user.id, sheet.imageUrl, "image");
+      } catch (e) {
+        // Zonder castblad valt het verhaal terug op de tekstuele cast: minder
+        // strak, maar beter dan helemaal geen beelden.
+        console.error("[generate-story] castblad mislukt, verder zonder:", e);
       }
     }
 

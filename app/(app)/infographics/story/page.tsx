@@ -1258,7 +1258,7 @@ export default function StoryPage() {
           </label>
           <button onClick={generate} disabled={loading || !text.trim()} title={!text.trim() ? "Vul eerst een brontekst in" : mode === "overheid"
               ? "De overheidsstijl tekent zijn scenes zelf, zonder beeldmodel: alleen het script kost credits."
-              : `Script schrijven is gratis, ${CREDIT_COSTS.IMAGE_GENERATION} credit per scene-beeld. Komen er meerdere personages in voor, dan komt daar ${CREDIT_COSTS.IMAGE_GENERATION} credit bij voor het castblad dat ze in elke scene hetzelfde houdt.`} className="btn-primary text-sm disabled:opacity-50">
+              : `Script schrijven is gratis, ${CREDIT_COSTS.IMAGE_GENERATION} credit per scene-beeld. Komen er meerdere personages in voor, dan maakt de tool daar gratis een castblad bij dat ze in elke scene hetzelfde houdt.`} className="btn-primary text-sm disabled:opacity-50">
             {loading ? (mode === "overheid" ? "Genereren… (script + scenes)" : "Genereren… (script + beelden)") : "Genereer verhaal"}
             {/* In de overheidsmodus tekent de app de scenes zelf, dus er is geen
                 beeldmodel en geen tarief per scene. */}
