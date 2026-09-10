@@ -18,7 +18,8 @@ import type { StorySpec } from "@/lib/infographics/story-schema";
 import { DEFAULT_VOICE, voicePreviewUrl, voicesForLanguage, voiceForLanguage } from "@/lib/infographics/story-voices";
 import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
 import { STORY_FONTS, DEFAULT_STORY_FONT, nearestStoryFont, STORY_FONTS_CSS_HREF } from "@/lib/infographics/story-fonts";
-import { tekstInBeeldAan } from "@/lib/infographics/story-schema";
+import { tekstInBeeldAan, castRefsVanSpec, castRefsVoorScene, MAX_CAST_REFS } from "@/lib/infographics/story-schema";
+import type { StoryCastRef } from "@/lib/infographics/story-schema";
 import { MusicPickerButton } from "@/components/music/MusicPicker";
 import { findMusicTrackByUrl } from "@/lib/music/library";
 import type { BrandKit } from "@/lib/types";
@@ -122,11 +123,11 @@ export default function StoryPage() {
   const [language, setLanguage] = useState<string>("Nederlands");
   const [tone, setTone] = useState<"zakelijk" | "speels" | "energiek">("zakelijk");
   const [angle, setAngle] = useState("");
-  const [characterUrl, setCharacterUrl] = useState<string | null>(null);
+  // De cast van dit verhaal: de personages die de gebruiker zelf vastlegt, elk
+  // met een eigen rol. Eerder kon er maar één mee, waardoor je bij een video met
+  // een monteur én een klant de halve cast aan het beeldmodel moest overlaten.
+  const [castRefs, setCastRefs] = useState<StoryCastRef[]>([]);
   const [characterBusy, setCharacterBusy] = useState(false);
-  // Wie het vaste personage IS. Gaat mee in elke scène-prompt, zodat dezelfde
-  // mascotte niet in scène twee opeens een ander beroep heeft.
-  const [characterRole, setCharacterRole] = useState("");
   const [kiezerOpen, setKiezerOpen] = useState(false);
   // Gewenste videolengte in seconden; bepaalt hoeveel scenes de AI maakt.
   const [targetSeconds, setTargetSeconds] = useState(90);
@@ -365,34 +366,50 @@ export default function StoryPage() {
     }
   }
 
-  // Personage en rol vastleggen. Ook in een al gegenereerd draaiboek, want daar
-  // wint spec.characterRole bij het maken van scènebeelden — zonder dit zou een
-  // rol die je ná het genereren aanpast stil genegeerd worden.
-  function zetPersonage(velden: { url?: string | null; rol?: string | null }) {
-    if (velden.url !== undefined) setCharacterUrl(velden.url);
-    if (velden.rol !== undefined) setCharacterRole(velden.rol ?? "");
+  // De cast vastleggen. Ook in een al gegenereerd draaiboek, want daar wint de
+  // spec bij het maken van scènebeelden — zonder dit zou een rol die je ná het
+  // genereren aanpast stil genegeerd worden. De oude enkel-personage-velden gaan
+  // leeg mee: anders zou een bestaand verhaal dat je hier leegmaakt zijn oude
+  // mascotte via de terugval in castRefsVanSpec terugkrijgen.
+  function zetCast(volgende: StoryCastRef[]) {
+    const beperkt = volgende.slice(0, MAX_CAST_REFS);
+    setCastRefs(beperkt);
     setSpec((prev) =>
-      !prev
-        ? prev
-        : {
-            ...prev,
-            ...(velden.url !== undefined ? { characterUrl: velden.url } : {}),
-            ...(velden.rol !== undefined ? { characterRole: velden.rol?.trim() || null } : {}),
-          }
+      !prev ? prev : { ...prev, castRefs: beperkt, characterUrl: null, characterRole: null }
     );
   }
 
-  // Vast personage/mascotte uploaden; komt daarna consistent in elke scène terug.
+  function voegCastLidToe(lid: StoryCastRef) {
+    if (castRefs.length >= MAX_CAST_REFS) {
+      setErr(`Je kunt maximaal ${MAX_CAST_REFS} personages vastleggen.`);
+      return;
+    }
+    if (castRefs.some((r) => r.url === lid.url)) return;
+    zetCast([...castRefs, lid]);
+  }
+
+  function wijzigCastLid(index: number, velden: Partial<StoryCastRef>) {
+    zetCast(castRefs.map((r, i) => (i === index ? { ...r, ...velden } : r)));
+  }
+
+  // Een portret uploaden voor de cast. De route beschrijft het uiterlijk meteen,
+  // zodat de art-director er geen tegenstrijdige beschrijving bij verzint.
   async function uploadCharacter(file: File) {
     setErr(null);
     setCharacterBusy(true);
     try {
       const fd = new FormData();
       fd.append("file", file);
+      fd.append("describe", "character");
       const res = await fetch("/api/infographics/upload-scene-ref", { method: "POST", body: fd });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Personage uploaden mislukt"));
-      zetPersonage({ url: d.url as string });
+      voegCastLidToe({
+        url: d.url as string,
+        name: "",
+        role: "",
+        appearance: (d.description as string | null) ?? null,
+      });
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -435,8 +452,13 @@ export default function StoryPage() {
   useEffect(() => {
     setVoice((huidig) => voiceForLanguage(huidig, spec?.language ?? language));
   }, [language, spec?.language]);
-  useEffect(() => { if (spec?.characterUrl) setCharacterUrl(spec.characterUrl); }, [spec?.characterUrl]);
-  useEffect(() => { if (spec?.characterRole) setCharacterRole(spec.characterRole); }, [spec?.characterRole]);
+  // Bij het laden van een opgeslagen verhaal de cast overnemen. castRefsVanSpec
+  // leest ook de oude characterUrl/characterRole, zodat verhalen van vóór het
+  // castblad hun personage houden.
+  useEffect(() => {
+    const uitSpec = castRefsVanSpec(spec);
+    if (uitSpec.length) setCastRefs(uitSpec);
+  }, [spec?.castRefs, spec?.characterUrl, spec?.characterRole]);
 
   // Serie: splits het onderwerp/de bron in losse afleveringen.
   async function planSeries() {
@@ -495,7 +517,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/generate-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, text, mode, format, targetSeconds, styleId, language, tone, angle, characterUrl, characterRole: characterRole.trim() || null, brandColors: brandColorsPayload() }),
+        body: JSON.stringify({ topic, text, mode, format, targetSeconds, styleId, language, tone, angle, castRefs, brandColors: brandColorsPayload() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiError(data, "Verhaal genereren mislukt"));
@@ -619,8 +641,9 @@ export default function StoryPage() {
           anchorImageUrl: spec.anchorImageUrl && spec.anchorImageUrl !== s.imageUrl ? spec.anchorImageUrl : undefined,
           styleId: spec.styleId ?? styleId,
           language: spec.language ?? language,
-          characterUrl: spec.characterUrl ?? characterUrl,
-          characterRole: characterRole.trim() || spec.characterRole || null,
+          // Alleen de personages die in DEZE scene staan; wie er niet in staat
+          // hoort er ook niet bijgetekend te worden.
+          castRefs: castRefsVoorScene(castRefs, s.castNames),
           tekstInBeeld,
           brandColors: brandColorsPayload(),
           // De cast + het castblad mee, anders tekent een regeneratie via de chat
@@ -1047,61 +1070,89 @@ export default function StoryPage() {
                 <span className="text-[11px] text-slate-400">Logo tonen{logoUrl ? "" : " (geen logo)"}</span>
               </label>
             </div>
-            <div className="flex flex-col gap-1 pb-1.5">
-              <span className="block text-[11px] text-slate-400">Vast personage</span>
+            {/* Het castblad: iedereen die in dit verhaal terugkomt, elk met een
+                eigen rol. De portretten gaan als referentie mee naar het castblad
+                en naar elke scene waarin die persoon voorkomt. */}
+            <div className="flex flex-col gap-1.5 pb-1.5">
+              <span className="block text-[11px] text-slate-400">
+                Vaste personages{castRefs.length > 0 ? ` (${castRefs.length}/${MAX_CAST_REFS})` : ""}
+              </span>
+
+              {castRefs.length > 0 && (
+                <div className="flex flex-col gap-1.5">
+                  {castRefs.map((ref, i) => (
+                    <div key={ref.url} className="flex items-center gap-1.5 rounded border border-white/10 bg-slate-900/40 p-1.5">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={ref.url} alt={ref.name || `personage ${i + 1}`} className="h-9 w-9 rounded object-contain bg-white/90 p-0.5 shrink-0" />
+                      <input
+                        value={ref.name}
+                        onChange={(e) => wijzigCastLid(i, { name: e.target.value })}
+                        placeholder="Naam"
+                        title="Onder deze naam komt dit personage in de briefings terug."
+                        className="bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white w-24 placeholder:text-slate-600"
+                      />
+                      <input
+                        value={ref.role}
+                        onChange={(e) => wijzigCastLid(i, { role: e.target.value })}
+                        placeholder="bijv. de monteur"
+                        title="Wat deze persoon in het verhaal doet. Blijft in elke scene hetzelfde."
+                        className="bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white flex-1 min-w-0 placeholder:text-slate-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => zetCast(castRefs.filter((_, k) => k !== i))}
+                        title="Uit de cast halen"
+                        className="text-[11px] px-1.5 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-800 shrink-0"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
-                {characterUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={characterUrl} alt="personage" className="h-7 w-7 rounded object-contain bg-white/90 p-0.5" />
-                )}
                 {/* Kiezen gaat vóór uploaden: wie al personages heeft aangemaakt
                     hoeft dezelfde afbeelding niet opnieuw van schijf te zoeken. */}
                 <button
                   type="button"
                   onClick={() => setKiezerOpen((o) => !o)}
-                  className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800"
-                  title="Kies een personage uit je bibliotheek"
+                  disabled={castRefs.length >= MAX_CAST_REFS}
+                  className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-900/60"
+                  title={castRefs.length >= MAX_CAST_REFS ? `Maximaal ${MAX_CAST_REFS} personages` : "Kies personages uit je bibliotheek"}
                 >
-                  Uit bibliotheek
+                  + Uit bibliotheek
                 </button>
-                <label className={`text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-800 cursor-pointer ${characterBusy ? "opacity-50 pointer-events-none" : ""}`} title="Of upload een eigen afbeelding (PNG, JPG of WEBP)">
+                <label className={`text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-800 cursor-pointer ${characterBusy || castRefs.length >= MAX_CAST_REFS ? "opacity-40 pointer-events-none" : ""}`} title="Of upload een eigen afbeelding (PNG, JPG of WEBP)">
                   {characterBusy ? "Uploaden…" : "⬆ Uploaden"}
                   <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadCharacter(f); e.currentTarget.value = ""; }} />
                 </label>
-                {characterUrl && (
-                  <button type="button" onClick={() => zetPersonage({ url: null, rol: null })} title="Personage verwijderen" className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-800">
-                    Verwijderen
-                  </button>
-                )}
               </div>
 
               {kiezerOpen && (
                 <BibliotheekKiezer
+                  gekozenUrls={castRefs.map((r) => r.url)}
                   onSluit={() => setKiezerOpen(false)}
                   onKies={(ch) => {
-                    // De naam is een bruikbare eerste rol; je kunt hem overschrijven.
-                    zetPersonage({
-                      url: ch.image_url ?? undefined,
-                      rol: characterRole.trim() ? undefined : ch.name,
+                    if (!ch.image_url) return;
+                    // De kiezer blijft open: meestal voeg je meer dan één
+                    // personage tegelijk toe. Naam en beschrijving komen uit de
+                    // bibliotheek, de rol vul je zelf in.
+                    voegCastLidToe({
+                      url: ch.image_url,
+                      name: ch.name,
+                      role: "",
+                      appearance: ch.description,
                     });
-                    setKiezerOpen(false);
                   }}
                 />
               )}
 
-              {characterUrl && (
-                <label className="block mt-1">
-                  <span className="block text-[10px] text-slate-500 mb-0.5">Rol van dit personage</span>
-                  <input
-                    value={characterRole}
-                    onChange={(e) => zetPersonage({ rol: e.target.value })}
-                    placeholder="bijv. de monteur, de klant, de juf"
-                    title="Wie dit personage is. Gaat mee in elke scène, zodat de rol niet verschuift."
-                    className="bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white w-56 placeholder:text-slate-600"
-                  />
-                </label>
-              )}
-              <span className="text-[10px] text-slate-500">Komt consistent in elke scène terug, in dezelfde rol.</span>
+              <span className="text-[10px] text-slate-500">
+                {castRefs.length === 0
+                  ? "Optioneel. Wie je hier vastlegt, ziet er in elke scene hetzelfde uit."
+                  : "Deze mensen komen in elke scene hetzelfde terug, elk in hun eigen rol."}
+              </span>
             </div>
           </div>
         </div>

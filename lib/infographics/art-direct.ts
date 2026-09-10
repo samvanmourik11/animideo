@@ -413,8 +413,14 @@ export async function artDirectScenes(input: {
   topic: string;
   rawText: string;
   scenes: ArtDirectScene[];
-  /** Rol van het vaste personage, als er een gekozen is. */
+  /** Rol van het vaste personage, als er een gekozen is (verouderd, één persoon). */
   characterRole?: string | null;
+  /**
+   * De personages die de gebruiker zelf heeft vastgelegd. Deze mensen MOETEN
+   * onder deze naam en rol in de cast terechtkomen; de regie mag er hooguit nog
+   * rollen bij verzinnen tot het maximum van vier.
+   */
+  vasteCast?: { name?: string | null; role?: string | null; appearance?: string | null }[] | null;
   /** Beeldmodus: "overheid" regisseert diagrammen i.p.v. scènes. */
   mode?: "story" | "report" | "overheid";
   /** Taal van de video; bepaalt of de Nederlandse beeldkennis meegaat. */
@@ -431,7 +437,30 @@ export async function artDirectScenes(input: {
     // scène nieuwe mensen en verschuift de rol alsnog — de referentie-afbeelding
     // repareert dan wel het gezicht, maar niet wie diegene is.
     const rol = input.mode === "overheid" ? "" : (input.characterRole ?? "").trim();
-    const rolRegel = rol
+    // Door de gebruiker vastgelegde personages. Die staan niet ter discussie: ze
+    // horen onder deze naam en rol in de cast, want de klant heeft er portretten
+    // bij gekozen die straks als referentie meegaan. Verzint de regie hier een
+    // eigen naam, dan koppelt geen enkele scene het portret nog aan de persoon.
+    const vast = input.mode === "overheid"
+      ? []
+      : (input.vasteCast ?? []).filter((c) => (c?.name ?? "").trim() || (c?.role ?? "").trim());
+    const vasteRegel = vast.length
+      ? `\n\nVASTGELEGDE CAST (${vast.length}): de klant heeft deze ${vast.length === 1 ? "persoon" : "personen"} zelf gekozen, met een portret erbij.\n` +
+        vast
+          .map((c, i) => {
+            const naam = (c.name ?? "").trim() || `Personage ${i + 1}`;
+            const rolTekst = (c.role ?? "").trim();
+            const uiterlijk = (c.appearance ?? "").trim();
+            return `- ${naam}${rolTekst ? ` — ${rolTekst}` : ""}${uiterlijk ? ` — uiterlijk: ${uiterlijk}` : ""}`;
+          })
+          .join("\n") +
+        `\nNeem deze ${vast.length === 1 ? "persoon" : "personen"} ONVERANDERD op in "cast", met exact deze namen` +
+        `${vast.some((c) => (c.role ?? "").trim()) ? " en rollen" : ""}. Vul bij elk het veld "appearance" aan in dezelfde ` +
+        `stijl als de andere castleden; is er hierboven een uiterlijk gegeven, houd je daar dan aan. ` +
+        `Verdeel ze over de scenes waar ze inhoudelijk thuishoren en zet hun naam telkens in "cast" van die scene. ` +
+        `Je mag hooguit aanvullen tot in totaal vier castleden; verzin geen vervanger voor iemand die hier al staat.`
+      : "";
+    const rolRegel = rol && !vast.length
       ? `\n\nVAST PERSONAGE: elke scène draait om dezelfde persoon, in dezelfde rol: ${rol}. ` +
         `Benoem hem/haar in de illustratie-briefings als "${rol}" en geef die rol in elke scène ` +
         `dezelfde functie, kleding en verhouding tot de anderen. Verzin geen ander hoofdpersoon.`
@@ -459,7 +488,7 @@ ${input.rawText.slice(0, 9000)}
 """
 
 SCRIPT (${n} scenes, in volgorde):
-${sceneList}${rolRegel}
+${sceneList}${vasteRegel}${rolRegel}
 
 Geef nu de visual bible en per scene een sterke, bewuste illustratie-briefing als JSON.`,
         },

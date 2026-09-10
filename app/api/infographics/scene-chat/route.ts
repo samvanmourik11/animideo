@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle, editIllustration, cleanupSceneIllustration, cleanupFlatGraphic } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, characterGuidance, castGuidance, CAST_SHEET_GUIDANCE } from "@/lib/infographics/story-style";
-import type { StoryCastMember } from "@/lib/infographics/story-schema";
+import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE } from "@/lib/infographics/story-style";
+import { castRefsVanSpec, MAX_CAST_REFS, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
 import { planSceneChat, planLayoutChat } from "@/lib/infographics/scene-chat";
 import { ICOON_SLEUTELS, icoonKeuzelijst, type OverheidLayout } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
@@ -54,6 +54,9 @@ interface Body {
   cast?: StoryCastMember[] | null;
   castNames?: string[] | null;
   castSheetUrl?: string | null;
+  // De zelf gekozen personages van dit verhaal (portret + rol). Alleen de mensen
+  // die in DEZE scene staan gaan mee; de pagina filtert daar al op.
+  castRefs?: StoryCastRef[] | null;
 }
 
 export async function POST(req: NextRequest) {
@@ -139,25 +142,34 @@ export async function POST(req: NextRequest) {
         // Nieuw beeld vanaf de (herschreven) briefing, met dezelfde seed, anker,
         // personage en huisstijl als de rest van het verhaal.
         const anchor = body.anchorImageUrl?.trim() || null;
-        const character = body.characterUrl?.trim() || null;
         const paletteHint = brandPaletteHint(body.brandColors?.primary, body.brandColors?.accent);
         const castSheet = body.castSheetUrl?.trim() || null;
+        // De zelf gekozen personages, met de oude enkel-personage-velden als
+        // terugval zodat een bestaand verhaal zijn mascotte houdt.
+        const castRefs = castRefsVanSpec({
+          castRefs: body.castRefs ?? null,
+          characterUrl: body.characterUrl ?? null,
+          characterRole: body.characterRole ?? null,
+        }).slice(0, MAX_CAST_REFS);
         const extraContext = [
           nlBeeldkennis(body.language, plan.illustration, plan.labels.join(" ")),
           paletteHint,
           castGuidance(body.cast, body.castNames),
           castSheet ? CAST_SHEET_GUIDANCE : "",
           referencePhoto ? REFERENCE_PHOTO_GUIDANCE : "",
-          character ? characterGuidance(body.characterRole) : "",
+          castRefGuidance(castRefs),
           anchor ? STYLE_MATCH_ANCHOR : "",
         ].filter(Boolean).join(" ").trim() || undefined;
-        const ingredientUrls = [referencePhoto, character, anchor].filter((u): u is string => !!u);
+        // Portretten in het character-slot (identiteit), het anker en een
+        // meegestuurde foto als ingredient (stijl resp. onderwerp).
+        const ingredientUrls = [referencePhoto, anchor].filter((u): u is string => !!u);
         const result = await generateImageWithStyle({
           prompt: buildIllustrationPrompt(plan.illustration, body.styleId, body.language, kader, plan.labels),
           format,
           visualStyle: null,
           seed: typeof body.seed === "number" ? body.seed : undefined,
           brandUrls: castSheet ? [castSheet] : undefined,
+          characterUrls: castRefs.length ? castRefs.map((r) => r.url) : undefined,
           ingredientUrls: ingredientUrls.length ? ingredientUrls : undefined,
           extraContext,
         });

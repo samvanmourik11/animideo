@@ -3,6 +3,7 @@
 // stabiele publieke URL terug, die scene-image als referentiefoto-ingredient gebruikt.
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { describeCharacter } from "@/lib/character-describe";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -40,6 +41,21 @@ export async function POST(req: NextRequest) {
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
     const url = supabase.storage.from("scene-assets").getPublicUrl(path).data.publicUrl;
+
+    // Bij een portret voor de cast willen we ook het uiterlijk in woorden. Zonder
+    // die beschrijving verzint de art-director er zelf een — en een tekst die het
+    // portret tegenspreekt ("blond haar" bij een donkerharig portret) levert het
+    // beeldmodel twee tegenstrijdige opdrachten. Zacht: mislukt het, dan gaat de
+    // upload gewoon door met alleen het beeld.
+    if (form.get("describe") === "character") {
+      try {
+        const desc = await describeCharacter(url);
+        return NextResponse.json({ url, description: desc.description || null });
+      } catch (e) {
+        console.warn("[upload-scene-ref] beschrijven mislukt, verder zonder:", e);
+      }
+    }
+
     return NextResponse.json({ url });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

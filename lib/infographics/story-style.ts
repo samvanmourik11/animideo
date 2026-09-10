@@ -289,6 +289,48 @@ export function characterGuidance(role?: string | null): string {
   );
 }
 
+/**
+ * Richtlijn bij MEERDERE meegestuurde portretten: welk portret hoort bij wie.
+ *
+ * Met één personage volstond CHARACTER_GUIDANCE ("teken deze persoon"). Zodra er
+ * een monteur én een klant meegaan, moet het model weten welk gezicht bij welke
+ * rol hoort — anders plakt het het verkeerde hoofd op de verkeerde rol, of maakt
+ * het van twee mensen één. De volgorde is de koppeling: portret 1 = de eerste
+ * naam in deze lijst. Daarom staat de nummering er expliciet bij.
+ */
+export function castRefGuidance(refs: CastRefLike[]): string {
+  const leden = refs.filter((r) => r?.url?.trim());
+  if (leden.length === 0) return "";
+  if (leden.length === 1) {
+    const enkel = leden[0];
+    return characterGuidance(enkel.role?.trim() || enkel.name?.trim() || null);
+  }
+  const lijst = leden
+    .map((r, i) => {
+      const naam = (r.name ?? "").trim() || `character ${i + 1}`;
+      const rol = (r.role ?? "").trim();
+      const uiterlijk = (r.appearance ?? "").trim();
+      return `reference portrait ${i + 1} = ${naam.toUpperCase()}${rol ? ` (${rol})` : ""}${uiterlijk ? ` — ${uiterlijk}` : ""}`;
+    })
+    .join("; ");
+  return (
+    ` CHARACTER REFERENCE PORTRAITS — ${leden.length} portraits of specific, named people are provided, in this exact order: ` +
+    `${lijst}. Each portrait defines ONE person: their face, hair, build, clothing and colours. ` +
+    `Whenever one of these people appears in a scene, draw THAT person from THEIR OWN portrait — never mix two of them ` +
+    `together, never give one person's face or outfit to another, and never swap their roles. Redraw them in the ` +
+    `illustration style described above (not as photos), and keep each of them identical across every scene. ` +
+    `Other people in the scene are extras and must look clearly different from these ${leden.length}.`
+  );
+}
+
+/** Minimale vorm van een door de gebruiker gekozen personage (zie StoryCastRef). */
+export interface CastRefLike {
+  url: string;
+  name?: string | null;
+  role?: string | null;
+  appearance?: string | null;
+}
+
 export const CHARACTER_GUIDANCE =
   " A reference image of a RECURRING CHARACTER / mascot is provided. Wherever the scene has a main character, " +
   "draw THIS SAME character — match its design, face, hair, outfit, colours and proportions — redrawn in the " +
@@ -383,6 +425,25 @@ export const CAST_SHEET_GUIDANCE =
  * Bewust op een egaal vlak (kader "vlak"), want dit blad is een referentie en
  * geen scène uit de video.
  */
+/**
+ * Extra regel bij het castblad wanneer de gebruiker eigen portretten meestuurt:
+ * de rij op het blad moet DIE mensen tonen, in dezelfde volgorde als de
+ * portretten. Het castblad is daarna de enige referentie die elke scene meekrijgt,
+ * dus wat hier misgaat, gaat in de hele video mis.
+ */
+export function castSheetRefLine(refs: CastRefLike[]): string {
+  const leden = refs.filter((r) => r?.url?.trim());
+  if (leden.length === 0) return "";
+  const namen = leden
+    .map((r, i) => `${i + 1}. ${(r.name ?? "").trim() || `character ${i + 1}`}${(r.role ?? "").trim() ? ` (${(r.role ?? "").trim()})` : ""}`)
+    .join(", ");
+  return (
+    ` The ${leden.length} reference portrait${leden.length === 1 ? " is" : "s are"} the actual ${leden.length === 1 ? "person" : "people"} to draw in this line-up, ` +
+    `in this same left-to-right order: ${namen}. Take each one's face, hair, build, clothing and colours from their own ` +
+    `portrait and keep them recognisable; only redraw them in the illustration style and full body.`
+  );
+}
+
 export function buildCastSheetBrief(cast: StoryCastMemberLike[]): string {
   const wie = cast
     .map((c, i) => `${i + 1}. ${c.name.trim()}${c.role.trim() ? ` (${c.role.trim()})` : ""} — ${c.appearance.trim()}`)

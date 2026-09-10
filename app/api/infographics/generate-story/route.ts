@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { buildStoryPrompt } from "@/lib/infographics/build-story-prompt";
-import { storySpecSchema, type StorySpec, type StoryScene, type StoryCastMember } from "@/lib/infographics/story-schema";
+import { storySpecSchema, castRefsVanSpec, mergeVasteCast, castRefsVoorScene, MAX_CAST_REFS, type StorySpec, type StoryScene, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
 import { generateImageWithStyle, cleanupSceneIllustration, cleanupFlatGraphic } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, characterGuidance, castGuidance, CAST_SHEET_GUIDANCE, buildCastSheetBrief } from "@/lib/infographics/story-style";
+import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, buildCastSheetBrief, castSheetRefLine } from "@/lib/infographics/story-style";
 import { artDirectScenes, regisseerOverheidScenes } from "@/lib/infographics/art-direct";
 import { ICOON_SLEUTELS, icoonKeuzelijst } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
@@ -40,9 +40,11 @@ interface Body {
   // Verteltoon + optionele invalshoek.
   tone?: string;
   angle?: string;
-  // Vast personage/mascotte dat consistent moet terugkomen.
+  // Verouderd — één vast personage. Blijft geaccepteerd voor oudere clients.
   characterUrl?: string;
   characterRole?: string | null;
+  // De cast die de gebruiker zelf heeft samengesteld: portret + naam + rol.
+  castRefs?: StoryCastRef[];
 }
 
 // Gemiddeld spreektempo (woorden/sec) en richtlengte per scene (sec), waaruit we
@@ -60,6 +62,7 @@ function planLength(targetSeconds: number) {
   const wordsPerScene = clamp(Math.round((secs * WORDS_PER_SEC) / sceneCount), 12, 55);
   return { secs, sceneCount, wordsPerScene };
 }
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -85,6 +88,15 @@ export async function POST(req: NextRequest) {
     const language = body.language ?? "Nederlands";
     const keepTerms = Array.isArray(body.keepTerms) ? body.keepTerms : [];
     const characterUrl = body.characterUrl?.trim() || null;
+    // De zelf samengestelde cast, met de oude enkel-personage-velden als terugval
+    // zodat een oudere client (of een herhaalde aanroep van een bestaand verhaal)
+    // niet stilletjes zijn personage kwijtraakt.
+    const castRefs = castRefsVanSpec({
+      castRefs: body.castRefs ?? null,
+      characterUrl,
+      characterRole: body.characterRole ?? null,
+    }).slice(0, MAX_CAST_REFS);
+    const castRefUrls = castRefs.map((r) => r.url);
     const { secs, sceneCount, wordsPerScene } = planLength(body.targetSeconds ?? 60);
 
     // Credits: 1 voor het script + 1 beeld-tarief per geplande scene. Vooraf
@@ -171,7 +183,7 @@ export async function POST(req: NextRequest) {
         // (titel + achtergrond) in plaats van dat het verhaal stukloopt.
         layout: layouts?.[i] ?? { template: "centraal", titel: null, elementen: [{ icoon: "vlak", label: "" }] },
       }));
-      return NextResponse.json({ spec: { ...spec, scenes, styleId, language, cast: [], castSheetUrl: null } });
+      return NextResponse.json({ spec: { ...spec, scenes, styleId, language, cast: [], castSheetUrl: null, castRefs } });
     }
 
     // 2. Art-direction: de illustratie-briefings upgraden met begrip van het HELE
@@ -184,12 +196,17 @@ export async function POST(req: NextRequest) {
       rawText,
       scenes: spec.scenes.map((s) => ({ voiceover: s.voiceover })),
       characterRole: characterUrl ? body.characterRole : null,
+      vasteCast: castRefs.length ? castRefs : null,
     });
     // De cast hoort bij het verhaal, niet bij één scene: hij gaat mee naar elke
     // beeld-prompt én wordt in de spec bewaard, zodat een latere regeneratie via
     // de chat dezelfde mensen tekent. Vóór deze stap werd de castbeschrijving
     // stilletjes weggegooid en verzon elke scene zijn eigen hoofdpersoon.
-    const cast: StoryCastMember[] = art?.cast ?? [];
+    const gegenereerdeCast: StoryCastMember[] = art?.cast ?? [];
+    // De zelf gekozen personages MOETEN in de cast staan, ook als de regie ze
+    // vergat of anders noemde. De refs komen er mét definitieve naam uit: die
+    // naam koppelt het portret aan de scenes waarin diegene voorkomt.
+    const { cast, refs: castRefsMetNaam } = mergeVasteCast(gegenereerdeCast, castRefs);
     if (art) {
       spec.scenes = spec.scenes.map((s, i) => ({
         ...s,
@@ -215,7 +232,7 @@ export async function POST(req: NextRequest) {
     // Alleen zinvol vanaf twee terugkerende personen — bij één (of geen) doet de
     // tekstuele castbeschrijving het werk en besparen we de gebruiker een credit.
     let castSheetUrl: string | null = null;
-    if (cast.length >= 2) {
+    if (cast.length >= 2 || castRefs.length >= 2) {
       const castCredit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Story castblad");
       if (castCredit.success) {
         try {
@@ -225,8 +242,15 @@ export async function POST(req: NextRequest) {
             format,
             visualStyle: null,
             seed,
-            ingredientUrls: characterUrl ? [characterUrl] : undefined,
-            extraContext: [paletteHint, characterUrl ? characterGuidance(body.characterRole) : ""].filter(Boolean).join(" ").trim() || undefined,
+            // Alle gekozen portretten als character-refs: het castblad is het
+            // ene beeld waarop iedereen naast elkaar staat, dus hier moeten ze
+            // allemaal in — daarna erft elke scene de identiteit van dit blad.
+            characterUrls: castRefUrls.length ? castRefUrls : undefined,
+            extraContext: [
+              paletteHint,
+              castRefGuidance(castRefsMetNaam),
+              castSheetRefLine(castRefsMetNaam),
+            ].filter(Boolean).join(" ").trim() || undefined,
           });
           castSheetUrl = await persistFalAssetSoft(supabase, user.id, sheet.imageUrl, "image");
         } catch (e) {
@@ -239,6 +263,10 @@ export async function POST(req: NextRequest) {
 
     const renderScene = async (scene: StoryScene, i: number, anchorUrl: string | null): Promise<StoryScene> => {
       try {
+        // Alleen de gezichten van wie in DEZE scene staat. Weet de regie niet wie
+        // erin staat (geen castNames), dan liever iedereen dan niemand: een
+        // ontbrekend portret betekent een nieuw verzonnen gezicht.
+        const refsInScene = castRefsVoorScene(castRefsMetNaam, scene.castNames);
         const extraContext = [
           // Het uiterlijk van Nederlandse dingen ligt vast; laat het beeldmodel er
           // geen Amerikaanse versie van maken.
@@ -246,10 +274,13 @@ export async function POST(req: NextRequest) {
           paletteHint,
           castGuidance(cast, scene.castNames),
           castSheetUrl ? CAST_SHEET_GUIDANCE : "",
-          characterUrl ? characterGuidance(body.characterRole) : "",
+          castRefGuidance(refsInScene),
           anchorUrl ? STYLE_MATCH_ANCHOR : "",
         ].filter(Boolean).join(" ").trim() || undefined;
-        const ingredientUrls = [characterUrl, anchorUrl].filter((u): u is string => !!u);
+        // Het anker levert de tekenstijl, de portretten de identiteit. Ze horen
+        // dus in verschillende slots: als ingredient trok het portret de stijl
+        // van de foto mee het beeld in.
+        const ingredientUrls = [anchorUrl].filter((u): u is string => !!u);
         const result = await generateImageWithStyle({
           prompt: buildIllustrationPrompt(scene.illustration, styleId, language, kader, scene.labels),
           format,
@@ -258,6 +289,7 @@ export async function POST(req: NextRequest) {
           // Het castblad krijgt de merk-slots: die staan vooraan in de rij
           // referenties en wegen het zwaarst — en identiteit is hier het doel.
           brandUrls: castSheetUrl ? [castSheetUrl] : undefined,
+          characterUrls: refsInScene.length ? refsInScene.map((r) => r.url) : undefined,
           ingredientUrls: ingredientUrls.length ? ingredientUrls : undefined,
           extraContext,
         });
@@ -299,7 +331,7 @@ export async function POST(req: NextRequest) {
     );
     const scenes: StoryScene[] = [first, ...rest];
 
-    return NextResponse.json({ spec: { ...spec, scenes, seed, anchorImageUrl, styleId, language, cast, castSheetUrl, characterUrl, characterRole: body.characterRole?.trim() || null } });
+    return NextResponse.json({ spec: { ...spec, scenes, seed, anchorImageUrl, styleId, language, cast, castSheetUrl, castRefs: castRefsMetNaam, characterUrl, characterRole: body.characterRole?.trim() || null } });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("generate-story failed:", msg);

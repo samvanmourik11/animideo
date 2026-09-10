@@ -108,6 +108,32 @@ export interface StoryCastMember {
   appearance: string;
 }
 
+/**
+ * Eén personage dat de GEBRUIKER zelf voor dit verhaal heeft gekozen: een
+ * portret uit de bibliotheek of een eigen upload, met de rol die diegene speelt.
+ *
+ * Hiervoor kon je maar één personage meegeven (`characterUrl` + `characterRole`).
+ * Wie een monteur én een klant in zijn video wilde, kon dus maar de helft van de
+ * cast vastleggen en moest de rest aan het beeldmodel overlaten — dat elke scene
+ * een ander gezicht verzon. Deze lijst is het castblad: iedereen die je zelf
+ * vastlegt staat erin, met zijn eigen rol.
+ */
+export interface StoryCastRef {
+  /** Publieke URL van het portret (bibliotheek of upload). */
+  url: string;
+  /** Hoe deze persoon in de briefings heet ("Lisa"). Leeg = de AI kiest er een. */
+  name: string;
+  /** Wat diegene in dit verhaal doet ("de monteur"). Leeg = de AI vult aan. */
+  role: string;
+  /**
+   * Uiterlijk in woorden. Komt uit de bibliotheek (`characters.description`) of
+   * uit de beschrijving bij een upload. Het beeldmodel krijgt het portret zelf
+   * óók mee, maar de tekst houdt kleding en kleur vast in de scenes waar het
+   * portret niet in de referentie-slots past.
+   */
+  appearance?: string | null;
+}
+
 export interface StoryScene {
   id: string;
   voiceover: string;
@@ -247,11 +273,120 @@ export interface StorySpec {
   // hetzelfde gezicht, dezelfde kleding en dezelfde lengte houdt.
   cast?: StoryCastMember[] | null;
   castSheetUrl?: string | null;
-  // Vast personage/mascotte (publieke URL) dat consistent in elke scène terugkomt.
+  /**
+   * De personages die de gebruiker zélf heeft vastgelegd (portret + rol). Deze
+   * mensen staan gegarandeerd in de cast en op het castblad; de art-director mag
+   * er hooguit nog wat rollen bij verzinnen tot het maximum van vier.
+   */
+  castRefs?: StoryCastRef[] | null;
+  // Verouderd — één vast personage. Blijft staan zodat verhalen van vóór het
+  // castblad hun personage houden; `castRefsVanSpec()` leest het als cast van één.
   characterUrl?: string | null;
   /**
    * Wie dat vaste personage IS ("de monteur", "de klant"). Gaat mee in elke
    * scène-prompt: zonder rol wisselde dezelfde mascotte per scène van beroep.
    */
   characterRole?: string | null;
+}
+
+/**
+ * De door de gebruiker vastgelegde cast van een verhaal, inclusief de oude
+ * enkel-personage-velden.
+ *
+ * Bestaande projecten hebben `characterUrl`/`characterRole` en geen `castRefs`.
+ * Die moeten blijven werken zoals ze werkten, dus lezen we ze hier als een cast
+ * van één persoon. Alles wat de cast nodig heeft, gaat via deze functie.
+ */
+export function castRefsVanSpec(
+  spec: Pick<StorySpec, "castRefs" | "characterUrl" | "characterRole"> | null | undefined,
+): StoryCastRef[] {
+  const refs = (spec?.castRefs ?? []).filter((r) => r?.url?.trim());
+  if (refs.length > 0) return refs;
+  const url = spec?.characterUrl?.trim();
+  if (!url) return [];
+  const rol = (spec?.characterRole ?? "").trim();
+  return [{ url, name: "", role: rol }];
+}
+
+/** Hoeveel personages je zelf kunt vastleggen. Gelijk aan de castlimiet van de
+ *  art-director (lib/infographics/art-direct.ts) — meer mensen dan dat houdt
+ *  geen enkel beeldmodel nog uit elkaar. */
+export const MAX_CAST_REFS = 4;
+
+/**
+ * De zelf gekozen personages samenvoegen met de cast die de art-director bedacht.
+ *
+ * De regie krijgt de vastgelegde cast in de prompt mee, maar een taalmodel laat
+ * er weleens iemand uit vallen of noemt hem net anders. Zonder deze stap heeft
+ * dat portret geen naam in de cast, komt het in geen enkele scene-briefing voor,
+ * en tekent het beeldmodel er alsnog een vreemde bij.
+ *
+ * Geeft ook de refs terug mét een definitieve naam. Die naam is de koppeling
+ * tussen portret en scene (`StoryScene.castNames`), dus zonder resolven zou een
+ * naamloos portret in geen enkele scene meegaan.
+ */
+export function mergeVasteCast(
+  gegenereerd: StoryCastMember[],
+  refs: StoryCastRef[],
+): { cast: StoryCastMember[]; refs: StoryCastRef[] } {
+  if (refs.length === 0) return { cast: gegenereerd, refs };
+  const cast = [...gegenereerd];
+  const uitRefs: StoryCastRef[] = [];
+
+  refs.forEach((ref, i) => {
+    const naam = (ref.name ?? "").trim();
+    const rol = (ref.role ?? "").trim();
+    const uiterlijk = (ref.appearance ?? "").trim();
+
+    const bestaand = naam
+      ? cast.findIndex((c) => c.name.trim().toLowerCase() === naam.toLowerCase())
+      // Geen naam opgegeven? Dan hoort dit portret bij het castlid op dezelfde
+      // plek in de rij — dat is ook de volgorde waarin de portretten meegaan.
+      : (cast[i] ? i : -1);
+
+    if (bestaand >= 0) {
+      // De regie mag het uiterlijk uitwerken, maar naam en rol van de klant winnen.
+      cast[bestaand] = {
+        ...cast[bestaand],
+        name: naam || cast[bestaand].name,
+        role: rol || cast[bestaand].role,
+        appearance: cast[bestaand].appearance?.trim() || uiterlijk,
+      };
+      uitRefs.push({ ...ref, name: cast[bestaand].name });
+      return;
+    }
+
+    const nieuweNaam = naam || `Personage ${i + 1}`;
+    cast.push({ name: nieuweNaam, role: rol, appearance: uiterlijk });
+    uitRefs.push({ ...ref, name: nieuweNaam });
+  });
+
+  // Afkappen op de castlimiet, maar nooit ten koste van de klant: die heeft er
+  // een portret bij gekozen. Er vallen dus alleen door de regie verzonnen rollen
+  // af, van achteren naar voren.
+  const vanKlant = new Set(uitRefs.map((r) => r.name.trim().toLowerCase()));
+  const uitCast = [...cast];
+  for (let i = uitCast.length - 1; i >= 0 && uitCast.length > MAX_CAST_REFS; i--) {
+    if (!vanKlant.has(uitCast[i].name.trim().toLowerCase())) uitCast.splice(i, 1);
+  }
+  return { cast: uitCast.slice(0, MAX_CAST_REFS), refs: uitRefs };
+}
+
+/**
+ * Welke portretten gaan er mee naar één scene: die van de castleden die de regie
+ * in deze scene heeft gezet.
+ *
+ * Zonder opgave (geen castNames, bijvoorbeeld omdat de art-direction mislukte)
+ * gaan ze allemaal mee: een scene zonder portret krijgt gegarandeerd een nieuw
+ * verzonnen gezicht, en dat is erger dan een portret te veel — de beeld-prompt
+ * staat uitdrukkelijk toe dat iemand niet in beeld is.
+ */
+export function castRefsVoorScene(
+  refs: StoryCastRef[],
+  castNames: string[] | null | undefined,
+): StoryCastRef[] {
+  if (refs.length === 0) return [];
+  const namen = (castNames ?? []).map((n) => n.trim().toLowerCase()).filter(Boolean);
+  if (namen.length === 0) return refs;
+  return refs.filter((r) => namen.includes((r.name ?? "").trim().toLowerCase()));
 }
