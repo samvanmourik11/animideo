@@ -162,6 +162,35 @@ export function verhaallijnBlok(
 // waar wij kijken. In de kerstvideo was precies de omslag zo'n telefoontje.
 const BUITEN_BEELD = /\b(bel(t|len|de|den)?|opgebeld|telefo\w*|app(t|en|je|jes)?|sms\w*|bericht(je)?|videobel\w*|facetime)\b/i;
 
+// Wie er in het verhaal voorkomt, moet ook in de cast staan. In de eerste proef
+// met de verhaallijn zaten "hun ouders" in het slot aan tafel, terwijl er geen papa
+// of mama in de cast stond: dan tekent het beeldmodel willekeurige volwassenen, of
+// niemand. Alleen de rollen waar het in gezins- en schoolverhalen om draait; een
+// volledige namenherkenning is hier niet nodig.
+// "Ouders" telt als papa én mama: in een verhaal over gescheiden ouders moeten ze
+// allebei in beeld kunnen.
+const GENOEMDE_ROLLEN: { woord: RegExp; label: string; past: RegExp }[] = [
+  { woord: /\b(papa|vader|ouders)\b/i, label: "Papa", past: /\b(papa|vader|ouder)\b/i },
+  { woord: /\b(mama|moeder|ouders)\b/i, label: "Mama", past: /\b(mama|moeder|ouder)\b/i },
+  { woord: /\b(opa|grootvader|grootouders)\b/i, label: "Opa", past: /\b(opa|grootvader)\b/i },
+  { woord: /\b(oma|grootmoeder|grootouders)\b/i, label: "Oma", past: /\b(oma|grootmoeder)\b/i },
+  { woord: /\b(juf|meester|leraar|lerares)\b/i, label: "De juf of meester", past: /\b(juf|meester|leraar|lerares)\b/i },
+];
+
+/**
+ * Rollen die in een tekst genoemd worden maar door niemand in de cast gespeeld.
+ *
+ * Een personage telt als die rol als zijn naam of zijn rol erop past: "Papa" of
+ * "Ousmane, de vader van Tyrrell" allebei. "De oudere broer" telt niet als ouder.
+ */
+export function ontbrekendeRollen(
+  tekst: string,
+  cast: { name: string; role?: string | null }[],
+): string[] {
+  const castTekst = cast.map((c) => `${c.name} ${c.role ?? ""}`).join(" | ");
+  return GENOEMDE_ROLLEN.filter((r) => r.woord.test(tekst) && !r.past.test(castTekst)).map((r) => r.label);
+}
+
 /**
  * Wat er aantoonbaar mis is met een verhaallijn, in gewone taal.
  *
@@ -171,7 +200,7 @@ const BUITEN_BEELD = /\b(bel(t|len|de|den)?|opgebeld|telefo\w*|app(t|en|je|jes)?
  */
 export function verhaalProblemen(
   lijn: VerhaalDeel[] | null | undefined,
-  cast: { characterId: string; name: string }[],
+  cast: { characterId: string; name: string; role?: string | null }[],
 ): string[] {
   if (!lijn?.length) return [];
   const uit: string[] = [];
@@ -187,9 +216,21 @@ export function verhaalProblemen(
     if (!spelend.has(c.characterId)) uit.push(`${c.name} zit in de cast maar speelt in geen enkel deel mee.`);
   }
 
-  const omslag = lijn.find((d) => d.fase === "omslag");
-  if (omslag && BUITEN_BEELD.test(omslag.wat)) {
-    uit.push("Omslag: dit gebeurt via de telefoon, dus buiten beeld. Laat het gebeuren waar de kijker bij is.");
+  for (const rol of ontbrekendeRollen(lijn.map((d) => d.wat).join(" "), cast)) {
+    uit.push(
+      `${rol} komt in het verhaal voor, maar niemand in de cast speelt die rol, dus die kan niet in beeld. ` +
+      `Voeg bij de rolverdeling iemand toe en geef die de rol "${rol.toLowerCase()}".`
+    );
+  }
+
+  // In elk deel, niet alleen de omslag. In een proef "belde papa onverwacht op"
+  // in de tegenslag, terwijl hij als in beeld stond in mama's keuken: dan tekent
+  // het beeldmodel hem gewoon in de verkeerde kamer. Deze video bestaat uit
+  // mensen die samen op één plek staan; een telefoongesprek past daar niet in.
+  for (const d of lijn) {
+    if (BUITEN_BEELD.test(d.wat)) {
+      uit.push(`${FASE_INFO[d.fase].label}: dit gebeurt via de telefoon, dus buiten beeld. Laat het gebeuren waar de kijker bij is.`);
+    }
   }
 
   const begin = lijn.find((d) => d.fase === "begin");

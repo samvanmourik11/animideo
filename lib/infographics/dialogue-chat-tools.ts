@@ -222,6 +222,19 @@ export const DRAAIBOEK_TOOL = {
                       type: "integer",
                       description: 'Alleen bij kind "actie": hoe lang dit beeld duurt, tussen 2 en 6 seconden.',
                     },
+                    // Stond wel bij de verplichte velden, maar ontbrak hier. Het model
+                    // wist dus niet welke kaders er bestaan, en een verhaal kwam terug
+                    // met bij alle eenentwintig regels hetzelfde standaardkader: geen
+                    // enkel ander camerastandpunt, precies wat het camerawerk moest oplossen.
+                    kader: {
+                      type: "string",
+                      enum: [...KADERS],
+                      description:
+                        "HOE dit shot in beeld komt. Kies bewust en wissel af — twee dezelfde kaders achter elkaar " +
+                        "lezen als één lang shot. Een close-up kan maar met ÉÉN personage; in een totaalbeeld, van " +
+                        "bovenaf, van achteren of een detail kan niemand zichtbaar praten, dus gebruik die voor de " +
+                        "verteller of voor een beeld zonder tekst.\n" + kaderKeuzelijst(),
+                    },
                     verband: {
                       type: "string",
                       description:

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   FASEN,
   normaliseerVerhaallijn,
+  ontbrekendeRollen,
   leesDeel,
   ordenDelen,
   scenesPerDeel,
@@ -141,9 +142,39 @@ describe("verhaalProblemen", () => {
     expect(verhaalProblemen(fout, cast).join(" ")).toMatch(/telefoon/);
   });
 
+  it("ziet een telefoontje ook buiten de omslag", () => {
+    const fout = lijn({ tegenslag: { wat: "Papa belt onverwacht op en Lily neemt op." } });
+    expect(verhaalProblemen(fout, cast).join(" ")).toMatch(/Tegenslag: dit gebeurt via de telefoon/);
+  });
+
   it("ziet dat iemand in de cast staat maar nergens meespeelt", () => {
     const zonderMama = lijn(Object.fromEntries(FASEN.map((f) => [f, { wie: ["uuid-tyrrell", "uuid-lily"] }])));
     expect(verhaalProblemen(zonderMama, cast).join(" ")).toContain("Mama");
+  });
+
+  it("ziet dat de ouders aan tafel zitten zonder in de cast te staan", () => {
+    const zonderOuders = cast.filter((c) => c.name !== "Mama");
+    const fout = lijn({ slot: { wat: "Ze zitten aan tafel met hun ouders en drinken chocolademelk." } });
+    expect(verhaalProblemen(fout, zonderOuders).join(" ")).toMatch(/Mama komt/);
+  });
+
+  it("ontbrekendeRollen: 'ouders' vraagt om papa én mama", () => {
+    expect(ontbrekendeRollen("Hun ouders zijn gescheiden.", [{ name: "Tyrrell" }, { name: "Oma" }])).toEqual(["Papa", "Mama"]);
+    expect(ontbrekendeRollen("Hun ouders zijn gescheiden.", [{ name: "Papa" }, { name: "Mama" }])).toEqual([]);
+    expect(ontbrekendeRollen("Ze gaan naar oma.", [{ name: "Beatrice", role: "oma van de kinderen" }])).toEqual([]);
+  });
+
+  it("accepteert een bibliotheekpersonage dat de rol van papa speelt", () => {
+    const metPapa = [...cast, { characterId: "uuid-ousmane", name: "Ousmane", role: "papa van Tyrrell en Lily" }];
+    const lijnMetPapa = lijn({ slot: { wat: "Papa zet de piek in de boom.", wie: ["uuid-ousmane"] } });
+    expect(verhaalProblemen(lijnMetPapa, metPapa).join(" ")).not.toMatch(/Papa komt/);
+  });
+
+  it("laat 'oudere broer' niet doorgaan voor een ouder", () => {
+    const broer = [{ characterId: "uuid-tyrrell", name: "Tyrrell", role: "de oudere broer" }];
+    const fout = lijn({ slot: { wat: "Mama komt thuis.", wie: ["uuid-tyrrell"] } });
+    const alleenTyrrell = fout.map((d) => ({ ...d, wie: ["uuid-tyrrell"] }));
+    expect(verhaalProblemen(alleenTyrrell, broer).join(" ")).toMatch(/Mama komt/);
   });
 
   it("mist de verteller aan het begin", () => {

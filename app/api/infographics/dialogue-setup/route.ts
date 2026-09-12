@@ -16,6 +16,7 @@ import { mergeCast, type DialogueSetup, type VastCastLid } from "@/lib/infograph
 import {
   FASEN,
   normaliseerVerhaallijn,
+  ontbrekendeRollen,
   verhaalProblemen,
   type VerhaalDeel,
 } from "@/lib/infographics/verhaallijn";
@@ -73,9 +74,10 @@ const SETUP_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["characterId", "role", "wil", "spraak", "leeftijd", "voice"],
+        required: ["characterId", "naam", "role", "wil", "spraak", "leeftijd", "voice"],
         properties: {
           characterId: { type: "string" },
+          naam: { type: "string" },
           role: { type: "string" },
           wil: { type: "string" },
           spraak: { type: "string" },
@@ -118,7 +120,7 @@ Dit WEL:
   begin — Noor pakt haar koffertje voor het eerste logeerpartijtje bij opa, en stopt stiekem haar nachtlampje in haar jaszak.
   probleem — Bij opa blijkt het lampje kapot in haar zak. Noor zegt niets, maar wil ineens naar huis "omdat ze buikpijn heeft".
   tegenslag — Opa probeert haar af te leiden met een spelletje. Noor verliest, wordt boos en gaat op de donkere trap zitten — precies de plek waar ze bang voor is.
-  omslag — Opa gaat naast haar op de trap zitten en haalt de oude zaklamp onder zijn eigen kussen vandaan: hij slaapt ook nooit in het donker. Samen plakken ze het lampje.
+  omslag — Noor pakt zelf opa's zaklamp van het nachtkastje en schijnt ermee de trap op. Boven blijkt opa óók een lampje aan te hebben: hij slaapt nooit in het donker. Noor laat hem haar kapotte lampje zien, en samen plakken ze het.
   slot — Noor slaapt met het geplakte lampje én opa's zaklamp. De volgende ochtend vraagt ze of ze volgend weekend weer mag komen.
 
 Waarom dit werkt:
@@ -127,7 +129,8 @@ Waarom dit werkt:
 3. Het belangrijkste moment gebeurt IN BEELD, tussen mensen die er zijn. Nooit via een telefoontje, een appje of "later hoorden ze dat".
 4. Gaat het verhaal over iemand — papa, mama, oma, de juf — dan komt die persoon zelf in beeld en doet mee.
 5. Eén concreet ding (het nachtlampje) komt terug en betekent in het slot iets anders dan aan het begin.
-6. Twee of drie plekken voor het hele verhaal, en er wordt naar teruggekeerd.`;
+6. Twee of drie plekken voor het hele verhaal, en er wordt naar teruggekeerd.
+7. De oplossing komt van de HOOFDPERSONEN zelf: ze durven iets, doen iets of zien iets in. Niet van toeval (een sneeuwstorm, een telefoontje, iets wat toevallig gebeurt) en niet van een volwassene die binnenloopt en het voor ze bedenkt. Noor pakt zelf de zaklamp.`;
 
 function bibliotheekTekst(
   bibliotheek: Pick<Character, "id" | "name" | "description" | "gender" | "age_range">[],
@@ -137,6 +140,140 @@ function bibliotheekTekst(
         .map((c) => `- id "${c.id}": ${c.name}${c.gender ? `, ${c.gender}` : ""}${c.age_range ? `, ${c.age_range}` : ""}${c.description ? ` — ${c.description}` : ""}`)
         .join("\n")
     : "(de gebruiker heeft nog geen personages met een afbeelding)";
+}
+
+// Welk soort stem bij een rol hoort. De stem kiezen we zelf in plaats van het
+// model: dat gaf eerder dubbele stemmen, die mergeCast dan leeggooit, waarna de
+// knop "schrijf het draaiboek" geblokkeerd bleef tot je zelf een stem koos.
+const STEMSOORT: Record<string, RegExp> = {
+  Papa: /mannenstem/i,
+  Opa: /mannenstem/i,
+  Mama: /vrouwenstem/i,
+  Oma: /vrouwenstem/i,
+};
+
+/**
+ * Wie het verhaal nodig heeft maar door niemand gespeeld wordt, alsnog casten.
+ *
+ * De opzet-call kreeg de opdracht om bij ontbrekende ouders een passende
+ * volwassene "Papa" te laten spelen, en deed dat twee proeven op rij niet: zonder
+ * personage dat letterlijk zo heet koos hij oma. De redactie schreef de ouders
+ * daarna netjes uit het verhaal — precies de klacht over de kerstvideo ("ze gaan
+ * niet naar hun ouders"). Eén kleine call met één vraag, "wie speelt papa?", doet
+ * het wél. Hij draait alleen als er echt een rol ontbreekt.
+ */
+async function casteerRollen(
+  rollen: string[],
+  bibliotheek: Pick<Character, "id" | "name" | "description" | "gender" | "age_range" | "image_url">[],
+  cast: DialogueCastMember[],
+  briefing: string,
+  language: string,
+): Promise<DialogueCastMember[]> {
+  const bezet = new Set(cast.map((c) => c.characterId));
+  const vrij = bibliotheek.filter((c) => !bezet.has(c.id) && c.image_url);
+  const teCasten = rollen.slice(0, Math.max(0, MAX_CAST - cast.length));
+  if (!vrij.length || !teCasten.length) return cast;
+
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["keuzes"],
+    properties: {
+      keuzes: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["rol", "characterId", "leeftijd", "wil", "spraak"],
+          properties: {
+            rol: { type: "string", enum: teCasten },
+            characterId: { type: "string" },
+            leeftijd: { type: "string" },
+            wil: { type: "string" },
+            spraak: { type: "string" },
+          },
+        },
+      },
+    },
+  };
+
+  const system = `Je bent castingdirecteur van een geanimeerd verhaal. Deze rollen spelen in het verhaal een rol, maar nog niemand speelt ze: ${teCasten.join(", ")}.
+
+Kies voor ELKE rol één personage uit de bibliotheek hieronder. Een acteur hoeft niet zo te heten als zijn rol.
+
+HOE JE KIEST
+- De juiste leeftijd: ouders zijn volwassenen, grootouders zijn ouder.
+- Het juiste geslacht voor de rol.
+- Familie lijkt op elkaar: kies ouders en grootouders met een uiterlijk dat past bij de kinderen hieronder (huidskleur, haar).
+- Nooit twee rollen door hetzelfde personage.
+
+DE CAST TOT NU TOE:
+${cast.map((c) => `- ${c.name}${c.leeftijd ? `, ${c.leeftijd}` : ""}${c.appearance ? ` — ${c.appearance.slice(0, 200)}` : ""}`).join("\n")}
+
+DE BIBLIOTHEEK (gebruik alleen deze id's):
+${bibliotheekTekst(vrij)}
+
+Geef per rol ook "leeftijd" ("ongeveer 40"), "wil" (wat deze persoon in dit verhaal wil, in een halve zin, en ANDERS dan wat de anderen willen) en "spraak" (hoe deze persoon praat, in een halve zin). In het ${language}.
+
+Antwoord uitsluitend met JSON volgens het schema.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0.3,
+      max_tokens: 800,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: `HET VERHAAL:\n"""\n${briefing.slice(0, 4000)}\n"""` },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "casting", strict: true, schema },
+      },
+    });
+    const ruw = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as {
+      keuzes?: { rol: string; characterId: string; leeftijd: string; wil: string; spraak: string }[];
+    };
+
+    const vlaams = /vlaams/i.test(language);
+    const gebruikteStemmen = new Set(cast.map((c) => c.voice).filter(Boolean));
+    const gekozen = new Set<string>();
+    const nieuw: DialogueCastMember[] = [];
+
+    for (const k of ruw.keuzes ?? []) {
+      const rij = vrij.find((c) => c.id === k.characterId);
+      if (!rij?.image_url || gekozen.has(rij.id) || !teCasten.includes(k.rol)) continue;
+      gekozen.add(rij.id);
+
+      const soort = STEMSOORT[k.rol] ?? /vrouwenstem|mannenstem/i;
+      const vrijeStem = (v: { id: string; description: string }) => soort.test(v.description) && !gebruikteStemmen.has(v.id);
+      const stem =
+        STORY_VOICES.find((v) => vrijeStem(v) && /vlaams/i.test(v.description) === vlaams) ??
+        STORY_VOICES.find(vrijeStem);
+      if (stem) gebruikteStemmen.add(stem.id);
+
+      nieuw.push({
+        id: `char-${cast.length + nieuw.length + 1}`,
+        characterId: rij.id,
+        name: k.rol,
+        role: k.rol.toLowerCase(),
+        leeftijd: (k.leeftijd ?? "").trim() || rij.age_range || null,
+        wil: (k.wil ?? "").trim() || null,
+        spraak: (k.spraak ?? "").trim() || null,
+        voice: stem?.id ?? "",
+        portraitUrl: rij.image_url,
+        position: "left",
+        appearance: rij.description ?? null,
+      });
+      console.log(`[dialogue-setup] gecast: ${k.rol} → ${rij.name}`);
+    }
+
+    // Door mergeCast, zodat id's en plekken in beeld weer netjes op volgorde staan.
+    return nieuw.length ? mergeCast([], [...cast, ...nieuw]) : cast;
+  } catch (e) {
+    console.error("[dialogue-setup] casting mislukt:", e);
+    return cast;
+  }
 }
 
 /**
@@ -173,6 +310,7 @@ HOE JE WERKT
 Loop de zes punten hierboven langs. Klopt een punt niet, herschrijf dan de delen die het nodig hebben — verzin gerust een tegenslag, een voorwerp of een misverstand erbij. Klopt het wel, laat die delen dan staan.
 - Blijf binnen wat de gebruiker wilde: dezelfde situatie, dezelfde personages, dezelfde feiten en namen.
 - Iedereen in de cast speelt in minstens één deel mee.
+- Noem in "wat" alleen mensen die in de cast staan. Je kunt niemand toevoegen, en wie er niet in staat kan niet getekend worden.
 - "wat" zijn twee of drie gewone zinnen in het ${language} over wat er GEBEURT. Geen dialoog.
 - "plek" is kort en tekenbaar. Kom terug op plekken die er al waren.
 - "verteller" is één zin in de derde persoon en de verleden tijd, zoals een voorleesboek. Verplicht bij het begin; verder alleen bij een sprong in tijd of plek, anders leeg.
@@ -189,7 +327,7 @@ ${briefing.slice(0, 4000)}
 
 HET EERSTE VOORSTEL:
 ${JSON.stringify({ kern: voorstel.kern, wending: voorstel.wending, verhaallijn: voorstel.verhaallijn }, null, 2)}
-${problemen.length ? `\nDIT IS AL AANTOONBAAR MIS:\n${problemen.map((p) => `- ${p}`).join("\n")}\n` : ""}
+${problemen.length ? `\nDIT MOET JE OPLOSSEN — het is aantoonbaar mis en mag in jouw versie niet meer voorkomen:\n${problemen.map((p) => `- ${p}`).join("\n")}\n` : ""}
 Geef de verbeterde verhaallijn als JSON.`;
 
   try {
@@ -287,7 +425,10 @@ WAT JE LEVERT, in deze volgorde:
   - "verteller": één zin in de derde persoon en de verleden tijd, zoals een voorleesboek ("Het was de laatste week voor kerst, en in huize De Vries werd het stil."). Verplicht bij het begin. Verder alleen bij een sprong in tijd of plek; anders leeg.
 - "kern": in één zin wat er onderhuids speelt — wat iemand mist, hoopt, niet durft of wil bewijzen. Een gevoel, geen gebeurtenis.
 - "wending": in één zin wat er anders loopt dan verwacht.
-- "cast": ${MAX_CAST > 2 ? `twee tot ${MAX_CAST}` : "twee"} personages, ALTIJD met een "characterId" uit de bibliotheek. Neem iedereen op die in de verhaallijn in beeld komt, en niemand anders. Gaat het verhaal over mensen die in de bibliotheek staan (ouders, opa, de juf), neem ze dan op en laat ze meespelen. Staat zo iemand er niet in, bouw het verhaal dan zo dat de omslag gebeurt tussen personages die je wél kunt laten zien. Per personage:
+- "cast": ${MAX_CAST > 2 ? `twee tot ${MAX_CAST}` : "twee"} personages, ALTIJD met een "characterId" uit de bibliotheek. Neem iedereen op die in de verhaallijn in beeld komt, en niemand anders.
+  Gaat het verhaal over mensen — ouders, opa, de juf — dan spelen die ZELF mee. Staan ze niet letterlijk zo in de bibliotheek, CAST ze dan: kies een personage van de juiste leeftijd met een uiterlijk dat past (ouders lijken op hun kinderen) en geef het in "naam" zijn rol in dit verhaal ("Papa"). Laat iemand waar het verhaal over gaat nooit weg omdat er niemand "Papa" heet; een acteur heet ook niet zoals zijn rol.
+  Noem in "wat" alleen mensen die in de cast staan. Wie er niet in staat, kan niet getekend worden. Per personage:
+  - "naam": hoe dit personage in het verhaal heet. Meestal de naam uit de bibliotheek; speelt het een rol als "Papa", "Mama" of "Opa", schrijf dan die.
   - "role": wie diegene in dit verhaal is ("het broertje dat niets durft te zeggen").
   - "wil": wat diegene wil. Laat de verlangens BOTSEN — twee personages die hetzelfde willen hebben geen verhaal.
   - "spraak": hoe diegene praat ("korte zinnen, stelt alles als vraag"). Maak ze onderling duidelijk verschillend.
@@ -347,7 +488,9 @@ Geef nu de opzet als JSON.`;
         return {
           id: `char-${i + 1}`,
           characterId: rij.id,
-          name: rij.name,
+          // De naam in het verhaal ("Papa") wint van die in de bibliotheek
+          // ("Ousmane"): de verteller en de andere personages spreken hem zo aan.
+          name: (p.naam ?? "").trim() || rij.name,
           role: (p.role ?? "").trim(),
           leeftijd: (p.leeftijd ?? "").trim() || rij.age_range || null,
           wil: (p.wil ?? "").trim() || null,
@@ -364,16 +507,34 @@ Geef nu de opzet als JSON.`;
       ? String(ruw.styleId)
       : DEFAULT_STORY_STYLE;
 
-    const cast = mergeCast(vasteCast, voorstelCast);
-    // Pas NA het samenvoegen van de cast: alleen wie er echt in staat mag in een
-    // deel van het verhaal voorkomen.
+    let cast = mergeCast(vasteCast, voorstelCast);
+
+    // Noemt de gebruiker of het verhaal papa, mama of oma, en speelt niemand die
+    // rol, dan eerst casten. Dit moet VÓÓR de redactie: die kan geen personages
+    // toevoegen en schrijft iemand zonder acteur anders uit het verhaal.
+    const verhaalTekst = normaliseerVerhaallijn(ruw.verhaallijn, bibliotheek.map((c) => c.id)).map((d) => d.wat).join(" ");
+    const ontbrekend = ontbrekendeRollen(`${text} ${verhaalTekst}`, cast);
+    if (ontbrekend.length) {
+      cast = await casteerRollen(ontbrekend, bibliotheek, cast, text, language);
+    }
+
+    // Pas NA het casten: alleen wie er echt in staat mag in een deel van het
+    // verhaal voorkomen.
     let verhaal = {
       kern: String(ruw.kern ?? "").trim(),
       wending: String(ruw.wending ?? "").trim(),
       verhaallijn: normaliseerVerhaallijn(ruw.verhaallijn, cast.map((c) => c.characterId)),
     };
+    // De eerste redactieronde draait altijd. Een tweede alleen als de controle
+    // daarna nog iets aantoonbaar fouts vindt: in de eerste proef liet de redactie
+    // een omslag via de telefoon gewoon staan, terwijl hij expliciet genoemd was.
     if (verhaal.verhaallijn.length && cast.length) {
-      verhaal = (await redigeerVerhaal(verhaal, cast, text, language)) ?? verhaal;
+      for (let ronde = 1; ronde <= 2; ronde++) {
+        const beter = await redigeerVerhaal(verhaal, cast, text, language);
+        if (!beter) break;
+        verhaal = beter;
+        if (verhaalProblemen(verhaal.verhaallijn, cast).length === 0) break;
+      }
     }
 
     const setup: DialogueSetup = {
