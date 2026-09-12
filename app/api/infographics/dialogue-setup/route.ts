@@ -127,7 +127,7 @@ WAT JE LEVERT:
 - "illustrationBrief": regie die voor ELK beeld geldt — kleurgebruik, kleding, soort omgeving. Twee zinnen, in ${language}. Beschrijf hoe het eruitziet, niet wat er gezegd wordt.
 - "keepTerms": merk- en productnamen uit de brontekst die exact zo moeten blijven staan. Leeg als er geen zijn.
 - "avoidTerms": namen die beter niet vallen (concurrenten, herleidbare klantnamen). Meestal leeg.
-- "cast": ${MAX_CAST === 3 ? "twee of drie" : "twee"} personages, ALTIJD met een "characterId" uit de bibliotheek hierboven. Per personage:
+- "cast": twee tot ${MAX_CAST} personages, ALTIJD met een "characterId" uit de bibliotheek hierboven. Neem alleen mensen op die het verhaal echt nodig heeft. Per personage:
   - "role": wie diegene in dit gesprek is ("de expert", "de sceptische ondernemer").
   - "wil": wat diegene in dit gesprek wil bereiken. Laat de verlangens BOTSEN — zonder tegengesteld belang schrijft de scenarist twee mensen die het overal over eens zijn.
   - "spraak": hoe diegene praat ("korte, directe zinnen", "denkt hardop, twijfelt"). Maak ze onderling duidelijk verschillend, anders zijn hun regels verwisselbaar.

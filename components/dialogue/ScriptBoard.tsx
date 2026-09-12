@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import DialogueBuddy from "./DialogueBuddy";
 import type { DialogueSpec, DialogueLine, DialogueScene } from "@/lib/infographics/dialogue-schema";
+import { KADERS, STANDAARD_KADER, kaderLabel, kaderUitleg, type Kader } from "@/lib/infographics/verhaal-kaders";
 import {
   regelKlaar, isActie, actieDuur, heeftStem, VERTELLER_ID,
   ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC,
@@ -39,6 +40,38 @@ export function schatCredits(spec: DialogueSpec): number {
   const kosten = teDoen.reduce((a, l) => a + beeldEnClip + (isActie(l) ? 0 : CREDIT_COSTS.VOICE), 0);
   const shots = spec.scenes.filter((s) => !s.twoShotUrl).length;
   return kosten + shots * CREDIT_COSTS.IMAGE_GENERATION;
+}
+
+/**
+ * Het camerakader van één shot, aanpasbaar.
+ *
+ * Zonder dit koop je een plan dat je niet hebt gelezen: de regisseur kiest per
+ * shot een close-up, een totaalbeeld of een blik van achteren, en dat bepaalt
+ * hoe de video eruitziet. Hier zie je wat hij koos en kun je het omzetten
+ * vóórdat er een beeld gemaakt wordt.
+ */
+function KaderKeuze({
+  waarde,
+  onChange,
+  disabled,
+}: {
+  waarde: Kader | null | undefined;
+  onChange: (k: Kader) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <select
+      value={waarde ?? STANDAARD_KADER}
+      onChange={(e) => onChange(e.target.value as Kader)}
+      disabled={disabled}
+      title={kaderUitleg(waarde)}
+      className="bg-slate-900/60 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 disabled:opacity-50"
+    >
+      {KADERS.map((k) => (
+        <option key={k} value={k}>{kaderLabel(k)}</option>
+      ))}
+    </select>
+  );
 }
 
 export default function ScriptBoard({
@@ -258,7 +291,14 @@ export default function ScriptBoard({
                 return (
                   <div key={li} className="bg-sky-500/[0.07] border border-sky-400/20 rounded px-1.5 py-1 space-y-1">
                   <div className="flex items-start gap-1.5">
-                    <span className="text-[11px] text-sky-300 w-28 shrink-0 mt-1">🎬 je ziet</span>
+                    <span className="text-[11px] text-sky-300 w-28 shrink-0 mt-1 flex items-center gap-1">
+                      🎬
+                      <KaderKeuze
+                        waarde={l.kader}
+                        onChange={(k) => wijzigRegel(si, li, { kader: k, shotImageUrl: null, videoUrl: null })}
+                        disabled={disabled}
+                      />
+                    </span>
                     <textarea
                       value={l.actie ?? ""}
                       onChange={(e) => wijzigInhoud(si, li, { actie: e.target.value })}
@@ -357,6 +397,14 @@ export default function ScriptBoard({
                   >
                     {[...new Set([l.emotion, ...EMOTIES])].filter(Boolean).map((e) => <option key={e} value={e}>{e}</option>)}
                   </select>
+
+                  {/* Het camerakader. Verander je het, dan moet het beeld opnieuw —
+                      daarom gooien we de bestaande clip weg. */}
+                  <KaderKeuze
+                    waarde={l.kader}
+                    onChange={(k) => wijzigRegel(si, li, { kader: k, shotImageUrl: null, videoUrl: null })}
+                    disabled={disabled}
+                  />
 
                   {status}
                   {knoppen}

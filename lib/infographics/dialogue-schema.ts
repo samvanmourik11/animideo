@@ -28,7 +28,22 @@ export const VERTELLER_ID = "verteller";
 
 // Maximaal aantal personages in de cast. Twee is de norm (een twee-shot); drie kan,
 // maar dan wordt het beeld druk en moet er iemand buiten kader vallen.
-export const MAX_CAST = 3;
+/**
+ * Hoeveel personages er in één verhaal mogen.
+ *
+ * Stond op 3, want de tool maakte gesprekken tussen twee of drie mensen die
+ * tegenover elkaar staan. Een sprookje heeft er meer nodig: het Lelijke Eendje
+ * heeft het eendje, de moedereend, broertjes en zusjes, een haan, een vos en
+ * wolven. Zes is de grens waarbinnen een castblad ze nog uit elkaar houdt —
+ * daarboven gaan gezichten op elkaar lijken.
+ *
+ * Per SCÈNE staan er nog steeds hooguit drie in beeld (zie sceneCast); de cast
+ * is de hele bezetting van het verhaal, niet van één shot.
+ */
+export const MAX_CAST = 6;
+
+/** Hoeveel personages er tegelijk in één beeld passen zonder soep te worden. */
+export const MAX_PER_SCENE = 3;
 
 // Waar een personage staat in het twee-shot. Bepaalt de mondzone die we meten en
 // hoe we spreker/luisteraar in de prompts benoemen.
@@ -463,4 +478,22 @@ export function zonderHerhaling(bestaand: DialogueScene[], nieuw: DialogueScene[
     if (lines.length > 0) uit.push({ ...scene, lines });
   }
   return uit;
+}
+
+/**
+ * De personages die in DEZE scène voorkomen, in castvolgorde.
+ *
+ * Het twee-shot van een scène toonde altijd de hele cast. Met drie personages
+ * ging dat nog; met zes staan er mensen in beeld die in die scène niets te
+ * zoeken hebben — en het beeldmodel moet ze dan ook nog uit elkaar houden.
+ * De verteller telt niet mee: die is een stem, geen figuur.
+ */
+export function sceneCast(scene: DialogueScene, cast: DialogueCastMember[]): DialogueCastMember[] {
+  const ids = new Set(
+    scene.lines.map((l) => l.characterId).filter((id) => id && id !== VERTELLER_ID),
+  );
+  const spelend = cast.filter((c) => ids.has(c.id));
+  // Geen enkele match (bijvoorbeeld een scène met alleen verteller of muziek):
+  // dan liever de eerste twee dan een leeg beeld zonder mensen.
+  return (spelend.length ? spelend : cast).slice(0, MAX_PER_SCENE);
 }

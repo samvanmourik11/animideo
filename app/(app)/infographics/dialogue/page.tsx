@@ -13,7 +13,7 @@ import ArtDirection from "@/components/dialogue/ArtDirection";
 import SetupPanel from "@/components/dialogue/SetupPanel";
 import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
-import { regelKlaar, kaleSetting, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
+import { regelKlaar, kaleSetting, sceneCast, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { MusicPickerButton } from "@/components/music/MusicPicker";
 import { findMusicTrackByUrl } from "@/lib/music/library";
@@ -302,7 +302,10 @@ export default function DialoguePage() {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              setting: s.setting, cast: werk.cast, styleId: werk.styleId,
+              // Alleen wie er in DEZE scene speelt. De hele cast meesturen gaf bij
+              // meer dan drie personages beelden vol mensen die er niets te zoeken
+              // hadden — en het beeldmodel moest ze dan ook nog uit elkaar houden.
+              setting: s.setting, cast: sceneCast(s, werk.cast), styleId: werk.styleId,
               castSheetUrl: werk.castSheetUrl ?? null,
               format: werk.format, language: werk.language, seed: werk.seed,
               illustrationBrief: werk.illustrationBrief ?? "",
@@ -350,7 +353,8 @@ export default function DialoguePage() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 twoShotUrl: scene.twoShotUrl, castSheetUrl: werk.castSheetUrl ?? null,
-                cast: werk.cast, speakerId: regel.characterId,
+                // Alleen de spelers van deze scene; het castblad houdt de rest bij.
+                cast: sceneCast(scene, werk.cast), speakerId: regel.characterId,
                 kind: regel.kind ?? "dialoog", actie: regel.actie ?? "", seconden: regel.seconden ?? undefined,
                 narratorVoice: werk.narratorVoice ?? undefined,
                 text: regel.text, emotion: regel.emotion, language: werk.language,
