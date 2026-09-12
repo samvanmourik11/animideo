@@ -292,7 +292,13 @@ const REGEL_SCHEMA = {
 const SETTING_OMSCHRIJVING =
   "ENGELSE beschrijving van alleen de OMGEVING, bijv. \"a modern office with a desk and a laptop\". " +
   "Noem NOOIT personages, namen, houdingen of handelingen — dus niet \"Marc and Eva smiling\", " +
-  "maar alleen de plek waar ze staan.";
+  "maar alleen de plek waar ze staan. " +
+  // Deze regel stond alleen in het HOOFD-gereedschap, niet hier. Zodra de
+  // pijplijn scenes uitbreidde of herschreef, kreeg dezelfde kamer nét andere
+  // woorden — en dan tekent het beeldmodel een andere kamer. Zo veranderde
+  // halverwege een kerstvideo de bank, de boom en de muur van de open haard.
+  "Speelt deze scène op een plek die eerder in dit draaiboek al voorkwam, gebruik dan LETTERLIJK dezelfde " +
+  "beschrijving, woord voor woord. Zo blijft het dezelfde kamer en niet een kamer die erop lijkt.";
 
 export const HERZIE_DRAAIBOEK_TOOL = {
   type: "function" as const,
@@ -563,6 +569,12 @@ Verder:
     300 seconden →  ~75 regels over 25 scènes
   Blijf daar dicht bij. Schrijf je er veel minder, dan wordt de video korter dan gevraagd; veel meer maakt hem onnodig duur.
 - Bij een LANGE video (twee minuten of meer) is de valkuil dat het gesprek gaat rondjes draaien. Bouw dan echte hoofdstukken: elk stuk behandelt iets nieuws, met een eigen omgeving, en samen vormen ze een opbouw naar een slot.
+
+HOEVEEL PLEKKEN
+Gebruik voor de hele video hooguit twee of drie verschillende plekken, en kom er
+gerust naar terug. Een gesprek dat elke scene in een andere kamer staat voelt niet
+als een verhaal maar als losse plaatjes achter elkaar. Kom je terug op een plek die
+er al was, schrijf de omgeving dan LETTERLIJK hetzelfde op als de vorige keer.
 
 Schrijf al je berichten aan de gebruiker in het Nederlands, kort en concreet.${vast}`;
 }

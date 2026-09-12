@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
-import { buildTwoShotBrief, illustratieContext, zonderTekst } from "@/lib/infographics/dialogue-staging";
+import { buildTwoShotBrief, illustratieContext } from "@/lib/infographics/dialogue-staging";
+import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld } from "@/lib/infographics/dialogue-verify";
 import { MAX_CAST, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
@@ -14,6 +15,14 @@ export const maxDuration = 300;
 
 interface Body {
   setting?: string;
+  /** De hoeveelste scène dit is. Bepaalt het camerastandpunt (zie kaderVoorScene). */
+  sceneIndex?: number;
+  /**
+   * Een eerder beeld van DEZELFDE plek. Speelt scène 5 weer in oma's woonkamer,
+   * dan hoort dat dezelfde kamer te zijn — eerder werd het elke keer een andere
+   * kamer met een andere bank en de open haard aan een andere muur.
+   */
+  locationRefUrl?: string;
   cast?: DialogueCastMember[];
   styleId?: string;
   format?: InfographicFormat;
@@ -66,7 +75,13 @@ export async function POST(req: NextRequest) {
     // Een afgekeurde poging is wél gemaakt en wordt dus wél afgerekend.
     let besteedExtra = 0;
 
-    const brief = buildTwoShotBrief(setting, cast);
+    const locatieRef = (body.locationRefUrl ?? "").trim();
+    const brief = buildTwoShotBrief(
+      setting,
+      cast,
+      typeof body.sceneIndex === "number" ? body.sceneIndex : 0,
+      !!locatieRef,
+    );
     const anker = (body.anchorTwoShotUrl ?? "").trim();
     const castblad = (body.castSheetUrl ?? "").trim();
     // Het castblad gaat als "merk-referentie" mee: dat is de enige categorie die
@@ -88,6 +103,11 @@ export async function POST(req: NextRequest) {
         "scene in one location, never a split screen, never side-by-side panels, never a row of portraits, " +
         "and never a plain studio background. Do not draw the sheet itself, or any framed portrait, card or " +
         "poster of these characters, as an object inside the scene."
+      : "";
+    const locatieInstructie = locatieRef
+      ? " One reference image shows THIS SAME LOCATION earlier in the video. The room, furniture, walls, " +
+        "floor, colours and decorations must match it exactly — same sofa, same tree, same fireplace, in the " +
+        "same places. Only the camera position and the characters' poses differ."
       : "";
     const ankerInstructie = anker
       ? " A reference image of these SAME two people from an earlier scene in this same video is provided. " +
@@ -128,11 +148,13 @@ export async function POST(req: NextRequest) {
         characterUrls: castblad ? undefined : portretten,
         brandUrls: castblad ? [castblad] : undefined,
         // Het anker uit scène 1 houdt cast én look gelijk over alle scènes heen.
-        ingredientUrls: anker ? [anker] : undefined,
+        // Het anker houdt de personages gelijk, de locatiereferentie de kamer.
+        ingredientUrls: [locatieRef, anker].filter(Boolean),
         extraContext: [
           illustratieContext(body.illustrationBrief),
           castbladInstructie,
           ankerInstructie,
+          locatieInstructie,
           alleenDezeMensen,
           fouten.length
             ? `The previous attempt was rejected for these mistakes — avoid them: ${fouten.join("; ")}.`

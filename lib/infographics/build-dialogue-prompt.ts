@@ -99,7 +99,7 @@ DIALOOG:
 SCÈNES EN DE "setting":
 - Per scène lever je een ENGELSE "setting": alleen de OMGEVING waarin dit deel van het gesprek zich afspeelt, bijvoorbeeld "a modern office with a desk and a laptop" of "a bright kitchen with a counter".
 - Beschrijf UITSLUITEND de plek. Noem GEEN personages, geen namen, geen houdingen en geen handelingen — wie er staat en hoe ze staan bepalen wij op basis van de cast.
-- Geef elke scène een duidelijk ANDERE omgeving, zodat de video visueel afwisselt.
+- Gebruik voor de hele video hooguit twee of drie verschillende plekken, en kom er gerust naar terug. Elke scène een andere kamer voelt niet als een verhaal maar als losse plaatjes. Kom je terug op een plek die er al was, schrijf de "setting" dan LETTERLIJK hetzelfde op als de vorige keer — anders wordt het een kamer die erop lijkt in plaats van dezelfde kamer.
 - GEEN tekst in beeld.
 
 HARDE REGELS:

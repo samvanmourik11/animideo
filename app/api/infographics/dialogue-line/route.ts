@@ -12,8 +12,9 @@ import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { STORY_VOICES } from "@/lib/infographics/story-voices";
 import {
   buildTurnShotPrompt, buildDialogueMotionPrompt,
-  buildActionShotPrompt, buildActionMotionPrompt, illustratieContext, zonderTekst,
+  buildActionShotPrompt, buildActionMotionPrompt, illustratieContext,
 } from "@/lib/infographics/dialogue-staging";
+import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld, beoordeelBeweging, type SprekerOordeel } from "@/lib/infographics/dialogue-verify";
 import {
   sprekerHelft, ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC, VERTELLER_ID,

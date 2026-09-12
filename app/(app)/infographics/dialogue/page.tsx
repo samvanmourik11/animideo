@@ -269,20 +269,14 @@ export default function DialoguePage() {
       let klaar = 0;
       setVoortgang(`Scènes opzetten (0/${zonderShot.length})…`);
       for (const { s, si } of zonderShot) {
-        // Speelt deze scène op een plek die we al getekend hebben, neem dan dát
-        // beeld over in plaats van de omgeving opnieuw te laten verzinnen. Oma's
-        // woonkamer kwam in één verhaal drie keer terug en zag er drie keer anders
-        // uit; nu is het letterlijk dezelfde kamer. Scheelt bovendien een credit.
+        // Speelt deze scène op een plek die we al getekend hebben, dan gaat dát
+        // beeld mee als referentie voor de kamer. Eerder namen we het beeld
+        // letterlijk over: dezelfde kamer, maar ook exact hetzelfde plaatje, en
+        // daardoor was de halve video één shot. Nu tekenen we dezelfde kamer
+        // vanuit een ander camerastandpunt (zie kaderVoorScene).
         const zelfdePlek = werk.scenes.find(
           (sc) => sc.twoShotUrl && sc !== s && kaleSetting(sc.setting) === kaleSetting(s.setting)
         );
-        if (zelfdePlek?.twoShotUrl) {
-          werk.scenes[si].twoShotUrl = zelfdePlek.twoShotUrl;
-          klaar++;
-          setVoortgang(`Scènes opzetten (${klaar}/${zonderShot.length})…`);
-          setSpec(structuredClone(werk));
-          continue;
-        }
 
         // Het eerste beschikbare twee-shot dient als anker; bij een hervatting kan
         // dat er dus al staan uit een eerdere ronde.
@@ -297,6 +291,8 @@ export default function DialoguePage() {
               format: werk.format, language: werk.language, seed: werk.seed,
               illustrationBrief: werk.illustrationBrief ?? "",
               anchorTwoShotUrl: anker,
+              sceneIndex: si,
+              locationRefUrl: zelfdePlek?.twoShotUrl ?? null,
             }),
           });
           const d = await r.json();

@@ -25,7 +25,6 @@
 
 import type { DialogueCastMember } from "./dialogue-schema";
 import { STORY_STYLE_PRESETS } from "./story-style";
-import { borgBeeldtekst } from "./tekst-controle";
 
 /**
  * De gekozen tekenstijl, als zin voor een BEWERKINGS-prompt.
@@ -84,7 +83,15 @@ export const NATUURWETTEN =
   " PHYSICAL RULES — the scene must be physically possible. People stand ON THE FLOOR, " +
   "NEXT TO or BEHIND equipment, tanks, containers, water, machines and vehicles — NEVER inside " +
   "them, never submerged, never standing in liquid, never merged with an object. Everyone has two " +
-  "arms, two hands and five fingers per hand, in natural positions; no extra or missing limbs. " +
+  "arms and two hands, in natural, relaxed positions; no extra or missing limbs. " +
+  // "Vijf vingers per hand" vocht met deze getekende stijl, waarin handen juist
+  // vereenvoudigd zijn: het model maakte er een vormeloze klomp van. Vraag om
+  // een hele, duidelijk leesbare hand in de stijl van de tekening in plaats van
+  // om een anatomisch aantal vingers.
+  "Draw hands the simple, rounded way this illustration style draws them: each hand whole, clearly readable " +
+  "as a hand, with a clean silhouette against whatever is behind it. Never a shapeless blob, never fused " +
+  "into an arm, a table, a mug or another person's hand. If a hand rests on a surface or holds an object, " +
+  "keep the pose simple and the whole hand visible. " +
   "If the location contains water — a river, the sea, a pool, a tank — the people stand on the DRY BANK " +
   "or shore beside it, with the ground under their feet visible and their whole body above the waterline; " +
   "the water is behind or beside them, never around their legs. " +
@@ -140,7 +147,45 @@ function aanduiding(lid: DialogueCastMember, hoofdletters = true): string {
  * de plek. Cruciaal is dat ze naar ELKAAR gedraaid staan en niet naar de camera —
  * dat laatste was precies wat de oude pratende-koppen-opzet zo levenloos maakte.
  */
-export function buildTwoShotBrief(setting: string, cast: DialogueCastMember[]): string {
+/**
+ * Camerastandpunten die per scène wisselen.
+ *
+ * Elke scène kreeg exact hetzelfde kader ("medium-wide shot, whole body"), en
+ * omdat elk regelbeeld een BEWERKING van dat kader is, was de halve video
+ * hetzelfde plaatje: dezelfde twee mensen, dezelfde afstand, negen keer achter
+ * elkaar. Deze rotatie wisselt alleen afstand en ooghoogte — links blijft links
+ * en rechts blijft rechts, want daar hangt de sprekerherkenning aan, en beide
+ * personages blijven altijd volledig in beeld.
+ */
+const KADERS: string[] = [
+  "Medium-wide shot at eye level: their WHOLE BODY is visible, feet included, with space between them and " +
+    "the room clearly visible around and behind them.",
+  "Wider establishing shot: the two of them stand a little smaller in the frame, off to one side, with much " +
+    "more of the location visible around them — you can see where this place is. Whole bodies still visible.",
+  "Medium shot, a step closer at eye level: framed from the knees up, so their faces and hands read clearly " +
+    "while the location stays recognisable behind them.",
+  "Medium-wide shot from a slight three-quarter angle, as if the camera stepped to one side of the room: you " +
+    "see the space opening up behind them. Whole bodies visible, feet included.",
+  "Medium shot from a slightly lower camera, near a child's eye height: framed from the knees up, warm and " +
+    "close, with the ceiling or upper part of the room just visible behind them.",
+];
+
+/** Het kader voor scène `index`. Loopt rond zodra de reeks op is. */
+export function kaderVoorScene(index: number): string {
+  return KADERS[((index % KADERS.length) + KADERS.length) % KADERS.length];
+}
+
+export function buildTwoShotBrief(
+  setting: string,
+  cast: DialogueCastMember[],
+  sceneIndex = 0,
+  /**
+   * Is deze scène op een plek die al eerder getekend is, dan gaat dat beeld mee
+   * als referentie. Zonder dat werd oma's woonkamer elke keer een andere kamer:
+   * andere bank, andere boom, open haard aan de andere muur.
+   */
+  zelfdeLocatie = false,
+): string {
   const links = cast.find((c) => c.position === "left");
   const rechts = cast.find((c) => c.position === "right");
   const midden = cast.filter((c) => c.position === "center");
@@ -159,9 +204,13 @@ export function buildTwoShotBrief(setting: string, cast: DialogueCastMember[]): 
   return (
     `${cast.length} colleagues having a conversation with each other in ${setting.trim()}. ` +
     `${opstelling}, turned three-quarters TOWARDS EACH OTHER, facing one another and clearly talking together — ` +
-    `NOT looking at the viewer. Medium-wide shot: their WHOLE BODY is visible, feet included, with space between them, ` +
-    `standing on the solid floor or dry ground of this location with the room or landscape visible around and behind them. ` +
-    `Relaxed, natural conversational posture. ` +
+    `NOT looking at the viewer. ${kaderVoorScene(sceneIndex)} ` +
+    `They stand on the solid floor or dry ground of this location. Relaxed, natural conversational posture. ` +
+    (zelfdeLocatie
+      ? `This is the SAME room the characters were in earlier in this video, shown from a different camera ` +
+        `position. Keep the location identical to the reference image of it: the same furniture in the same ` +
+        `places, the same walls, floor, colours and decorations. Only the camera has moved. `
+      : "") +
     // Dit twee-shot is het ANKER voor alle beelden van deze scène, dus de
     // onderlinge lengte die hier ontstaat geldt de rest van de video.
     `Give each person a body height that fits their age; people of the same age are about the same height.` +
@@ -308,33 +357,4 @@ export function buildActionMotionPrompt(actie: string, styleId?: string | null):
     `Bodies stay whole and keep their proportions; limbs do not stretch, merge or disappear. ` +
     `Any text already in the image stays exactly as it is.`
   );
-}
-
-/**
- * Verzonnen tekst uit een dialoogbeeld vegen.
- *
- * In de dialoogmodus hoort er NOOIT tekst in beeld te staan: de personages
- * praten, er is geen tekstlaag. Het beeldmodel tekent hem toch — een kalender
- * met dubbele dagen en een onleesbare krabbel eronder, een blaadje op tafel vol
- * gekras, en labels onder portretkaartjes die nergens op slaan.
- *
- * De storytelling-tool haalde dat er al uit met borgBeeldtekst(); de
- * dialoogroutes riepen die controle nergens aan. Met een lege lijst "bedoelde"
- * woorden betekent de controle: alles eruit.
- *
- * Zacht: mislukt de controle, dan houden we het beeld zoals het was. Een beeld
- * met een lelijke kalender is beter dan een scène zonder beeld.
- */
-export async function zonderTekst(
-  imageUrl: string,
-  format?: string,
-  language?: string | null,
-): Promise<string> {
-  try {
-    const uit = await borgBeeldtekst(imageUrl, [], format, language ?? "Nederlands");
-    return uit.imageUrl;
-  } catch (e) {
-    console.error("[dialogue] tekstcontrole mislukt, beeld behouden:", e);
-    return imageUrl;
-  }
 }
