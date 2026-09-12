@@ -11,6 +11,7 @@ import { STORY_VOICES } from "./story-voices";
 import { STORY_STYLE_PRESETS } from "./story-style";
 import { CAST_POSITIONS, planVoorLengte, REGELS_PER_SCENE } from "./dialogue-schema";
 import { KADERS, kaderKeuzelijst } from "./verhaal-kaders";
+import { LICHTSOORTEN, lichtKeuzelijst } from "./verhaal-licht";
 
 export const DRAAIBOEK_TOOL = {
   type: "function" as const,
@@ -155,7 +156,7 @@ export const DRAAIBOEK_TOOL = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["setting", "lines"],
+            required: ["setting", "licht", "lines"],
             properties: {
               setting: {
                 type: "string",
@@ -168,6 +169,15 @@ export const DRAAIBOEK_TOOL = {
                   "Speelt een scène op een plek die eerder in dit draaiboek al voorkwam, gebruik dan LETTERLIJK " +
                   "dezelfde beschrijving, woord voor woord. Zo blijft het dezelfde kamer en niet een kamer die " +
                   "erop lijkt. Nieuwe plek = nieuwe beschrijving.",
+              },
+              licht: {
+                type: "string",
+                enum: [...LICHTSOORTEN],
+                description:
+                  "Het LICHT in deze scène. Dit bepaalt de sfeer en is net zo belangrijk als wat er gebeurt: " +
+                  "een bos 's nachts hoort donker te zijn, een kerstavond bij de haard warm en van één kant " +
+                  "verlicht. Kies bewust en wissel af over het verhaal heen — een verhaal waarin het van begin " +
+                  "tot eind even helder is, voelt vlak.\n" + lichtKeuzelijst(),
               },
               lines: {
                 type: "array",
@@ -351,7 +361,7 @@ export const HERZIE_DRAAIBOEK_TOOL = {
           items: {
             type: "object",
             additionalProperties: false,
-            required: ["setting", "lines"],
+            required: ["setting", "licht", "lines"],
             properties: {
               setting: { type: "string", description: SETTING_OMSCHRIJVING },
               lines: { type: "array", items: REGEL_SCHEMA },

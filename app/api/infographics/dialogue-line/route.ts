@@ -21,6 +21,7 @@ import {
   type Kader,
   type Beweging,
 } from "@/lib/infographics/verhaal-kaders";
+import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld, beoordeelBeweging, type SprekerOordeel } from "@/lib/infographics/dialogue-verify";
 import {
@@ -142,6 +143,8 @@ interface Body {
   beweging?: Beweging | null;
   /** De hoeveelste shot dit is; laat de camerabewegingen rouleren. */
   shotIndex?: number;
+  /** Het licht in deze scène. Zie verhaal-licht.ts. */
+  licht?: Lichtsoort | null;
   // --- Gericht opnieuw maken ---------------------------------------------
   // Een regel bestaat uit drie dingen die los kapot kunnen: de stem, het
   // bronbeeld en de beweging. Wie alleen de beweging wil overdoen hoort niet
@@ -367,6 +370,7 @@ export async function POST(req: NextRequest) {
                 actie: isActieBeeld ? actieTekst : null,
                 kader: kaderNu,
                 styleId: b.styleId,
+                licht: isLichtsoort(b.licht) ? b.licht : null,
               })
             : isActieBeeld
               ? buildActionShotPrompt(cast, actieTekst, b.styleId, kaderNu)

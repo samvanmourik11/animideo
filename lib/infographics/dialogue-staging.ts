@@ -26,6 +26,7 @@
 import type { DialogueCastMember } from "./dialogue-schema";
 import { STORY_STYLE_PRESETS } from "./story-style";
 import { kaderRegie, bewegingRegie, type Kader, type Beweging } from "./verhaal-kaders";
+import { beeldSfeer, type Lichtsoort } from "./verhaal-licht";
 
 /**
  * De gekozen tekenstijl, als zin voor een BEWERKINGS-prompt.
@@ -186,6 +187,7 @@ export function buildTwoShotBrief(
    * andere bank, andere boom, open haard aan de andere muur.
    */
   zelfdeLocatie = false,
+  licht?: Lichtsoort | null,
 ): string {
   const links = cast.find((c) => c.position === "left");
   const rechts = cast.find((c) => c.position === "right");
@@ -228,6 +230,8 @@ export function buildTwoShotBrief(
     // Dit twee-shot is het ANKER voor alle beelden van deze scène, dus de
     // onderlinge lengte die hier ontstaat geldt de rest van de video.
     `Give each person a body height that fits their age; people of the same age are about the same height.` +
+    // Na de tekenstijl, want die schrijft bij Soft 3D "studio lighting" voor.
+    beeldSfeer(licht, null) +
     NATUURWETTEN
   );
 }
@@ -434,8 +438,9 @@ export function buildShotPrompt(input: {
   actie?: string | null;
   kader?: Kader | null;
   styleId?: string | null;
+  licht?: Lichtsoort | null;
 }): string {
-  const { setting, inBeeld, spreker, emotion, actie, kader, styleId } = input;
+  const { setting, inBeeld, spreker, emotion, actie, kader, styleId, licht } = input;
 
   const wie = inBeeld
     .map((c) => {
@@ -466,9 +471,13 @@ export function buildShotPrompt(input: {
     `${wieDoetWat} ` +
     // De plek moet hetzelfde blijven als de rest van de scene; die komt uit het
     // meegestuurde scenebeeld. Alleen het standpunt en de houdingen verschillen.
-    `One reference image shows this same location earlier in the story: keep the room, furniture, colours and ` +
-    `lighting the same as there. Only the camera position and the characters' poses differ. ` +
+    `One reference image shows this same location earlier in the story: keep the room, furniture and colours ` +
+    `the same as there. Only the camera position and the characters' poses differ. ` +
     stijlBewerking(styleId) + MAATVAST +
+    // De sfeer komt NA de tekenstijl: die schrijft bij Soft 3D "gentle soft studio
+    // lighting" voor, en dat wint als het als laatste in de prompt staat. Dan is
+    // elke nachtscene alsnog een helder verlicht speelgoedtafereel.
+    beeldSfeer(licht, kader) +
     NATUURWETTEN
   );
 }

@@ -159,6 +159,7 @@ export interface DialogueCastMember {
 //     beeld ziet in plaats van de pratende koppen
 // Die laatste twee zijn hetzelfde in de data: een actiebeeld MET gesproken tekst.
 import type { Kader } from "./verhaal-kaders";
+import type { Lichtsoort } from "./verhaal-licht";
 
 export const SHOT_SOORTEN = ["dialoog", "actie"] as const;
 export type ShotSoort = (typeof SHOT_SOORTEN)[number];
@@ -253,6 +254,14 @@ export interface DialogueLine {
 export interface DialogueScene {
   id: string;
   setting: string;
+  /**
+   * Het licht in deze scene: dag, nacht, kaarslicht, tegenlicht…
+   * Zie verhaal-licht.ts.
+   *
+   * Hoort bij de scene en niet bij het shot, want binnen één plek en één moment
+   * verandert het licht niet. Afwezig = daglicht, zoals het altijd was.
+   */
+  licht?: Lichtsoort | null;
   lines: DialogueLine[];
   // Basis-twee-shot van deze scène: de cast tegenover elkaar in deze omgeving.
   // Elke regel binnen de scène is een bewerking hiervan, zodat de personages

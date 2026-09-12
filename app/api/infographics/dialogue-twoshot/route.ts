@@ -4,6 +4,7 @@ import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
 import { buildTwoShotBrief, illustratieContext } from "@/lib/infographics/dialogue-staging";
+import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld } from "@/lib/infographics/dialogue-verify";
 import { MAX_CAST, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
@@ -17,6 +18,8 @@ interface Body {
   setting?: string;
   /** De hoeveelste scène dit is. Bepaalt het camerastandpunt (zie kaderVoorScene). */
   sceneIndex?: number;
+  /** Het licht in deze scène (dag, nacht, kaarslicht…). Zie verhaal-licht.ts. */
+  licht?: Lichtsoort | null;
   /**
    * Een eerder beeld van DEZELFDE plek. Speelt scène 5 weer in oma's woonkamer,
    * dan hoort dat dezelfde kamer te zijn — eerder werd het elke keer een andere
@@ -100,6 +103,7 @@ export async function POST(req: NextRequest) {
       cast,
       typeof body.sceneIndex === "number" ? body.sceneIndex : 0,
       !!locatieRef,
+      isLichtsoort(body.licht) ? body.licht : null,
     );
     const anker = (body.anchorTwoShotUrl ?? "").trim();
     const castblad = (body.castSheetUrl ?? "").trim();

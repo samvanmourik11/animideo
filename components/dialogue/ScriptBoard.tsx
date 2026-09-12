@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import DialogueBuddy from "./DialogueBuddy";
 import type { DialogueSpec, DialogueLine, DialogueScene } from "@/lib/infographics/dialogue-schema";
 import { KADERS, STANDAARD_KADER, kaderLabel, kaderUitleg, type Kader } from "@/lib/infographics/verhaal-kaders";
+import { LICHTSOORTEN, STANDAARD_LICHT, lichtLabel, lichtUitleg, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import {
   regelKlaar, isActie, actieDuur, heeftStem, VERTELLER_ID,
   ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC,
@@ -208,9 +209,25 @@ export default function ScriptBoard({
                 placeholder="omgeving in het Engels, bijv. a modern office with a desk and a laptop"
                 className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder:text-slate-600 disabled:opacity-60"
               />
-              <p className="text-[10px] text-slate-600 mt-0.5">
-                Alleen de plek. Wie er staat en hoe, bepaalt de cast.
-              </p>
+              <div className="flex items-center gap-2 mt-1">
+                {/* Het licht hoort bij de scene, niet bij het shot: binnen één plek
+                    en één moment verandert het niet. Het staat hier omdat het net
+                    zoveel voor de sfeer doet als de omgeving zelf. */}
+                <select
+                  value={scene.licht ?? STANDAARD_LICHT}
+                  onChange={(e) => wijzigScene(si, { licht: e.target.value as Lichtsoort, twoShotUrl: null })}
+                  disabled={disabled}
+                  title={lichtUitleg(scene.licht)}
+                  className="bg-slate-900/60 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 disabled:opacity-50"
+                >
+                  {LICHTSOORTEN.map((l) => (
+                    <option key={l} value={l}>{lichtLabel(l)}</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-600">
+                  Alleen de plek. Wie er staat en hoe, bepaalt de cast.
+                </p>
+              </div>
             </div>
             {scene.twoShotUrl && (
               // eslint-disable-next-line @next/next/no-img-element

@@ -349,6 +349,7 @@ export default function DialoguePage() {
               anchorTwoShotUrl: anker,
               sceneIndex: si,
               locationRefUrl: zelfdePlek?.twoShotUrl ?? null,
+              licht: s.licht ?? null,
             }),
           });
           const d = await r.json();
@@ -406,6 +407,7 @@ export default function DialoguePage() {
                 // camerabewegingen rouleren en niet elke scene opnieuw bij
                 // "inzoomen" beginnen.
                 shotIndex: werk.scenes.slice(0, si).reduce((n, sc) => n + sc.lines.length, 0) + li,
+                licht: scene.licht ?? null,
               }),
             });
             const d = await r.json();

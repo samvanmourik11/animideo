@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import { isKader, kaderPast } from "@/lib/infographics/verhaal-kaders";
+import { isLichtsoort } from "@/lib/infographics/verhaal-licht";
 import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -76,7 +77,7 @@ interface RuwPlan {
   kern?: string;
   wending?: string;
   cast?: { id?: string; characterId?: string; name?: string; role?: string; leeftijd?: string; wil?: string; spraak?: string; appearance?: string; voice?: string; position?: string }[];
-  scenes?: { setting?: string; lines?: RuweRegel[] }[];
+  scenes?: { setting?: string; licht?: string; lines?: RuweRegel[] }[];
 }
 
 /**
@@ -237,7 +238,7 @@ function maakSpec(
           };
         })
         .filter((l): l is NonNullable<typeof l> => l !== null);
-      return { id: `scene-${i}`, setting: (s.setting ?? "").trim(), lines };
+      return { id: `scene-${i}`, setting: (s.setting ?? "").trim(), licht: isLichtsoort(s.licht) ? s.licht : null, lines };
     })
     .filter((s) => s.lines.length > 0);
 
@@ -397,7 +398,7 @@ async function controleerSamenhang(
     if (!call) return scenes;
 
     const uit = JSON.parse(call.function.arguments || "{}") as {
-      scenes?: { setting?: string; lines?: RuweRegel[] }[];
+      scenes?: { setting?: string; licht?: string; lines?: RuweRegel[] }[];
     };
     const ruwe = Array.isArray(uit.scenes) ? uit.scenes : [];
     if (ruwe.length === 0) return scenes;
@@ -423,7 +424,7 @@ async function controleerSamenhang(
             return { kind: "dialoog" as const, characterId: cid, text, emotion: (l.emotion ?? "").trim() || "neutraal" };
           })
           .filter((l): l is NonNullable<typeof l> => l !== null);
-        return { id: scenes[i]?.id ?? `scene-${i}`, setting: (s.setting ?? "").trim() || scenes[i]?.setting || "", lines };
+        return { id: scenes[i]?.id ?? `scene-${i}`, setting: (s.setting ?? "").trim() || scenes[i]?.setting || "", licht: isLichtsoort(s.licht) ? s.licht : scenes[i]?.licht ?? null, lines };
       })
       .filter((s) => s.lines.length > 0);
 
