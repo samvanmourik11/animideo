@@ -45,6 +45,18 @@ interface Body {
 //
 // Bewust GEEN Seedance-beweging hier: dit beeld is een startpunt voor de clips,
 // geen shot dat zelf in de video komt.
+/**
+ * Is dit beeld onbruikbaar, of heeft het alleen een smetje?
+ *
+ * Een gesplitst beeld, een vreemde erbij of het castblad als voorwerp in de
+ * scène zijn geen schoonheidsfoutjes: zulke beelden kun je niet in een video
+ * zetten. Daar is een extra poging het waard; voor de rest niet.
+ */
+function onbruikbaar(fouten: string[]): boolean {
+  const tekst = fouten.join(" ").toLowerCase();
+  return /verdeeld|panel|naast elkaar|onder elkaar|naad|twee tafere|extra |niet in de lijst|omstander|portret|kaartje|poster/.test(tekst);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
@@ -132,7 +144,12 @@ export async function POST(req: NextRequest) {
     // dat één keer tegenhouden goedkoper is dan drie keer repareren.
     let twoShotUrl: string | null = null;
     let fouten: string[] = [];
-    for (let poging = 1; poging <= 2 && twoShotUrl === null; poging++) {
+    // Twee pogingen, en een derde als de tweede nog een ONBRUIKBAAR beeld gaf.
+    // Een gesplitst beeld of een vreemde erbij is niet "een smetje" maar een
+    // scène die je niet kunt gebruiken; die accepteren omdat de teller op is,
+    // verpest de hele video. Kleine fouten nemen we na twee pogingen wel.
+    const MAX_POGINGEN = 3;
+    for (let poging = 1; poging <= MAX_POGINGEN && twoShotUrl === null; poging++) {
       const result = await generateImageWithStyle({
         // true = met omgeving. Zonder dit kwam elk gesprek op een leeg wit vlak
         // terecht, want het standaardkader van de infographic-tool poetst de plek weg.
@@ -142,10 +159,13 @@ export async function POST(req: NextRequest) {
         // Bij een herkansing geen seed: dezelfde seed geeft grofweg hetzelfde
         // (foute) beeld terug en dan betalen we voor niets.
         seed: poging === 1 && typeof body.seed === "number" ? body.seed : undefined,
-        // De portretten leveren de identiteit; de brief bepaalt houding en kader.
-        // Zonder castblad blijven de portretten de identiteitsbron (oudere
-        // projecten hebben er nog geen).
-        characterUrls: castblad ? undefined : portretten,
+        // De portretten gaan ALTIJD mee, ook als er een castblad is. Het castblad
+        // toont iedereen ten voeten uit en is daardoor zwak op het gezicht: het
+        // haar van een personage veranderde per scène van volume en vorm. Het
+        // portret is juist een close-up van precies dat. Ze vullen elkaar aan —
+        // castblad voor lengte en kleding, portret voor gezicht en haar — en er
+        // is ruimte voor allebei in het referentiebudget.
+        characterUrls: portretten,
         brandUrls: castblad ? [castblad] : undefined,
         // Het anker uit scène 1 houdt cast én look gelijk over alle scènes heen.
         // Het anker houdt de personages gelijk, de locatiereferentie de kamer.
@@ -168,7 +188,10 @@ export async function POST(req: NextRequest) {
       fouten = oordeel.fouten;
       // Bij de laatste poging nemen we wat we hebben: een scène zonder anker
       // levert helemaal geen beelden op, en dat is erger dan een beeld met een smetje.
-      if (fouten.length === 0 || poging === 2) twoShotUrl = await zonderTekst(kandidaat, format, body.language);
+      const stop = fouten.length === 0
+        || poging === MAX_POGINGEN
+        || (poging === 2 && !onbruikbaar(fouten));
+      if (stop) twoShotUrl = await zonderTekst(kandidaat, format, body.language);
       else {
         console.warn(`[dialogue-twoshot] afgekeurd (poging ${poging}): ${fouten.join("; ")}`);
         besteedExtra += CREDIT_COSTS.IMAGE_GENERATION;

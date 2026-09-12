@@ -280,9 +280,10 @@ export async function POST(req: NextRequest) {
           // onderlinge lengte vast. Zonder blad (oudere projecten) doen de
           // portretten dat werk, maar die zeggen niets over lichaamsbouw.
           brandUrls: (b.castSheetUrl ?? "").trim() ? [(b.castSheetUrl ?? "").trim()] : undefined,
-          characterUrls: (b.castSheetUrl ?? "").trim()
-            ? undefined
-            : cast.map((c) => c.portraitUrl).filter(Boolean),
+          // Portretten ALTIJD mee, ook naast het castblad: dat blad toont iedereen
+          // ten voeten uit en is zwak op het gezicht, en juist het haar dreef
+          // per scène weg. Het portret is een close-up van precies dat.
+          characterUrls: cast.map((c) => c.portraitUrl).filter(Boolean),
           extraContext: [
             illustratieContext(b.illustrationBrief),
             (b.castSheetUrl ?? "").trim()

@@ -37,7 +37,13 @@ export async function controleerSpreker(
 ): Promise<SprekerOordeel> {
   const iedereen = [spreker, ...luisteraars];
   const opsomming = iedereen
-    .map((c) => `- ${PLEK_NL[c.position]}: ${(c.appearance ?? "").trim() || c.name}`)
+    .map((c) => {
+      const kenmerken = [
+        (c.appearance ?? "").trim(),
+        (c.leeftijd ?? "").trim() ? `leeftijd ${(c.leeftijd ?? "").trim()}` : "",
+      ].filter(Boolean).join("; ");
+      return `- ${PLEK_NL[c.position]}: ${c.name}${kenmerken ? ` — ${kenmerken}` : ""}`;
+    })
     .join("\n");
 
   try {
@@ -139,7 +145,13 @@ export async function beoordeelBeeld(
 ): Promise<BeeldOordeel> {
   const iedereen = [...(spreker ? [spreker] : []), ...anderen];
   const opsomming = iedereen
-    .map((c) => `- ${PLEK_NL[c.position]}: ${(c.appearance ?? "").trim() || c.name}`)
+    .map((c) => {
+      const kenmerken = [
+        (c.appearance ?? "").trim(),
+        (c.leeftijd ?? "").trim() ? `leeftijd ${(c.leeftijd ?? "").trim()}` : "",
+      ].filter(Boolean).join("; ");
+      return `- ${PLEK_NL[c.position]}: ${c.name}${kenmerken ? ` — ${kenmerken}` : ""}`;
+    })
     .join("\n");
 
   const sprekerVraag = spreker
@@ -164,7 +176,20 @@ export async function beoordeelBeeld(
             "- ontbrekende, dubbele of vergroeide ledematen, handen of vingers\n" +
             "- een voorwerp dat zweeft of dat onmogelijk vastgehouden wordt\n" +
             "- een voorwerp met een volstrekt verkeerd formaat ten opzichte van de mensen\n" +
-            "- onleesbare of verzonnen tekst op een scherm, bord, etiket of document\n\n" +
+            "- onleesbare of verzonnen tekst op een scherm, bord, etiket of document\n" +
+            // Deze drie kwamen erbij nadat een kerstvideo ze alle drie liet zien en
+            // de tekstuele verboden in de beeld-prompt ze niet tegenhielden. Een
+            // instructie die het model negeert wordt pas een grendel als je het
+            // resultaat controleert en afkeurt.
+            "- het beeld is in twee of meer vlakken verdeeld: een naad, streep of rand die het beeld in " +
+            "panelen opdeelt, of twee losse taferelen naast of onder elkaar in één beeld. Dit MOET één " +
+            "doorlopende scène op één plek zijn\n" +
+            "- er staat een persoon in beeld die niet in de lijst hierboven voorkomt — een extra volwassene, " +
+            "een extra kind, een omstander of een figuur op de achtergrond. Ook half zichtbaar of onscherp telt\n" +
+            "- iemand van wie het HAAR of de KLEDING duidelijk afwijkt van zijn beschrijving hierboven: een " +
+            "ander kapsel, een duidelijk ander volume of andere vorm van het haar, of andere kleding dan " +
+            "beschreven. Kleine verschillen door de camerahoek zijn geen fout; een zichtbaar ander kapsel wel\n" +
+            "- een ingelijst portret, kaartje, poster of rij poppetjes van deze personages als voorwerp in de scène\n\n" +
             "Wees streng op deze punten maar zeur niet: stijlkeuzes, vlakke kleuren, ontbrekende " +
             "schaduwen, vereenvoudigde vormen en een lege achtergrond zijn GEEN fouten — dit is met " +
             "opzet een illustratie en geen foto. Klopt alles, geef dan een lege lijst.",

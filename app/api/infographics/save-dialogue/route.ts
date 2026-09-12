@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
         .select("id")
         .single();
       if (error || !data) {
+        console.error("save-dialogue: bijwerken mislukt:", error?.message ?? "(geen melding)");
         return NextResponse.json({ error: error?.message ?? "Project niet gevonden" }, { status: 404 });
       }
       return NextResponse.json({ id: data.id });
@@ -54,6 +55,10 @@ export async function POST(req: NextRequest) {
       .select("id")
       .single();
     if (error || !data) {
+      // Zonder deze regel mislukte het opslaan stil: de browser kreeg een kale 500
+      // en in de serverlog stond niets. Een klant zag 41 keer achter elkaar zijn
+      // werk niet bewaard worden zonder dat ergens stond waarom.
+      console.error("save-dialogue: aanmaken mislukt:", error?.message ?? "(geen melding)");
       return NextResponse.json({ error: error?.message ?? "Aanmaken mislukt" }, { status: 500 });
     }
     return NextResponse.json({ id: data.id });
