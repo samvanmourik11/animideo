@@ -67,3 +67,32 @@ describe("buildTwoShotBrief", () => {
     expect(buildTwoShotBrief("a living room", cast, 0)).toContain("never garbled text");
   });
 });
+
+// Een scene met één personage. Sinds het scene-beeld alleen nog de spelers van
+// die scene toont, komt dit echt voor — en de eerste versie liep er op stuk:
+// zeven van de acht scenes werden geweigerd omdat er "twee personages nodig"
+// waren, en het model kreeg de opdracht zich naar iemand te draaien die er niet was.
+
+describe("buildTwoShotBrief met één personage", () => {
+  const solo = [lid()];
+
+  it("vraagt niet om iemand die er niet is", () => {
+    const brief = buildTwoShotBrief("a dark forest", solo, 0);
+    expect(brief).not.toContain("TOWARDS EACH OTHER");
+    expect(brief).not.toContain("talking together");
+    expect(brief).toContain("nobody else");
+  });
+
+  it("zet hem in beeld in plaats van links of rechts", () => {
+    const brief = buildTwoShotBrief("a dark forest", solo, 0);
+    expect(brief).toContain("in the frame");
+    expect(brief).not.toContain("on the LEFT");
+  });
+
+  it("houdt bij twee personages de oude opstelling aan", () => {
+    const brief = buildTwoShotBrief("a living room", cast, 0);
+    expect(brief).toContain("on the LEFT");
+    expect(brief).toContain("on the RIGHT");
+    expect(brief).toContain("TOWARDS EACH OTHER");
+  });
+});

@@ -196,16 +196,29 @@ export function buildTwoShotBrief(
   // video fout. Zonder kledingbeschrijving dobberden de personages weg.
   const beschrijf = (c: DialogueCastMember, plek: string) =>
     `${c.name} (${(c.appearance ?? "").trim() || "as shown in the reference"}) stands ${plek}`;
-  const opstelling = [
-    links ? beschrijf(links, "on the LEFT") : null,
-    rechts ? beschrijf(rechts, "on the RIGHT") : null,
-    ...midden.map((c) => beschrijf(c, "in the MIDDLE")),
-  ].filter(Boolean).join(", ");
+  // Bij één personage is links/rechts betekenisloos: die staat gewoon in beeld.
+  // "Stands on the LEFT" liet het model de rechterhelft opvullen — met een tweede
+  // figuur die er niet hoort.
+  const opstelling = cast.length === 1
+    ? beschrijf(cast[0], "in the frame")
+    : [
+        links ? beschrijf(links, "on the LEFT") : null,
+        rechts ? beschrijf(rechts, "on the RIGHT") : null,
+        ...midden.map((c) => beschrijf(c, "in the MIDDLE")),
+      ].filter(Boolean).join(", ");
 
+  // Met één personage bestaat er geen "naar elkaar toe gedraaid". Zonder deze
+  // splitsing kreeg een scene met één figuur de opdracht zich naar een tweede
+  // persoon te draaien die er niet is — en dan tekent het model er alsnog een bij.
+  const alleen = cast.length === 1;
   return (
-    `${cast.length} colleagues having a conversation with each other in ${setting.trim()}. ` +
-    `${opstelling}, turned three-quarters TOWARDS EACH OTHER, facing one another and clearly talking together — ` +
-    `NOT looking at the viewer. ${kaderVoorScene(sceneIndex)} ` +
+    (alleen
+      ? `${cast[0]?.name ?? "One character"} alone in ${setting.trim()}. ${opstelling}, absorbed in the moment and ` +
+        `NOT looking at the viewer. There is nobody else in this shot. `
+      : `${cast.length} characters together in ${setting.trim()}. ` +
+        `${opstelling}, turned three-quarters TOWARDS EACH OTHER, facing one another and clearly talking together — ` +
+        `NOT looking at the viewer. `) +
+    `${kaderVoorScene(sceneIndex)} ` +
     `They stand on the solid floor or dry ground of this location. Relaxed, natural conversational posture. ` +
     (zelfdeLocatie
       ? `This is the SAME room the characters were in earlier in this video, shown from a different camera ` +

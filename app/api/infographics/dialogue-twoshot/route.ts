@@ -69,8 +69,13 @@ export async function POST(req: NextRequest) {
 
     const cast = (Array.isArray(body.cast) ? body.cast : []).slice(0, MAX_CAST);
     const portretten = cast.map((c) => c.portraitUrl).filter((u): u is string => !!u);
-    if (portretten.length < 2) {
-      return NextResponse.json({ error: "Minstens twee personages met een afbeelding nodig" }, { status: 400 });
+    // Eén personage is genoeg. Dit heette het "twee-shot" omdat elke scene twee
+    // pratende mensen naast elkaar toonde, maar sinds de camerakaders bestaat een
+    // scene waarin één personage alleen in beeld is — een close-up, iemand alleen
+    // in een bos. Die scenes kwamen op één portret uit en werden hier geweigerd,
+    // waardoor zeven van de acht scenes stukliepen.
+    if (portretten.length < 1) {
+      return NextResponse.json({ error: "Minstens één personage met een afbeelding nodig" }, { status: 400 });
     }
 
     const format = (body.format === "9:16" ? "9:16" : "16:9") as InfographicFormat;
