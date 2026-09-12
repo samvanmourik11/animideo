@@ -12,7 +12,7 @@ import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { STORY_VOICES } from "@/lib/infographics/story-voices";
 import {
   buildTurnShotPrompt, buildDialogueMotionPrompt,
-  buildActionShotPrompt, buildActionMotionPrompt, illustratieContext,
+  buildActionShotPrompt, buildActionMotionPrompt, illustratieContext, zonderTekst,
 } from "@/lib/infographics/dialogue-staging";
 import { beoordeelBeeld, beoordeelBeweging, type SprekerOordeel } from "@/lib/infographics/dialogue-verify";
 import {
@@ -287,8 +287,19 @@ export async function POST(req: NextRequest) {
             (b.castSheetUrl ?? "").trim()
               ? "One reference image is a CHARACTER LINE-UP SHEET of everyone in this video, full body. " +
                 "The people in this shot must match that sheet exactly — same faces, hair, clothing, build, " +
-                "and the same height difference between them."
+                "and the same height difference between them. " +
+                // Zie dialogue-twoshot: zonder dit verbod neemt het model ook de
+                // OPSTELLING van het blad over (gespleten beeld, een rij portretten)
+                // of tekent het de kaartjes als voorwerp in de scène.
+                "The sheet tells you WHO these people are, nothing else. Do NOT copy its layout: this is one " +
+                "continuous scene, never a split screen, never side-by-side panels, never a row of portraits. " +
+                "Do not draw the sheet, or any framed portrait or card of these characters, as an object in the shot."
               : "",
+            // De cast is de cast. Dit stond alleen in de bewegings-prompt, waardoor
+            // verzonnen figuranten al in het bronbeeld zaten en de videostap ze
+            // netjes intact liet.
+            `This shot contains ONLY these ${cast.length === 1 ? "person" : "people"}: ${cast.map((c) => c.name).join(" and ")}. ` +
+              "Do not add another person — no extra adults, no children, no bystanders, no background figures.",
             // Een gerichte correctie van de gebruiker op dít ene beeld weegt
             // zwaarder dan de algemene briefing, dus hij staat erachter.
             beeldInstructie ? `IMPORTANT CORRECTION for this specific shot: ${beeldInstructie}` : "",
@@ -307,7 +318,12 @@ export async function POST(req: NextRequest) {
         shotImageUrl = kandidaat;
 
         const deugt = beeldOordeel !== "verkeerd" && beeldFouten.length === 0;
-        if (deugt) break;
+        if (deugt) {
+          // In de dialoogmodus hoort er geen tekst in beeld; wat het model er toch
+          // bij tekent (kalenders, blaadjes, labels) is altijd verhaspeld.
+          shotImageUrl = await zonderTekst(kandidaat, format, b.language);
+          break;
+        }
 
         console.warn(
           `[dialogue-line] poging ${poging}: ` +

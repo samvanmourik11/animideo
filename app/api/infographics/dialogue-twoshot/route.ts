@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
-import { buildTwoShotBrief, illustratieContext } from "@/lib/infographics/dialogue-staging";
+import { buildTwoShotBrief, illustratieContext, zonderTekst } from "@/lib/infographics/dialogue-staging";
 import { beoordeelBeeld } from "@/lib/infographics/dialogue-verify";
 import { MAX_CAST, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
@@ -78,7 +78,16 @@ export async function POST(req: NextRequest) {
         "side by side, full body. That sheet defines exactly what these people look like AND how tall they " +
         "are relative to each other. Copy them from it precisely: the same faces, hair, clothing, colours, " +
         "body build and — this matters — the same height difference between them. Whoever is taller on the " +
-        "sheet is taller here, by the same amount. Do not restyle or re-age anyone."
+        "sheet is taller here, by the same amount. Do not restyle or re-age anyone. " +
+        // Zonder deze laatste zin neemt het model niet alleen de PERSONEN maar ook
+        // de OPSTELLING van het blad over: in een kerstvideo leverde dat een beeld
+        // op dat in twee panelen was gedeeld met een naad in het midden, en een
+        // ander waarin de portretkaartjes van het blad als ingelijste voorwerpen
+        // tussen de cadeaus onder de boom stonden. Het blad zegt WIE, niet HOE.
+        "The sheet tells you WHO these people are, nothing else. Do NOT copy its layout: this is a single " +
+        "scene in one location, never a split screen, never side-by-side panels, never a row of portraits, " +
+        "and never a plain studio background. Do not draw the sheet itself, or any framed portrait, card or " +
+        "poster of these characters, as an object inside the scene."
       : "";
     const ankerInstructie = anker
       ? " A reference image of these SAME two people from an earlier scene in this same video is provided. " +
@@ -87,6 +96,14 @@ export async function POST(req: NextRequest) {
         "amount) — and keep them standing in the same left/right arrangement. ONLY the surroundings change to " +
         "the new location described above."
       : "";
+
+    // Wie er in beeld mag staan. De cast is de cast; achtergrondfiguren maken van
+    // de hoofdpersonen figuranten in hun eigen scene.
+    const namen = cast.map((c) => c.name).join(" and ");
+    const alleenDezeMensen =
+      `This scene contains EXACTLY ${cast.length} ${cast.length === 1 ? "person" : "people"}: ${namen}. ` +
+      `Do not add another person - no extra adults, no children, no bystanders, no background figures, ` +
+      `not even partially visible or out of focus. Nobody from the reference images appears twice.`;
 
     // Het twee-shot is het ANKER van de scène: elk bronbeeld erin is een bewerking
     // hiervan. Een fout hier plant zich dus voort over alle regels van die scène,
@@ -116,6 +133,7 @@ export async function POST(req: NextRequest) {
           illustratieContext(body.illustrationBrief),
           castbladInstructie,
           ankerInstructie,
+          alleenDezeMensen,
           fouten.length
             ? `The previous attempt was rejected for these mistakes — avoid them: ${fouten.join("; ")}.`
             : "",
@@ -128,7 +146,7 @@ export async function POST(req: NextRequest) {
       fouten = oordeel.fouten;
       // Bij de laatste poging nemen we wat we hebben: een scène zonder anker
       // levert helemaal geen beelden op, en dat is erger dan een beeld met een smetje.
-      if (fouten.length === 0 || poging === 2) twoShotUrl = kandidaat;
+      if (fouten.length === 0 || poging === 2) twoShotUrl = await zonderTekst(kandidaat, format, body.language);
       else {
         console.warn(`[dialogue-twoshot] afgekeurd (poging ${poging}): ${fouten.join("; ")}`);
         besteedExtra += CREDIT_COSTS.IMAGE_GENERATION;

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
-import { illustratieContext } from "@/lib/infographics/dialogue-staging";
+import { illustratieContext, zonderTekst } from "@/lib/infographics/dialogue-staging";
 import { deductCredits } from "@/lib/credits";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import type { DialogueCastMember } from "@/lib/infographics/dialogue-schema";
@@ -74,7 +74,13 @@ export async function POST(req: NextRequest) {
       `photographed together: a young child reaches to about the waist or chest of an adult, a teenager to ` +
       `an adult's shoulder, and two children within a couple of years of each other are almost exactly the ` +
       `same height. Never draw a child as tall as an adult. ` +
-      `Even spacing between them, nobody overlapping, everyone fully visible.`;
+      `Even spacing between them, nobody overlapping, everyone fully visible. ` +
+      // De storytelling-versie van dit blad (buildCastSheetBrief) verbiedt tekst
+      // al; hier ontbrak die regel. Gevolg: het model zette naamlabels onder de
+      // figuren, en die labels reisden mee naar de scenes — in een kerstvideo
+      // stonden er twee ingelijste portretkaartjes met onleesbare bijschriften
+      // tussen de cadeaus onder de boom.
+      `No text, no names, no labels, no numbers and no frames anywhere in the image.`;
 
     const result = await generateImageWithStyle({
       prompt: buildIllustrationPrompt(brief, body.styleId ?? "flat-vector", body.language ?? null),
@@ -90,7 +96,10 @@ export async function POST(req: NextRequest) {
       ].filter(Boolean).join(" ").trim() || undefined,
     });
 
-    const castSheetUrl = await persistFalAssetSoft(supabase, user.id, result.imageUrl, "image");
+    // Het blad is de zwaarst wegende referentie van de hele video: tekst die hier
+    // blijft staan, komt in elke scene terug.
+    const schoon = await zonderTekst(result.imageUrl, "16:9", body.language);
+    const castSheetUrl = await persistFalAssetSoft(supabase, user.id, schoon, "image");
     return NextResponse.json({ castSheetUrl });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
