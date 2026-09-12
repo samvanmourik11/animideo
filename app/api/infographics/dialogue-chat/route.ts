@@ -415,13 +415,14 @@ async function controleerSamenhang(
               if (!actie) return null;
               return {
                 kind: "actie" as const, characterId: cid,
+                kader: isKader(l.kader) ? l.kader : null,
                 text: (l.text ?? "").trim(), emotion: (l.emotion ?? "").trim(),
                 actie, seconden: begrensSeconden(l.seconden), verband: (l.verband ?? "").trim() || null,
               };
             }
             const text = (l.text ?? "").trim();
             if (!text) return null;
-            return { kind: "dialoog" as const, characterId: cid, text, emotion: (l.emotion ?? "").trim() || "neutraal" };
+            return { kind: "dialoog" as const, characterId: cid, kader: isKader(l.kader) ? l.kader : null, text, emotion: (l.emotion ?? "").trim() || "neutraal" };
           })
           .filter((l): l is NonNullable<typeof l> => l !== null);
         return { id: scenes[i]?.id ?? `scene-${i}`, setting: (s.setting ?? "").trim() || scenes[i]?.setting || "", licht: isLichtsoort(s.licht) ? s.licht : scenes[i]?.licht ?? null, lines };
@@ -515,7 +516,7 @@ async function brengOpLengte(
       const call = completion.choices[0]?.message?.tool_calls?.[0];
       if (!call) break;
 
-      const uit = JSON.parse(call.function.arguments || "{}") as { scenes?: { setting?: string; lines?: RuweRegel[] }[] };
+      const uit = JSON.parse(call.function.arguments || "{}") as { scenes?: { setting?: string; licht?: string; lines?: RuweRegel[] }[] };
       const nieuw: DialogueScene[] = (uit.scenes ?? [])
         .map((sc, i) => {
           const lines = (sc.lines ?? [])
@@ -527,16 +528,17 @@ async function brengOpLengte(
                 if (!actie) return null;
                 return {
                   kind: "actie" as const, characterId: cid,
+                  kader: isKader(l.kader) ? l.kader : null,
                   text: (l.text ?? "").trim(), emotion: (l.emotion ?? "").trim(),
                   actie, seconden: begrensSeconden(l.seconden), verband: (l.verband ?? "").trim() || null,
                 };
               }
               const text = (l.text ?? "").trim();
               if (!text) return null;
-              return { kind: "dialoog" as const, characterId: cid, text, emotion: (l.emotion ?? "").trim() || "neutraal" };
+              return { kind: "dialoog" as const, characterId: cid, kader: isKader(l.kader) ? l.kader : null, text, emotion: (l.emotion ?? "").trim() || "neutraal" };
             })
             .filter((l): l is NonNullable<typeof l> => l !== null);
-          return { id: huidig[i]?.id ?? `scene-${i}`, setting: (sc.setting ?? "").trim() || huidig[i]?.setting || "", lines };
+          return { id: huidig[i]?.id ?? `scene-${i}`, setting: (sc.setting ?? "").trim() || huidig[i]?.setting || "", licht: isLichtsoort(sc.licht) ? sc.licht : huidig[i]?.licht ?? null, lines };
         })
         .filter((sc) => sc.lines.length > 0);
 
@@ -631,7 +633,7 @@ async function scherpDialoogAan(
     const call = completion.choices[0]?.message?.tool_calls?.[0];
     if (!call) return scenes;
 
-    const uit = JSON.parse(call.function.arguments || "{}") as { scenes?: { setting?: string; lines?: RuweRegel[] }[] };
+    const uit = JSON.parse(call.function.arguments || "{}") as { scenes?: { setting?: string; licht?: string; lines?: RuweRegel[] }[] };
     const ruwe = Array.isArray(uit.scenes) ? uit.scenes : [];
     if (ruwe.length !== scenes.length) {
       console.warn(`[dialogue-chat] eindredactie gaf ${ruwe.length} van ${scenes.length} scènes terug; origineel behouden`);
