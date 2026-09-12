@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { planVoorLengte, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
+import type { DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 
 // De lengte bepaalt hoeveel scènes en regels de assistent schrijft, en dus ook wat
@@ -44,11 +45,19 @@ const VOORBEELDEN = [
 
 export default function DialogueChat({
   onPlan,
+  onOpzet,
   heeftPersonages,
   lengte,
   onLengte,
 }: {
   onPlan: (spec: DialogueSpec, targetSeconds: number, tone: string) => void;
+  /**
+   * Is deze meegegeven, dan levert het gesprek eerst een OPZET in plaats van
+   * meteen een draaiboek: de assistent vult alle dimensies in als voorstel en de
+   * gebruiker stelt bij vóór er een regel geschreven is. Zonder deze stap kon je
+   * alleen achteraf corrigeren op een script dat er al omheen geschreven was.
+   */
+  onOpzet?: (setup: DialogueSetup) => void;
   heeftPersonages: boolean;
   lengte: number;
   onLengte: (sec: number) => void;
@@ -73,17 +82,24 @@ export default function DialogueChat({
     setFout(null);
 
     try {
-      const res = await fetch("/api/infographics/dialogue-chat", {
+      const res = await fetch(onOpzet ? "/api/infographics/dialogue-setup" : "/api/infographics/dialogue-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // De openingszin is van ons, niet van het model — die hoeft niet mee.
-        body: JSON.stringify({ messages: nieuw.slice(1), targetSeconds: lengte }),
+        body: JSON.stringify(
+          onOpzet
+            // De opzet-route werkt niet met een gespreksverloop: hij krijgt de
+            // beschrijving in één keer en levert een voorstel terug.
+            ? { text: nieuw.filter((m) => m.role === "user").map((m) => m.content).join("\n\n"), targetSeconds: lengte }
+            : { messages: nieuw.slice(1), targetSeconds: lengte }
+        ),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.detail || d.error || "Er ging iets mis");
 
       setBerichten([...nieuw, { role: "assistant", content: d.reply }]);
-      if (d.spec) onPlan(d.spec as DialogueSpec, d.targetSeconds ?? 60, d.tone ?? "zakelijk");
+      if (d.setup && onOpzet) onOpzet(d.setup as DialogueSetup);
+      else if (d.spec) onPlan(d.spec as DialogueSpec, d.targetSeconds ?? 60, d.tone ?? "zakelijk");
     } catch (e) {
       setFout(e instanceof Error ? e.message : String(e));
       // De vraag van de gebruiker laten staan zodat hij hem niet opnieuw hoeft te typen.

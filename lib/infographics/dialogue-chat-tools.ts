@@ -374,7 +374,63 @@ export interface BibliotheekItem {
   age_range: string | null;
 }
 
-export function buildChatSysteem(bibliotheek: BibliotheekItem[], gewensteLengte = 60): string {
+/**
+ * De opzet zoals de gebruiker hem heeft vastgesteld: alle keuzes die anders in
+ * dit gesprek waren gevallen. Zie lib/infographics/dialogue-setup.ts.
+ *
+ * Is hij meegegeven, dan is de regisseursrol van het model voorbij: het hoeft
+ * niets meer te vragen of te kiezen, alleen nog het gesprek te schrijven voor
+ * deze mensen, deze kern en deze wending.
+ */
+export interface VastgesteldeOpzet {
+  title?: string;
+  kern?: string;
+  wending?: string;
+  tone?: string;
+  angle?: string;
+  language?: string;
+  keepTerms?: string[];
+  avoidTerms?: string[];
+  cast?: { id: string; name: string; role?: string | null; leeftijd?: string | null; wil?: string | null; spraak?: string | null }[];
+}
+
+function opzetBlok(opzet: VastgesteldeOpzet): string {
+  const cast = (opzet.cast ?? [])
+    .map((c) => {
+      const delen = [
+        c.role?.trim() ? `rol: ${c.role.trim()}` : "",
+        c.leeftijd?.trim() ? `leeftijd: ${c.leeftijd.trim()}` : "",
+        c.wil?.trim() ? `wil: ${c.wil.trim()}` : "",
+        c.spraak?.trim() ? `praat zo: ${c.spraak.trim()}` : "",
+      ].filter(Boolean);
+      return `- id "${c.id}" · ${c.name}${delen.length ? ` — ${delen.join("; ")}` : ""}`;
+    })
+    .join("\n");
+
+  const regels = [
+    opzet.kern?.trim() ? `KERNBOODSCHAP (hier werkt het hele gesprek naartoe, laat het aan het eind landen): ${opzet.kern.trim()}` : "",
+    opzet.wending?.trim() ? `DE WENDING (hier slaat het gesprek om; bouw ernaartoe en laat het verschil daarna hoorbaar zijn): ${opzet.wending.trim()}` : "",
+    opzet.angle?.trim() ? `INVALSHOEK: ${opzet.angle.trim()}` : "",
+    (opzet.keepTerms ?? []).length ? `Laat deze namen EXACT staan: ${(opzet.keepTerms ?? []).join(", ")}.` : "",
+    (opzet.avoidTerms ?? []).length ? `Noem deze namen NERGENS: ${(opzet.avoidTerms ?? []).join(", ")}.` : "",
+  ].filter(Boolean).join("\n");
+
+  return `
+
+DE OPZET STAAT VAST
+De gebruiker heeft de opzet zelf vastgesteld. Stel GEEN vragen meer en kies niets
+opnieuw — schrijf meteen het draaiboek binnen deze kaders.
+
+DE CAST LIGT VAST (gebruik exact deze id's, verzin niemand erbij en laat niemand weg):
+${cast || "(geen cast meegegeven)"}
+${regels ? `\n${regels}` : ""}`;
+}
+
+export function buildChatSysteem(
+  bibliotheek: BibliotheekItem[],
+  gewensteLengte = 60,
+  opzet?: VastgesteldeOpzet | null,
+): string {
   const { regels, scenes } = planVoorLengte(gewensteLengte);
   const lijst = bibliotheek
     .map((c) => {
@@ -383,6 +439,8 @@ export function buildChatSysteem(bibliotheek: BibliotheekItem[], gewensteLengte 
       return `- id "${c.id}" · ${c.name}${kenmerken ? ` (${kenmerken})` : ""}${omschrijving ? ` — ${omschrijving}` : ""}`;
     })
     .join("\n");
+
+  const vast = opzet ? opzetBlok(opzet) : "";
 
   return `Je helpt een gebruiker een korte geanimeerde DIALOOG-video maken: twee (soms drie) personages die tegenover elkaar staan en samen een gesprek voeren. Er is geen verteller — de personages praten zelf.
 
@@ -506,7 +564,7 @@ Verder:
   Blijf daar dicht bij. Schrijf je er veel minder, dan wordt de video korter dan gevraagd; veel meer maakt hem onnodig duur.
 - Bij een LANGE video (twee minuten of meer) is de valkuil dat het gesprek gaat rondjes draaien. Bouw dan echte hoofdstukken: elk stuk behandelt iets nieuws, met een eigen omgeving, en samen vormen ze een opbouw naar een slot.
 
-Schrijf al je berichten aan de gebruiker in het Nederlands, kort en concreet.`;
+Schrijf al je berichten aan de gebruiker in het Nederlands, kort en concreet.${vast}`;
 }
 
 /**

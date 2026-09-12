@@ -28,6 +28,12 @@ interface Body {
   styleId?: string;
   // De cast die de gebruiker uit zijn karakterbibliotheek heeft samengesteld.
   cast?: DialogueCastMember[];
+  // Uit de opzet: waar het gesprek naartoe werkt en waar het omslaat.
+  kern?: string | null;
+  wending?: string | null;
+  // Regie die voor élk beeld geldt. Hoort bij de spec zodat latere beelden
+  // (twee-shots, losse regels) hem ook meekrijgen.
+  illustrationBrief?: string | null;
 }
 
 // Een dialoogregel duurt gesproken ~4 seconden; daaruit leiden we het aantal
@@ -116,6 +122,8 @@ export async function POST(req: NextRequest) {
       avoidTerms: Array.isArray(body.avoidTerms) ? body.avoidTerms : [],
       tone: body.tone,
       angle: body.angle,
+      kern: body.kern,
+      wending: body.wending,
       targetSeconds: secs,
       lineCount,
       sceneCount,
@@ -157,6 +165,10 @@ export async function POST(req: NextRequest) {
       mode: "dialogue",
       language,
       styleId: body.styleId ?? "flat-vector",
+      illustrationBrief: body.illustrationBrief?.trim() || null,
+      kern: body.kern?.trim() || null,
+      wending: body.wending?.trim() || null,
+      targetSeconds: secs,
       seed: Math.floor(Math.random() * 2_000_000),
     };
     return NextResponse.json({ spec });

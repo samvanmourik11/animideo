@@ -23,6 +23,15 @@ export interface BuildDialoguePromptArgs {
   tone?: string;
   // Optionele invalshoek van waaruit het onderwerp benaderd wordt.
   angle?: string;
+  /**
+   * De kernboodschap en het omslagpunt uit de opzet.
+   *
+   * Deze twee stonden al in DialogueSpec maar bereikten de scenarist nooit: het
+   * verhaal dwaalde af omdat niemand had gezegd waar het naartoe moest, en twee
+   * personages waren het vanaf regel één met elkaar eens.
+   */
+  kern?: string | null;
+  wending?: string | null;
 }
 
 // Bouwt de prompt voor de dialoogmodus. De AI is hier scenarist voor een korte
@@ -35,8 +44,19 @@ export function buildDialoguePrompt(args: BuildDialoguePromptArgs): { system: st
   const sceneCount = args.sceneCount ?? 5;
   const wordsPerLine = args.wordsPerLine ?? 12;
 
+  // Rol, verlangen en spreekstijl per personage. Alleen naam en rol volstond niet:
+  // zonder botsend verlangen schreef het model personages die het overal over eens
+  // waren, en zonder eigen spraak waren hun regels onderling verwisselbaar.
   const castLijst = args.cast
-    .map((c) => `- id "${c.id}": ${c.name}${c.role ? ` — ${c.role}` : ""}`)
+    .map((c) => {
+      const delen = [
+        c.role?.trim() ? `rol: ${c.role.trim()}` : "",
+        c.leeftijd?.trim() ? `leeftijd: ${c.leeftijd.trim()}` : "",
+        c.wil?.trim() ? `wil: ${c.wil.trim()}` : "",
+        c.spraak?.trim() ? `praat zo: ${c.spraak.trim()}` : "",
+      ].filter(Boolean);
+      return `- id "${c.id}": ${c.name}${delen.length ? ` — ${delen.join("; ")}` : ""}`;
+    })
     .join("\n");
 
   const keepTerms = (args.keepTerms ?? []).map((t) => t.trim()).filter(Boolean);
@@ -53,6 +73,15 @@ export function buildDialoguePrompt(args: BuildDialoguePromptArgs): { system: st
     : "";
   const angleLine = args.angle?.trim()
     ? `\n- GEWENSTE INVALSHOEK: benader het onderwerp bewust vanuit deze hoek: "${args.angle.trim()}".`
+    : "";
+  const kernLine = args.kern?.trim()
+    ? `\n- KERNBOODSCHAP: het hele gesprek werkt toe naar dit ene punt: "${args.kern.trim()}". Laat het aan het eind expliciet landen, maar begin er niet mee.`
+    : "";
+  const wendingLine = args.wending?.trim()
+    ? `\n- DE WENDING: ergens in het midden slaat het gesprek om: "${args.wending.trim()}". Bouw daar naartoe en laat het verschil daarna merkbaar zijn in hoe de personages praten.`
+    : "";
+  const spraakLine = args.cast.some((c) => c.spraak?.trim() || c.wil?.trim())
+    ? `\n- Houd je aan het verlangen en de spreekstijl per personage zoals hierboven beschreven. Iemand die kort en direct praat blijft dat het hele gesprek, en botsende verlangens mogen botsen: laat ze het oneens zijn voordat ze eruit komen.`
     : "";
 
   const system = `Je bent scenarist voor korte geanimeerde DIALOOG-video's in de stijl van moderne explainer-studio's. De personages praten ZELF met elkaar; er is GEEN verteller. Je output is UITSLUITEND een gestructureerde JSON-spec die daarna wordt gerenderd.
@@ -76,7 +105,7 @@ SCÈNES EN DE "setting":
 HARDE REGELS:
 - Gebruik alleen feiten en cijfers die letterlijk in de brontekst staan. Verzin geen cijfers.
 - Schrijf getallen, prijzen, percentages en data VOLUIT zoals ze uitgesproken worden (bijv. "tweehonderdvijftig euro", "tachtig procent"), nooit als los cijfer of symbool.
-- Alle gesproken tekst in ${lang}. De "setting" is altijd in het Engels.${keepLine}${avoidLine}${toneLine}${angleLine}`;
+- Alle gesproken tekst in ${lang}. De "setting" is altijd in het Engels.${keepLine}${avoidLine}${toneLine}${angleLine}${kernLine}${wendingLine}${spraakLine}`;
 
   const user = `ONDERWERP / TITEL:
 ${args.topic || "(leid een passende titel af uit de brontekst)"}

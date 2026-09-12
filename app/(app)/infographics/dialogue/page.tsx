@@ -10,8 +10,11 @@ import ScriptBoard, { schatCredits } from "@/components/dialogue/ScriptBoard";
 import DialoguePlayer, { bouwFragmenten } from "@/components/dialogue/DialoguePlayer";
 import FragmentEditor, { type HerstelActie } from "@/components/dialogue/FragmentEditor";
 import ArtDirection from "@/components/dialogue/ArtDirection";
+import SetupPanel from "@/components/dialogue/SetupPanel";
+import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
 import { regelKlaar, kaleSetting, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
+import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { MusicPickerButton } from "@/components/music/MusicPicker";
 import { findMusicTrackByUrl } from "@/lib/music/library";
 
@@ -29,7 +32,7 @@ import { findMusicTrackByUrl } from "@/lib/music/library";
 // wachttijd binnen de perken zonder de rate limits te raken.
 const PARALLEL = 3;
 
-type Stap = 1 | 2 | 3;
+type Stap = 1 | 2 | 3 | 4;
 
 export default function DialoguePage() {
   const [spec, setSpec] = useState<DialogueSpec | null>(null);
@@ -38,6 +41,10 @@ export default function DialoguePage() {
   const [projectLaden, setProjectLaden] = useState(false);
   const [heeftPersonages, setHeeftPersonages] = useState<boolean | null>(null);
   const [lengte, setLengte] = useState(VIDEO_STANDAARD_SEC);
+  // De opzet: alle dimensies van de video, vastgesteld vóór er iets geschreven is.
+  const [setup, setSetup] = useState<DialogueSetup | null>(null);
+  const [setupBezig, setSetupBezig] = useState(false);
+  const [schrijfBezig, setSchrijfBezig] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
 
   const [renderBezig, setRenderBezig] = useState(false);
@@ -117,7 +124,7 @@ export default function DialoguePage() {
         setSpec(geladen);
         if (geladen.targetSeconds) setLengte(geladen.targetSeconds);
         setProjectId(id);
-        setStap(2);
+        setStap(3);
       } catch (e) {
         setFout(e instanceof Error ? e.message : String(e));
       } finally {
@@ -137,13 +144,89 @@ export default function DialoguePage() {
     setSpec(nieuw);
     setLengte(secs);
     setExportUrl(null);
+    setStap(3);
+  }
+
+  // ---------- De opzet ----------
+  function ontvangOpzet(nieuw: DialogueSetup) {
+    setSetup(nieuw);
     setStap(2);
+  }
+
+  // Een nieuw voorstel vragen. Wat de gebruiker zelf koos gaat als vaste cast mee,
+  // zodat "ander voorstel" niet stilzwijgend zijn rolverdeling weggooit.
+  async function opnieuwVoorstellen() {
+    if (!setup) return;
+    setSetupBezig(true);
+    setFout(null);
+    try {
+      const res = await fetch("/api/infographics/dialogue-setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: setup.topic,
+          text: setup.text,
+          targetSeconds: setup.targetSeconds,
+          format: setup.format,
+          language: setup.language,
+          vasteCast: setup.cast.map((c) => ({
+            characterId: c.characterId,
+            name: c.name,
+            portraitUrl: c.portraitUrl,
+            role: c.role,
+            appearance: c.appearance,
+          })),
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setFout(creditFout(d)); return; }
+      if (d.setup) setSetup(d.setup as DialogueSetup);
+    } catch (e) {
+      setFout(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSetupBezig(false);
+    }
+  }
+
+  // Het draaiboek schrijven binnen de vastgestelde opzet. De chat-route doet het
+  // zware werk (samenhang, lengte, aanscherpen); de opzet overschrijft daarin alle
+  // keuzes die de gebruiker zelf heeft gemaakt.
+  async function schrijfDraaiboek() {
+    if (!setup) return;
+    const gerenderd = spec?.scenes.flatMap((s) => s.lines).filter(regelKlaar).length ?? 0;
+    if (gerenderd > 0 && !window.confirm(`Er ${gerenderd === 1 ? "staat 1 clip" : `staan ${gerenderd} clips`} klaar. Een nieuw draaiboek vervangt die. Doorgaan?`)) {
+      return;
+    }
+    setSchrijfBezig(true);
+    setFout(null);
+    try {
+      const res = await fetch("/api/infographics/dialogue-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: setup.text }],
+          targetSeconds: setup.targetSeconds,
+          setup,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setFout(creditFout(d)); return; }
+      if (!d.spec) { setFout(d.reply || "De assistent kreeg het draaiboek niet rond."); return; }
+      setSpec(d.spec as DialogueSpec);
+      setLengte(setup.targetSeconds);
+      setExportUrl(null);
+      setStap(3);
+    } catch (e) {
+      setFout(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSchrijfBezig(false);
+    }
   }
 
   // ---------- Video maken ----------
   async function maakVideo() {
     if (!spec) return;
-    setRenderBezig(true); setRenderFout(null); setExportUrl(null); setStap(3);
+    setRenderBezig(true); setRenderFout(null); setExportUrl(null); setStap(4);
 
     const werk: DialogueSpec = structuredClone(spec);
     let gestopt: string | null = null;
@@ -406,11 +489,11 @@ export default function DialoguePage() {
       {fout && <p className="text-sm text-red-400 mb-4">{fout}</p>}
 
       <div className="flex items-center gap-2 mb-6 text-[11px]">
-        {([[1, "Idee"], [2, "Draaiboek"], [3, "Video"]] as const).map(([n, label]) => (
+        {([[1, "Idee"], [2, "Opzet"], [3, "Draaiboek"], [4, "Video"]] as const).map(([n, label]) => (
           <button
             key={n}
-            onClick={() => { if (n === 1 || spec) setStap(n as Stap); }}
-            disabled={n !== 1 && !spec}
+            onClick={() => { if (n === 1 || (n === 2 ? setup : spec)) setStap(n as Stap); }}
+            disabled={n === 2 ? !setup : n !== 1 && !spec}
             className={`px-3 py-1.5 rounded-full transition disabled:opacity-30 ${
               stap === n ? "bg-orange-500 text-white" : "bg-white/5 text-slate-400 hover:text-white"
             }`}
@@ -423,16 +506,35 @@ export default function DialoguePage() {
       {/* ---------- Stap 1: het gesprek ---------- */}
       {stap === 1 && heeftPersonages !== null && (
         <div className="space-y-3">
-          <DialogueChat onPlan={ontvangPlan} heeftPersonages={heeftPersonages} lengte={lengte} onLengte={setLengte} />
+          <DialogueChat
+            onPlan={ontvangPlan}
+            onOpzet={ontvangOpzet}
+            heeftPersonages={heeftPersonages}
+            lengte={lengte}
+            onLengte={setLengte}
+          />
           <p className="text-[11px] text-slate-600">
-            De assistent kiest personages uit je <Link href="/characters" className="text-slate-500 underline hover:text-slate-300">bibliotheek</Link>,
-            bepaalt stijl en toon, en schrijft het gesprek. Alles is daarna nog aan te passen. Praten kost vrijwel niets; pas bij het maken van de video gaat er geld op.
+            De assistent stelt een complete opzet voor: personages uit je <Link href="/characters" className="text-slate-500 underline hover:text-slate-300">bibliotheek</Link> met hun rollen,
+            de kernboodschap, de wending, toon en tekenstijl. Die opzet stel je zelf bij vóór er één regel geschreven wordt. Denken kost vrijwel niets; pas bij het maken van de video gaat er geld op.
           </p>
         </div>
       )}
 
-      {/* ---------- Stap 2: het draaiboek ---------- */}
-      {stap === 2 && spec && (
+      {/* ---------- Stap 2: de opzet ---------- */}
+      {stap === 2 && setup && (
+        <SetupPanel
+          setup={setup}
+          onChange={setSetup}
+          onGenereer={schrijfDraaiboek}
+          onOpnieuwVoorstellen={opnieuwVoorstellen}
+          bezig={schrijfBezig}
+          voorstelBezig={setupBezig}
+          credits={CREDIT_COSTS.SCRIPT_GENERATION}
+        />
+      )}
+
+      {/* ---------- Stap 3: het draaiboek ---------- */}
+      {stap === 3 && spec && (
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -503,8 +605,8 @@ export default function DialoguePage() {
         </div>
       )}
 
-      {/* ---------- Stap 3: de video ---------- */}
-      {stap === 3 && spec && (
+      {/* ---------- Stap 4: de video ---------- */}
+      {stap === 4 && spec && (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-3">
             <button onClick={maakVideo} disabled={renderBezig}
@@ -525,7 +627,7 @@ export default function DialoguePage() {
               scène opnieuw te laten maken. */}
           <div className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-400">Iets verkeerd uitgepakt?</span>
-            <button onClick={() => setStap(2)} className="text-xs text-orange-300 hover:text-orange-200 underline">
+            <button onClick={() => setStap(3)} className="text-xs text-orange-300 hover:text-orange-200 underline">
               Terug naar het draaiboek
             </button>
             <span className="text-[11px] text-slate-600">

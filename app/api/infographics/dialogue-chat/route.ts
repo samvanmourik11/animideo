@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -49,6 +50,15 @@ interface Body {
   messages?: Bericht[];
   /** Door de gebruiker vooraf gekozen videolengte in seconden. */
   targetSeconds?: number;
+  /**
+   * De opzet zoals de gebruiker hem heeft vastgesteld (zie dialogue-setup.ts).
+   *
+   * Is hij er, dan hoeft het model niets meer te vragen of te kiezen: het
+   * schrijft alleen nog de scènes. Alle keuzes die de gebruiker maakte
+   * overschrijven daarna wat het model er alsnog van bakte — anders zou een
+   * opzet die je zelf hebt bijgesteld stilzwijgend genegeerd worden.
+   */
+  setup?: DialogueSetup | null;
 }
 
 // Vorm zoals het model hem aanlevert (nog ongevalideerd).
@@ -704,10 +714,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Geen bericht" }, { status: 400 });
     }
 
+    const opzet = body.setup ?? null;
     const gewensteLengte = Math.max(
       VIDEO_MIN_SEC,
-      Math.min(VIDEO_MAX_SEC, Math.round(body.targetSeconds ?? VIDEO_STANDAARD_SEC))
+      Math.min(VIDEO_MAX_SEC, Math.round(opzet?.targetSeconds ?? body.targetSeconds ?? VIDEO_STANDAARD_SEC))
     );
+    // Wat het model over de opzet moet weten: de vaste cast, de kern en de wending.
+    const opzetVoorPrompt = opzet
+      ? {
+          title: opzet.title,
+          kern: opzet.kern,
+          wending: opzet.wending,
+          tone: opzet.tone,
+          angle: opzet.angle,
+          language: opzet.language,
+          keepTerms: opzet.keepTerms,
+          avoidTerms: opzet.avoidTerms,
+          cast: opzet.cast.map((c) => ({
+            id: c.id, name: c.name, role: c.role, leeftijd: c.leeftijd, wil: c.wil, spraak: c.spraak,
+          })),
+        }
+      : null;
 
     const { data: personages } = await supabase
       .from("characters")
@@ -726,7 +753,7 @@ export async function POST(req: NextRequest) {
       max_tokens: 8000,
       tools: [DRAAIBOEK_TOOL],
       messages: [
-        { role: "system", content: buildChatSysteem(voorPrompt, gewensteLengte) },
+        { role: "system", content: buildChatSysteem(voorPrompt, gewensteLengte, opzetVoorPrompt) },
         ...berichten.map((m) => ({ role: m.role, content: m.content })),
       ],
     });
@@ -752,7 +779,7 @@ export async function POST(req: NextRequest) {
           tools: [DRAAIBOEK_TOOL],
           tool_choice: { type: "function", function: { name: DRAAIBOEK_TOOL.function.name } },
           messages: [
-            { role: "system", content: buildChatSysteem(voorPrompt, gewensteLengte) },
+            { role: "system", content: buildChatSysteem(voorPrompt, gewensteLengte, opzetVoorPrompt) },
             ...berichten.map((m) => ({ role: m.role, content: m.content })),
           ],
         });
@@ -769,6 +796,37 @@ export async function POST(req: NextRequest) {
       plan = JSON.parse(toolCall.function.arguments || "{}");
     } catch {
       return NextResponse.json({ reply: "Ik kreeg mijn eigen plan niet rond. Kun je het nog eens proberen?" });
+    }
+
+    // De opzet wint van het model. Het model schrijft de scènes; wélke mensen
+    // erin staan, waar het gesprek naartoe werkt en hoe het eruitziet heeft de
+    // gebruiker al vastgesteld. Zonder deze regel zou een opzet die je zelf hebt
+    // bijgesteld alsnog stilzwijgend overschreven worden door het voorstel.
+    if (opzet) {
+      plan = {
+        ...plan,
+        title: opzet.title || plan.title,
+        kern: opzet.kern || plan.kern,
+        wending: opzet.wending || plan.wending,
+        tone: opzet.tone || plan.tone,
+        language: opzet.language || plan.language,
+        format: opzet.format || plan.format,
+        styleId: opzet.styleId || plan.styleId,
+        illustrationBrief: opzet.illustrationBrief || plan.illustrationBrief,
+        targetSeconds: opzet.targetSeconds ?? plan.targetSeconds,
+        cast: opzet.cast.map((c) => ({
+          id: c.id,
+          characterId: c.characterId,
+          name: c.name,
+          role: c.role,
+          leeftijd: c.leeftijd ?? undefined,
+          wil: c.wil ?? undefined,
+          spraak: c.spraak ?? undefined,
+          appearance: c.appearance ?? undefined,
+          voice: c.voice,
+          position: c.position,
+        })),
+      };
     }
 
     const { spec, probleem } = maakSpec(plan, bibliotheek);
