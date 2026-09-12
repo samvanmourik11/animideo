@@ -25,6 +25,7 @@
 
 import type { DialogueCastMember } from "./dialogue-schema";
 import { STORY_STYLE_PRESETS } from "./story-style";
+import { kaderRegie, type Kader } from "./verhaal-kaders";
 
 /**
  * De gekozen tekenstijl, als zin voor een BEWERKINGS-prompt.
@@ -230,7 +231,8 @@ export function buildTurnShotPrompt(
   spreker: DialogueCastMember,
   luisteraars: DialogueCastMember[],
   emotion?: string | null,
-  styleId?: string | null
+  styleId?: string | null,
+  kader?: Kader | null,
 ): string {
   const emo = (emotion || "").trim();
   const emoZin = emo && emo !== "neutraal"
@@ -250,9 +252,18 @@ export function buildTurnShotPrompt(
   return (
     `EXACTLY ONE person in this illustration has an open mouth: ${aanduiding(spreker)}. ` +
     `Everyone else keeps their mouth CLOSED.\n\n` +
-    `Edit this illustration. Keep EVERYTHING identical — the same people, the same faces, hair, clothing, ` +
-    `colours, the same background and props, the same camera framing and the same positions in the frame. ` +
-    `Change ONLY their poses and expressions, as follows. ` +
+    // Zonder kader blijft het oude gedrag: alleen houding en mond veranderen, kader
+    // gelijk. Mét kader mag de camera wél verschuiven — dat is precies waar de
+    // afwisseling vandaan moet komen. De plek en de mensen blijven hoe dan ook
+    // hetzelfde; anders springt het verhaal alsnog van kamer naar kamer.
+    (kader
+      ? `Edit this illustration into a NEW SHOT of the same moment in the same place. Keep the same people — ` +
+        `same faces, hair, clothing and colours — and the same location, furniture and lighting. ` +
+        `The CAMERA MOVES to a new position: ${kaderRegie(kader)} ` +
+        `Their poses and expressions change as follows. `
+      : `Edit this illustration. Keep EVERYTHING identical — the same people, the same faces, hair, clothing, ` +
+        `colours, the same background and props, the same camera framing and the same positions in the frame. ` +
+        `Change ONLY their poses and expressions, as follows. `) +
     `${aanduiding(spreker)} — this is ${spreker.name} — is the one SPEAKING: their mouth is clearly OPEN ` +
     `mid-sentence, one hand is raised in an open-palm explaining gesture, leaning very slightly forward, ` +
     `engaged and animated.${emoZin} ` +
@@ -323,7 +334,8 @@ export function buildDialogueMotionPrompt(
 export function buildActionShotPrompt(
   cast: DialogueCastMember[],
   actie: string,
-  styleId?: string | null
+  styleId?: string | null,
+  kader?: Kader | null,
 ): string {
   const wie = cast
     .map((c) => `${c.name}${(c.appearance ?? "").trim() ? ` (${(c.appearance ?? "").trim()})` : ""}`)
@@ -336,7 +348,7 @@ export function buildActionShotPrompt(
     `The new shot shows: ${actie.trim()}. ` +
     `NOBODY IS TALKING in this shot: every mouth is closed. They are doing something together, not having ` +
     `a conversation, so do not put them face to face unless the action itself calls for it. ` +
-    `Show the action clearly — a wider shot is fine, the characters may be smaller in frame. ` +
+    `${kader ? kaderRegie(kader) : "Show the action clearly — a wider shot is fine, the characters may be smaller in frame."} ` +
     stijlBewerking(styleId) + MAATVAST +
     NATUURWETTEN
   );

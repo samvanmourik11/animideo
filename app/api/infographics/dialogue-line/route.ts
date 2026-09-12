@@ -14,6 +14,7 @@ import {
   buildTurnShotPrompt, buildDialogueMotionPrompt,
   buildActionShotPrompt, buildActionMotionPrompt, illustratieContext,
 } from "@/lib/infographics/dialogue-staging";
+import { zonderHerhaling as kaderZonderHerhaling, type Kader } from "@/lib/infographics/verhaal-kaders";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld, beoordeelBeweging, type SprekerOordeel } from "@/lib/infographics/dialogue-verify";
 import {
@@ -121,6 +122,10 @@ interface Body {
   speed?: number;
   /** Stem van de verteller; alleen gebruikt als speakerId "verteller" is. */
   narratorVoice?: string;
+  /** Hoe dit shot in beeld komt (close-up, totaalbeeld…). Zie verhaal-kaders.ts. */
+  kader?: Kader | null;
+  /** Het kader van het VORIGE shot, zodat we niet twee keer hetzelfde krijgen. */
+  vorigKader?: Kader | null;
   // --- Gericht opnieuw maken ---------------------------------------------
   // Een regel bestaat uit drie dingen die los kapot kunnen: de stem, het
   // bronbeeld en de beweging. Wie alleen de beweging wil overdoen hoort niet
@@ -259,14 +264,29 @@ export async function POST(req: NextRequest) {
     let beeldFouten: string[] = [];
     let beeldPogingen = 0;
 
+    // Het kader van dit shot. Vraagt het draaiboek er geen, dan blijft alles bij
+    // het oude: hetzelfde beeld als de scène, alleen andere houdingen. Vraagt het
+    // er wel een, dan controleren we of dat kader kán (geen close-up van drie
+    // mensen, niemand die zichtbaar praat in een totaalbeeld) en of het niet
+    // hetzelfde is als het vorige shot — twee dezelfde kaders achter elkaar lezen
+    // als één lang shot.
+    const gekozenKader: Kader | null = b.kader
+      ? kaderZonderHerhaling(
+          b.kader,
+          b.vorigKader ?? null,
+          isActieBeeld ? cast.length : 1 + luisteraars.length,
+          !isActieBeeld,
+        )
+      : null;
+
     // Alleen de beweging opnieuw: het bronbeeld staat er al en is goedgekeurd.
     for (let poging = 1; shotImageUrl === null && poging <= MAX_BEELD_POGINGEN; poging++) {
       beeldPogingen = poging;
       try {
         const beeld = await generateImageWithStyle({
           prompt: isActieBeeld
-            ? buildActionShotPrompt(cast, actieTekst, b.styleId)
-            : buildTurnShotPrompt(spreker!, luisteraars, b.emotion, b.styleId),
+            ? buildActionShotPrompt(cast, actieTekst, b.styleId, gekozenKader)
+            : buildTurnShotPrompt(spreker!, luisteraars, b.emotion, b.styleId, gekozenKader),
           format,
           visualStyle: null,
           // Zonder seed bij een herkansing: dezelfde seed zou grofweg hetzelfde

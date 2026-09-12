@@ -223,6 +223,22 @@ export default function DialoguePage() {
     }
   }
 
+  /**
+   * Het kader van het shot vlak vóór dit shot, ook als dat in de vorige scene ligt.
+   *
+   * Zonder deze blik over de scenegrens heen krijg je precies op de overgang twee
+   * dezelfde kaders achter elkaar — en juist daar valt het op, want daar hoort de
+   * kijker een nieuwe plek te zien.
+   */
+  function vorigKaderVoor(spec: DialogueSpec, si: number, li: number) {
+    if (li > 0) return spec.scenes[si].lines[li - 1]?.kader ?? null;
+    for (let k = si - 1; k >= 0; k--) {
+      const regels = spec.scenes[k].lines;
+      if (regels.length) return regels[regels.length - 1].kader ?? null;
+    }
+    return null;
+  }
+
   // ---------- Video maken ----------
   async function maakVideo() {
     if (!spec) return;
@@ -340,6 +356,11 @@ export default function DialoguePage() {
                 text: regel.text, emotion: regel.emotion, language: werk.language,
                 format: werk.format, styleId: werk.styleId, seed: werk.seed,
                 illustrationBrief: werk.illustrationBrief ?? "",
+                // Het kader van dit shot, plus dat van het vorige zodat er geen
+                // twee dezelfde achter elkaar komen. Het vorige shot kan in een
+                // eerdere scene liggen, dus we kijken door de hele lijst heen.
+                kader: regel.kader ?? null,
+                vorigKader: vorigKaderVoor(werk, si, li),
               }),
             });
             const d = await r.json();
@@ -409,6 +430,7 @@ export default function DialoguePage() {
       // De stem blijft staan zolang de tekst niet veranderd is; bij "alles
       // opnieuw" wil je hem juist wél opnieuw laten inspreken.
       const hergebruikStem = actie.soort === "alles" ? undefined : regel.audioUrl ?? undefined;
+      const kaderVanRegel = regel.kader ?? null;
 
       const r = await fetch("/api/infographics/dialogue-line", {
         method: "POST",

@@ -10,6 +10,7 @@
 import { STORY_VOICES } from "./story-voices";
 import { STORY_STYLE_PRESETS } from "./story-style";
 import { CAST_POSITIONS, planVoorLengte, REGELS_PER_SCENE } from "./dialogue-schema";
+import { KADERS, kaderKeuzelijst } from "./verhaal-kaders";
 
 export const DRAAIBOEK_TOOL = {
   type: "function" as const,
@@ -173,7 +174,7 @@ export const DRAAIBOEK_TOOL = {
                 items: {
                   type: "object",
                   additionalProperties: false,
-                  required: ["kind", "characterId", "text", "emotion"],
+                  required: ["kind", "kader", "characterId", "text", "emotion"],
                   properties: {
                     kind: {
                       type: "string",
@@ -252,7 +253,7 @@ export const DRAAIBOEK_TOOL = {
 const REGEL_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["kind", "characterId", "text", "emotion"],
+  required: ["kind", "kader", "characterId", "text", "emotion"],
   properties: {
     kind: {
       type: "string",
@@ -276,7 +277,16 @@ const REGEL_SCHEMA = {
       type: "string",
       description: 'Alleen bij kind "actie": één korte Nederlandse zin over waar dit beeld uit voortkomt en waar het naartoe leidt.',
     },
-    characterId: { type: "string", description: 'Bij "dialoog" wie er spreekt; bij "actie" wie er het meest in beeld is.' },
+    kader: {
+      type: "string",
+      enum: [...KADERS],
+      description:
+        "HOE dit shot in beeld komt. Kies bewust en wissel af — twee dezelfde kaders achter elkaar lezen " +
+        "als één lang shot. Een close-up kan maar met ÉÉN personage; in een totaalbeeld, van bovenaf, van " +
+        "achteren of een detail kan niemand zichtbaar praten, dus gebruik die voor de verteller of voor " +
+        "een beeld zonder tekst.\n" + kaderKeuzelijst(),
+    },
+    characterId: { type: "string", description: 'Bij "dialoog" wie er spreekt; bij "actie" wie er het meest in beeld is. Voor de verteller: "verteller".' },
     text: {
       type: "string",
       description:
@@ -448,7 +458,9 @@ export function buildChatSysteem(
 
   const vast = opzet ? opzetBlok(opzet) : "";
 
-  return `Je helpt een gebruiker een korte geanimeerde DIALOOG-video maken: twee (soms drie) personages die tegenover elkaar staan en samen een gesprek voeren. Er is geen verteller — de personages praten zelf.
+  return `Je helpt een gebruiker een korte geanimeerde VERHAAL-video maken, in de stijl van de sprookjeskanalen voor kinderen: personages die samen een verhaal beleven, met een VERTELLER die het verhaal draagt en de sprongen maakt.
+
+Denk aan Het Lelijke Eendje: de verteller zet de scène neer en overbrugt de tijd, de personages praten zelf op de momenten die ertoe doen, en het beeld wisselt vaak — gemiddeld elke drie tot vier seconden, met steeds een ander camerastandpunt.
 
 DE LENGTE STAAT VAST
 De gebruiker heeft gekozen: ${gewensteLengte} seconden. Schrijf daar ook echt naar toe — ongeveer ${regels} gesproken regels verdeeld over ${scenes} scènes. Vraag niet naar de lengte; die is al bepaald. Lever je veel minder, dan is de video te kort voor wat hij besteld heeft.
@@ -482,6 +494,11 @@ Kies de cast HIERUIT. Gebruik het id exact zoals het er staat; verzin nooit een 
 
 ${lijst || "(deze gebruiker heeft nog geen personages — zeg dat hij er eerst twee moet aanmaken in zijn personagebibliotheek)"}
 
+RITME: HET BEELD WISSELT VAAK
+Gemeten aan de referentievideo: 289 beeldwissels in twintig minuten, mediaan 3,2 seconden per shot, bijna een derde korter dan twee seconden. Houd dus korte shots aan en geef ELK shot een eigen "kader" (close-up, totaalbeeld, van onderaf…). Twee dezelfde kaders achter elkaar lezen als één lang shot, dus wissel bewust af.
+
+Een goede reeks ziet er zo uit: totaalbeeld om de plek te tonen → medium terwijl iemand iets zegt → close-up op de reactie → detail van wat er gebeurt → van achteren naar wat ze zien. Niet vijf keer medium.
+
 RITME: AFWISSELEN MET ACTIEBEELDEN
 Een video die alleen uit pratende mensen bestaat staat stil — dezelfde twee personen, dezelfde opstelling, alleen andere woorden. Zet er daarom ACTIEBEELDEN tussen: korte shots zonder tekst waarin je personages iets DOEN dat het verhaal vooruit brengt.
 
@@ -492,7 +509,9 @@ Een video die alleen uit pratende mensen bestaat staat stil — dezelfde twee pe
   · alleen MUZIEK — laat "text" leeg; gebruik dit alleen voor een moment dat zichzelf vertelt en waar woorden juist storen (iets wat wegvliegt, een omhelzing, een blik)
 - VERDEEL ZE ONGEVEER GELIJK. Heb je zes actiebeelden, mik dan op twee waarbij het gesprek doorloopt, twee met een verteller en twee met alleen muziek. Ga niet alles op één manier doen — vijf keer achter elkaar dezelfde vertellerstem is net zo eentonig als vijf keer stilte.
 - Kies per beeld wat er past. Legt een personage net iets uit en zie je dat vervolgens? Laat dan ZIJN stem doorlopen. Gaat er tijd voorbij of verschuift het verhaal? Dan een VERTELLER. Is het een moment waar woorden storen — iets wat wegvliegt, een omhelzing, een blik? Dan alleen MUZIEK.
-- De verteller is een gast, geen presentator: hooguit een derde van de actiebeelden, en steeds één korte zin.
+- De VERTELLER draagt het verhaal. Hij zet de scène neer ("In een ver land woonde een gelukkig gezin"), maakt sprongen in de tijd ("Maanden gingen voorbij") en overbrugt wat je niet hoeft te zien. Reken op ongeveer één vertellerregel op elke drie tot vier gesproken regels — méér aan het begin van het verhaal en bij elke sprong, minder tijdens een levendig gesprek.
+- Een vertellerregel is één of twee zinnen, in de derde persoon en de verleden tijd, zoals een voorleesverhaal. Laat hem NOOIT de dialoog navertellen die je er direct naast zet: de verteller vult aan, hij herhaalt niet.
+- De verteller praat over een beeld waarin niemand zichtbaar zijn mond beweegt. Kies daar dus een kader waarin dat kan: een totaalbeeld, van bovenaf, van achteren of een detail.
 - Vertelt iemand over iets dat je kunt LATEN ZIEN (een plek, een voorwerp, iets dat gebeurt), maak er dan een actiebeeld met voice-over van in plaats van een gewone dialoogregel. Dat is bijna altijd de leukere keuze.
 - Een actiebeeld toont een handeling, geen gesprek: samen op weg gaan, ergens aankomen, iets ontdekken, samen aan het werk, iets uitproberen, ergens naar kijken.
 - Laat ze eruit voortkomen: praten ze net over een locatie, laat ze er dan naartoe gaan. Hebben ze net een plan gemaakt, laat ze het dan uitvoeren.

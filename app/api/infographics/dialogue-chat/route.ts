@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { DialogueSetup } from "@/lib/infographics/dialogue-setup";
+import { isKader, kaderPast } from "@/lib/infographics/verhaal-kaders";
 import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -102,12 +103,26 @@ function maakVertaler(cast: DialogueCastMember[]): (ruw?: string) => string | nu
 /** Ruwe regel zoals het model hem aanlevert, vóór validatie. */
 interface RuweRegel {
   kind?: string;
+  kader?: string;
   characterId?: string;
   text?: string;
   emotion?: string;
   actie?: string;
   seconden?: number;
   verband?: string;
+}
+
+/**
+ * Het beeld waar een vertellerregel overheen klinkt.
+ *
+ * Het model levert bij een vertellerregel meestal wél een "actie" aan, maar niet
+ * altijd. Zonder beeld valt de regel alsnog weg, en dan zijn we terug bij af.
+ * Deze terugval toont gewoon de plek: dat past bij een verteller die de scène
+ * neerzet, en er beweegt niemands mond.
+ */
+function vertellerBeeld(tekst: string): string {
+  const kort = tekst.trim().replace(/\s+/g, " ").slice(0, 160);
+  return `A calm establishing view of the place where this part of the story happens, with nobody speaking: ${kort}`;
 }
 
 /** Een nummer uit de gevraagde categorie; valt terug op zakelijk als de AI iets onbekends noemt. */
@@ -186,6 +201,7 @@ function maakSpec(
             // de stem eroverheen. Zonder dit werd die zin stilzwijgend gewist.
             return {
               kind: "actie" as const, characterId: cid,
+              kader: isKader(l.kader) ? l.kader : null,
               text: (l.text ?? "").trim(), emotion: (l.emotion ?? "").trim(),
               actie, seconden: begrensSeconden(l.seconden),
               verband: (l.verband ?? "").trim() || null,
@@ -193,10 +209,32 @@ function maakSpec(
           }
 
           const text = (l.text ?? "").trim();
-          // In een twee-shot zie je wie er praat; een verteller zou daar een stem
-          // uit het niets zijn. Die hoort alleen boven een actiebeeld.
-          if (!text || cid === VERTELLER_ID) return null;
-          return { kind: "dialoog" as const, characterId: cid, text, emotion: (l.emotion ?? "").trim() || "neutraal" };
+          if (!text) return null;
+          // De VERTELLER kan niet in een twee-shot staan: daar zie je wie er praat,
+          // en een stem uit het niets naast twee gesloten monden klopt niet. Zijn
+          // regel werd daarom weggegooid — en dát was de tweede reden dat er bijna
+          // nooit een verteller in de video zat. Nu maken we er een beeld van
+          // waarin niemand praat, en klinkt zijn stem daaroverheen. Precies zoals
+          // de sprookjeskanalen het doen.
+          if (cid === VERTELLER_ID) {
+            return {
+              kind: "actie" as const,
+              characterId: VERTELLER_ID,
+              kader: isKader(l.kader) && !kaderPast(l.kader, cast.length, true) ? l.kader : "totaal",
+              text,
+              emotion: (l.emotion ?? "").trim(),
+              actie: (l.actie ?? "").trim() || vertellerBeeld(text),
+              seconden: begrensSeconden(l.seconden),
+              verband: (l.verband ?? "").trim() || null,
+            };
+          }
+          return {
+            kind: "dialoog" as const,
+            characterId: cid,
+            kader: isKader(l.kader) ? l.kader : null,
+            text,
+            emotion: (l.emotion ?? "").trim() || "neutraal",
+          };
         })
         .filter((l): l is NonNullable<typeof l> => l !== null);
       return { id: `scene-${i}`, setting: (s.setting ?? "").trim(), lines };

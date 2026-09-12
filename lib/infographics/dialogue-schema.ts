@@ -133,6 +133,8 @@ export interface DialogueCastMember {
 //   - het gesprek gaat door: dezelfde stem gaat verder terwijl je een versterkend
 //     beeld ziet in plaats van de pratende koppen
 // Die laatste twee zijn hetzelfde in de data: een actiebeeld MET gesproken tekst.
+import type { Kader } from "./verhaal-kaders";
+
 export const SHOT_SOORTEN = ["dialoog", "actie"] as const;
 export type ShotSoort = (typeof SHOT_SOORTEN)[number];
 
@@ -167,6 +169,16 @@ export const ACTIE_STANDAARD_SEC = 4;
 export interface DialogueLine {
   /** Afwezig = "dialoog"; zo blijven bestaande draaiboeken werken. */
   kind?: ShotSoort;
+  /**
+   * Hoe dit shot in beeld wordt gebracht: close-up, totaalbeeld, van achteren…
+   * Zie verhaal-kaders.ts.
+   *
+   * Afwezig = het oude gedrag (twee personages naast elkaar, hele lichaam,
+   * ooghoogte), zodat bestaande draaiboeken hun beelden houden. Voor nieuwe
+   * verhalen kiest de regisseur per shot een kader — dat is het verschil tussen
+   * twee poppetjes die praten en een verhaal dat je blijft kijken.
+   */
+  kader?: Kader | null;
   characterId: string;
   text: string;
   emotion: string;
