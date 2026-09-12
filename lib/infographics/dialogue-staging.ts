@@ -25,7 +25,7 @@
 
 import type { DialogueCastMember } from "./dialogue-schema";
 import { STORY_STYLE_PRESETS } from "./story-style";
-import { kaderRegie, type Kader } from "./verhaal-kaders";
+import { kaderRegie, bewegingRegie, type Kader, type Beweging } from "./verhaal-kaders";
 
 /**
  * De gekozen tekenstijl, als zin voor een BEWERKINGS-prompt.
@@ -309,7 +309,8 @@ export function buildTurnShotPrompt(
 export function buildDialogueMotionPrompt(
   spreker: DialogueCastMember,
   luisteraars: DialogueCastMember[],
-  styleId?: string | null
+  styleId?: string | null,
+  beweging?: Beweging | null,
 ): string {
   const sprekerT = aanduiding(spreker, false);
   // Zonder luisteraar is er niemand om stil te houden. De regels hieronder gaan
@@ -335,7 +336,14 @@ export function buildDialogueMotionPrompt(
     `Exactly one person is talking in this clip and it is ${sprekerT}. ` +
     `The other person's mouth NEVER opens, not even briefly. ` +
     `Everyone keeps facing each other and never turns towards the viewer. ` +
-    `${stijlBeweging(styleId)} Static locked camera. Keep the same people, same faces, clothing, ` +
+    // "Static locked camera" stond hier, en dat is precies wat je kreeg: bank,
+    // kussens en lamp op exact dezelfde pixels, alleen wat geschuifel. In het
+    // Lelijke Eendje beweegt de camera bijna altijd — daar is de beeldverandering
+    // van frame op frame ongeveer drie keer zo groot als bij ons.
+    `${stijlBeweging(styleId)} CAMERA: ${bewegingRegie(beweging)} ` +
+    `The camera move is slow, smooth and continuous from the first frame to the last — never a jump, never a ` +
+    `shake, and it never cuts to a different shot. ` +
+    `Keep the same people, same faces, clothing, ` +
     `colours and background, and keep everyone exactly the same height and build as in the first frame. ` +
     `Do not add another person, new objects or text.`
   );
@@ -383,14 +391,16 @@ export function buildActionShotPrompt(
 }
 
 /** Bewegingsinstructie voor een actiebeeld: de handeling zelf, geen gesprek. */
-export function buildActionMotionPrompt(actie: string, styleId?: string | null): string {
+export function buildActionMotionPrompt(actie: string, styleId?: string | null, beweging?: Beweging | null): string {
   return (
     `Animate this illustration. The shot shows: ${actie.trim()}. ` +
     `Bring that action to life with clear, natural movement — the people and objects involved actually move ` +
     `and carry out what is described, at a calm and readable pace. ` +
     `NOBODY SPEAKS in this shot: all mouths stay CLOSED throughout. This is an action beat with music, ` +
     `not a conversation. ` +
-    `${stijlBeweging(styleId)} A slow, gentle camera move is allowed if it supports the action. ` +
+    `${stijlBeweging(styleId)} CAMERA: ${bewegingRegie(beweging)} ` +
+    `The camera move is slow, smooth and continuous from the first frame to the last — never a jump, never a ` +
+    `shake, and it never cuts to a different shot. ` +
     `Keep the same people, same faces, clothing and colours. Do not add another person, new text or logos. ` +
     `PHYSICAL RULES: only the PEOPLE move. Vehicles, machines, furniture and equipment stay exactly where ` +
     `they are and keep their shape — nothing drives, folds, opens, collapses, transforms, grows or shrinks. ` +

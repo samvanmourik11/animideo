@@ -207,3 +207,110 @@ export function zonderHerhaling(
 export function kaderKeuzelijst(): string {
   return KADERS.map((k) => `- "${k}" (${DEF[k].label}): ${DEF[k].uitleg}`).join("\n");
 }
+
+/**
+ * CAMERABEWEGING — wat de camera DOET tijdens het shot.
+ *
+ * Het kader zegt waar de camera staat; dit zegt wat hij vervolgens doet. Tot nu
+ * toe stond er in de bewegings-opdracht letterlijk "Static locked camera", en dat
+ * is precies wat je kreeg: de bank, de kussens en de lamp stonden in elke frame
+ * op exact dezelfde pixels en alleen de kinderen schuifelden wat.
+ *
+ * In het Lelijke Eendje beweegt de camera bijna altijd. Gemeten over veertig
+ * seconden: de beeldverandering van frame op frame is daar ongeveer drie keer zo
+ * groot als bij ons (mediaan 3,0 tegen 1,07). In één shot draait de camera om een
+ * vos heen — je ziet de bomen achter hem wegschuiven.
+ */
+export const BEWEGINGEN = [
+  "stil",
+  "inzoomen",
+  "uitzoomen",
+  "meedraaien",
+  "meelopen",
+  "kantelen",
+] as const;
+export type Beweging = (typeof BEWEGINGEN)[number];
+
+interface BewegingDef {
+  label: string;
+  regie: string;
+}
+
+const BEW: Record<Beweging, BewegingDef> = {
+  stil: {
+    label: "Stil",
+    regie:
+      "The camera holds still. Only the characters move. Use this sparingly — a locked camera makes an " +
+      "animated shot look like a photograph with a wobble.",
+  },
+  inzoomen: {
+    label: "Langzaam inzoomen",
+    regie:
+      "The camera pushes in SLOWLY and continuously towards the subject for the whole clip, growing a little " +
+      "closer with every second. A steady, deliberate dolly-in — never a snap zoom.",
+  },
+  uitzoomen: {
+    label: "Langzaam uitzoomen",
+    regie:
+      "The camera pulls back SLOWLY and continuously for the whole clip, revealing more of the location around " +
+      "the subject with every second. A steady dolly-out — never a snap zoom.",
+  },
+  meedraaien: {
+    label: "Om het onderwerp heen",
+    regie:
+      "The camera ARCS slowly around the subject for the whole clip, as if walking a quarter circle around " +
+      "them: the background slides sideways behind them and you gradually see them from a slightly different " +
+      "angle. The subject stays roughly centred while the world moves behind them.",
+  },
+  meelopen: {
+    label: "Meebewegen",
+    regie:
+      "The camera glides sideways through the space for the whole clip — a slow, smooth tracking move that " +
+      "makes the foreground pass a little faster than the background, so the room feels three-dimensional.",
+  },
+  kantelen: {
+    label: "Kantelen",
+    regie:
+      "The camera tilts slowly and continuously — drifting up to reveal what is above, or down to settle on " +
+      "the subject — over the whole clip.",
+  },
+};
+
+export function bewegingRegie(b: Beweging | null | undefined): string {
+  return BEW[b ?? "inzoomen"]?.regie ?? BEW.inzoomen.regie;
+}
+
+export function bewegingLabel(b: Beweging | null | undefined): string {
+  return BEW[b ?? "inzoomen"]?.label ?? BEW.inzoomen.label;
+}
+
+export function isBeweging(waarde: unknown): waarde is Beweging {
+  return typeof waarde === "string" && (BEWEGINGEN as readonly string[]).includes(waarde);
+}
+
+/**
+ * De beweging die bij dit kader hoort, met afwisseling over de shots heen.
+ *
+ * Bewust afgeleid en niet gevraagd: een regisseur die per shot ook nog een
+ * camerabeweging moet kiezen, kiest meestal hetzelfde. Deze koppeling geeft elk
+ * kader een handvol bewegingen die er echt bij passen — je zoomt in op een
+ * gezicht, je draait om iemand heen, je onthult een plek door uit te zoomen — en
+ * `index` laat ze rouleren zodat twee opeenvolgende shots niet hetzelfde doen.
+ */
+export function bewegingVoorKader(kader: Kader | null | undefined, index = 0): Beweging {
+  const opties: Record<Kader, Beweging[]> = {
+    // Een plek onthullen of er langzaam in zakken.
+    totaal: ["uitzoomen", "meelopen", "inzoomen"],
+    medium: ["inzoomen", "meedraaien", "meelopen"],
+    // Op een gezicht werkt inzoomen het sterkst; eromheen draaien geeft leven.
+    close: ["inzoomen", "meedraaien"],
+    "extreme-close": ["inzoomen", "stil"],
+    // Meekijken over een schouder vraagt om vooruit bewegen.
+    "van-achteren": ["inzoomen", "meelopen"],
+    laag: ["inzoomen", "kantelen"],
+    hoog: ["uitzoomen", "kantelen"],
+    detail: ["inzoomen", "stil"],
+  };
+  const rij = opties[kader ?? STANDAARD_KADER] ?? opties[STANDAARD_KADER];
+  return rij[((index % rij.length) + rij.length) % rij.length];
+}

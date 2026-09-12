@@ -14,7 +14,13 @@ import {
   buildTurnShotPrompt, buildDialogueMotionPrompt,
   buildActionShotPrompt, buildActionMotionPrompt, illustratieContext, buildShotPrompt,
 } from "@/lib/infographics/dialogue-staging";
-import { zonderHerhaling as kaderZonderHerhaling, type Kader } from "@/lib/infographics/verhaal-kaders";
+import {
+  zonderHerhaling as kaderZonderHerhaling,
+  bewegingVoorKader,
+  isBeweging,
+  type Kader,
+  type Beweging,
+} from "@/lib/infographics/verhaal-kaders";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld, beoordeelBeweging, type SprekerOordeel } from "@/lib/infographics/dialogue-verify";
 import {
@@ -132,6 +138,10 @@ interface Body {
   setting?: string;
   /** Het kader van het VORIGE shot, zodat we niet twee keer hetzelfde krijgen. */
   vorigKader?: Kader | null;
+  /** Wat de camera doet tijdens de clip. Leeg = afleiden uit het kader. */
+  beweging?: Beweging | null;
+  /** De hoeveelste shot dit is; laat de camerabewegingen rouleren. */
+  shotIndex?: number;
   // --- Gericht opnieuw maken ---------------------------------------------
   // Een regel bestaat uit drie dingen die los kapot kunnen: de stem, het
   // bronbeeld en de beweging. Wie alleen de beweging wil overdoen hoort niet
@@ -329,6 +339,13 @@ export async function POST(req: NextRequest) {
     // scenebeeld af staat, hoe meer het model opnieuw moet verzinnen — en hoe
     // groter de kans dat het haar of de kleding verandert.
     let kaderNu: Kader | null = gekozenKader;
+    // Wat de camera DOET tijdens de clip. Afgeleid van het kader — je zoomt in op
+    // een gezicht, je draait om iemand heen, je onthult een plek door uit te
+    // zoomen — met de scene-index erin zodat twee clips achter elkaar niet
+    // hetzelfde doen. Een expliciete keuze uit het draaiboek gaat voor.
+    const cameraBeweging: Beweging = isBeweging(b.beweging)
+      ? b.beweging
+      : bewegingVoorKader(kaderNu, typeof b.shotIndex === "number" ? b.shotIndex : 0);
 
     // Alleen de beweging opnieuw: het bronbeeld staat er al en is goedgekeurd.
     for (let poging = 1; shotImageUrl === null && poging <= MAX_BEELD_POGINGEN; poging++) {
@@ -463,8 +480,8 @@ export async function POST(req: NextRequest) {
           input: {
             image_url: shotImageUrl,
             prompt: isActieBeeld
-              ? buildActionMotionPrompt(actieTekst, b.styleId)
-              : buildDialogueMotionPrompt(spreker!, luisteraars, b.styleId),
+              ? buildActionMotionPrompt(actieTekst, b.styleId, cameraBeweging)
+              : buildDialogueMotionPrompt(spreker!, luisteraars, b.styleId, cameraBeweging),
             duration: clipSec,
             resolution: "720p",
             camera_fixed: true,

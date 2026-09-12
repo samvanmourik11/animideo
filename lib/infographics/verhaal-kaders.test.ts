@@ -6,6 +6,9 @@ import {
   zonderHerhaling,
   kaderRegie,
   isKader,
+  BEWEGINGEN,
+  bewegingVoorKader,
+  bewegingRegie,
   type Kader,
 } from "./verhaal-kaders";
 
@@ -102,5 +105,50 @@ describe("isKader", () => {
     expect(isKader("close")).toBe(true);
     expect(isKader("closeup")).toBe(false);
     expect(isKader(null)).toBe(false);
+  });
+});
+
+// Camerabeweging. In de bewegings-opdracht stond letterlijk "Static locked
+// camera", en dat is precies wat je zag: de bank, de kussens en de lamp op exact
+// dezelfde pixels, alleen wat geschuifel. Gemeten verschil met het Lelijke
+// Eendje: de beeldverandering per frame is daar ongeveer drie keer zo groot.
+
+describe("bewegingVoorKader", () => {
+  it("geeft elk kader een beweging die erbij past", () => {
+    for (const k of KADERS) {
+      expect(BEWEGINGEN).toContain(bewegingVoorKader(k, 0));
+    }
+  });
+
+  it("laat de camera bijna nooit stilstaan", () => {
+    // Alleen bij heel dichtbij en detail mag stil, en dan nog niet als eerste keus.
+    const eerste = KADERS.map((k) => bewegingVoorKader(k, 0));
+    expect(eerste.filter((b) => b === "stil")).toHaveLength(0);
+  });
+
+  it("rouleert, zodat twee shots achter elkaar niet hetzelfde doen", () => {
+    const a = bewegingVoorKader("medium", 0);
+    const b = bewegingVoorKader("medium", 1);
+    expect(a).not.toBe(b);
+  });
+
+  it("zoomt in op een gezicht en uit op een plek", () => {
+    expect(bewegingVoorKader("close", 0)).toBe("inzoomen");
+    expect(bewegingVoorKader("totaal", 0)).toBe("uitzoomen");
+  });
+
+  it("blijft geldig bij een rare index of een leeg kader", () => {
+    expect(BEWEGINGEN).toContain(bewegingVoorKader(null, -3));
+    expect(BEWEGINGEN).toContain(bewegingVoorKader(undefined, 99));
+  });
+});
+
+describe("bewegingRegie", () => {
+  it("geeft voor elke beweging Engelse cameraregie", () => {
+    for (const b of BEWEGINGEN) expect(bewegingRegie(b).length).toBeGreaterThan(40);
+  });
+
+  it("valt terug op inzoomen in plaats van op stilstaan", () => {
+    expect(bewegingRegie(null)).toBe(bewegingRegie("inzoomen"));
   });
 });

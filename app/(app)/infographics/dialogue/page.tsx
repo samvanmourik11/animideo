@@ -402,6 +402,10 @@ export default function DialoguePage() {
                 // eerdere scene liggen, dus we kijken door de hele lijst heen.
                 kader: regel.kader ?? null,
                 vorigKader: vorigKaderVoor(werk, si, li),
+                // Doorlopende nummering over alle scenes heen, zodat de
+                // camerabewegingen rouleren en niet elke scene opnieuw bij
+                // "inzoomen" beginnen.
+                shotIndex: werk.scenes.slice(0, si).reduce((n, sc) => n + sc.lines.length, 0) + li,
               }),
             });
             const d = await r.json();
