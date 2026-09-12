@@ -8,8 +8,11 @@ import {
   toonDraaiboek,
 } from "@/lib/infographics/dialogue-chat-tools";
 import { STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
+import { isKader, kaderPast } from "@/lib/infographics/verhaal-kaders";
+import { isLichtsoort } from "@/lib/infographics/verhaal-licht";
+import { leesDeel, vertellerBeeld, verhaallijnBlok } from "@/lib/infographics/verhaallijn";
 import {
-  ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC,
+  ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC, VERTELLER_ID,
   type DialogueSpec, type DialogueScene, type DialogueLine,
 } from "@/lib/infographics/dialogue-schema";
 
@@ -52,6 +55,9 @@ function behoudRendering(nieuw: DialogueLine, oud: DialogueLine[]): DialogueLine
   if (!match) return nieuw;
   return {
     ...nieuw,
+    // Vergat het model het kader van een ongewijzigde regel, dan hoort het oude
+    // kader erbij — de clip is er immers mee gemaakt.
+    kader: nieuw.kader ?? match.kader ?? null,
     shotImageUrl: match.shotImageUrl ?? null,
     audioUrl: match.audioUrl ?? null,
     audioDuration: match.audioDuration ?? null,
@@ -60,26 +66,45 @@ function behoudRendering(nieuw: DialogueLine, oud: DialogueLine[]): DialogueLine
   };
 }
 
-/** Bouwt een scène op uit het antwoord van het model, met behoud van wat kan. */
+type RuweRegel = {
+  kind?: string; kader?: string; characterId?: string; text?: string; emotion?: string;
+  actie?: string; seconden?: number; verband?: string;
+};
+type RuweScene = { setting?: string; licht?: string; deel?: number; lines?: RuweRegel[] };
+
+/**
+ * Bouwt een scène op uit het antwoord van het model, met behoud van wat kan.
+ *
+ * Deze functie liet het camerakader, het licht én elke vertellerregel vallen.
+ * Eén keer op "✨ AI" bij een scène drukken maakte van al het camerawerk weer
+ * twee poppetjes op ooghoogte in daglicht, en de verteller verdween omdat
+ * "verteller" hier geen bekende spreker was. Dezelfde fout als in de schrijfstap,
+ * alleen op een vierde plek.
+ */
 function bouwScene(
-  ruw: { setting?: string; lines?: { kind?: string; characterId?: string; text?: string; emotion?: string; actie?: string; seconden?: number; verband?: string }[] },
+  ruw: RuweScene,
   oudeScene: DialogueScene | undefined,
   naarCastId: (ruw?: string) => string | null,
-  index: number
+  index: number,
+  castAantal: number
 ): DialogueScene | null {
+  const setting = (ruw.setting ?? "").trim() || oudeScene?.setting || "";
+  const seconden = (n?: number) => Math.max(ACTIE_MIN_SEC, Math.min(ACTIE_MAX_SEC, Math.round(n ?? ACTIE_STANDAARD_SEC)));
+
   const lines = (ruw.lines ?? [])
     .map((l) => {
       const cid = naarCastId(l.characterId);
       if (!cid) return null;
+      const kader = isKader(l.kader) ? l.kader : null;
 
       // Actiebeeld: geen gesproken tekst, wel een handeling en een lengte.
       if (l.kind === "actie") {
         const actie = (l.actie ?? "").trim();
         if (!actie) return null;
         const basis: DialogueLine = {
-          kind: "actie", characterId: cid,
+          kind: "actie", characterId: cid, kader,
           text: (l.text ?? "").trim(), emotion: (l.emotion ?? "").trim(),
-          actie, seconden: Math.max(ACTIE_MIN_SEC, Math.min(ACTIE_MAX_SEC, Math.round(l.seconden ?? ACTIE_STANDAARD_SEC))),
+          actie, seconden: seconden(l.seconden),
           verband: (l.verband ?? "").trim() || null,
         };
         return behoudRendering(basis, oudeScene?.lines ?? []);
@@ -87,20 +112,37 @@ function bouwScene(
 
       const text = (l.text ?? "").trim();
       if (!text) return null;
-      const basis: DialogueLine = { kind: "dialoog", characterId: cid, text, emotion: (l.emotion ?? "").trim() || "neutraal" };
+      // De verteller praat nooit zichtbaar: zijn zin klinkt over een beeld waarin
+      // niemand praat. Zie leesScenes in dialogue-chat.
+      if (cid === VERTELLER_ID) {
+        const basis: DialogueLine = {
+          kind: "actie", characterId: VERTELLER_ID,
+          kader: kader && !kaderPast(kader, castAantal, true) ? kader : "totaal",
+          text, emotion: (l.emotion ?? "").trim(),
+          actie: (l.actie ?? "").trim() || vertellerBeeld(text, setting),
+          seconden: seconden(l.seconden),
+          verband: (l.verband ?? "").trim() || null,
+        };
+        return behoudRendering(basis, oudeScene?.lines ?? []);
+      }
+      const basis: DialogueLine = { kind: "dialoog", characterId: cid, kader, text, emotion: (l.emotion ?? "").trim() || "neutraal" };
       return behoudRendering(basis, oudeScene?.lines ?? []);
     })
     .filter((l): l is DialogueLine => l !== null);
   if (lines.length === 0) return null;
 
-  const setting = (ruw.setting ?? "").trim() || oudeScene?.setting || "";
-  // Het twee-shot hoort bij de omgeving. Verandert die, dan moet het beeld opnieuw.
-  const zelfdeOmgeving = oudeScene && oudeScene.setting.trim() === setting;
+  const licht = isLichtsoort(ruw.licht) ? ruw.licht : oudeScene?.licht ?? null;
+  // Het twee-shot hoort bij de omgeving en het licht. Verandert een van beide,
+  // dan moet het beeld opnieuw — en geldt de aanwijzing over het oude beeld niet meer.
+  const zelfdeBeeld = !!oudeScene && oudeScene.setting.trim() === setting && (oudeScene.licht ?? null) === licht;
   return {
     id: oudeScene?.id ?? `scene-${index}`,
     setting,
+    licht,
+    deel: leesDeel(ruw.deel) ?? oudeScene?.deel ?? null,
     lines,
-    twoShotUrl: zelfdeOmgeving ? oudeScene?.twoShotUrl ?? null : null,
+    twoShotUrl: zelfdeBeeld ? oudeScene?.twoShotUrl ?? null : null,
+    beeldAanwijzing: zelfdeBeeld ? oudeScene?.beeldAanwijzing ?? null : null,
   };
 }
 
@@ -133,7 +175,7 @@ export async function POST(req: NextRequest) {
       max_tokens: 8000,
       tools: [eenScene ? HERZIE_SCENE_TOOL : HERZIE_DRAAIBOEK_TOOL],
       messages: [
-        { role: "system", content: buildHerzieSysteem(draaiboek, taal, eenScene) },
+        { role: "system", content: buildHerzieSysteem(draaiboek, taal, eenScene, verhaallijnBlok(spec.verhaallijn, spec.cast)) },
         { role: "user", content: instructie },
       ],
     });
@@ -161,22 +203,18 @@ export async function POST(req: NextRequest) {
       tabel.set(c.characterId.toLowerCase(), c.id);
       tabel.set(c.name.toLowerCase(), c.id);
     }
+    tabel.set(VERTELLER_ID, VERTELLER_ID);
     const naarCastId = (ruw?: string) => tabel.get((ruw ?? "").trim().toLowerCase()) ?? null;
     const nieuw: DialogueSpec = structuredClone(spec);
 
     if (eenScene) {
-      const scene = bouwScene(
-        uit as { setting?: string; lines?: { kind?: string; characterId?: string; text?: string; emotion?: string; actie?: string; seconden?: number; verband?: string }[] },
-        spec.scenes[si],
-        naarCastId,
-        si
-      );
+      const scene = bouwScene(uit as RuweScene, spec.scenes[si], naarCastId, si, spec.cast.length);
       if (!scene) return NextResponse.json({ reply: "Daar kon ik geen bruikbare scène van maken. Kun je het anders formuleren?" });
       nieuw.scenes[si] = scene;
     } else {
-      const ruweScenes = Array.isArray(uit.scenes) ? (uit.scenes as { setting?: string; lines?: { kind?: string; characterId?: string; text?: string; emotion?: string; actie?: string; seconden?: number; verband?: string }[] }[]) : [];
+      const ruweScenes = Array.isArray(uit.scenes) ? (uit.scenes as RuweScene[]) : [];
       const scenes = ruweScenes
-        .map((s, i) => bouwScene(s, spec.scenes[i], naarCastId, i))
+        .map((s, i) => bouwScene(s, spec.scenes[i], naarCastId, i, spec.cast.length))
         .filter((s): s is DialogueScene => s !== null);
       if (scenes.length === 0) {
         return NextResponse.json({ reply: "Daar kwam geen bruikbaar draaiboek uit. Kun je het anders formuleren?" });

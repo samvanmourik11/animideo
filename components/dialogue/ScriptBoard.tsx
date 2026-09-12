@@ -10,6 +10,7 @@ import {
   ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC,
 } from "@/lib/infographics/dialogue-schema";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { FASEN, FASE_INFO } from "@/lib/infographics/verhaallijn";
 
 // Het draaiboek: de gebruiker heeft hier het laatste woord over wat er gezegd
 // wordt, door wie, en waar het zich afspeelt. De AI levert een eerste versie, maar
@@ -39,11 +40,22 @@ export function schatCredits(spec: DialogueSpec): number {
   const beeldEnClip = CREDIT_COSTS.IMAGE_GENERATION + CREDIT_COSTS.VIDEO_GENERATION;
   const teDoen = spec.scenes.flatMap((s) => s.lines).filter((l) => !regelKlaar(l));
   const kosten = teDoen.reduce((a, l) => a + beeldEnClip + (isActie(l) ? 0 : CREDIT_COSTS.VOICE), 0);
+  return kosten + schatStoryboardCredits(spec);
+}
+
+/**
+ * Credits voor het storyboard: alles wat vóór de clips komt en er nog niet is.
+ * Herkansingen bij een afgekeurd beeld komen hier niet in voor; die zijn vooraf
+ * niet te voorspellen.
+ */
+export function schatStoryboardCredits(spec: DialogueSpec): number {
   const shots = spec.scenes.filter((s) => !s.twoShotUrl).length;
   // Eén model sheet per personage, één keer per project. Zonder deze regel stond
   // er een lager bedrag op de knop dan er werd afgeschreven.
   const bladen = spec.cast.filter((c) => c.portraitUrl && !c.modelSheetUrl).length;
-  return kosten + (shots + bladen) * CREDIT_COSTS.IMAGE_GENERATION;
+  // Het castblad telde ook niet mee, terwijl het net zo goed een credit kost.
+  const castblad = spec.castSheetUrl ? 0 : 1;
+  return (shots + bladen + castblad) * CREDIT_COSTS.IMAGE_GENERATION;
 }
 
 /**
@@ -200,7 +212,16 @@ export default function ScriptBoard({
       {spec.scenes.map((scene, si) => (
         <div key={scene.id} className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
           <div className="flex items-start gap-2 mb-2">
-            <span className="text-[11px] uppercase tracking-wide text-slate-500 mt-2 shrink-0">Scène {si + 1}</span>
+            <div className="mt-2 shrink-0 flex flex-col items-start gap-0.5">
+              <span className="text-[11px] uppercase tracking-wide text-slate-500">Scène {si + 1}</span>
+              {/* Bij welk deel van het verhaal deze scène hoort. Zo zie je in het
+                  draaiboek waar de omslag valt, en of er iets te vroeg opgelost wordt. */}
+              {!!scene.deel && FASEN[scene.deel - 1] && (
+                <span className="text-[10px] rounded-full bg-orange-500/15 text-orange-300 px-1.5 py-0.5">
+                  {FASE_INFO[FASEN[scene.deel - 1]].label}
+                </span>
+              )}
+            </div>
             <div className="flex-1">
               <input
                 value={scene.setting}

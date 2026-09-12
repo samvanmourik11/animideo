@@ -1,5 +1,5 @@
-// DE OPZET UITWERKEN — één goedkope tekstcall die van een los idee een compleet
-// ingevuld voorstel maakt: titel, kernboodschap, wending, toon, invalshoek,
+// DE OPZET UITWERKEN — goedkope tekstcalls die van een los idee een compleet
+// ingevuld voorstel maken: het VERHAAL in vijf delen, titel, kern, wending, toon,
 // tekenstijl, beeldregie en een rolverdeling uit de eigen personagebibliotheek.
 //
 // Waarom een aparte route en niet gewoon het draaiboek: een draaiboek is duur en
@@ -11,14 +11,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
-import { MAX_CAST, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
+import { MAX_CAST, MAX_PER_SCENE, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
 import { mergeCast, type DialogueSetup, type VastCastLid } from "@/lib/infographics/dialogue-setup";
+import {
+  FASEN,
+  normaliseerVerhaallijn,
+  verhaalProblemen,
+  type VerhaalDeel,
+} from "@/lib/infographics/verhaallijn";
 import { STORY_STYLE_PRESETS, DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
 import { STORY_VOICES } from "@/lib/infographics/story-voices";
 import type { Character } from "@/lib/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Twee tekstcalls achter elkaar (voorstel en verhaalredactie) passen niet
+// betrouwbaar in een minuut.
+export const maxDuration = 120;
 
 interface Body {
   topic?: string;
@@ -30,21 +38,36 @@ interface Body {
   vasteCast?: VastCastLid[];
 }
 
+const VERHAALLIJN_SCHEMA = {
+  type: "array",
+  items: {
+    type: "object",
+    additionalProperties: false,
+    required: ["fase", "wat", "plek", "wie", "verteller"],
+    properties: {
+      fase: { type: "string", enum: [...FASEN] },
+      wat: { type: "string" },
+      plek: { type: "string" },
+      wie: { type: "array", items: { type: "string" } },
+      verteller: { type: "string" },
+    },
+  },
+} as const;
+
+// De VOLGORDE van de velden is hier niet willekeurig: het model vult ze van boven
+// naar beneden in. Eerst het verhaal, dan pas wat het "betekent" en wie erin
+// speelt. Andersom verzon het eerst een kernboodschap en schreef het daarna een
+// verhaaltje dat die boodschap netjes uitlegde — zonder dat er iets gebeurde.
 const SETUP_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["title", "topic", "kern", "wending", "tone", "angle", "styleId", "illustrationBrief", "keepTerms", "avoidTerms", "cast"],
+  required: ["title", "topic", "verhaallijn", "kern", "wending", "cast", "tone", "angle", "styleId", "illustrationBrief", "keepTerms", "avoidTerms"],
   properties: {
     title: { type: "string" },
     topic: { type: "string" },
+    verhaallijn: VERHAALLIJN_SCHEMA,
     kern: { type: "string" },
     wending: { type: "string" },
-    tone: { type: "string", enum: ["zakelijk", "speels", "energiek"] },
-    angle: { type: "string" },
-    styleId: { type: "string" },
-    illustrationBrief: { type: "string" },
-    keepTerms: { type: "array", items: { type: "string" } },
-    avoidTerms: { type: "array", items: { type: "string" } },
     cast: {
       type: "array",
       items: {
@@ -61,8 +84,146 @@ const SETUP_SCHEMA = {
         },
       },
     },
+    tone: { type: "string", enum: ["zakelijk", "speels", "energiek"] },
+    angle: { type: "string" },
+    styleId: { type: "string" },
+    illustrationBrief: { type: "string" },
+    keepTerms: { type: "array", items: { type: "string" } },
+    avoidTerms: { type: "array", items: { type: "string" } },
   },
 } as const;
+
+const REDACTIE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["oordeel", "verhaallijn", "kern", "wending"],
+  properties: {
+    oordeel: { type: "string" },
+    verhaallijn: VERHAALLIJN_SCHEMA,
+    kern: { type: "string" },
+    wending: { type: "string" },
+  },
+} as const;
+
+// Eén voorbeeld van wat wél en niet een verhaal is. Bewust een ANDER onderwerp dan
+// de kerstvideo die de aanleiding was: met kerst als voorbeeld schreef het model
+// bij elk kerstverhaal het voorbeeld over.
+const VERHAALLES = `WAT EEN VERHAAL IS — EN WAT NIET
+
+Dit is GEEN verhaal:
+  Noor vindt logeren bij opa eng. Opa zegt dat het gezellig wordt. Ze bakken pannenkoeken en Noor vindt het toch leuk.
+Er zit niets in de weg, de oplossing komt meteen, en niemand hoeft iets te doen.
+
+Dit WEL:
+  begin — Noor pakt haar koffertje voor het eerste logeerpartijtje bij opa, en stopt stiekem haar nachtlampje in haar jaszak.
+  probleem — Bij opa blijkt het lampje kapot in haar zak. Noor zegt niets, maar wil ineens naar huis "omdat ze buikpijn heeft".
+  tegenslag — Opa probeert haar af te leiden met een spelletje. Noor verliest, wordt boos en gaat op de donkere trap zitten — precies de plek waar ze bang voor is.
+  omslag — Opa gaat naast haar op de trap zitten en haalt de oude zaklamp onder zijn eigen kussen vandaan: hij slaapt ook nooit in het donker. Samen plakken ze het lampje.
+  slot — Noor slaapt met het geplakte lampje én opa's zaklamp. De volgende ochtend vraagt ze of ze volgend weekend weer mag komen.
+
+Waarom dit werkt:
+1. Iets zit in de weg, en de oplossing komt pas in de OMSLAG. Staat het antwoord al in het begin of het probleem, dan is er geen verhaal meer.
+2. De tegenslag maakt het ERGER. Daar wordt nog niets opgelost.
+3. Het belangrijkste moment gebeurt IN BEELD, tussen mensen die er zijn. Nooit via een telefoontje, een appje of "later hoorden ze dat".
+4. Gaat het verhaal over iemand — papa, mama, oma, de juf — dan komt die persoon zelf in beeld en doet mee.
+5. Eén concreet ding (het nachtlampje) komt terug en betekent in het slot iets anders dan aan het begin.
+6. Twee of drie plekken voor het hele verhaal, en er wordt naar teruggekeerd.`;
+
+function bibliotheekTekst(
+  bibliotheek: Pick<Character, "id" | "name" | "description" | "gender" | "age_range">[],
+): string {
+  return bibliotheek.length
+    ? bibliotheek
+        .map((c) => `- id "${c.id}": ${c.name}${c.gender ? `, ${c.gender}` : ""}${c.age_range ? `, ${c.age_range}` : ""}${c.description ? ` — ${c.description}` : ""}`)
+        .join("\n")
+    : "(de gebruiker heeft nog geen personages met een afbeelding)";
+}
+
+/**
+ * Tweede lezing van het verhaal, door een strenge eindredacteur.
+ *
+ * De eerste call doet twintig dingen tegelijk (titel, stijl, stemmen, cast) en
+ * dan wint het makkelijkste verhaal: iedereen is het eens en het probleem lost
+ * zichzelf op. Deze call doet één ding: het verhaal lezen alsof het een
+ * voorleesboek is, en repareren wat niet werkt. Kost een paar cent en een
+ * kwart minuut; het verhaal was het zwakste punt van de hele video.
+ *
+ * Mislukt hij, dan houden we het eerste voorstel. Een redactie die stuk gaat mag
+ * de opzet niet tegenhouden.
+ */
+async function redigeerVerhaal(
+  voorstel: { kern: string; wending: string; verhaallijn: VerhaalDeel[] },
+  cast: DialogueCastMember[],
+  briefing: string,
+  language: string,
+): Promise<{ kern: string; wending: string; verhaallijn: VerhaalDeel[] } | null> {
+  const castTekst = cast
+    .map((c) => `- id "${c.characterId}": ${c.name}${c.role ? ` — ${c.role}` : ""}${c.wil ? `; wil: ${c.wil}` : ""}`)
+    .join("\n");
+  const problemen = verhaalProblemen(voorstel.verhaallijn, cast);
+
+  const system = `Je bent eindredacteur van voorleesverhalen die tot korte animatievideo's worden gemaakt. Je krijgt een verhaallijn in vijf delen en maakt er een beter verhaal van. Je bent streng: de meeste eerste versies zijn te braaf.
+
+${VERHAALLES}
+
+DE CAST (gebruik in "wie" alleen deze id's, hooguit ${MAX_PER_SCENE} per deel):
+${castTekst}
+
+HOE JE WERKT
+Loop de zes punten hierboven langs. Klopt een punt niet, herschrijf dan de delen die het nodig hebben — verzin gerust een tegenslag, een voorwerp of een misverstand erbij. Klopt het wel, laat die delen dan staan.
+- Blijf binnen wat de gebruiker wilde: dezelfde situatie, dezelfde personages, dezelfde feiten en namen.
+- Iedereen in de cast speelt in minstens één deel mee.
+- "wat" zijn twee of drie gewone zinnen in het ${language} over wat er GEBEURT. Geen dialoog.
+- "plek" is kort en tekenbaar. Kom terug op plekken die er al waren.
+- "verteller" is één zin in de derde persoon en de verleden tijd, zoals een voorleesboek. Verplicht bij het begin; verder alleen bij een sprong in tijd of plek, anders leeg.
+- "kern": in één zin wat iemand VOELT (een verlangen, gemis of angst), niet wat er gebeurt.
+- "wending": in één zin wat er anders loopt dan verwacht.
+- "oordeel": twee zinnen in het Nederlands over wat er mis was en wat je veranderde.
+
+Antwoord uitsluitend met JSON volgens het schema.`;
+
+  const userPrompt = `WAT DE GEBRUIKER WILDE:
+"""
+${briefing.slice(0, 4000)}
+"""
+
+HET EERSTE VOORSTEL:
+${JSON.stringify({ kern: voorstel.kern, wending: voorstel.wending, verhaallijn: voorstel.verhaallijn }, null, 2)}
+${problemen.length ? `\nDIT IS AL AANTOONBAAR MIS:\n${problemen.map((p) => `- ${p}`).join("\n")}\n` : ""}
+Geef de verbeterde verhaallijn als JSON.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0.7,
+      max_tokens: 2500,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "verhaal_redactie", strict: true, schema: REDACTIE_SCHEMA as unknown as Record<string, unknown> },
+      },
+    });
+    const ruw = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as Record<string, unknown>;
+    const verhaallijn = normaliseerVerhaallijn(ruw.verhaallijn, cast.map((c) => c.characterId));
+    if (!verhaallijn.length) return null;
+
+    console.log(`[dialogue-setup] verhaalredactie: ${String(ruw.oordeel ?? "").trim()}`);
+    const over = verhaalProblemen(verhaallijn, cast);
+    if (over.length) console.warn(`[dialogue-setup] na redactie nog: ${over.join(" | ")}`);
+
+    return {
+      kern: String(ruw.kern ?? "").trim() || voorstel.kern,
+      wending: String(ruw.wending ?? "").trim() || voorstel.wending,
+      verhaallijn,
+    };
+  } catch (e) {
+    console.error("[dialogue-setup] verhaalredactie mislukt:", e);
+    return null;
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -91,50 +252,53 @@ export async function POST(req: NextRequest) {
       .limit(40);
     const bibliotheek = (rijen ?? []) as Pick<Character, "id" | "name" | "description" | "gender" | "age_range" | "image_url">[];
 
-    const bibliotheekLijst = bibliotheek.length
-      ? bibliotheek
-          .map((c) => `- id "${c.id}": ${c.name}${c.gender ? `, ${c.gender}` : ""}${c.age_range ? `, ${c.age_range}` : ""}${c.description ? ` — ${c.description}` : ""}`)
-          .join("\n")
-      : "(de gebruiker heeft nog geen personages met een afbeelding)";
-
     const vastLijst = vasteCast.length
       ? vasteCast
           .map((c) => `- id "${c.characterId}": ${c.name}${c.role?.trim() ? ` — de gebruiker gaf deze rol: "${c.role.trim()}"` : " (nog geen rol gekozen)"}`)
           .join("\n")
-      : "(de gebruiker heeft nog niemand gekozen; kies zelf een passend duo)";
+      : "(de gebruiker heeft nog niemand gekozen; kies zelf wie het verhaal nodig heeft)";
 
     const stemLijst = STORY_VOICES.map((v) => `"${v.id}"`).join(", ");
     const stijlLijst = STORY_STYLE_PRESETS.map((s) => `"${s.id}" (${s.name})`).join(", ");
 
-    const system = `Je bent regisseur van korte geanimeerde DIALOOG-video's. Je schrijft nu NOG GEEN dialoog. Je levert de OPZET: de keuzes waar de scenarist straks mee aan de slag gaat.
+    const system = `Je bent schrijver en regisseur van korte geanimeerde VERHAAL-video's, in de stijl van de sprookjeskanalen voor kinderen: personages die samen iets beleven, met een verteller die het verhaal draagt. Je schrijft nu NOG GEEN dialoog. Je levert de OPZET: het verhaal zelf, en de keuzes waar de scenarist straks mee aan de slag gaat.
 
 Je antwoordt uitsluitend met JSON volgens het schema.
 
+JE MAAKT ER EEN ECHT VERHAAL VAN
+De gebruiker geeft meestal een onderwerp of een situatie, geen compleet verhaal. Jouw werk is daar een verhaal van te maken. Verzin gerust gebeurtenissen die de gebruiker niet noemde: een voorwerp, een misverstand, een geheim, een plek, iets wat misgaat. Blijf wel binnen zijn wereld en zijn bedoeling, en neem namen, feiten en cijfers die hij noemt letterlijk over.
+
+${VERHAALLES}
+
 DE PERSONAGEBIBLIOTHEEK van deze gebruiker (gebruik ALLEEN deze id's):
-${bibliotheekLijst}
+${bibliotheekTekst(bibliotheek)}
 
 AL VASTGELEGD DOOR DE GEBRUIKER — deze personages liggen vast, met de rol die er staat. Neem ze over en verzin er geen vervanger voor:
 ${vastLijst}
 
-WAT JE LEVERT:
+WAT JE LEVERT, in deze volgorde:
 - "title": korte werktitel in ${language}.
 - "topic": één zin die zegt waar de video over gaat.
-- "kern": de kernboodschap waar het gesprek naartoe werkt. Eén zin, concreet, in ${language}. Dit is wat de kijker moet onthouden.
-- "wending": het omslagpunt in het gesprek — het moment waarop de twijfelaar omgaat of het kwartje valt. Eén zin. Zonder wending zijn twee personages het meteen eens en valt er niets te kijken.
+- "verhaallijn": precies vijf delen, in de volgorde begin, probleem, tegenslag, omslag, slot. Per deel:
+  - "fase": welk deel het is.
+  - "wat": twee of drie gewone zinnen in ${language} over wat er in dit deel GEBEURT. Geen dialoog, geen samenvatting van gevoelens — handelingen die je kunt laten zien.
+  - "plek": waar het gebeurt, kort en tekenbaar ("de keuken bij papa").
+  - "wie": de id's uit de bibliotheek van wie er in beeld is, hooguit ${MAX_PER_SCENE}.
+  - "verteller": één zin in de derde persoon en de verleden tijd, zoals een voorleesboek ("Het was de laatste week voor kerst, en in huize De Vries werd het stil."). Verplicht bij het begin. Verder alleen bij een sprong in tijd of plek; anders leeg.
+- "kern": in één zin wat er onderhuids speelt — wat iemand mist, hoopt, niet durft of wil bewijzen. Een gevoel, geen gebeurtenis.
+- "wending": in één zin wat er anders loopt dan verwacht.
+- "cast": ${MAX_CAST > 2 ? `twee tot ${MAX_CAST}` : "twee"} personages, ALTIJD met een "characterId" uit de bibliotheek. Neem iedereen op die in de verhaallijn in beeld komt, en niemand anders. Gaat het verhaal over mensen die in de bibliotheek staan (ouders, opa, de juf), neem ze dan op en laat ze meespelen. Staat zo iemand er niet in, bouw het verhaal dan zo dat de omslag gebeurt tussen personages die je wél kunt laten zien. Per personage:
+  - "role": wie diegene in dit verhaal is ("het broertje dat niets durft te zeggen").
+  - "wil": wat diegene wil. Laat de verlangens BOTSEN — twee personages die hetzelfde willen hebben geen verhaal.
+  - "spraak": hoe diegene praat ("korte zinnen, stelt alles als vraag"). Maak ze onderling duidelijk verschillend.
+  - "leeftijd": leeftijd in dit verhaal ("7 jaar", "ongeveer 40"). Bepaalt hoe groot iemand getekend wordt.
+  - "voice": kies uit ${stemLijst}. Geef nooit twee personages dezelfde stem. Een kind krijgt een kinderstem.
 - "tone": "zakelijk", "speels" of "energiek", passend bij onderwerp en publiek.
-- "angle": de invalshoek waaruit je het onderwerp benadert ("vanuit de twijfel van de klant"). Leeg als er geen bijzondere hoek nodig is.
+- "angle": de invalshoek ("vanuit het kind dat moet kiezen"). Leeg als dat niet nodig is.
 - "styleId": kies uit ${stijlLijst}.
-- "illustrationBrief": regie die voor ELK beeld geldt — kleurgebruik, kleding, soort omgeving. Twee zinnen, in ${language}. Beschrijf hoe het eruitziet, niet wat er gezegd wordt.
-- "keepTerms": merk- en productnamen uit de brontekst die exact zo moeten blijven staan. Leeg als er geen zijn.
-- "avoidTerms": namen die beter niet vallen (concurrenten, herleidbare klantnamen). Meestal leeg.
-- "cast": twee tot ${MAX_CAST} personages, ALTIJD met een "characterId" uit de bibliotheek hierboven. Neem alleen mensen op die het verhaal echt nodig heeft. Per personage:
-  - "role": wie diegene in dit gesprek is ("de expert", "de sceptische ondernemer").
-  - "wil": wat diegene in dit gesprek wil bereiken. Laat de verlangens BOTSEN — zonder tegengesteld belang schrijft de scenarist twee mensen die het overal over eens zijn.
-  - "spraak": hoe diegene praat ("korte, directe zinnen", "denkt hardop, twijfelt"). Maak ze onderling duidelijk verschillend, anders zijn hun regels verwisselbaar.
-  - "leeftijd": leeftijd in dit verhaal ("ongeveer 40"). Bepaalt hoe groot iemand getekend wordt.
-  - "voice": kies uit ${stemLijst}. Geef nooit twee personages dezelfde stem.
-
-Een goed gesprek heeft één gids die het weet en één die het nog niet weet. Bouw dat verschil in.`;
+- "illustrationBrief": regie die voor ELK beeld geldt — kleurgebruik, kleding, soort omgeving. Twee zinnen, in ${language}.
+- "keepTerms": merk- en productnamen uit de brontekst die exact zo moeten blijven staan. Meestal leeg.
+- "avoidTerms": namen die beter niet vallen. Meestal leeg.`;
 
     const userPrompt = `WAT DE GEBRUIKER WIL MAKEN:
 """
@@ -149,8 +313,8 @@ Geef nu de opzet als JSON.`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
-      temperature: 0.6,
-      max_tokens: 2000,
+      temperature: 0.8,
+      max_tokens: 3000,
       messages: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },
@@ -200,12 +364,25 @@ Geef nu de opzet als JSON.`;
       ? String(ruw.styleId)
       : DEFAULT_STORY_STYLE;
 
-    const setup: DialogueSetup = {
-      title: String(ruw.title ?? "").trim() || "Naamloze dialoog",
-      topic: String(ruw.topic ?? body.topic ?? "").trim(),
-      text,
+    const cast = mergeCast(vasteCast, voorstelCast);
+    // Pas NA het samenvoegen van de cast: alleen wie er echt in staat mag in een
+    // deel van het verhaal voorkomen.
+    let verhaal = {
       kern: String(ruw.kern ?? "").trim(),
       wending: String(ruw.wending ?? "").trim(),
+      verhaallijn: normaliseerVerhaallijn(ruw.verhaallijn, cast.map((c) => c.characterId)),
+    };
+    if (verhaal.verhaallijn.length && cast.length) {
+      verhaal = (await redigeerVerhaal(verhaal, cast, text, language)) ?? verhaal;
+    }
+
+    const setup: DialogueSetup = {
+      title: String(ruw.title ?? "").trim() || "Naamloos verhaal",
+      topic: String(ruw.topic ?? body.topic ?? "").trim(),
+      text,
+      kern: verhaal.kern,
+      wending: verhaal.wending,
+      verhaallijn: verhaal.verhaallijn,
       tone: ["zakelijk", "speels", "energiek"].includes(String(ruw.tone)) ? String(ruw.tone) : "zakelijk",
       angle: String(ruw.angle ?? "").trim(),
       language,
@@ -214,7 +391,7 @@ Geef nu de opzet als JSON.`;
       format,
       styleId,
       illustrationBrief: String(ruw.illustrationBrief ?? "").trim(),
-      cast: mergeCast(vasteCast, voorstelCast),
+      cast,
       targetSeconds,
     };
 

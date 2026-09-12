@@ -4,6 +4,8 @@ import CastPicker from "./CastPicker";
 import ArtDirection from "./ArtDirection";
 import { DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
 import { opzetKlaar, type DialogueSetup } from "@/lib/infographics/dialogue-setup";
+import { MAX_PER_SCENE, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
+import { FASE_INFO, verhaalProblemen, type VerhaalDeel } from "@/lib/infographics/verhaallijn";
 
 // DE OPZET — alle dimensies van de video op één scherm, vóór er iets geschreven is.
 //
@@ -103,6 +105,106 @@ function Termen({
   );
 }
 
+/**
+ * De verhaallijn: vijf delen onder elkaar, elk met wat er gebeurt, waar en wie.
+ *
+ * Staat bewust bovenaan de opzet. In de kerstvideo was het verhaal het zwakste
+ * punt van alles, en dat zag je pas in de video. Hier lees je het in een halve
+ * minuut en zie je meteen of de oplossing te vroeg komt of iemand nooit meespeelt.
+ */
+function Verhaallijn({
+  lijn,
+  cast,
+  onChange,
+  disabled,
+}: {
+  lijn: VerhaalDeel[];
+  cast: DialogueCastMember[];
+  onChange: (lijn: VerhaalDeel[]) => void;
+  disabled?: boolean;
+}) {
+  const problemen = verhaalProblemen(lijn, cast);
+  const zetDeel = (i: number, velden: Partial<VerhaalDeel>) =>
+    onChange(lijn.map((d, j) => (j === i ? { ...d, ...velden } : d)));
+
+  if (lijn.length === 0) {
+    return (
+      <p className="text-[11px] text-slate-500">
+        Deze opzet heeft nog geen verhaallijn. Klik op “Ander voorstel” om er een te laten maken.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {problemen.length > 0 && (
+        <ul className="text-[11px] text-amber-300 space-y-0.5">
+          {problemen.map((p) => <li key={p}>⚠ {p}</li>)}
+        </ul>
+      )}
+      <ol className="space-y-2">
+        {lijn.map((d, i) => (
+          <li key={d.fase} className="rounded-lg border border-white/10 bg-slate-900/40 p-3">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-orange-300">
+                {i + 1}. {FASE_INFO[d.fase].label}
+              </span>
+              <span className="text-[10px] text-slate-500">{FASE_INFO[d.fase].uitleg}</span>
+            </div>
+            <textarea
+              value={d.wat}
+              onChange={(e) => zetDeel(i, { wat: e.target.value })}
+              disabled={disabled}
+              rows={2}
+              placeholder="Wat gebeurt er in dit deel?"
+              className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder:text-slate-600 disabled:opacity-50 resize-y"
+            />
+            <div className="mt-1.5 flex flex-wrap items-center gap-2">
+              <input
+                value={d.plek}
+                onChange={(e) => zetDeel(i, { plek: e.target.value })}
+                disabled={disabled}
+                placeholder="waar"
+                className="w-full sm:w-56 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder:text-slate-600 disabled:opacity-50"
+              />
+              {/* Wie er in beeld is. Meer dan drie past niet in één beeld. */}
+              <div className="flex flex-wrap gap-1">
+                {cast.map((c) => {
+                  const aan = d.wie.includes(c.characterId);
+                  const vol = !aan && d.wie.length >= MAX_PER_SCENE;
+                  return (
+                    <button
+                      key={c.characterId}
+                      type="button"
+                      onClick={() =>
+                        zetDeel(i, { wie: aan ? d.wie.filter((x) => x !== c.characterId) : [...d.wie, c.characterId] })
+                      }
+                      disabled={disabled || vol}
+                      title={vol ? `Hooguit ${MAX_PER_SCENE} personages tegelijk in beeld` : undefined}
+                      className={`text-[11px] px-2 py-0.5 rounded-full transition disabled:opacity-40 ${
+                        aan ? "bg-orange-500 text-white" : "bg-white/5 text-slate-400 hover:bg-white/10"
+                      }`}
+                    >
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <input
+              value={d.verteller}
+              onChange={(e) => zetDeel(i, { verteller: e.target.value })}
+              disabled={disabled}
+              placeholder="🎙 vertellerzin die dit deel opent (mag leeg)"
+              className="mt-1.5 w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs italic text-violet-200 placeholder:not-italic placeholder:text-slate-600 disabled:opacity-50"
+            />
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 const TONEN: { id: string; label: string; uitleg: string }[] = [
   { id: "zakelijk", label: "Zakelijk", uitleg: "helder en to the point" },
   { id: "speels", label: "Speels", uitleg: "luchtig, met een glimlach" },
@@ -143,7 +245,7 @@ export default function SetupPanel({
             className="bg-transparent text-lg font-semibold text-white w-full outline-none focus:bg-slate-900/60 rounded px-1 -ml-1 disabled:opacity-50"
           />
           <p className="text-[11px] text-slate-500 px-1">
-            De assistent deed een voorstel. Pas aan wat niet klopt — pas daarna wordt het gesprek geschreven.
+            De assistent bedacht een verhaal en wie erin speelt. Pas aan wat niet klopt — pas daarna worden de scènes geschreven.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -168,20 +270,40 @@ export default function SetupPanel({
 
       {reden && <p className="text-[11px] text-amber-300">{reden}</p>}
 
-      <Groep titel="Verhaal" open samenvatting={setup.kern || undefined}>
+      <Groep
+        titel="Verhaallijn"
+        open
+        samenvatting={
+          (setup.verhaallijn ?? []).length === 0
+            ? "nog geen verhaallijn"
+            : (() => {
+                const n = verhaalProblemen(setup.verhaallijn, setup.cast).length;
+                return n ? `${n} ${n === 1 ? "aandachtspunt" : "aandachtspunten"}` : "begin, probleem, tegenslag, omslag, slot";
+              })()
+        }
+      >
+        <Verhaallijn
+          lijn={setup.verhaallijn ?? []}
+          cast={setup.cast}
+          onChange={(lijn) => zet("verhaallijn", lijn)}
+          disabled={uit}
+        />
+      </Groep>
+
+      <Groep titel="Kern en bron" open samenvatting={setup.kern || undefined}>
         <Veld
-          label="Kernboodschap"
-          uitleg="Het ene punt waar het gesprek naartoe werkt. Zonder dit dwaalt het verhaal af."
+          label="Waar het onderhuids over gaat"
+          uitleg="Wat iemand mist, hoopt of niet durft. Elke scène heeft hier iets mee te maken."
           waarde={setup.kern}
           onChange={(v) => zet("kern", v)}
-          placeholder="bijv. een animatievideo verkoopt beter dan een brochure omdat mensen kijken en niet lezen"
+          placeholder="bijv. Tyrrell wil niemand teleurstellen en zegt daarom tegen niemand wat hij zelf wil"
         />
         <Veld
           label="De wending"
-          uitleg="Waar het omslaat — het moment dat de twijfelaar omgaat. Zonder wending zijn ze het meteen eens en valt er niets te kijken."
+          uitleg="Wat er anders loopt dan verwacht. Zonder wending zijn ze het meteen eens en valt er niets te kijken."
           waarde={setup.wending}
           onChange={(v) => zet("wending", v)}
-          placeholder="bijv. als hij hoort dat het binnen een week klaar is"
+          placeholder="bijv. papa blijkt zelf ook niet alleen te willen zijn met kerst"
         />
         <Veld
           label="Invalshoek"

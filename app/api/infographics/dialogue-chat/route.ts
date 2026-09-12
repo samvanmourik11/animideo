@@ -10,6 +10,10 @@ import {
   toonDraaiboek,
   type BibliotheekItem,
 } from "@/lib/infographics/dialogue-chat-tools";
+import {
+  leesDeel, ordenDelen, vertellerBeeld, verhaallijnBlok, voegGelijkePlekSamen, zorgVoorVerteller,
+  normaliseerVerhaallijn, type VerhaalDeel,
+} from "@/lib/infographics/verhaallijn";
 import { STORY_VOICES, kiesVertellerStem } from "@/lib/infographics/story-voices";
 import { MUSIC_CATEGORIES, MUSIC_TRACKS, musicTrackUrl, type MusicCategory } from "@/lib/music/library";
 import { STORY_STYLE_PRESETS, DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
@@ -28,6 +32,7 @@ import {
   type DialogueSpec,
   type DialogueCastMember,
   type DialogueScene,
+  type DialogueLine,
   type CastPosition,
 } from "@/lib/infographics/dialogue-schema";
 
@@ -77,7 +82,15 @@ interface RuwPlan {
   kern?: string;
   wending?: string;
   cast?: { id?: string; characterId?: string; name?: string; role?: string; leeftijd?: string; wil?: string; spraak?: string; appearance?: string; voice?: string; position?: string }[];
-  scenes?: { setting?: string; licht?: string; lines?: RuweRegel[] }[];
+  scenes?: RuweScene[];
+}
+
+/** Ruwe scène zoals het model hem aanlevert, vóór validatie. */
+interface RuweScene {
+  deel?: number;
+  setting?: string;
+  licht?: string;
+  lines?: RuweRegel[];
 }
 
 /**
@@ -113,19 +126,6 @@ interface RuweRegel {
   verband?: string;
 }
 
-/**
- * Het beeld waar een vertellerregel overheen klinkt.
- *
- * Het model levert bij een vertellerregel meestal wél een "actie" aan, maar niet
- * altijd. Zonder beeld valt de regel alsnog weg, en dan zijn we terug bij af.
- * Deze terugval toont gewoon de plek: dat past bij een verteller die de scène
- * neerzet, en er beweegt niemands mond.
- */
-function vertellerBeeld(tekst: string): string {
-  const kort = tekst.trim().replace(/\s+/g, " ").slice(0, 160);
-  return `A calm establishing view of the place where this part of the story happens, with nobody speaking: ${kort}`;
-}
-
 /** Een nummer uit de gevraagde categorie; valt terug op zakelijk als de AI iets onbekends noemt. */
 function kiesMuziek(categorie?: string): string | null {
   const geldig = MUSIC_CATEGORIES.some((c) => c.id === categorie);
@@ -142,6 +142,96 @@ const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n
 /** Lengte van een actiebeeld binnen de grenzen die Seedance zinnig aankan. */
 const begrensSeconden = (n: unknown) =>
   clamp(Math.round(typeof n === "number" && Number.isFinite(n) ? n : ACTIE_STANDAARD_SEC), ACTIE_MIN_SEC, ACTIE_MAX_SEC);
+
+/**
+ * Leest scènes zoals een model ze teruggeeft en maakt er geldige scènes van.
+ *
+ * Dit stond op DRIE plekken, elk met een eigen kopie van dezelfde code, en elke
+ * kopie liet net iets anders vallen: eerst het camerakader, toen het licht. Een
+ * verhaal dat ná al het camerawerk gemaakt werd, kwam terug met bij elke regel
+ * "geen kader". Met één functie hoeft een nieuw veld ook maar op één plek bewaard
+ * te worden.
+ *
+ * `vorige` is het draaiboek vóór deze stap. Wat het model weglaat (omgeving,
+ * licht, deel) valt terug op de scène op dezelfde plek daarin.
+ */
+function leesScenes(ruwe: RuweScene[], cast: DialogueCastMember[], vorige: DialogueScene[] = []): DialogueScene[] {
+  const naarCastId = maakVertaler(cast);
+
+  return ruwe
+    .map((s, i): DialogueScene => {
+      const oud = vorige[i];
+      const setting = (s.setting ?? "").trim() || oud?.setting || "";
+      const lines = (s.lines ?? [])
+        .map((l): DialogueLine | null => {
+          const cid = naarCastId(l.characterId);
+          if (!cid) return null;
+
+          // Een actiebeeld heeft geen gesproken tekst maar een handeling; zonder
+          // dit onderscheid zou de tekstcontrole hieronder het meteen weggooien.
+          if (l.kind === "actie") {
+            const actie = (l.actie ?? "").trim();
+            if (!actie) return null;
+            // Tekst bij een actiebeeld = voice-over: je ziet het beeld, je hoort
+            // de stem eroverheen. Zonder dit werd die zin stilzwijgend gewist.
+            return {
+              kind: "actie", characterId: cid,
+              kader: isKader(l.kader) ? l.kader : null,
+              text: (l.text ?? "").trim(), emotion: (l.emotion ?? "").trim(),
+              actie, seconden: begrensSeconden(l.seconden),
+              verband: (l.verband ?? "").trim() || null,
+            };
+          }
+
+          const text = (l.text ?? "").trim();
+          if (!text) return null;
+          // De VERTELLER kan niet in een twee-shot staan: daar zie je wie er praat,
+          // en een stem uit het niets naast twee gesloten monden klopt niet. Zijn
+          // regel werd daarom weggegooid — en dát was de tweede reden dat er bijna
+          // nooit een verteller in de video zat. Nu maken we er een beeld van
+          // waarin niemand praat, en klinkt zijn stem daaroverheen. Precies zoals
+          // de sprookjeskanalen het doen.
+          if (cid === VERTELLER_ID) {
+            return {
+              kind: "actie",
+              characterId: VERTELLER_ID,
+              kader: isKader(l.kader) && !kaderPast(l.kader, cast.length, true) ? l.kader : "totaal",
+              text,
+              emotion: (l.emotion ?? "").trim(),
+              actie: (l.actie ?? "").trim() || vertellerBeeld(text, setting),
+              seconden: begrensSeconden(l.seconden),
+              verband: (l.verband ?? "").trim() || null,
+            };
+          }
+          return {
+            kind: "dialoog",
+            characterId: cid,
+            kader: isKader(l.kader) ? l.kader : null,
+            text,
+            emotion: (l.emotion ?? "").trim() || "neutraal",
+          };
+        })
+        .filter((l): l is DialogueLine => l !== null);
+
+      return {
+        id: oud?.id ?? `scene-${i}`,
+        setting,
+        licht: isLichtsoort(s.licht) ? s.licht : oud?.licht ?? null,
+        deel: leesDeel(s.deel) ?? oud?.deel ?? null,
+        lines,
+      };
+    })
+    .filter((s) => s.lines.length > 0);
+}
+
+/**
+ * Het draaiboek langs de verhaallijn leggen: deelnummers op volgorde, zinnen op
+ * dezelfde plek in één scène, en een verteller waar de verhaallijn er een vraagt.
+ * Allemaal zonder model, dus het kan na elke stap opnieuw zonder iets te kosten.
+ */
+function langsVerhaal(scenes: DialogueScene[], verhaallijn?: VerhaalDeel[] | null): DialogueScene[] {
+  return zorgVoorVerteller(voegGelijkePlekSamen(ordenDelen(scenes)), verhaallijn);
+}
 
 /**
  * Maakt van het ruwe plan een spec die gegarandeerd klopt: elk cast-lid bestaat
@@ -184,63 +274,7 @@ function maakSpec(
     return { spec: null, probleem: "Ik kon geen twee bruikbare personages kiezen uit je bibliotheek." };
   }
 
-  const naarCastId = maakVertaler(cast);
-
-  const scenes: DialogueScene[] = (plan.scenes ?? [])
-    .map((s, i) => {
-      const lines = (s.lines ?? [])
-        .map((l) => {
-          const cid = naarCastId(l.characterId);
-          if (!cid) return null;
-
-          // Een actiebeeld heeft geen gesproken tekst maar een handeling; zonder
-          // dit onderscheid zou de tekstcontrole hieronder het meteen weggooien.
-          if (l.kind === "actie") {
-            const actie = (l.actie ?? "").trim();
-            if (!actie) return null;
-            // Tekst bij een actiebeeld = voice-over: je ziet het beeld, je hoort
-            // de stem eroverheen. Zonder dit werd die zin stilzwijgend gewist.
-            return {
-              kind: "actie" as const, characterId: cid,
-              kader: isKader(l.kader) ? l.kader : null,
-              text: (l.text ?? "").trim(), emotion: (l.emotion ?? "").trim(),
-              actie, seconden: begrensSeconden(l.seconden),
-              verband: (l.verband ?? "").trim() || null,
-            };
-          }
-
-          const text = (l.text ?? "").trim();
-          if (!text) return null;
-          // De VERTELLER kan niet in een twee-shot staan: daar zie je wie er praat,
-          // en een stem uit het niets naast twee gesloten monden klopt niet. Zijn
-          // regel werd daarom weggegooid — en dát was de tweede reden dat er bijna
-          // nooit een verteller in de video zat. Nu maken we er een beeld van
-          // waarin niemand praat, en klinkt zijn stem daaroverheen. Precies zoals
-          // de sprookjeskanalen het doen.
-          if (cid === VERTELLER_ID) {
-            return {
-              kind: "actie" as const,
-              characterId: VERTELLER_ID,
-              kader: isKader(l.kader) && !kaderPast(l.kader, cast.length, true) ? l.kader : "totaal",
-              text,
-              emotion: (l.emotion ?? "").trim(),
-              actie: (l.actie ?? "").trim() || vertellerBeeld(text),
-              seconden: begrensSeconden(l.seconden),
-              verband: (l.verband ?? "").trim() || null,
-            };
-          }
-          return {
-            kind: "dialoog" as const,
-            characterId: cid,
-            kader: isKader(l.kader) ? l.kader : null,
-            text,
-            emotion: (l.emotion ?? "").trim() || "neutraal",
-          };
-        })
-        .filter((l): l is NonNullable<typeof l> => l !== null);
-      return { id: `scene-${i}`, setting: (s.setting ?? "").trim(), licht: isLichtsoort(s.licht) ? s.licht : null, lines };
-    })
-    .filter((s) => s.lines.length > 0);
+  const scenes = leesScenes(plan.scenes ?? [], cast);
 
   if (scenes.length === 0) {
     return { spec: null, probleem: "Er kwam geen bruikbaar gesprek uit. Probeer het nog eens." };
@@ -381,7 +415,8 @@ async function schoonSettings(scenes: DialogueScene[], cast: DialogueCastMember[
 async function controleerSamenhang(
   scenes: DialogueScene[],
   cast: DialogueCastMember[],
-  taal: string
+  taal: string,
+  verhaallijn?: string
 ): Promise<DialogueScene[]> {
   try {
     const completion = await openai.chat.completions.create({
@@ -390,44 +425,18 @@ async function controleerSamenhang(
       max_tokens: 8000,
       tools: [HERZIE_DRAAIBOEK_TOOL],
       messages: [
-        { role: "system", content: buildSamenhangSysteem(toonDraaiboek(cast, scenes), taal) },
+        { role: "system", content: buildSamenhangSysteem(toonDraaiboek(cast, scenes), taal, verhaallijn) },
         { role: "user", content: "Loop het draaiboek na en geef het terug zoals het moet worden." },
       ],
     });
     const call = completion.choices[0]?.message?.tool_calls?.[0];
     if (!call) return scenes;
 
-    const uit = JSON.parse(call.function.arguments || "{}") as {
-      scenes?: { setting?: string; licht?: string; lines?: RuweRegel[] }[];
-    };
+    const uit = JSON.parse(call.function.arguments || "{}") as { scenes?: RuweScene[] };
     const ruwe = Array.isArray(uit.scenes) ? uit.scenes : [];
     if (ruwe.length === 0) return scenes;
 
-    const naarCastId = maakVertaler(cast);
-    const nieuw: DialogueScene[] = ruwe
-      .map((s, i) => {
-        const lines = (s.lines ?? [])
-          .map((l) => {
-            const cid = naarCastId(l.characterId);
-            if (!cid) return null;
-            if (l.kind === "actie") {
-              const actie = (l.actie ?? "").trim();
-              if (!actie) return null;
-              return {
-                kind: "actie" as const, characterId: cid,
-                kader: isKader(l.kader) ? l.kader : null,
-                text: (l.text ?? "").trim(), emotion: (l.emotion ?? "").trim(),
-                actie, seconden: begrensSeconden(l.seconden), verband: (l.verband ?? "").trim() || null,
-              };
-            }
-            const text = (l.text ?? "").trim();
-            if (!text) return null;
-            return { kind: "dialoog" as const, characterId: cid, kader: isKader(l.kader) ? l.kader : null, text, emotion: (l.emotion ?? "").trim() || "neutraal" };
-          })
-          .filter((l): l is NonNullable<typeof l> => l !== null);
-        return { id: scenes[i]?.id ?? `scene-${i}`, setting: (s.setting ?? "").trim() || scenes[i]?.setting || "", licht: isLichtsoort(s.licht) ? s.licht : scenes[i]?.licht ?? null, lines };
-      })
-      .filter((s) => s.lines.length > 0);
+    const nieuw = leesScenes(ruwe, cast, scenes);
 
     // VANGNET. Waren er actiebeelden en komen ze er geen enkele meer uit, dan is er
     // iets structureel misgegaan in plaats van dat er inhoudelijk iets is verbeterd.
@@ -486,9 +495,9 @@ async function brengOpLengte(
   doel: number,
   briefing?: string | null,
   kern?: string | null,
-  wending?: string | null
+  wending?: string | null,
+  verhaallijn?: string
 ): Promise<DialogueScene[]> {
-  const naarCastId = maakVertaler(cast);
   let huidig = [...scenes];
 
   for (let ronde = 1; ronde <= RONDES; ronde++) {
@@ -509,38 +518,15 @@ async function brengOpLengte(
         // dertig seconden.
         tool_choice: { type: "function", function: { name: HERZIE_DRAAIBOEK_TOOL.function.name } },
         messages: [
-          { role: "system", content: buildUitbreidSysteem(toonDraaiboek(cast, huidig), taal, duur, doel, briefing, kern, wending) },
+          { role: "system", content: buildUitbreidSysteem(toonDraaiboek(cast, huidig), taal, duur, doel, briefing, kern, wending, verhaallijn) },
           { role: "user", content: "Geef het volledige draaiboek terug, met de nieuwe scènes op de juiste plek." },
         ],
       });
       const call = completion.choices[0]?.message?.tool_calls?.[0];
       if (!call) break;
 
-      const uit = JSON.parse(call.function.arguments || "{}") as { scenes?: { setting?: string; licht?: string; lines?: RuweRegel[] }[] };
-      const nieuw: DialogueScene[] = (uit.scenes ?? [])
-        .map((sc, i) => {
-          const lines = (sc.lines ?? [])
-            .map((l) => {
-              const cid = naarCastId(l.characterId);
-              if (!cid) return null;
-              if (l.kind === "actie") {
-                const actie = (l.actie ?? "").trim();
-                if (!actie) return null;
-                return {
-                  kind: "actie" as const, characterId: cid,
-                  kader: isKader(l.kader) ? l.kader : null,
-                  text: (l.text ?? "").trim(), emotion: (l.emotion ?? "").trim(),
-                  actie, seconden: begrensSeconden(l.seconden), verband: (l.verband ?? "").trim() || null,
-                };
-              }
-              const text = (l.text ?? "").trim();
-              if (!text) return null;
-              return { kind: "dialoog" as const, characterId: cid, kader: isKader(l.kader) ? l.kader : null, text, emotion: (l.emotion ?? "").trim() || "neutraal" };
-            })
-            .filter((l): l is NonNullable<typeof l> => l !== null);
-          return { id: huidig[i]?.id ?? `scene-${i}`, setting: (sc.setting ?? "").trim() || huidig[i]?.setting || "", licht: isLichtsoort(sc.licht) ? sc.licht : huidig[i]?.licht ?? null, lines };
-        })
-        .filter((sc) => sc.lines.length > 0);
+      const uit = JSON.parse(call.function.arguments || "{}") as { scenes?: RuweScene[] };
+      const nieuw = leesScenes(uit.scenes ?? [], cast, huidig);
 
       // HARDE ZEEF tegen een verhaal dat zichzelf overdoet: in een video van twee
       // minuten stond het hele verhaal er twee keer in. De prompt verbiedt dat al;
@@ -610,7 +596,8 @@ async function scherpDialoogAan(
   cast: DialogueCastMember[],
   taal: string,
   kern?: string | null,
-  wending?: string | null
+  wending?: string | null,
+  verhaallijn?: string
 ): Promise<DialogueScene[]> {
   const gesproken = scenes.reduce((a, s) => a + s.lines.filter((l) => (l.text ?? "").trim()).length, 0);
   if (gesproken === 0) return scenes;
@@ -626,14 +613,14 @@ async function scherpDialoogAan(
       tools: [HERZIE_DRAAIBOEK_TOOL],
       tool_choice: { type: "function", function: { name: HERZIE_DRAAIBOEK_TOOL.function.name } },
       messages: [
-        { role: "system", content: buildAanscherpSysteem(toonDraaiboek(cast, scenes), taal, kern, wending) },
+        { role: "system", content: buildAanscherpSysteem(toonDraaiboek(cast, scenes), taal, kern, wending, verhaallijn) },
         { role: "user", content: "Geef het volledige draaiboek terug met de aangescherpte zinnen." },
       ],
     });
     const call = completion.choices[0]?.message?.tool_calls?.[0];
     if (!call) return scenes;
 
-    const uit = JSON.parse(call.function.arguments || "{}") as { scenes?: { setting?: string; licht?: string; lines?: RuweRegel[] }[] };
+    const uit = JSON.parse(call.function.arguments || "{}") as { scenes?: RuweScene[] };
     const ruwe = Array.isArray(uit.scenes) ? uit.scenes : [];
     if (ruwe.length !== scenes.length) {
       console.warn(`[dialogue-chat] eindredactie gaf ${ruwe.length} van ${scenes.length} scènes terug; origineel behouden`);
@@ -772,8 +759,9 @@ export async function POST(req: NextRequest) {
           keepTerms: opzet.keepTerms,
           avoidTerms: opzet.avoidTerms,
           cast: opzet.cast.map((c) => ({
-            id: c.id, name: c.name, role: c.role, leeftijd: c.leeftijd, wil: c.wil, spraak: c.spraak,
+            id: c.id, characterId: c.characterId, name: c.name, role: c.role, leeftijd: c.leeftijd, wil: c.wil, spraak: c.spraak,
           })),
+          verhaallijn: opzet.verhaallijn ?? null,
         }
       : null;
 
@@ -875,9 +863,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ reply: `${probleem} Kun je aangeven welke personages je wilt gebruiken?` });
     }
 
+    // De verhaallijn uit de opzet reist mee in de spec, zodat een latere
+    // aanpassing binnen hetzelfde verhaal blijft. Alleen personages die echt in de
+    // cast staan mogen erin voorkomen.
+    const verhaallijn = normaliseerVerhaallijn(opzet?.verhaallijn, spec.cast.map((c) => c.characterId));
+    if (verhaallijn.length) spec.verhaallijn = verhaallijn;
+    // Als tekst voor elke stap die hierna nog schrijft. Zonder de lijn erbij
+    // "verbeterde" de eindredactie het verhaal weer terug tot een gesprek.
+    const lijnTekst = verhaallijnBlok(spec.verhaallijn, spec.cast) || undefined;
+
     // Ook het EERSTE plan kan zichzelf al herhalen; dan hoort de aanvullus dat
     // gat te vullen met iets nieuws in plaats van er nog een kopie bij te doen.
-    spec.scenes = zonderHerhaling([], spec.scenes);
+    spec.scenes = langsVerhaal(zonderHerhaling([], spec.scenes), spec.verhaallijn);
 
     // Twee opruimrondes die het model zelf niet betrouwbaar doet. Ze draaien alleen
     // als er echt iets mis is, dus meestal kosten ze niets.
@@ -892,7 +889,7 @@ export async function POST(req: NextRequest) {
     // waarna de eindredactie alle scènes herschreef en er de helft uit snoeide.
     // Een gebruiker die op "1 minuut" klikte kreeg zo dertig seconden. Het laatste
     // woord over de lengte hoort bij de stap die over lengte gaat.
-    spec.scenes = await controleerSamenhang(spec.scenes, spec.cast, spec.language ?? "Nederlands");
+    spec.scenes = await controleerSamenhang(spec.scenes, spec.cast, spec.language ?? "Nederlands", lijnTekst);
     spec.scenes = await brengOpLengte(
       spec.scenes,
       spec.cast,
@@ -902,7 +899,8 @@ export async function POST(req: NextRequest) {
       // tussenzinnen ("ja, ga verder") zeggen niets over wat hij wil zien.
       berichten.filter((m) => m.role === "user").map((m) => m.content).sort((a, b) => b.length - a.length)[0],
       spec.kern,
-      spec.wending
+      spec.wending,
+      lijnTekst
     );
 
     // ALS LAATSTE: zorgen dat er genoeg geïllustreerd wordt. Dit staat bewust
@@ -912,7 +910,7 @@ export async function POST(req: NextRequest) {
     // ALLERLAATST: de eindredactie over de gesproken zinnen. Hierna schrijft
     // niets meer, dus wat hier goed komt blijft goed.
     spec.scenes = await scherpDialoogAan(
-      spec.scenes, spec.cast, spec.language ?? "Nederlands", spec.kern, spec.wending
+      spec.scenes, spec.cast, spec.language ?? "Nederlands", spec.kern, spec.wending, lijnTekst
     );
 
     // Laatste zeef over het HELE draaiboek. Elke stap hierboven laat een model
@@ -924,6 +922,16 @@ export async function POST(req: NextRequest) {
     if (spec.scenes.length !== voorZeef) {
       console.warn(`[dialogue-chat] eindzeef: ${voorZeef} → ${spec.scenes.length} scènes`);
     }
+
+    // Nog één keer langs de verhaallijn, want elke modelstap hierboven kan scènes
+    // opgesplitst of de verteller eruit geschreven hebben. Daarna nieuwe id's: de
+    // stappen hierboven hergebruikten id's op volgorde, en na een ingevoegde scène
+    // konden er twee dezelfde ontstaan.
+    spec.scenes = langsVerhaal(spec.scenes, spec.verhaallijn).map((s, i) => ({ ...s, id: `scene-${i}` }));
+    console.log(
+      `[dialogue-chat] klaar: ${spec.scenes.length} scènes, ${spec.scenes.reduce((a, s) => a + s.lines.length, 0)} regels, ` +
+      `${spec.scenes.flatMap((s) => s.lines).filter((l) => l.characterId === VERTELLER_ID).length} van de verteller`
+    );
 
     // De gebruiker heeft de lengte gekozen; die is leidend, niet wat het model
     // ervan maakte. Hij hoort ook bij de spec, zodat een herziening dezelfde maat

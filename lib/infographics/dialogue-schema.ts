@@ -160,6 +160,7 @@ export interface DialogueCastMember {
 // Die laatste twee zijn hetzelfde in de data: een actiebeeld MET gesproken tekst.
 import type { Kader } from "./verhaal-kaders";
 import type { Lichtsoort } from "./verhaal-licht";
+import type { VerhaalDeel } from "./verhaallijn";
 
 export const SHOT_SOORTEN = ["dialoog", "actie"] as const;
 export type ShotSoort = (typeof SHOT_SOORTEN)[number];
@@ -262,11 +263,22 @@ export interface DialogueScene {
    * verandert het licht niet. Afwezig = daglicht, zoals het altijd was.
    */
   licht?: Lichtsoort | null;
+  /**
+   * Bij welk deel van de verhaallijn deze scène hoort (1 = begin, 5 = slot).
+   * Zie verhaallijn.ts. Afwezig bij draaiboeken van vóór de verhaallijn.
+   */
+  deel?: number | null;
   lines: DialogueLine[];
   // Basis-twee-shot van deze scène: de cast tegenover elkaar in deze omgeving.
   // Elke regel binnen de scène is een bewerking hiervan, zodat de personages
   // tussen regels niet verspringen.
   twoShotUrl?: string | null;
+  /**
+   * Wat de gebruiker in het storyboard over dit beeld zei ("de boom links, het is
+   * al donker"). Blijft bij de scène staan en gaat mee bij elke nieuwe versie van
+   * het basisbeeld — anders was de aanwijzing bij de volgende ronde weer vergeten.
+   */
+  beeldAanwijzing?: string | null;
 }
 
 export interface DialogueSpec {
@@ -276,6 +288,11 @@ export interface DialogueSpec {
   kern?: string | null;
   /** Wat er anders loopt dan verwacht, in één zin. Zonder wending geen verhaal. */
   wending?: string | null;
+  /**
+   * De verhaallijn uit de opzet: vijf delen van begin tot slot. Blijft bij de spec
+   * zodat een latere aanpassing binnen hetzelfde verhaal blijft.
+   */
+  verhaallijn?: VerhaalDeel[] | null;
   format: "16:9" | "9:16";
   cast: DialogueCastMember[];
   scenes: DialogueScene[];

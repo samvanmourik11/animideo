@@ -39,6 +39,11 @@ interface Body {
   // elkaar — de laatste scène had andere mensen in een andere kamer.
   anchorTwoShotUrl?: string;
   castSheetUrl?: string;
+  /**
+   * Wat de gebruiker in het storyboard over dit beeld zei. Zie
+   * DialogueScene.beeldAanwijzing.
+   */
+  aanwijzing?: string;
 }
 
 // Het basis-twee-shot van één scène: de cast tegenover elkaar in de omgeving.
@@ -98,6 +103,7 @@ export async function POST(req: NextRequest) {
     let besteedExtra = 0;
 
     const locatieRef = (body.locationRefUrl ?? "").trim();
+    const aanwijzing = (body.aanwijzing ?? "").trim().slice(0, 500);
     const brief = buildTwoShotBrief(
       setting,
       cast,
@@ -187,6 +193,11 @@ export async function POST(req: NextRequest) {
           ankerInstructie,
           locatieInstructie,
           alleenDezeMensen,
+          // Na de vaste regels, zodat de aanwijzing over DIT beeld gaat en niet
+          // de personages of de tekenstijl kan omgooien.
+          aanwijzing
+            ? `The user looked at an earlier version of this scene and asked for this change (it may be written in Dutch): "${aanwijzing}". Apply it, but keep the characters, their looks and the drawing style exactly as described above.`
+            : "",
           fouten.length
             ? `The previous attempt was rejected for these mistakes — avoid them: ${fouten.join("; ")}.`
             : "",

@@ -6,7 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import DialogueChat from "@/components/dialogue/DialogueChat";
 import DialogueBuddy from "@/components/dialogue/DialogueBuddy";
 import CastPicker from "@/components/dialogue/CastPicker";
-import ScriptBoard, { schatCredits } from "@/components/dialogue/ScriptBoard";
+import ScriptBoard, { schatCredits, schatStoryboardCredits } from "@/components/dialogue/ScriptBoard";
+import Storyboard, { type HertekenWijziging } from "@/components/dialogue/Storyboard";
 import DialoguePlayer, { bouwFragmenten } from "@/components/dialogue/DialoguePlayer";
 import FragmentEditor, { type HerstelActie } from "@/components/dialogue/FragmentEditor";
 import ArtDirection from "@/components/dialogue/ArtDirection";
@@ -32,7 +33,7 @@ import { findMusicTrackByUrl } from "@/lib/music/library";
 // wachttijd binnen de perken zonder de rate limits te raken.
 const PARALLEL = 3;
 
-type Stap = 1 | 2 | 3 | 4;
+type Stap = 1 | 2 | 3 | 4 | 5;
 
 export default function DialoguePage() {
   const [spec, setSpec] = useState<DialogueSpec | null>(null);
@@ -55,6 +56,8 @@ export default function DialoguePage() {
   const [exportUrl, setExportUrl] = useState<string | null>(null);
   // Welke regel op dit moment gericht opnieuw gemaakt wordt ("si-li").
   const [herstelBezig, setHerstelBezig] = useState<string | null>(null);
+  // Van welke scène het storyboard nu een nieuw basisbeeld maakt.
+  const [hertekenBezig, setHertekenBezig] = useState<number | null>(null);
 
   const creditFout = (d: { error?: string; required?: number; credits?: number; detail?: string }) =>
     d.error === "insufficient_credits"
@@ -239,14 +242,53 @@ export default function DialoguePage() {
     return null;
   }
 
-  // ---------- Video maken ----------
-  async function maakVideo() {
-    if (!spec) return;
-    setRenderBezig(true); setRenderFout(null); setExportUrl(null); setStap(4);
+  // ---------- Het storyboard: de basisbeelden ----------
 
-    const werk: DialogueSpec = structuredClone(spec);
+  /**
+   * Het verzoek voor het basisbeeld van één scène.
+   *
+   * Eén plek voor zowel het eerste storyboard als een los opnieuw gemaakt beeld,
+   * zodat die twee nooit uit elkaar lopen in wat ze meesturen.
+   */
+  function twoShotVerzoek(werk: DialogueSpec, si: number) {
+    const s = werk.scenes[si];
+    // Speelt deze scène op een plek die we al getekend hebben, dan gaat dát
+    // beeld mee als referentie voor de kamer. Eerder namen we het beeld
+    // letterlijk over: dezelfde kamer, maar ook exact hetzelfde plaatje, en
+    // daardoor was de halve video één shot. Nu tekenen we dezelfde kamer
+    // vanuit een ander camerastandpunt (zie kaderVoorScene).
+    const zelfdePlek = werk.scenes.find(
+      (sc, i) => i !== si && sc.twoShotUrl && kaleSetting(sc.setting) === kaleSetting(s.setting)
+    );
+    // Het eerste beschikbare basisbeeld van een ándere scène dient als anker. Bij
+    // een beeld dat opnieuw gemaakt wordt mag dat niet zijn eigen oude versie zijn:
+    // dan kopieert het precies de fout waarvoor je op opnieuw drukte.
+    const anker = werk.scenes.find((sc, i) => i !== si && sc.twoShotUrl)?.twoShotUrl ?? null;
+    return {
+      // Alleen wie er in DEZE scene speelt. De hele cast meesturen gaf bij
+      // meer dan drie personages beelden vol mensen die er niets te zoeken
+      // hadden — en het beeldmodel moest ze dan ook nog uit elkaar houden.
+      setting: s.setting, cast: sceneCast(s, werk.cast), styleId: werk.styleId,
+      castSheetUrl: werk.castSheetUrl ?? null,
+      format: werk.format, language: werk.language, seed: werk.seed,
+      illustrationBrief: werk.illustrationBrief ?? "",
+      anchorTwoShotUrl: anker,
+      sceneIndex: si,
+      locationRefUrl: zelfdePlek?.twoShotUrl ?? null,
+      licht: s.licht ?? null,
+      aanwijzing: s.beeldAanwijzing ?? undefined,
+    };
+  }
+
+  /**
+   * Alles wat vóór de clips komt: model sheets, castblad en per scène het
+   * basisbeeld. Samen is dat het storyboard.
+   *
+   * Slaat over wat er al is, dus opnieuw aanroepen is een hervatting. Geeft een
+   * melding terug als er gestopt moest worden (te weinig credits).
+   */
+  async function maakBasisbeelden(werk: DialogueSpec, mislukt: string[]): Promise<string | null> {
     let gestopt: string | null = null;
-    const mislukt: string[] = [];
 
     // ALLEREERST een model sheet per personage: datzelfde personage van voren,
     // schuin en opzij. Het castblad dat hierna komt legt de onderlinge lengte
@@ -312,7 +354,9 @@ export default function DialoguePage() {
         }
       } catch { mislukt.push("castblad"); }
     }
-    if (gestopt) return;
+    // Hier stond een kale `return`, waardoor de knop bij te weinig credits eeuwig
+    // op "Bezig…" bleef staan: het afronden hieronder werd nooit bereikt.
+    if (gestopt) return gestopt;
 
     // Daarna per scène het twee-shot: elke regel is straks een bewerking daarvan.
     // BEWUST één voor één en niet parallel: het eerste twee-shot is het anker voor
@@ -321,36 +365,12 @@ export default function DialoguePage() {
     if (zonderShot.length) {
       let klaar = 0;
       setVoortgang(`Scènes opzetten (0/${zonderShot.length})…`);
-      for (const { s, si } of zonderShot) {
-        // Speelt deze scène op een plek die we al getekend hebben, dan gaat dát
-        // beeld mee als referentie voor de kamer. Eerder namen we het beeld
-        // letterlijk over: dezelfde kamer, maar ook exact hetzelfde plaatje, en
-        // daardoor was de halve video één shot. Nu tekenen we dezelfde kamer
-        // vanuit een ander camerastandpunt (zie kaderVoorScene).
-        const zelfdePlek = werk.scenes.find(
-          (sc) => sc.twoShotUrl && sc !== s && kaleSetting(sc.setting) === kaleSetting(s.setting)
-        );
-
-        // Het eerste beschikbare twee-shot dient als anker; bij een hervatting kan
-        // dat er dus al staan uit een eerdere ronde.
-        const anker = werk.scenes.find((sc) => sc.twoShotUrl)?.twoShotUrl ?? null;
+      for (const { si } of zonderShot) {
         try {
           const r = await fetch("/api/infographics/dialogue-twoshot", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              // Alleen wie er in DEZE scene speelt. De hele cast meesturen gaf bij
-              // meer dan drie personages beelden vol mensen die er niets te zoeken
-              // hadden — en het beeldmodel moest ze dan ook nog uit elkaar houden.
-              setting: s.setting, cast: sceneCast(s, werk.cast), styleId: werk.styleId,
-              castSheetUrl: werk.castSheetUrl ?? null,
-              format: werk.format, language: werk.language, seed: werk.seed,
-              illustrationBrief: werk.illustrationBrief ?? "",
-              anchorTwoShotUrl: anker,
-              sceneIndex: si,
-              locationRefUrl: zelfdePlek?.twoShotUrl ?? null,
-              licht: s.licht ?? null,
-            }),
+            body: JSON.stringify(twoShotVerzoek(werk, si)),
           });
           const d = await r.json();
           if (!r.ok) {
@@ -365,6 +385,88 @@ export default function DialoguePage() {
         setSpec(structuredClone(werk));
       }
     }
+    return gestopt;
+  }
+
+  /**
+   * Alleen de basisbeelden maken, zodat je het storyboard kunt bekijken en
+   * bijsturen vóór er één clip betaald is.
+   */
+  async function maakStoryboard() {
+    if (!spec) return;
+    setRenderBezig(true); setRenderFout(null); setStap(4);
+    const werk: DialogueSpec = structuredClone(spec);
+    const mislukt: string[] = [];
+    const gestopt = await maakBasisbeelden(werk, mislukt);
+    if (gestopt) setRenderFout(gestopt);
+    else if (mislukt.length) setRenderFout(`${mislukt.length} beeld(en) mislukt: ${mislukt.join(", ")}. Klik nogmaals — alleen die worden opnieuw geprobeerd.`);
+    setVoortgang(gestopt || mislukt.length ? "Deels klaar" : "Storyboard staat klaar");
+    setRenderBezig(false);
+    void bewaar(werk, projectId);
+  }
+
+  /**
+   * Eén basisbeeld opnieuw maken, met de aanwijzing uit het storyboard.
+   *
+   * Alleen die scène wordt bijgewerkt (niet de hele spec vervangen): het maken duurt
+   * een halve minuut, en wat je intussen elders aanpaste mag niet verdwijnen.
+   */
+  async function hertekenScene(si: number, wijziging: HertekenWijziging) {
+    if (!spec || hertekenBezig !== null || renderBezig) return;
+    const scene = spec.scenes[si];
+    if (!scene) return;
+    const klaar = scene.lines.filter(regelKlaar).length;
+    if (klaar > 0 && !window.confirm(`In deze scène ${klaar === 1 ? "staat 1 clip" : `staan ${klaar} clips`} klaar. Die ${klaar === 1 ? "hoort" : "horen"} bij het oude beeld en ${klaar === 1 ? "wordt" : "worden"} opnieuw gemaakt. Doorgaan?`)) {
+      return;
+    }
+
+    const velden = {
+      setting: wijziging.setting.trim() || scene.setting,
+      licht: wijziging.licht,
+      beeldAanwijzing: wijziging.aanwijzing.trim() || null,
+    };
+    const werk: DialogueSpec = structuredClone(spec);
+    Object.assign(werk.scenes[si], velden);
+
+    setHertekenBezig(si);
+    setRenderFout(null);
+    try {
+      const r = await fetch("/api/infographics/dialogue-twoshot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(twoShotVerzoek(werk, si)),
+      });
+      const d = await r.json();
+      if (!r.ok) { setRenderFout(creditFout(d)); return; }
+      if (!d.twoShotUrl) { setRenderFout("Er kwam geen beeld terug. Probeer het nog eens."); return; }
+      setSpec((prev) => prev && {
+        ...prev,
+        scenes: prev.scenes.map((s, i) => i !== si ? s : {
+          ...s,
+          ...velden,
+          twoShotUrl: d.twoShotUrl as string,
+          // De stem blijft: de tekst is niet veranderd. Beeld en beweging horen
+          // bij het oude basisbeeld en moeten opnieuw.
+          lines: s.lines.map((l) => ({ ...l, shotImageUrl: null, videoUrl: null, mouthStart: null, sprekerZeker: null, beeldWaarschuwingen: null })),
+        }),
+      });
+      setExportUrl(null);
+    } catch (e) {
+      setRenderFout(e instanceof Error ? e.message : String(e));
+    } finally {
+      setHertekenBezig(null);
+    }
+  }
+
+  // ---------- Video maken ----------
+  async function maakVideo() {
+    if (!spec) return;
+    setRenderBezig(true); setRenderFout(null); setExportUrl(null); setStap(5);
+
+    const werk: DialogueSpec = structuredClone(spec);
+    const mislukt: string[] = [];
+    // Wat het storyboard nog niet had, wordt hier alsnog gemaakt.
+    let gestopt = await maakBasisbeelden(werk, mislukt);
 
     // Dan de regels. Alleen wat er nog niet staat, zodat opnieuw klikken een
     // hervatting is en je niet nog eens betaalt voor clips die al klaar zijn.
@@ -554,7 +656,7 @@ export default function DialoguePage() {
       {fout && <p className="text-sm text-red-400 mb-4">{fout}</p>}
 
       <div className="flex items-center gap-2 mb-6 text-[11px]">
-        {([[1, "Idee"], [2, "Opzet"], [3, "Draaiboek"], [4, "Video"]] as const).map(([n, label]) => (
+        {([[1, "Idee"], [2, "Opzet"], [3, "Draaiboek"], [4, "Storyboard"], [5, "Video"]] as const).map(([n, label]) => (
           <button
             key={n}
             onClick={() => { if (n === 1 || (n === 2 ? setup : spec)) setStap(n as Stap); }}
@@ -608,10 +710,25 @@ export default function DialoguePage() {
                 Pas aan wat je wilt. Verander je een zin of de spreker, dan wordt die clip opnieuw gemaakt.
               </p>
             </div>
-            <button onClick={maakVideo} disabled={renderBezig}
-              className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition shrink-0">
-              Video maken ({schatCredits(spec)} credits)
-            </button>
+            {/* Eerst het storyboard: voor een credit per scène zie je of de beelden
+                kloppen, vóór je per regel voor stem, beeld en beweging betaalt. */}
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              {spec.scenes.every((s) => s.twoShotUrl) ? (
+                <button onClick={() => setStap(4)} disabled={renderBezig}
+                  className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition">
+                  Naar het storyboard
+                </button>
+              ) : (
+                <button onClick={maakStoryboard} disabled={renderBezig}
+                  className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition">
+                  Storyboard maken ({schatStoryboardCredits(spec)} credits)
+                </button>
+              )}
+              <button onClick={maakVideo} disabled={renderBezig}
+                className="text-[11px] text-slate-400 hover:text-white underline disabled:opacity-40">
+                of meteen de hele video ({schatCredits(spec)} credits)
+              </button>
+            </div>
           </div>
 
           {/* Wie er meespelen — de assistent koos ze, jij mag wisselen. */}
@@ -670,8 +787,47 @@ export default function DialoguePage() {
         </div>
       )}
 
-      {/* ---------- Stap 4: de video ---------- */}
+      {/* ---------- Stap 4: het storyboard ---------- */}
       {stap === 4 && spec && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold text-white">Storyboard</h2>
+              <p className="text-[11px] text-slate-500">
+                Eén basisbeeld per scène. Elk shot in een scène wordt hiervan gemaakt, dus klopt het beeld niet, dan klopt de scène niet.
+                Geef een aanwijzing en maak alleen dat beeld opnieuw. Pas als het bord klopt, maak je de clips.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {spec.scenes.some((s) => !s.twoShotUrl) && (
+                <button onClick={maakStoryboard} disabled={renderBezig || hertekenBezig !== null}
+                  className="text-sm rounded px-4 py-2 bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 disabled:opacity-40 transition">
+                  {renderBezig ? "Bezig…" : `Ontbrekende beelden maken (${schatStoryboardCredits(spec)} credits)`}
+                </button>
+              )}
+              <button onClick={maakVideo} disabled={renderBezig || hertekenBezig !== null}
+                className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition">
+                Clips maken ({schatCredits(spec)} credits)
+              </button>
+            </div>
+          </div>
+          {(voortgang || renderFout) && (
+            <p className={`text-xs ${renderFout ? "text-red-400" : "text-slate-400"}`}>{renderFout || voortgang}</p>
+          )}
+          <button onClick={() => setStap(3)} className="text-xs text-orange-300 hover:text-orange-200 underline">
+            ← Terug naar het draaiboek
+          </button>
+          <Storyboard
+            spec={spec}
+            onOpnieuw={hertekenScene}
+            bezigMet={hertekenBezig}
+            disabled={renderBezig}
+          />
+        </div>
+      )}
+
+      {/* ---------- Stap 5: de video ---------- */}
+      {stap === 5 && spec && (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-3">
             <button onClick={maakVideo} disabled={renderBezig}
@@ -694,6 +850,9 @@ export default function DialoguePage() {
             <span className="text-xs text-slate-400">Iets verkeerd uitgepakt?</span>
             <button onClick={() => setStap(3)} className="text-xs text-orange-300 hover:text-orange-200 underline">
               Terug naar het draaiboek
+            </button>
+            <button onClick={() => setStap(4)} className="text-xs text-orange-300 hover:text-orange-200 underline">
+              naar het storyboard
             </button>
             <span className="text-[11px] text-slate-600">
               — daar zet je met ↻ één regel of een hele scène opnieuw klaar, of laat je de assistent hem herschrijven. Daarna klik je hier weer op “Verder maken”.

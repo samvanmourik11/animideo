@@ -1,4 +1,5 @@
 import { MAX_CAST, type CastPosition, type DialogueCastMember } from "./dialogue-schema";
+import type { VerhaalDeel } from "./verhaallijn";
 
 /**
  * DE OPZET — alle dimensies van de video, op één plek, vóór er iets geschreven is.
@@ -31,6 +32,11 @@ export interface DialogueSetup {
    */
   kern: string;
   wending: string;
+  /**
+   * Wat er gebeurt, in vijf delen van begin tot slot — vóór er één zin dialoog is.
+   * Zie verhaallijn.ts. Optioneel zodat een opzet van vóór deze stap blijft werken.
+   */
+  verhaallijn?: VerhaalDeel[];
 
   // ── Toon ──
   /** "zakelijk" | "speels" | "energiek" — zie buildDialoguePrompt. */
