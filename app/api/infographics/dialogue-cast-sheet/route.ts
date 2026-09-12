@@ -88,7 +88,9 @@ export async function POST(req: NextRequest) {
       format: "16:9",
       visualStyle: null,
       seed: typeof body.seed === "number" ? body.seed : undefined,
-      characterUrls: cast.map((c) => c.portraitUrl),
+      // Model sheet gaat vóór het portret: het castblad tekent iedereen ten voeten
+      // uit, en dan helpt het als de rest van het lichaam al ergens vastligt.
+      characterUrls: cast.map((c) => c.modelSheetUrl || c.portraitUrl),
       extraContext: [
         illustratieContext(body.illustrationBrief),
         "The character reference images are head-and-shoulders portraits. Use them ONLY for each person's " +

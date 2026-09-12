@@ -398,3 +398,67 @@ export function buildActionMotionPrompt(actie: string, styleId?: string | null):
     `Any text already in the image stays exactly as it is.`
   );
 }
+
+/**
+ * EEN SHOT VANAF NUL — niet als bewerking van het scènebeeld.
+ *
+ * Tot nu toe was élk shot een BEWERKING van het ene scènebeeld: "zet die mond
+ * open, die dicht". Zolang dat de enige wijziging was, bleef de rest staan. Maar
+ * sinds we er "en verplaats de camera" bij vragen, moet het model bijna het hele
+ * plaatje opnieuw tekenen — en bij elk nieuw plaatje verzint het het haar en de
+ * kleding van een personage opnieuw. In één video van een minuut sprong Lily's
+ * haar van middenbruin naar bijna zwart naar lichtbruin met blonde strepen, werd
+ * de jongen een tweede Lily, en stond er ineens een volwassen vrouw in beeld.
+ *
+ * Deze briefing beschrijft het shot volledig, zodat het model niets hoeft te
+ * "verbouwen". Identiteit komt uit de meegestuurde model sheets, de plek uit het
+ * scènebeeld als referentie — maar het beeld zelf wordt nieuw getekend.
+ */
+export function buildShotPrompt(input: {
+  setting: string;
+  /** Wie er in dit shot staat. De eerste is de spreker als er gepraat wordt. */
+  inBeeld: DialogueCastMember[];
+  spreker?: DialogueCastMember | null;
+  emotion?: string | null;
+  /** Bij een actiebeeld: wat er gebeurt (Engels). */
+  actie?: string | null;
+  kader?: Kader | null;
+  styleId?: string | null;
+}): string {
+  const { setting, inBeeld, spreker, emotion, actie, kader, styleId } = input;
+
+  const wie = inBeeld
+    .map((c) => {
+      const uiterlijk = (c.appearance ?? "").trim();
+      const leeftijd = (c.leeftijd ?? "").trim();
+      return `${c.name}${leeftijd ? ` (${leeftijd})` : ""}${uiterlijk ? ` — ${uiterlijk}` : ""}`;
+    })
+    .join("; ");
+
+  const emo = (emotion ?? "").trim();
+  const emoZin = emo && emo !== "neutraal" ? ` Their expression reads as "${emo}".` : "";
+
+  const wieDoetWat = actie?.trim()
+    ? `What happens in this shot: ${actie.trim()} Nobody is speaking — every mouth stays closed.`
+    : spreker
+      ? `${spreker.name} is SPEAKING: their mouth is clearly open mid-sentence, alive and engaged.${emoZin} ` +
+        (inBeeld.length > 1
+          ? `Everyone else listens in silence with a closed mouth and a calm, attentive posture.`
+          : `There is nobody else in this shot — do not add a listener, a bystander or a second figure.`)
+      : `Nobody is speaking in this shot — every mouth stays closed.`;
+
+  return (
+    `A single illustration for an animated children's story. ` +
+    `LOCATION: ${setting.trim()} ` +
+    `IN THIS SHOT: ${inBeeld.length} character${inBeeld.length === 1 ? "" : "s"} — ${wie}. ` +
+    `There is nobody else in the frame: no extra children, no extra adults, no bystanders, no background figures. ` +
+    `${kaderRegie(kader)} ` +
+    `${wieDoetWat} ` +
+    // De plek moet hetzelfde blijven als de rest van de scene; die komt uit het
+    // meegestuurde scenebeeld. Alleen het standpunt en de houdingen verschillen.
+    `One reference image shows this same location earlier in the story: keep the room, furniture, colours and ` +
+    `lighting the same as there. Only the camera position and the characters' poses differ. ` +
+    stijlBewerking(styleId) + MAATVAST +
+    NATUURWETTEN
+  );
+}

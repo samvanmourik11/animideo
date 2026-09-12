@@ -124,6 +124,16 @@ export interface DialogueCastMember {
   voice: string;
   // Portret uit de bibliotheek: identiteits-anker voor elk twee-shot.
   portraitUrl: string;
+  /**
+   * Model sheet: ditzelfde personage van voren, schuin en opzij op één blad.
+   *
+   * Het portret is één close-up van voren. Zodra een shot van opzij of van
+   * onderaf gevraagd wordt, moest het beeldmodel de andere kant van dat hoofd
+   * zelf verzinnen — en dan verzon het meteen ander haar. Dit blad geeft die
+   * andere hoeken, en gaat als identiteitsreferentie mee naar elk shot.
+   * Wordt één keer per personage gemaakt (zie /api/infographics/dialogue-model-sheet).
+   */
+  modelSheetUrl?: string | null;
   // Plek in het kader. Bepaalt hoe we spreker/luisteraar benoemen in de prompts.
   position: CastPosition;
   // Kort ENGELS uiterlijk (haar, kleding, leeftijd). Bewust apart van het portret:

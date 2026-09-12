@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { kaderVoorScene, buildTwoShotBrief, buildTurnShotPrompt } from "./dialogue-staging";
+import { kaderVoorScene, buildTwoShotBrief, buildTurnShotPrompt, buildShotPrompt } from "./dialogue-staging";
 import type { DialogueCastMember } from "./dialogue-schema";
 
 // Elke scene kreeg exact hetzelfde kader, en omdat elk regelbeeld een bewerking
@@ -123,5 +123,53 @@ describe("buildTurnShotPrompt zonder luisteraar", () => {
     const p = buildTurnShotPrompt(spreker, [ander], "blij", null);
     expect(p).toContain("Everyone else keeps their mouth CLOSED");
     expect(p).toContain("Lily");
+  });
+});
+
+// Een shot dat VANAF NUL wordt getekend in plaats van als bewerking van het
+// scenebeeld. Dit is de reparatie voor het wegdrijvende uiterlijk: een bewerking
+// waarin ook de camera verschuift dwingt het model bijna alles opnieuw te tekenen,
+// en dan verzint het het haar er ook bij.
+
+describe("buildShotPrompt", () => {
+  const tyrel = lid();
+  const lily = lid({ id: "char-2", name: "Lily", position: "right", appearance: "grote bruine afro, geel T-shirt" });
+
+  it("beschrijft de plek, want er is geen beeld om te verbouwen", () => {
+    const p = buildShotPrompt({ setting: "a warm living room", inBeeld: [tyrel], kader: "close" });
+    expect(p).toContain("a warm living room");
+    expect(p).not.toContain("Edit this illustration");
+  });
+
+  it("noemt iedereen met uiterlijk, en verbiedt de rest", () => {
+    const p = buildShotPrompt({ setting: "a kitchen", inBeeld: [tyrel, lily], spreker: lily, kader: "medium" });
+    expect(p).toContain("Lily");
+    expect(p).toContain("grote bruine afro");
+    expect(p).toContain("nobody else in the frame");
+  });
+
+  it("laat bij één personage geen luisteraar bijtekenen", () => {
+    const p = buildShotPrompt({ setting: "a forest", inBeeld: [lily], spreker: lily, kader: "close" });
+    expect(p).toContain("nobody else in this shot");
+    expect(p).not.toContain("Everyone else listens");
+  });
+
+  it("houdt bij een actiebeeld alle monden dicht", () => {
+    const p = buildShotPrompt({ setting: "a garden", inBeeld: [tyrel, lily], actie: "they run to the tree", kader: "totaal" });
+    expect(p).toContain("they run to the tree");
+    expect(p).toContain("every mouth stays closed");
+  });
+
+  it("zet de cameraregie van het gevraagde kader erin", () => {
+    const dichtbij = buildShotPrompt({ setting: "a room", inBeeld: [lily], spreker: lily, kader: "extreme-close" });
+    const wijd = buildShotPrompt({ setting: "a room", inBeeld: [lily], kader: "totaal" });
+    expect(dichtbij).toContain("EXTREME CLOSE-UP");
+    expect(wijd).toContain("WIDE ESTABLISHING");
+  });
+
+  it("vraagt de kamer gelijk te houden aan het scenebeeld", () => {
+    const p = buildShotPrompt({ setting: "a room", inBeeld: [lily], kader: "hoog" });
+    expect(p).toContain("same location");
+    expect(p).toContain("Only the camera position");
   });
 });

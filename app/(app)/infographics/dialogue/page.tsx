@@ -248,7 +248,44 @@ export default function DialoguePage() {
     let gestopt: string | null = null;
     const mislukt: string[] = [];
 
-    // ALLEREERST het castblad: iedereen ten voeten uit naast elkaar. Dat is de
+    // ALLEREERST een model sheet per personage: datzelfde personage van voren,
+    // schuin en opzij. Het castblad dat hierna komt legt de onderlinge lengte
+    // vast, maar toont iedereen maar van één kant. Zodra een shot van opzij of van
+    // onderaf gevraagd wordt, moest het beeldmodel de rest van dat hoofd zelf
+    // verzinnen — en verzon het meteen ander haar. Eén blad per personage, één
+    // keer per project.
+    const zonderBlad = werk.cast.filter((c) => c.portraitUrl && !c.modelSheetUrl);
+    if (zonderBlad.length) {
+      let klaar = 0;
+      setVoortgang(`Personages vastleggen (0/${zonderBlad.length})…`);
+      for (const lid of zonderBlad) {
+        try {
+          const r = await fetch("/api/infographics/dialogue-model-sheet", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              lid, styleId: werk.styleId, language: werk.language,
+              illustrationBrief: werk.illustrationBrief ?? "", seed: werk.seed,
+            }),
+          });
+          const d = await r.json();
+          if (!r.ok) {
+            if (d.error === "insufficient_credits") { gestopt = creditFout(d); break; }
+            // Zonder blad valt dit personage terug op zijn portret: minder sterk,
+            // maar geen reden om de hele video te stoppen.
+            mislukt.push(`personage ${lid.name}`);
+          } else if (d.modelSheetUrl) {
+            const i = werk.cast.findIndex((c) => c.id === lid.id);
+            if (i >= 0) werk.cast[i] = { ...werk.cast[i], modelSheetUrl: d.modelSheetUrl };
+          }
+        } catch { mislukt.push(`personage ${lid.name}`); }
+        klaar++;
+        setVoortgang(`Personages vastleggen (${klaar}/${zonderBlad.length})…`);
+        setSpec(structuredClone(werk));
+      }
+    }
+
+    // DAARNA het castblad: iedereen ten voeten uit naast elkaar. Dat is de
     // identiteits- én maatreferentie voor élk beeld dat hierna komt. Zonder dat
     // blad verzint het beeldmodel per scène opnieuw hoe groot iemand is — de
     // reden dat de ene keer Tyrell boven Lily uitstak en de volgende keer andersom.

@@ -39,7 +39,10 @@ export function schatCredits(spec: DialogueSpec): number {
   const teDoen = spec.scenes.flatMap((s) => s.lines).filter((l) => !regelKlaar(l));
   const kosten = teDoen.reduce((a, l) => a + beeldEnClip + (isActie(l) ? 0 : CREDIT_COSTS.VOICE), 0);
   const shots = spec.scenes.filter((s) => !s.twoShotUrl).length;
-  return kosten + shots * CREDIT_COSTS.IMAGE_GENERATION;
+  // Eén model sheet per personage, één keer per project. Zonder deze regel stond
+  // er een lager bedrag op de knop dan er werd afgeschreven.
+  const bladen = spec.cast.filter((c) => c.portraitUrl && !c.modelSheetUrl).length;
+  return kosten + (shots + bladen) * CREDIT_COSTS.IMAGE_GENERATION;
 }
 
 /**

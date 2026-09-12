@@ -68,7 +68,9 @@ export async function POST(req: NextRequest) {
     if (!setting) return NextResponse.json({ error: "Geen omgeving opgegeven" }, { status: 400 });
 
     const cast = (Array.isArray(body.cast) ? body.cast : []).slice(0, MAX_CAST);
-    const portretten = cast.map((c) => c.portraitUrl).filter((u): u is string => !!u);
+    // Model sheet gaat vóór het portret: die toont het personage van meerdere
+    // kanten, wat een scenebeeld met een eigen camerastandpunt nodig heeft.
+    const portretten = cast.map((c) => c.modelSheetUrl || c.portraitUrl).filter((u): u is string => !!u);
     // Eén personage is genoeg. Dit heette het "twee-shot" omdat elke scene twee
     // pratende mensen naast elkaar toonde, maar sinds de camerakaders bestaat een
     // scene waarin één personage alleen in beeld is — een close-up, iemand alleen

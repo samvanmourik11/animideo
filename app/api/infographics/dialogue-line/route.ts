@@ -12,7 +12,7 @@ import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { STORY_VOICES } from "@/lib/infographics/story-voices";
 import {
   buildTurnShotPrompt, buildDialogueMotionPrompt,
-  buildActionShotPrompt, buildActionMotionPrompt, illustratieContext,
+  buildActionShotPrompt, buildActionMotionPrompt, illustratieContext, buildShotPrompt,
 } from "@/lib/infographics/dialogue-staging";
 import { zonderHerhaling as kaderZonderHerhaling, type Kader } from "@/lib/infographics/verhaal-kaders";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
@@ -124,6 +124,12 @@ interface Body {
   narratorVoice?: string;
   /** Hoe dit shot in beeld komt (close-up, totaalbeeld…). Zie verhaal-kaders.ts. */
   kader?: Kader | null;
+  /**
+   * De omgeving van deze scene (Engels). Nodig sinds een shot met een eigen
+   * camerastandpunt VANAF NUL wordt getekend in plaats van als bewerking van het
+   * scenebeeld — dan moet de briefing zelf zeggen waar we zijn.
+   */
+  setting?: string;
   /** Het kader van het VORIGE shot, zodat we niet twee keer hetzelfde krijgen. */
   vorigKader?: Kader | null;
   // --- Gericht opnieuw maken ---------------------------------------------
@@ -145,6 +151,34 @@ interface Body {
 // zichtbaar luisteren. Drie stappen: inspreken, bronbeeld met de juiste houdingen,
 // en dat beeld tot leven brengen. Alles vooraf afgerekend; mislukt er iets, dan
 // storten we het niet-gebruikte deel terug.
+/** Gaat deze afkeuring over WIE er staat in plaats van over de compositie? */
+function uiterlijkWeggedreven(fouten: string[]): boolean {
+  const tekst = fouten.join(" ").toLowerCase();
+  return /haar|kleding|kapsel|afwijkt|niet in de lijst|extra |omstander|persoon die niet/.test(tekst);
+}
+
+/**
+ * Een stap terug naar een standpunt dat dichter bij het scenebeeld ligt.
+ *
+ * De volgorde is niet willekeurig: een close-up en een extreme close-up dwingen
+ * het model een gezicht van dichtbij te verzinnen dat in het scenebeeld maar een
+ * paar pixels groot was. Medium ligt daar het dichtst bij, en `null` betekent
+ * "helemaal geen eigen standpunt" — dan wordt het weer een bewerking van het
+ * scenebeeld en verandert er zo min mogelijk.
+ */
+function rustigerKader(huidig: Kader | null): Kader | null {
+  switch (huidig) {
+    case "extreme-close": return "close";
+    case "close": return "medium";
+    case "laag":
+    case "hoog":
+    case "van-achteren":
+    case "detail":
+    case "totaal": return "medium";
+    default: return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   let terugstorten = async () => {};
   let tmpVideo: string | null = null;
@@ -290,14 +324,36 @@ export async function POST(req: NextRequest) {
         )
       : null;
 
+    // Het kader dat we DEZE poging gebruiken. Blijft het uiterlijk wegdrijven, dan
+    // vallen we terug op een rustiger standpunt: hoe verder de camera van het
+    // scenebeeld af staat, hoe meer het model opnieuw moet verzinnen — en hoe
+    // groter de kans dat het haar of de kleding verandert.
+    let kaderNu: Kader | null = gekozenKader;
+
     // Alleen de beweging opnieuw: het bronbeeld staat er al en is goedgekeurd.
     for (let poging = 1; shotImageUrl === null && poging <= MAX_BEELD_POGINGEN; poging++) {
       beeldPogingen = poging;
       try {
         const beeld = await generateImageWithStyle({
-          prompt: isActieBeeld
-            ? buildActionShotPrompt(cast, actieTekst, b.styleId, gekozenKader)
-            : buildTurnShotPrompt(spreker!, luisteraars, b.emotion, b.styleId, gekozenKader),
+          // MET kader: het shot wordt nieuw getekend, met het scenebeeld er alleen
+          // als plaats- en stijlreferentie bij. Een bewerking waarin ook de camera
+          // verschuift dwingt het model bijna alles opnieuw te tekenen, en dan
+          // verzint het ook het haar en de kleding opnieuw — dat is waar Lily per
+          // shot van kapsel wisselde. ZONDER kader blijft het een bewerking, zodat
+          // bestaande draaiboeken hun beelden houden.
+          prompt: kaderNu !== null
+            ? buildShotPrompt({
+                setting: (b.setting ?? "").trim() || "the same place as in the reference image",
+                inBeeld: isActieBeeld ? cast : [spreker!, ...luisteraars],
+                spreker: isActieBeeld ? null : spreker,
+                emotion: b.emotion,
+                actie: isActieBeeld ? actieTekst : null,
+                kader: kaderNu,
+                styleId: b.styleId,
+              })
+            : isActieBeeld
+              ? buildActionShotPrompt(cast, actieTekst, b.styleId, kaderNu)
+              : buildTurnShotPrompt(spreker!, luisteraars, b.emotion, b.styleId, kaderNu),
           format,
           visualStyle: null,
           // Zonder seed bij een herkansing: dezelfde seed zou grofweg hetzelfde
@@ -306,15 +362,17 @@ export async function POST(req: NextRequest) {
           // Het twee-shot bepaalt compositie en omgeving; de PORTRETTEN houden de
           // identiteit vast. Zonder die portretten dobberde elke bewerking een beetje
           // weg — haar, kleding en gezicht veranderden zichtbaar over negen regels.
+          // Bij een bewerking IS dit het beeld dat verbouwd wordt; bij nieuw
+          // tekenen dient het alleen als bewijs van hoe de kamer eruitziet.
           ingredientUrls: [b.twoShotUrl],
           // Het castblad weegt het zwaarst: het legt de identiteit én de
           // onderlinge lengte vast. Zonder blad (oudere projecten) doen de
           // portretten dat werk, maar die zeggen niets over lichaamsbouw.
           brandUrls: (b.castSheetUrl ?? "").trim() ? [(b.castSheetUrl ?? "").trim()] : undefined,
-          // Portretten ALTIJD mee, ook naast het castblad: dat blad toont iedereen
-          // ten voeten uit en is zwak op het gezicht, en juist het haar dreef
-          // per scène weg. Het portret is een close-up van precies dat.
-          characterUrls: cast.map((c) => c.portraitUrl).filter(Boolean),
+          // Identiteit: liefst de model sheet (voren, schuin, opzij), anders het
+          // portret. Het portret toont maar één hoek; bij een shot van opzij moest
+          // het model de rest van het hoofd zelf verzinnen en veranderde het haar.
+          characterUrls: cast.map((c) => c.modelSheetUrl || c.portraitUrl).filter(Boolean),
           extraContext: [
             illustratieContext(b.illustrationBrief),
             (b.castSheetUrl ?? "").trim()
@@ -359,10 +417,21 @@ export async function POST(req: NextRequest) {
         }
 
         console.warn(
-          `[dialogue-line] poging ${poging}: ` +
+          `[dialogue-line] poging ${poging} (kader ${kaderNu ?? "geen"}): ` +
           (beeldOordeel === "verkeerd" ? "verkeerde spreker" : "") +
           (beeldFouten.length ? ` beeldfouten: ${beeldFouten.join("; ")}` : "")
         );
+
+        // Drijft het UITERLIJK weg, dan is het camerastandpunt de waarschijnlijke
+        // oorzaak: hoe verder van het scenebeeld af, hoe meer het model zelf moet
+        // invullen. Val dan terug op een rustiger kader in plaats van hetzelfde nog
+        // twee keer te proberen. Bij de laatste poging laten we het kader helemaal
+        // los: liever een saai beeld met de juiste Lily dan een mooi beeld met een
+        // vreemde.
+        if (uiterlijkWeggedreven(beeldFouten)) {
+          kaderNu = poging >= MAX_BEELD_POGINGEN - 1 ? null : rustigerKader(kaderNu);
+          console.warn(`[dialogue-line] uiterlijk dreef weg, kader terug naar ${kaderNu ?? "het scenebeeld"}`);
+        }
         // De extra pogingen zijn niet vooraf afgerekend; boek ze alsnog af zodat we
         // niet stilzwijgend meer beelden weggeven dan begroot.
         if (poging < MAX_BEELD_POGINGEN) {
