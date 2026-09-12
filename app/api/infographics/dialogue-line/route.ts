@@ -177,8 +177,19 @@ export async function POST(req: NextRequest) {
       if (heeftVoiceOver && !isVerteller && !spreker) return NextResponse.json({ error: "Onbekende stem voor de voice-over" }, { status: 400 });
     } else {
       if (!tekst) return NextResponse.json({ error: "Geen tekst" }, { status: 400 });
-      if (!spreker) return NextResponse.json({ error: "Onbekende spreker" }, { status: 400 });
-      if (luisteraars.length === 0) return NextResponse.json({ error: "Geen luisteraar in de cast" }, { status: 400 });
+      if (!spreker) {
+        // Deze 400 kwam terug als een kale "onderdeel mislukt" in de browser, zonder
+        // spoor in de log. Wie zeven mislukte regels ziet moet kunnen nazoeken waarom.
+        console.error(`[dialogue-line] onbekende spreker "${b.speakerId}"; cast: ${cast.map((c) => c.id).join(", ")}`);
+        return NextResponse.json({ error: "Onbekende spreker" }, { status: 400 });
+      }
+      // GEEN luisteraar is sinds de camerakaders normaal: een close-up van één
+      // personage dat praat, of een scene waarin verder niemand is. Dit was een
+      // harde weigering en liet zeven regels stuklopen zodra het scene-beeld nog
+      // maar de spelers van die scene bevatte.
+      if (luisteraars.length === 0 && cast.length > 1) {
+        console.warn(`[dialogue-line] geen luisteraar naast ${spreker.name}; shot wordt een solo-opname`);
+      }
     }
 
     // Bij een verteller pakken we de aparte vertellerstem uit de spec; die is

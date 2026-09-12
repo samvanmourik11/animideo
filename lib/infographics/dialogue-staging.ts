@@ -252,6 +252,10 @@ export function buildTurnShotPrompt(
     ? ` Their facial expression reads as "${emo}".`
     : "";
 
+  // Zonder luisteraar is er niemand om stil te houden. De regels hieronder gaan
+  // allemaal over "de ander"; met een lege lijst zou de prompt over iemand praten
+  // die er niet is, en dan tekent het model die er alsnog bij.
+  const solo = luisteraars.length === 0;
   const luisterZinnen = luisteraars.map((l) =>
     `${aanduiding(l)} is LISTENING quietly: their lips are gently closed in a small attentive smile, ` +
     `their arms hang relaxed and low beside the body — not raised, not gesturing — head tilted very slightly, ` +
@@ -263,8 +267,11 @@ export function buildTurnShotPrompt(
   const luisteraarNamen = luisteraars.map((l) => l.name).join(" en ");
 
   return (
-    `EXACTLY ONE person in this illustration has an open mouth: ${aanduiding(spreker)}. ` +
-    `Everyone else keeps their mouth CLOSED.\n\n` +
+    (solo
+      ? `EXACTLY ONE person is in this illustration: ${spreker.name}, and their mouth is open because they are ` +
+        `speaking. There is NOBODY ELSE in the shot — do not add a listener, a bystander or a second figure.\n\n`
+      : `EXACTLY ONE person in this illustration has an open mouth: ${aanduiding(spreker)}. ` +
+        `Everyone else keeps their mouth CLOSED.\n\n`) +
     // Zonder kader blijft het oude gedrag: alleen houding en mond veranderen, kader
     // gelijk. Mét kader mag de camera wél verschuiven — dat is precies waar de
     // afwisseling vandaan moet komen. De plek en de mensen blijven hoe dan ook
@@ -280,10 +287,14 @@ export function buildTurnShotPrompt(
     `${aanduiding(spreker)} — this is ${spreker.name} — is the one SPEAKING: their mouth is clearly OPEN ` +
     `mid-sentence, one hand is raised in an open-palm explaining gesture, leaning very slightly forward, ` +
     `engaged and animated.${emoZin} ` +
-    `${luisterZinnen} ` +
-    `A calm, receptive listening posture for everyone who is not speaking. ` +
-    `To be completely clear: ${spreker.name} talks, ${luisteraarNamen} listen${luisteraars.length === 1 ? "s" : ""} ` +
-    `in silence with a closed mouth. Do not swap these roles. ` +
+    (solo
+      // Zonder deze splitsing werd het "To be completely clear: X talks,  listens
+      // in silence" — een halve zin over een luisteraar die er niet is.
+      ? `${spreker.name} is alone in this shot. `
+      : `${luisterZinnen} ` +
+        `A calm, receptive listening posture for everyone who is not speaking. ` +
+        `To be completely clear: ${spreker.name} talks, ${luisteraarNamen} listen${luisteraars.length === 1 ? "s" : ""} ` +
+        `in silence with a closed mouth. Do not swap these roles. `) +
     stijlBewerking(styleId) + MAATVAST +
     NATUURWETTEN
   );
@@ -301,6 +312,10 @@ export function buildDialogueMotionPrompt(
   styleId?: string | null
 ): string {
   const sprekerT = aanduiding(spreker, false);
+  // Zonder luisteraar is er niemand om stil te houden. De regels hieronder gaan
+  // allemaal over "de ander"; met een lege lijst zou de prompt over iemand praten
+  // die er niet is, en dan tekent het model die er alsnog bij.
+  const solo = luisteraars.length === 0;
   const luisterZinnen = luisteraars.map((l) =>
     `${aanduiding(l, false).replace(/^the/, "The")} is the listener and stays in a calm listening pose for the whole clip: ` +
     `lips gently pressed together in a small closed-mouth smile, nodding slowly in agreement, blinking, ` +

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { kaderVoorScene, buildTwoShotBrief } from "./dialogue-staging";
+import { kaderVoorScene, buildTwoShotBrief, buildTurnShotPrompt } from "./dialogue-staging";
 import type { DialogueCastMember } from "./dialogue-schema";
 
 // Elke scene kreeg exact hetzelfde kader, en omdat elk regelbeeld een bewerking
@@ -94,5 +94,34 @@ describe("buildTwoShotBrief met één personage", () => {
     expect(brief).toContain("on the LEFT");
     expect(brief).toContain("on the RIGHT");
     expect(brief).toContain("TOWARDS EACH OTHER");
+  });
+});
+
+// Een pratend personage zonder luisteraar. Sinds het scene-beeld alleen de
+// spelers van die scene bevat, komt dit voor bij elke scene waarin één iemand
+// praat — en dat liet zeven regels stuklopen op "Geen luisteraar in de cast".
+
+describe("buildTurnShotPrompt zonder luisteraar", () => {
+  const spreker = lid();
+
+  it("praat niet over iemand die er niet is", () => {
+    const p = buildTurnShotPrompt(spreker, [], "blij", "flat-vector");
+    expect(p).not.toContain("Everyone else keeps their mouth CLOSED");
+    expect(p).not.toContain("listens");
+    expect(p).not.toContain("listen in silence");
+    expect(p).toContain("NOBODY ELSE");
+  });
+
+  it("laat geen halve zin achter waar de luisteraar stond", () => {
+    const p = buildTurnShotPrompt(spreker, [], "", null);
+    expect(p).not.toMatch(/talks,\s+listen/);
+    expect(p).not.toContain("  ");
+  });
+
+  it("houdt met een luisteraar de oude tekst aan", () => {
+    const ander = lid({ id: "char-2", name: "Lily", position: "right" });
+    const p = buildTurnShotPrompt(spreker, [ander], "blij", null);
+    expect(p).toContain("Everyone else keeps their mouth CLOSED");
+    expect(p).toContain("Lily");
   });
 });
