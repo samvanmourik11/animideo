@@ -141,7 +141,7 @@ export interface BeeldOordeel {
  * Zonder die lijst telde het op dezelfde beelden twee rondes lang vier, en op de
  * goede beelden drie. Mislukt de telling, dan null: dan beslist de gewone controle.
  */
-async function telMensen(imageUrl: string): Promise<number | null> {
+export async function telMensen(imageUrl: string): Promise<number | null> {
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",

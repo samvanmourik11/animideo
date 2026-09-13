@@ -19,6 +19,7 @@ import ffmpegPath from "ffmpeg-static";
 import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { leesDiagnose } from "@/lib/infographics/fragment-diagnose";
+import { telMensen } from "@/lib/infographics/dialogue-verify";
 import { uiterlijkVan, VERTELLER_ID, type DialogueCastMember, type DialogueLine } from "@/lib/infographics/dialogue-schema";
 
 export const runtime = "nodejs";
@@ -84,6 +85,11 @@ const SYSTEEM =
   '- "beweging": het bronbeeld is goed en het gaat mis in de CLIP (praten, bewegen, vervormen, camera).\n' +
   'Zie je niets duidelijk fout, kies dan "beweging" en maak de beweging levendiger en passender bij wat er ' +
   "gezegd of getoond wordt.\n\n" +
+  // Wie te horen krijgt dat er iets mis is, gaat fouten zien: op een goed fragment
+  // meldde deze controle een dubbele Tyrell die er niet was. De telling hieronder
+  // is los gedaan, zonder te zeggen wie erin hoort, en die klopte wel.
+  "Noem alleen fouten die je ZEKER ziet. Er staat een onafhankelijke telling van het aantal mensen bij: ga " +
+  "daarvan uit. Klopt die telling met wat er verwacht wordt, dan is er niemand dubbel of extra.\n\n" +
   "De aanwijzingen schrijf je in het ENGELS, concreet en positief: zeg wat er moet gebeuren, niet alleen wat " +
   'niet mag ("Lilly appears once, standing on the right" in plaats van "no double Lilly").\n\n' +
   'Antwoord met JSON: {"fouten": ["..."], "opnieuw": "beeld"|"beweging", ' +
@@ -109,6 +115,18 @@ export async function POST(req: NextRequest) {
     ];
     if (beelden.length === 0) return NextResponse.json({ diagnose: leesDiagnose({}, false) });
 
+    // Tellen zonder verwachting, los van de diagnose: het bronbeeld en het midden
+    // van de clip. Zie telMensen.
+    const middenFrame = frames[Math.floor(frames.length / 2)];
+    const [inBron, inClip] = await Promise.all([
+      regel.shotImageUrl ? telMensen(regel.shotImageUrl) : Promise.resolve(null),
+      middenFrame ? telMensen(middenFrame) : Promise.resolve(null),
+    ]);
+    const telling = [
+      inBron !== null ? `bronbeeld ${inBron}` : "",
+      inClip !== null ? `midden van de clip ${inClip}` : "",
+    ].filter(Boolean).join(", ");
+
     const verteller = regel.characterId === VERTELLER_ID;
     const spreker = verteller ? null : cast.find((c) => c.id === regel.characterId);
     const zin = (regel.text ?? "").trim();
@@ -119,6 +137,7 @@ export async function POST(req: NextRequest) {
         ? `Wat je hoort te zien: ${(regel.actie ?? "").trim()}. Niemand praat zichtbaar.` +
           (zin ? ` Eroverheen zegt ${verteller ? "de verteller" : spreker?.name ?? "iemand"}: "${zin}"` : "")
         : `${spreker?.name ?? "Een personage"} praat en zegt: "${zin}". De anderen luisteren met hun mond dicht.`,
+      telling ? `Onafhankelijk geteld aantal mensen: ${telling} (verwacht: ${cast.length || "onbekend"}).` : "",
       regel.beeldWaarschuwingen?.length ? `De automatische controle zag eerder: ${regel.beeldWaarschuwingen.join("; ")}` : "",
       regel.shotImageUrl
         ? `Beeld 1 is het bronbeeld.${frames.length ? ` Beelden 2 tot en met ${frames.length + 1} zijn momenten uit de clip, van begin naar eind.` : " Er is nog geen clip."}`
