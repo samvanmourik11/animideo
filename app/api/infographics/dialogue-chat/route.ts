@@ -7,11 +7,13 @@ import { createClient } from "@/lib/supabase/server";
 import {
   DRAAIBOEK_TOOL, HERZIE_DRAAIBOEK_TOOL, buildChatSysteem, buildSamenhangSysteem,
   buildUitbreidSysteem, buildAanscherpSysteem, ILLUSTREER_TOOL, buildIllustreerSysteem,
-  toonDraaiboek,
-  type BibliotheekItem,
+  buildMomentSysteem, toonDraaiboek,
+  type BibliotheekItem, type VastgesteldeOpzet,
 } from "@/lib/infographics/dialogue-chat-tools";
 import {
   leesDeel, ordenDelen, vertellerBeeld, verhaallijnBlok, voegGelijkePlekSamen, zorgVoorVerteller, zorgVoorCitaten, kaalTekst,
+  zorgVoorMomenten,
+  scenesPerDeel, deelLabel,
   normaliseerVerhaallijn, type VerhaalDeel,
 } from "@/lib/infographics/verhaallijn";
 import { STORY_VOICES, kiesVertellerStem } from "@/lib/infographics/story-voices";
@@ -29,6 +31,7 @@ import {
   ACTIE_MIN_SEC,
   ACTIE_MAX_SEC,
   ACTIE_STANDAARD_SEC,
+  planVoorLengte,
   type DialogueSpec,
   type DialogueCastMember,
   type DialogueScene,
@@ -179,14 +182,40 @@ function leesScenes(ruwe: RuweScene[], cast: DialogueCastMember[], vorige: Dialo
           const eerderVerteld = vanVerteller.get(kaalTekst(l.text));
           if (eerderVerteld) return { ...eerderVerteld };
 
-          const cid = naarCastId(l.characterId);
+          // Bij een ACTIEBEELD betekent de spreker alleen wie er het meest in beeld
+          // is. Het model schrijft daar soms "Tyrell en Lilly" of "de kinderen", en
+          // dan viel het hele beeld weg — bij de Wonderwagen zo alle drie de regels
+          // van de synagoge. Zonder tekst hoort het beeld dan bij het eerste
+          // personage; mét tekst is er geen stem voor, dus vertelt de verteller het.
+          // Een dialoogregel zonder bestaande spreker kan niet uitgesproken worden
+          // en valt nog steeds weg.
+          const cid = naarCastId(l.characterId) ??
+            (l.kind === "actie" ? ((l.text ?? "").trim() ? VERTELLER_ID : cast[0]?.id ?? null) : null);
           if (!cid) return null;
 
           // Een actiebeeld heeft geen gesproken tekst maar een handeling; zonder
           // dit onderscheid zou de tekstcontrole hieronder het meteen weggooien.
           if (l.kind === "actie") {
             const actie = (l.actie ?? "").trim();
-            if (!actie) return null;
+            const gesproken = (l.text ?? "").trim();
+            if (!actie) {
+              // Een actiebeeld zonder beschrijving maar MET een gesproken zin: die zin
+              // mag niet verdwijnen omdat het beeld ontbreekt. Het is precies de
+              // vertellerzin of letterlijke zin waar het verhaal op leunt.
+              if (!gesproken) return null;
+              if (cid === VERTELLER_ID) {
+                return {
+                  kind: "actie", characterId: VERTELLER_ID, kader: "totaal",
+                  text: gesproken, emotion: (l.emotion ?? "").trim(),
+                  actie: vertellerBeeld(gesproken, setting), seconden: begrensSeconden(l.seconden),
+                  verband: (l.verband ?? "").trim() || null,
+                };
+              }
+              return {
+                kind: "dialoog", characterId: cid, kader: isKader(l.kader) ? l.kader : null,
+                text: gesproken, emotion: (l.emotion ?? "").trim() || "neutraal",
+              };
+            }
             // Tekst bij een actiebeeld = voice-over: je ziet het beeld, je hoort
             // de stem eroverheen. Zonder dit werd die zin stilzwijgend gewist.
             return {
@@ -269,7 +298,8 @@ function langsVerhaal(
   verhaallijn: VerhaalDeel[] | null | undefined,
   cast: DialogueCastMember[],
 ): DialogueScene[] {
-  return zorgVoorCitaten(zorgVoorVerteller(voegGelijkePlekSamen(ordenDelen(scenes)), verhaallijn), verhaallijn, cast);
+  const metAlleMomenten = zorgVoorMomenten(voegGelijkePlekSamen(ordenDelen(scenes)), verhaallijn, cast);
+  return zorgVoorCitaten(zorgVoorVerteller(metAlleMomenten, verhaallijn), verhaallijn, cast);
 }
 
 /**
@@ -768,6 +798,176 @@ async function voegIllustratiesToe(
   }
 }
 
+/**
+ * Het gewone draaiboek: één aanroep die het hele plan schrijft, of een wedervraag stelt.
+ * Levert óf een plan, óf een antwoord voor de gebruiker.
+ */
+async function vraagPlan(
+  berichten: Bericht[],
+  voorPrompt: BibliotheekItem[],
+  gewensteLengte: number,
+  opzetVoorPrompt: VastgesteldeOpzet | null,
+): Promise<{ plan?: RuwPlan; reply: string }> {
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o",
+    temperature: 0.7,
+    max_tokens: 8000,
+    tools: [DRAAIBOEK_TOOL],
+    messages: [
+      { role: "system", content: buildChatSysteem(voorPrompt, gewensteLengte, opzetVoorPrompt) },
+      ...berichten.map((m) => ({ role: m.role, content: m.content })),
+    ],
+  });
+
+  const keuze = completion.choices[0]?.message;
+  let toolCall = keuze?.tool_calls?.[0];
+
+  // Geen tool-aanroep betekent normaal: de assistent heeft een wedervraag. Maar
+  // bij een uitgebreide briefing schreef hij in plaats daarvan een heel verhaal
+  // uit — "### Keuzes", "### Draaiboek" — en dan blijft de gebruiker met lege
+  // handen achter. Een échte vraag is kort en eindigt met een vraagteken; een
+  // uitgeschreven plan niet. Ziet het er zo uit, dan vragen we het nog één keer
+  // en dwingen we de functie-aanroep af.
+  if (!toolCall) {
+    const tekst = (keuze?.content ?? "").trim();
+    const isVraag = tekst.includes("?") && tekst.length < 600;
+    if (!isVraag && tekst.length > 0) {
+      console.warn("[dialogue-chat] model beschreef zijn plan in plaats van het te maken; forceer de aanroep");
+      const nogmaals = await openai.chat.completions.create({
+        model: "gpt-4o",
+        temperature: 0.7,
+        max_tokens: 8000,
+        tools: [DRAAIBOEK_TOOL],
+        tool_choice: { type: "function", function: { name: DRAAIBOEK_TOOL.function.name } },
+        messages: [
+          { role: "system", content: buildChatSysteem(voorPrompt, gewensteLengte, opzetVoorPrompt) },
+          ...berichten.map((m) => ({ role: m.role, content: m.content })),
+        ],
+      });
+      toolCall = nogmaals.choices[0]?.message?.tool_calls?.[0];
+    }
+  }
+
+  if (!toolCall) {
+    return { reply: keuze?.content?.trim() || "Kun je dat iets uitgebreider beschrijven?" };
+  }
+  try {
+    return { plan: JSON.parse(toolCall.function.arguments || "{}") as RuwPlan, reply: "" };
+  } catch {
+    return { reply: "Ik kreeg mijn eigen plan niet rond. Kun je het nog eens proberen?" };
+  }
+}
+
+/**
+ * HET EIGEN VERHAAL VAN DE GEBRUIKER, moment voor moment geschreven.
+ *
+ * Eén aanroep die alle twaalf momenten van de Wonderwagen tegelijk uitschreef, voegde
+ * er onderweg twee samen, liet de deelnummers verschuiven (de vraag "Kunnen we echt
+ * overal naartoe?" viel vóór de onthulling van de wagen), en de verlengstap verzon
+ * er een markt en een gids bij. Per moment een eigen, kleine aanroep kan dat niet:
+ * de volgorde ligt vast, elk moment krijgt precies zijn eigen zinnen, en er is geen
+ * ruimte om iets anders te gaan vertellen. Ze lopen tegelijk, dus het duurt niet langer.
+ */
+async function schrijfMomenten(opzet: DialogueSetup, gewensteLengte: number): Promise<RuweScene[]> {
+  const lijn = opzet.verhaallijn ?? [];
+  const taal = opzet.language || "Nederlands";
+  const perMoment = scenesPerDeel(planVoorLengte(gewensteLengte).regels, lijn.length, false);
+  const persoon = (characterId: string) => opzet.cast.find((c) => c.characterId === characterId);
+  const naarCastId = maakVertaler(opzet.cast);
+  const castBlok = opzet.cast
+    .map((c) => `- id "${c.id}" = ${c.name}${c.role ? ` (${c.role})` : ""}${c.leeftijd ? `, ${c.leeftijd}` : ""}${c.spraak ? `; praat: ${c.spraak}` : ""}`)
+    .join("\n");
+  // Het overzicht zonder de letterlijke zinnen: met die zinnen erin schreef de
+  // aanroep voor moment 1 de zinnen van moment 2 alvast op, en viel moment 2 daarna
+  // als herhaling weg.
+  const overzicht = lijn.map((d, i) => `${i + 1}. ${deelLabel(d, i)} — ${d.wat}`).join("\n");
+
+  const perDeel = await Promise.all(
+    lijn.map(async (d, i): Promise<RuweScene[]> => {
+      const citaten = (d.citaten ?? [])
+        .map((c) => { const p = persoon(c.wie); return p ? `- ${p.name} [${p.id}]: "${c.tekst}"` : ""; })
+        .filter(Boolean);
+      const inBeeld = d.wie.map((id) => persoon(id)).filter((p): p is NonNullable<typeof p> => !!p).map((p) => `${p.name} [${p.id}]`).join(", ");
+      const aantalRegels = Math.max(perMoment[i] ?? 2, (d.verteller ? 1 : 0) + citaten.length + 1);
+
+      // Mislukt een moment, dan blijft er in elk geval staan wat vastligt: de
+      // vertellerzin en de letterlijke zinnen. Een moment dat stilletjes wegvalt is
+      // precies wat de gebruiker niet mag overkomen.
+      const noodScene: RuweScene = {
+        deel: i + 1,
+        setting: d.plek,
+        lines: [
+          ...(d.verteller || d.wat ? [{ kind: "dialoog", characterId: VERTELLER_ID, text: d.verteller || d.wat, emotion: "" }] : []),
+          ...(d.citaten ?? []).flatMap((c) => { const p = persoon(c.wie); return p ? [{ kind: "dialoog", characterId: p.id, text: c.tekst, emotion: "neutraal" }] : []; }),
+        ],
+      };
+
+      try {
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o",
+          temperature: 0.6,
+          max_tokens: 2500,
+          tools: [HERZIE_DRAAIBOEK_TOOL],
+          tool_choice: { type: "function", function: { name: HERZIE_DRAAIBOEK_TOOL.function.name } },
+          messages: [
+            {
+              role: "system",
+              content: buildMomentSysteem({
+                bron: opzet.text, overzicht, castBlok, nummer: i + 1, totaal: lijn.length,
+                label: deelLabel(d, i), moment: d, inBeeld, citaten, aantalRegels, taal,
+              }),
+            },
+            { role: "user", content: `Schrijf moment ${i + 1}: ${deelLabel(d, i)}.` },
+          ],
+        });
+        const call = completion.choices[0]?.message?.tool_calls?.[0];
+        const uit = JSON.parse(call?.function.arguments || "{}") as { scenes?: RuweScene[] };
+        const scenes = (uit.scenes ?? []).slice(0, 2).map((s) => ({ ...s, deel: i + 1 }));
+        const ruw = scenes.flatMap((s) => s.lines ?? []);
+        const onbekend = ruw.filter((l) => !naarCastId(l.characterId)).map((l) => `"${l.characterId ?? ""}"`);
+        console.log(
+          `[dialogue-chat] moment ${i + 1} (${deelLabel(d, i)}): ${scenes.length} scènes, ${ruw.length} regels, ` +
+          `verteller ${ruw.filter((l) => (l.characterId ?? "").toLowerCase() === VERTELLER_ID).length}, ` +
+          `actiebeeld zonder beschrijving ${ruw.filter((l) => l.kind === "actie" && !(l.actie ?? "").trim()).length}, ` +
+          `onbekende spreker ${onbekend.length}${onbekend.length ? ` (${[...new Set(onbekend)].join(", ")})` : ""}`
+        );
+        return scenes.some((s) => (s.lines ?? []).length) ? scenes : [noodScene];
+      } catch (e) {
+        console.error(`[dialogue-chat] moment ${i + 1} schrijven mislukt:`, e);
+        return noodScene.lines?.length ? [noodScene] : [];
+      }
+    }),
+  );
+
+  // Een moment bevat alleen zijn EIGEN letterlijke zinnen. Ziet het model er toch
+  // een van een ander moment in staan, dan gaat die eruit; zorgVoorCitaten zet hem
+  // daarna bij het goede moment.
+  const citaatVan = lijn
+    .flatMap((d, i) => (d.citaten ?? []).map((c) => ({ i, tekst: kaalTekst(c.tekst) })))
+    .filter((c) => c.tekst.length >= 8);
+  perDeel.forEach((scenes, i) => scenes.forEach((s) => {
+    s.lines = (s.lines ?? []).filter((l) => !citaatVan.some((c) => c.i !== i && kaalTekst(l.text).includes(c.tekst)));
+  }));
+
+  // Momenten op dezelfde plek krijgen dezelfde omgeving, woord voor woord. De
+  // aanroepen lopen tegelijk en zien elkaars beschrijving niet; zonder dit werd
+  // oma's woonkamer in moment 1 en moment 2 twee verschillende kamers.
+  const eersteOmgeving = new Map<string, string>();
+  lijn.forEach((d, i) => {
+    const plek = kaalTekst(d.plek);
+    const eigen = perDeel[i]?.[0]?.setting?.trim();
+    if (!plek || !eigen) return;
+    const eerder = eersteOmgeving.get(plek);
+    if (eerder) perDeel[i].forEach((s) => { s.setting = eerder; });
+    else eersteOmgeving.set(plek, eigen);
+  });
+
+  return perDeel.flat();
+}
+
+/** Muziek bij de toon, voor een draaiboek dat niet uit de grote schrijfaanroep komt. */
+const muziekBijToon = (toon?: string) => (toon === "zakelijk" ? "zakelijk" : toon === "energiek" ? "actie" : "vrolijk");
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
@@ -818,55 +1018,22 @@ export async function POST(req: NextRequest) {
       id: c.id, name: c.name, description: c.description, gender: c.gender, age_range: c.age_range,
     }));
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      temperature: 0.7,
-      max_tokens: 8000,
-      tools: [DRAAIBOEK_TOOL],
-      messages: [
-        { role: "system", content: buildChatSysteem(voorPrompt, gewensteLengte, opzetVoorPrompt) },
-        ...berichten.map((m) => ({ role: m.role, content: m.content })),
-      ],
-    });
-
-    const keuze = completion.choices[0]?.message;
-    let toolCall = keuze?.tool_calls?.[0];
-
-    // Geen tool-aanroep betekent normaal: de assistent heeft een wedervraag. Maar
-    // bij een uitgebreide briefing schreef hij in plaats daarvan een heel verhaal
-    // uit — "### Keuzes", "### Draaiboek" — en dan blijft de gebruiker met lege
-    // handen achter. Een échte vraag is kort en eindigt met een vraagteken; een
-    // uitgeschreven plan niet. Ziet het er zo uit, dan vragen we het nog één keer
-    // en dwingen we de functie-aanroep af.
-    if (!toolCall) {
-      const tekst = (keuze?.content ?? "").trim();
-      const isVraag = tekst.includes("?") && tekst.length < 600;
-      if (!isVraag && tekst.length > 0) {
-        console.warn("[dialogue-chat] model beschreef zijn plan in plaats van het te maken; forceer de aanroep");
-        const nogmaals = await openai.chat.completions.create({
-          model: "gpt-4o",
-          temperature: 0.7,
-          max_tokens: 8000,
-          tools: [DRAAIBOEK_TOOL],
-          tool_choice: { type: "function", function: { name: DRAAIBOEK_TOOL.function.name } },
-          messages: [
-            { role: "system", content: buildChatSysteem(voorPrompt, gewensteLengte, opzetVoorPrompt) },
-            ...berichten.map((m) => ({ role: m.role, content: m.content })),
-          ],
-        });
-        toolCall = nogmaals.choices[0]?.message?.tool_calls?.[0];
-      }
-    }
-
-    if (!toolCall) {
-      return NextResponse.json({ reply: keuze?.content?.trim() || "Kun je dat iets uitgebreider beschrijven?" });
-    }
-
+    // Het eigen verhaal van de gebruiker wordt moment voor moment geschreven; een
+    // idee gaat door de gewone schrijfaanroep. Zie schrijfMomenten.
+    const volgOpzet = opzet?.modus === "volgen" && (opzet.verhaallijn ?? []).length > 0 ? opzet : null;
     let plan: RuwPlan;
-    try {
-      plan = JSON.parse(toolCall.function.arguments || "{}");
-    } catch {
-      return NextResponse.json({ reply: "Ik kreeg mijn eigen plan niet rond. Kun je het nog eens proberen?" });
+    if (volgOpzet) {
+      plan = {
+        toelichting:
+          `Ik heb je verhaal moment voor moment uitgewerkt: ${(volgOpzet.verhaallijn ?? []).length} momenten, ` +
+          "in jouw volgorde en met je eigen zinnen letterlijk erin.",
+        muziekCategorie: muziekBijToon(volgOpzet.tone),
+        scenes: await schrijfMomenten(volgOpzet, gewensteLengte),
+      };
+    } else {
+      const uitkomst = await vraagPlan(berichten, voorPrompt, gewensteLengte, opzetVoorPrompt);
+      if (!uitkomst.plan) return NextResponse.json({ reply: uitkomst.reply });
+      plan = uitkomst.plan;
     }
 
     // De opzet wint van het model. Het model schrijft de scènes; wélke mensen
@@ -938,9 +1105,15 @@ export async function POST(req: NextRequest) {
     // waarna de eindredactie alle scènes herschreef en er de helft uit snoeide.
     // Een gebruiker die op "1 minuut" klikte kreeg zo dertig seconden. Het laatste
     // woord over de lengte hoort bij de stap die over lengte gaat.
-    spec.scenes = await controleerSamenhang(spec.scenes, spec.cast, spec.language ?? "Nederlands", lijnTekst, volg);
+    // Niet bij het eigen verhaal van de gebruiker: dat is moment voor moment
+    // geschreven, en de volgorde ligt vast. Deze controle mag scènes verplaatsen en
+    // toevoegen, en dat is daar precies wat niet mag.
+    if (!volg) spec.scenes = await controleerSamenhang(spec.scenes, spec.cast, spec.language ?? "Nederlands", lijnTekst, volg);
     telRegels("na samenhang", spec.scenes);
-    spec.scenes = await brengOpLengte(
+    // Ook niet bij het eigen verhaal: de verlengstap verzon er bij de Wonderwagen,
+    // ondanks het verbod, een markt en een plaatselijke gids bij. De lengte volgt
+    // daar uit het aantal regels per moment.
+    if (!volg) spec.scenes = await brengOpLengte(
       spec.scenes,
       spec.cast,
       spec.language ?? "Nederlands",

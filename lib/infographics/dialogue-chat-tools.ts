@@ -779,6 +779,63 @@ export function toonDraaiboek(
   return `DE CAST:\n${castRegels}\n\n${sceneRegels}`;
 }
 
+/**
+ * Systeemprompt om ÉÉN moment uit het eigen verhaal van de gebruiker uit te schrijven.
+ *
+ * Eén aanroep die twaalf momenten tegelijk uitschreef, voegde er onderweg twee
+ * samen, liet de deelnummers verschuiven en stelde zo de vraag "Kunnen we echt
+ * overal naartoe?" nog vóór de wagen onthuld was. Met één moment per aanroep kan
+ * dat niet: het model ziet het hele verhaal als achtergrond, maar schrijft alleen
+ * dit ene stuk, met precies deze zinnen.
+ */
+export function buildMomentSysteem(m: {
+  bron: string;
+  overzicht: string;
+  castBlok: string;
+  nummer: number;
+  totaal: number;
+  label: string;
+  moment: VerhaalDeel;
+  inBeeld: string;
+  citaten: string[];
+  aantalRegels: number;
+  taal: string;
+}): string {
+  return `Je schrijft één moment uit een geanimeerde verhaalvideo voor kinderen. Het verhaal is van de gebruiker en ligt vast; jij maakt van ÉÉN moment de scène.
+
+HET HELE VERHAAL VAN DE GEBRUIKER — alleen als achtergrond, je schrijft alleen moment ${m.nummer}:
+"""
+${m.bron.slice(0, 6000)}
+"""
+
+ALLE MOMENTEN, IN VOLGORDE:
+${m.overzicht}
+
+DE CAST (gebruik exact deze id's):
+${m.castBlok}
+
+JOUW MOMENT: ${m.nummer} van ${m.totaal} — ${m.label}
+Wat er gebeurt: ${m.moment.wat}
+Plek: ${m.moment.plek || "zoals de tekst het beschrijft"}
+In beeld: ${m.inBeeld || "zoals de tekst het beschrijft"}
+${m.moment.verteller ? `Vertellerzin: "${m.moment.verteller}"` : "Dit moment heeft nog geen vertellerzin; die schrijf je zelf (zie hieronder)."}
+${m.citaten.length ? `Letterlijke zinnen uit de tekst, in deze volgorde:\n${m.citaten.join("\n")}` : "In dit moment zegt in de tekst niemand letterlijk iets."}
+
+WAT JE SCHRIJFT
+- Eén scène met "deel" ${m.nummer}. Twee scènes alleen als het moment echt van plek wisselt. Samen ongeveer ${m.aantalRegels} regels.
+- "setting": de plek in het ENGELS, concreet genoeg om te tekenen. Is het een echte, bestaande plek, beschrijf dan wat hem herkenbaar maakt. Noem geen personen.
+${m.moment.verteller
+  ? `- De eerste regel is de vertellerzin, letterlijk: kind "actie", characterId "verteller", "text" is de vertellerzin, "actie" beschrijft in het Engels wat je ziet, kader een totaalbeeld.\n`
+  : `- De eerste regel is een korte vertellerzin die je zelf schrijft, in de derde persoon en de verleden tijd, zoals een voorleesboek: waar ze zijn en wat ze doen, dicht bij de tekst. kind "actie", characterId "verteller", "actie" beschrijft in het Engels wat je ziet, kader een totaalbeeld.\n`}- Vul bij elk actiebeeld ALTIJD "actie" in: de Engelse beschrijving van wat je ziet.
+- Zet de letterlijke zinnen erin, precies zoals ze er staan, door die persoon, in die volgorde.
+- Gebruik uit de tekst ALLEEN de letterlijke zinnen die hierboven bij JOUW moment staan. Zinnen die bij een ander moment horen, komen daar — niet hier.
+- Vul aan met gewone zinnen van de personages die in beeld zijn: wat ze zien, wat ze ervan vinden, wat iemand uitlegt. ALLEEN over wat de tekst over dit moment vertelt. Geen nieuwe gebeurtenissen, plekken, voorwerpen of mensen, en niets wat bij een ander moment hoort.
+- Een actiebeeld beschrijf je in het Engels, op menselijke schaal: lopen, wijzen, kijken, iets aanraken. Geen rijdende of vliegende voertuigen, geen machines die bewegen.
+- Wissel de kaders af. Een close-up kan maar met één personage.
+- Gesproken tekst in het ${m.taal}: één natuurlijke zin van ongeveer twaalf woorden, zoals je tegen kinderen praat. Getallen voluit.
+- In "toelichting" één korte zin.`;
+}
+
 /** Systeemprompt voor het herzien van een bestaand draaiboek. */
 export function buildHerzieSysteem(draaiboek: string, taal: string, eenScene: boolean, verhaallijn?: string | null): string {
   return `Je bent regisseur van een korte geanimeerde dialoogvideo en past een BESTAAND draaiboek aan.

@@ -16,6 +16,7 @@ import {
   vertellerBeeld,
   zorgVoorVerteller,
   zorgVoorCitaten,
+  zorgVoorMomenten,
   voegGelijkePlekSamen,
   type VerhaalDeel,
 } from "./verhaallijn";
@@ -403,6 +404,42 @@ describe("zorgVoorVerteller bij een zin die al in de mond van een personage lag"
     })];
     const uit = zorgVoorVerteller(scenes, fortLijn);
     expect(uit[0].lines.map((l) => l.characterId)).toEqual([VERTELLER_ID, "char-2"]);
+  });
+});
+
+describe("zorgVoorMomenten", () => {
+  const cast = CAST.map(({ id, characterId }) => ({ id, characterId }));
+  const reis = [
+    moment("Bij oma", "Ze komen binnen.", { verteller: "Op een zonnige middag gingen ze naar oma." }),
+    moment("Synagoge en Moskee", "Ze bezoeken de Synagoge Neve Shalom en de Moskee.", {
+      citaten: [{ wie: "uuid-mama", tekst: "Kijk, ze staan vlak naast elkaar." }],
+    }),
+    moment("Terug", "Ze stappen weer in de wagen."),
+  ];
+
+  it("zet een verdwenen moment terug op zijn plek in de volgorde", () => {
+    const scenes = [scene({ id: "a", deel: 1 }), scene({ id: "c", deel: 3 })];
+    const uit = zorgVoorMomenten(scenes, reis, cast);
+    expect(uit.map((s) => s.deel)).toEqual([1, 2, 3]);
+    const terug = uit[1];
+    expect(terug.lines[0].characterId).toBe(VERTELLER_ID);
+    // Zonder vertellerzin vertelt de verteller wat er gebeurt.
+    expect(terug.lines[0].text).toBe("Ze bezoeken de Synagoge Neve Shalom en de Moskee.");
+    expect(terug.lines[1]).toMatchObject({ characterId: "char-3", text: "Kijk, ze staan vlak naast elkaar." });
+  });
+
+  it("zet een letterlijke zin niet dubbel als hij al bij een ander moment staat", () => {
+    const scenes = [
+      scene({ id: "a", deel: 1, lines: [{ characterId: "char-3", text: "Kijk, ze staan vlak naast elkaar.", emotion: "blij" }] }),
+      scene({ id: "c", deel: 3 }),
+    ];
+    const uit = zorgVoorMomenten(scenes, reis, cast);
+    expect(uit[1].lines.map((l) => l.characterId)).toEqual([VERTELLER_ID]);
+  });
+
+  it("laat een verzonnen verhaal met vaste delen ongemoeid", () => {
+    const scenes = [scene({ deel: 1 })];
+    expect(zorgVoorMomenten(scenes, lijn(), cast)).toBe(scenes);
   });
 });
 

@@ -490,6 +490,57 @@ export function zorgVoorVerteller(scenes: DialogueScene[], lijn: VerhaalDeel[] |
 }
 
 /**
+ * Elk moment van een GEVOLGD verhaal staat in het draaiboek, ook als het schrijven
+ * ervan mislukte of alles eruit gefilterd werd.
+ *
+ * Bij de Wonderwagen verdwenen oma's geheim, de synagoge en de binnenstad
+ * stilletjes: hun scène bleef leeg achter en werd weggegooid. Een plek uit je eigen
+ * verhaal die zomaar ontbreekt, is precies wat niet mag. Wat vastligt — de
+ * vertellerzin (of anders wat er gebeurt) en de letterlijke zinnen — komt er dan in
+ * elk geval te staan, op zijn plek in de volgorde. Een verzonnen verhaal (met fasen)
+ * blijft ongemoeid.
+ */
+export function zorgVoorMomenten(
+  scenes: DialogueScene[],
+  lijn: VerhaalDeel[] | null | undefined,
+  cast: { id: string; characterId: string }[],
+): DialogueScene[] {
+  if (!lijn?.length || lijn.some((d) => d.fase)) return scenes;
+  const uit = [...scenes];
+  const alGezegd = (zin: string) =>
+    uit.some((s) => s.lines.some((l) => kaalTekst(l.text).includes(kaalTekst(zin))));
+
+  lijn.forEach((d, i) => {
+    const deel = i + 1;
+    if (uit.some((s) => s.deel === deel)) return;
+
+    const setting = d.plek || d.titel;
+    const zin = d.verteller || d.wat;
+    const lines: DialogueLine[] = [];
+    if (zin) {
+      lines.push({
+        kind: "actie", characterId: VERTELLER_ID, kader: "totaal", text: zin, emotion: "",
+        actie: vertellerBeeld(zin, setting), seconden: ACTIE_STANDAARD_SEC,
+        verband: `${deelLabel(d, i).toLowerCase()}: dit moment kwam niet uit het schrijven, dus staat het vaste deel erin`,
+      });
+    }
+    for (const c of d.citaten ?? []) {
+      const p = cast.find((k) => k.characterId === c.wie);
+      // Staat de zin al ergens (bij een verkeerd moment), dan niet nog een keer.
+      if (p && !alGezegd(c.tekst)) lines.push({ kind: "dialoog", characterId: p.id, kader: null, text: c.tekst, emotion: "neutraal" });
+    }
+    if (lines.length === 0) return;
+
+    const scene: DialogueScene = { id: `moment-${deel}`, setting, licht: null, deel, lines };
+    const erna = uit.findIndex((s) => (s.deel ?? 0) > deel);
+    if (erna < 0) uit.push(scene);
+    else uit.splice(erna, 0, scene);
+  });
+
+  return uit;
+}
+
+/**
  * Elke letterlijke zin uit het verhaal van de gebruiker staat in het draaiboek, bij
  * het juiste moment en in de mond van de juiste persoon.
  *
