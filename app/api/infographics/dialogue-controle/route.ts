@@ -48,10 +48,10 @@ Wees streng op ECHTE fouten en zeur niet. Tekenstijl, vereenvoudigde vormen, een
 Antwoord met JSON: {"fouten": [{"soort": "...", "wat": "...", "instructie": "..."}]}. Klopt alles: {"fouten": []}.
 
 SOORTEN
-- "wie-in-beeld": iemand die in beeld hoort, ontbreekt; of er staat iemand die er niet hoort (iemand die niet in de cast staat, of een tweede versie van hetzelfde personage).
+- "wie-in-beeld": iemand die in beeld hoort, ontbreekt; of er staat iemand die er niet hoort, van dichtbij of als tweede versie van hetzelfde personage.
 - "uiterlijk": een personage ziet er duidelijk anders uit dan beschreven — ander gezicht, ander kapsel, andere kleding, andere huidskleur of leeftijd — of het is zichtbaar een ander persoon.
 - "tekst-in-beeld": letters, woorden of verzonnen tekst op muren, borden of voorwerpen.
-- "plek": het shot speelt op een TOTAAL andere plek dan de scène én dan wat het shot volgens zijn beschrijving laat zien — bijvoorbeeld een huiskamer terwijl ze bij een fort horen te zijn. Binnen of buiten hetzelfde gebouw is GEEN fout, een ander deel van dezelfde plek ook niet, en een voorwerp uit de omschrijving dat ontbreekt (een tafel, een kanon) evenmin.
+- "plek": het shot speelt duidelijk ergens anders dan de plek van de scène, bijvoorbeeld binnen terwijl het buiten hoort.
 - "voorwerp": een vast voorwerp uit de beeldregie ziet er anders uit dan daar beschreven.
 - "lichaam": iets wat fysiek niet kan: vergroeide of ontbrekende ledematen, iemand die in een voorwerp staat of zweeft, gebouwen of voorwerpen die dubbel staan.
 
@@ -76,12 +76,7 @@ async function controleerShot(spec: DialogueSpec, si: number, li: number): Promi
   if (kader === "detail") {
     verwacht = "Dit is een detailopname: er hoeft niemand herkenbaar in beeld te zijn.";
   } else if (!isActie && spreker && (kader === "close" || kader === "extreme-close")) {
-    // De eerste proef meldde bij vier close-ups dat de anderen er "te veel" in
-    // stonden, en bundelde er twee tot een scèneherstel met tegenstrijdige
-    // aanwijzingen. Dat is een camerakeuze, geen fout in het verhaal.
-    verwacht =
-      `Close-up van ${beschrijf(spreker)}: die hoort in beeld. Staan anderen uit de scène er ook (deels) in, ` +
-      `dan is dat GEEN fout. Meld alleen als ${spreker.name} ontbreekt, of als er iemand staat die niet in de scène hoort.`;
+    verwacht = `Close-up: alleen ${beschrijf(spreker)} hoort in beeld.`;
   } else if (isActie) {
     const genoemd = inScene.filter((c) => new RegExp(`(^|[^\\p{L}])${zoekNaam(c.name)}([^\\p{L}]|$)`, "iu").test(l.actie ?? ""));
     const rest = inScene.filter((c) => !genoemd.includes(c));
@@ -97,9 +92,7 @@ async function controleerShot(spec: DialogueSpec, si: number, li: number): Promi
   const tekst = [
     `DE PLEK VAN DEZE SCÈNE: ${scene.setting}${deel?.plek ? ` (${deel.plek})` : ""}`,
     verwacht,
-    isActie
-      ? `DIT SHOT TOONT: ${l.actie}\n(Bij dit shot is deze beschrijving leidend voor de plek: laat het de aankomst of een ander deel van de plek zien, dan is dat goed.)`
-      : `${wie} praat in dit shot.`,
+    isActie ? `DIT SHOT TOONT: ${l.actie}` : `${wie} praat in dit shot.`,
     (l.text ?? "").trim() ? `Wat er gezegd wordt: ${wie}: "${l.text}"` : "",
     (spec.illustrationBrief ?? "").trim() ? `BEELDREGIE (vaste voorwerpen staan hierin beschreven): ${spec.illustrationBrief}` : "",
     "Controleer het shot.",
@@ -182,20 +175,16 @@ export async function POST(req: NextRequest) {
 
     // Eén keer per versie. De uitslag staat in het bewaarde project; is deze versie
     // al gecontroleerd, dan krijgt de gebruiker die uitslag terug en kost het niets.
-    // Zonder project kan dat niet worden nagegaan, dus dan geen controle: anders is
-    // "één keer per versie" te omzeilen door het project gewoon niet mee te sturen.
-    if (!body.projectId) {
-      return NextResponse.json({ error: "Bewaar je project eerst, daarna kun je de video laten controleren." }, { status: 400 });
+    if (body.projectId) {
+      const { data } = await supabase
+        .from("projects")
+        .select("story_spec")
+        .eq("id", body.projectId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      const eerder = (data?.story_spec as DialogueSpec | null)?.controle;
+      if (eerder && eerder.versie === versie) return NextResponse.json({ controle: eerder, eerder: true });
     }
-    const { data: project } = await supabase
-      .from("projects")
-      .select("story_spec")
-      .eq("id", body.projectId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (!project) return NextResponse.json({ error: "Project niet gevonden" }, { status: 404 });
-    const eerder = (project.story_spec as DialogueSpec | null)?.controle;
-    if (eerder && eerder.versie === versie) return NextResponse.json({ controle: eerder, eerder: true });
 
     const shots = spec.scenes
       .flatMap((s, si) => s.lines.map((l, li) => ({ si, li, beeld: l.shotImageUrl })))
@@ -218,7 +207,7 @@ export async function POST(req: NextRequest) {
       controleerVerhaal(spec),
     ]);
 
-    const fouten = nummerFouten([...controleerDraaiboek(spec), ...bundelPerScene(shotFouten, spec), ...verhaalFouten]);
+    const fouten = nummerFouten([...controleerDraaiboek(spec), ...bundelPerScene(shotFouten), ...verhaalFouten]);
     const controle: VideoControleUitslag = {
       versie,
       gecontroleerdOp: new Date().toISOString(),
