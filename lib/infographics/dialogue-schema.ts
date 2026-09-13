@@ -393,15 +393,19 @@ export function voorwerpenInScene(
     .toLowerCase();
   return (voorwerpen ?? [])
     .filter((v) => v.uiterlijk.trim())
-    .filter((v) => {
-      const kern = v.naam.trim().toLowerCase().replace(/^(?:de|het|een|the|an?)\s+/, "");
-      if (kern.length < 2) return false;
-      if (tekst.includes(kern)) return true;
-      // "Oma's Wonderwagen" heet in de scène gewoon "de Wonderwagen".
-      const laatste = kern.split(/\s+/).pop() ?? "";
-      return laatste.length >= 4 && laatste !== kern && tekst.includes(laatste);
-    })
+    .filter((v) => noemtVoorwerp(v.naam, tekst))
     .slice(0, MAX_VOORWERPEN_PER_BEELD);
+}
+
+/** Wordt dit voorwerp in deze tekst genoemd? */
+export function noemtVoorwerp(naam: string, tekst: string): boolean {
+  const kern = naam.trim().toLowerCase().replace(/^(?:de|het|een|the|an?)\s+/, "");
+  const inTekst = tekst.toLowerCase();
+  if (kern.length < 2) return false;
+  if (inTekst.includes(kern)) return true;
+  // "Oma's Wonderwagen" heet in de scène gewoon "de Wonderwagen".
+  const laatste = kern.split(/\s+/).pop() ?? "";
+  return laatste.length >= 4 && laatste !== kern && inTekst.includes(laatste);
 }
 
 /** Alle regels van alle scènes, met hun plek erbij. */

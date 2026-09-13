@@ -154,7 +154,14 @@ export async function POST(req: NextRequest) {
         "Keep the characters identical to that image — same faces, hair, clothing, colours, drawing style, and " +
         "the same body heights relative to each other (whoever is taller there stays taller here, by the same " +
         "amount) — and keep them standing in the same left/right arrangement. ONLY the surroundings change to " +
-        "the new location described above."
+        "the new location described above." +
+        // De salontafel met kopjes en plantje uit oma's woonkamer stond ineens in de
+        // oude kamer achter in het huis: het model nam het anker ook als decor mee.
+        // Is het anker juist een beeld van deze plek, dan hoort het meubilair er wél bij.
+        (anker !== locatieRef
+          ? " Take ONLY the people from that image. None of its furniture, tables, cups, plants, rugs or other " +
+            "objects come along: this is a different place, furnished only as described above."
+          : "")
       : "";
 
     // Wie er in beeld mag staan. De cast is de cast; achtergrondfiguren maken van

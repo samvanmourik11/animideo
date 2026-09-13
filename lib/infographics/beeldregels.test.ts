@@ -140,6 +140,7 @@ describe("NATUURWETTEN", () => {
   it("houdt de symbolen van gebedshuizen uit elkaar", () => {
     expect(NATUURWETTEN).toContain("Star of David");
     expect(NATUURWETTEN).toContain("never two faiths' symbols on one building");
+    expect(NATUURWETTEN).toContain("leave the flagpole bare");
   });
 });
 
@@ -176,5 +177,11 @@ describe("vaste voorwerpen", () => {
     expect(voorwerpRegie([wagen])).toContain("purple camper van");
     expect(voorwerpRegie([wagen])).not.toContain("reference image");
     expect(voorwerpRegie([{ ...wagen, bladUrl: "https://x/blad.jpg" }])).toContain("reference image");
+  });
+
+  it("zet het voorwerp vol in beeld als de handeling erover gaat", () => {
+    const onthulling = voorwerpRegie([wagen], "Oma removes the cover, revealing the Wonderwagen");
+    expect(onthulling).toContain("clearly and fully visible");
+    expect(voorwerpRegie([wagen], "Tyrell and Lilly look at each other")).not.toContain("clearly and fully visible");
   });
 });

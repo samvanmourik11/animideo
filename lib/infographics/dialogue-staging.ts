@@ -23,7 +23,7 @@
 //     model zelf waar de wissel valt en negeert het opgegeven tijdstippen volledig;
 //     de stem loopt dan uit de pas met de mond. Eén spreker per clip lost dat op.
 
-import { uiterlijkVan, type DialogueCastMember, type DialogueVoorwerp } from "./dialogue-schema";
+import { noemtVoorwerp, uiterlijkVan, type DialogueCastMember, type DialogueVoorwerp } from "./dialogue-schema";
 import { STORY_STYLE_PRESETS } from "./story-style";
 import { kaderRegie, bewegingRegie, type Kader, type Beweging } from "./verhaal-kaders";
 import { beeldSfeer, type Lichtsoort } from "./verhaal-licht";
@@ -106,7 +106,9 @@ export const NATUURWETTEN =
   // plakt dan alle symbolen die het bij "gebedshuis" kent op één gevel.
   "A place of worship carries only the symbol of its own faith — a cross only on a church, a Star of David " +
   "only on a synagogue, a crescent only on a mosque — never two faiths' symbols on one building. When in " +
-  "doubt, leave the symbol off.";
+  "doubt, leave the symbol off. " +
+  // Bij het paleis wapperde een rood-wit-blauwe vlag met een ster: geen enkel land.
+  "Draw a flag only when its exact design is described in this prompt; otherwise leave the flagpole bare.";
 
 const MENSEN = "people|persons|crowds?|tourists|locals|visitors|pedestrians|passers-?by|vendors|shoppers|families|children|kids|residents|onlookers";
 const MENSENZIN = new RegExp(
@@ -209,10 +211,18 @@ export const ZITTEN_REGEL =
  * water een paars busje en thuis een gele jeep met koffers. Zonder vaste
  * beschrijving verzint het beeldmodel hem per beeld opnieuw.
  */
-export function voorwerpRegie(voorwerpen: DialogueVoorwerp[] | null | undefined): string {
+export function voorwerpRegie(
+  voorwerpen: DialogueVoorwerp[] | null | undefined,
+  /** Wat er in dit shot gebeurt. Noemt het een voorwerp, dan moet dat duidelijk in beeld. */
+  handeling?: string | null,
+): string {
   const bekend = (voorwerpen ?? []).filter((v) => v.naam.trim() && v.uiterlijk.trim());
   if (!bekend.length) return "";
   const metBlad = bekend.some((v) => (v.bladUrl ?? "").trim());
+  // "Oma haalt het doek eraf en onthult de Wonderwagen" — en in beeld zat Lilly op
+  // een tafeltje vóór de wagen, die half achter haar en het doek verdween. Het
+  // belangrijkste moment van het verhaal, en je zag het niet.
+  const hoofdrol = handeling ? bekend.filter((v) => noemtVoorwerp(v.naam, handeling)) : [];
   return (
     `RECURRING OBJECTS — whenever one of these appears in this image, it looks exactly like this: ` +
     bekend.map((v) => `${v.naam.trim()}: ${v.uiterlijk.trim().replace(/\.?$/, ".")}`).join(" ") +
@@ -221,7 +231,11 @@ export function voorwerpRegie(voorwerpen: DialogueVoorwerp[] | null | undefined)
         "exactly, but draw it inside this scene at a believable size next to the people. Do not copy the plain " +
         "background and never show the reference sheet itself."
       : "") +
-    " If the scene takes place INSIDE the object, its walls, windows and seats match those colours and details."
+    " If the scene takes place INSIDE the object, its walls, windows and seats match those colours and details." +
+    (hoofdrol.length
+      ? ` In this shot the ${hoofdrol.map((v) => v.naam.trim()).join(" and ")} is clearly and fully visible — it ` +
+        `matters to what happens here, so nobody stands or sits in front of it and it is not cut off by the frame.`
+      : "")
   );
 }
 

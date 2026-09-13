@@ -422,7 +422,7 @@ export async function POST(req: NextRequest) {
             `This shot contains ONLY these ${cast.length === 1 ? "person" : "people"}: ${cast.map((c) => c.name).join(" and ")}. ` +
               "Do not add another person — no extra adults, no children, no bystanders, no background figures. " +
               iederEenKeer(cast.map((c) => c.name)),
-            voorwerpRegie(voorwerpen),
+            voorwerpRegie(voorwerpen, isActieBeeld ? actieTekst : null),
             // Ook bij een actiebeeld, zolang de handeling zelf niets over zitten of
             // staan zegt; dat beslist de pagina (zie zegtIetsOverHouding).
             b.zit === true ? ZITTEN_REGEL : "",
