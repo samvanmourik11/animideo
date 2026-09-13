@@ -9,7 +9,7 @@ import CastPicker from "@/components/dialogue/CastPicker";
 import ScriptBoard, { schatCredits, schatStoryboardCredits } from "@/components/dialogue/ScriptBoard";
 import Storyboard, { type HertekenWijziging } from "@/components/dialogue/Storyboard";
 import DialoguePlayer, { bouwFragmenten } from "@/components/dialogue/DialoguePlayer";
-import FragmentEditor, { type HerstelActie } from "@/components/dialogue/FragmentEditor";
+import FragmentEditor, { type HerstelActie, type RegelPlek } from "@/components/dialogue/FragmentEditor";
 import ArtDirection from "@/components/dialogue/ArtDirection";
 import SetupPanel from "@/components/dialogue/SetupPanel";
 import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
@@ -58,7 +58,7 @@ export default function DialoguePage() {
   const [exportFout, setExportFout] = useState<string | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
   // Welke regel op dit moment gericht opnieuw gemaakt wordt ("si-li").
-  const [herstelBezig, setHerstelBezig] = useState<string | null>(null);
+  const [herstelBezig, setHerstelBezig] = useState<string[]>([]);
   // Van welke scène het storyboard nu een nieuw basisbeeld maakt.
   const [hertekenBezig, setHertekenBezig] = useState<number | null>(null);
 
@@ -643,66 +643,92 @@ export default function DialoguePage() {
   }
 
   /**
-   * Maakt ÉÉN regel opnieuw, en alleen het deel dat kapot is.
+   * Maakt één of meer regels opnieuw, en alleen het deel dat kapot is.
    *
    * Een regel bestaat uit stem, bronbeeld en beweging. Alles overdoen omdat de
    * beweging niet deugde is zonde van het geld én van een beeld dat je net goed
    * vond, dus we sturen mee wat hergebruikt mag worden.
+   *
+   * Meerdere regels lopen drie tegelijk, net als bij het maken van de video. Alle
+   * uitkomsten landen in één werkkopie: los van elkaar opgeslagen zou de laatste
+   * regel die klaar is de andere weer overschrijven met hun oude versie.
    */
-  async function herstelRegel(si: number, li: number, actie: HerstelActie) {
-    if (!spec || herstelBezig) return;
-    const scene = spec.scenes[si];
-    const regel = scene?.lines[li];
-    if (!scene?.twoShotUrl || !regel) return;
+  async function herstelRegels(taken: RegelPlek[], actie: HerstelActie) {
+    if (!spec || herstelBezig.length > 0 || taken.length === 0) return;
+    const werk: DialogueSpec = structuredClone(spec);
+    const geldig = taken.filter(({ si, li }) => werk.scenes[si]?.twoShotUrl && werk.scenes[si]?.lines[li]);
+    if (geldig.length === 0) return;
 
-    setHerstelBezig(`${si}-${li}`);
+    setHerstelBezig(geldig.map(({ si, li }) => `${si}-${li}`));
     setRenderFout(null);
-    try {
-      const hergebruikBeeld = actie.soort === "beweging" ? regel.shotImageUrl ?? undefined : undefined;
-      // De stem blijft staan zolang de tekst niet veranderd is; bij "alles
-      // opnieuw" wil je hem juist wél opnieuw laten inspreken.
-      const hergebruikStem = actie.soort === "alles" ? undefined : regel.audioUrl ?? undefined;
-      const kaderVanRegel = regel.kader ?? null;
+    let gestopt: string | null = null;
+    const mislukt: string[] = [];
+    let volgende = 0;
 
-      const r = await fetch("/api/infographics/dialogue-line", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          twoShotUrl: scene.twoShotUrl, castSheetUrl: spec.castSheetUrl ?? null,
-          // Dezelfde mensen als bij het eerste maken. Hier ging de hele cast mee,
-          // waardoor een opnieuw gemaakte regel ineens iemand anders in beeld had.
-          cast: sceneCast(scene, spec.cast, spec.verhaallijn), speakerId: regel.characterId,
-          kind: regel.kind ?? "dialoog", actie: regel.actie ?? "", seconden: regel.seconden ?? undefined,
-          narratorVoice: spec.narratorVoice ?? undefined,
-          text: regel.text, emotion: regel.emotion, language: spec.language,
-          format: spec.format, styleId: spec.styleId, seed: spec.seed,
-          illustrationBrief: spec.illustrationBrief ?? "",
-          hergebruikShotImageUrl: hergebruikBeeld,
-          hergebruikAudioUrl: hergebruikStem,
-          hergebruikAudioDuration: hergebruikStem ? regel.audioDuration ?? undefined : undefined,
-          beeldInstructie: actie.soort === "beeld" ? actie.instructie : undefined,
-          voorwerpen: voorwerpenInScene(spec.voorwerpen, scene, li),
-          zit: zitHouding(scene.lines, li) && (regel.kind !== "actie" || !zegtIetsOverHouding(regel.actie)),
-        }),
-      });
-      const d = await r.json();
-      if (!r.ok) { setRenderFout(creditFout(d)); return; }
+    const werkers = Array.from({ length: Math.min(PARALLEL, geldig.length) }, async () => {
+      while (volgende < geldig.length && !gestopt) {
+        const { si, li } = geldig[volgende++];
+        const scene = werk.scenes[si];
+        const regel = scene.lines[li];
+        try {
+          const hergebruikBeeld = actie.soort === "beweging" ? regel.shotImageUrl ?? undefined : undefined;
+          // De stem blijft staan zolang de tekst niet veranderd is; bij "alles
+          // opnieuw" wil je hem juist wél opnieuw laten inspreken.
+          const hergebruikStem = actie.soort === "alles" ? undefined : regel.audioUrl ?? undefined;
 
-      const nieuw = structuredClone(spec);
-      Object.assign(nieuw.scenes[si].lines[li], {
-        audioUrl: d.audioUrl, audioDuration: d.audioDuration,
-        shotImageUrl: d.shotImageUrl, videoUrl: d.videoUrl, mouthStart: d.mouthStart,
-        sprekerZeker: d.sprekerZeker ?? null,
-        beeldWaarschuwingen: d.beeldWaarschuwingen ?? null,
-      });
-      setSpec(nieuw);
-      setExportUrl(null);
-      void bewaar(nieuw, projectId);
-    } catch (e) {
-      setRenderFout(e instanceof Error ? e.message : String(e));
-    } finally {
-      setHerstelBezig(null);
-    }
+          const r = await fetch("/api/infographics/dialogue-line", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              twoShotUrl: scene.twoShotUrl, castSheetUrl: werk.castSheetUrl ?? null,
+              // Dezelfde mensen als bij het eerste maken. Hier ging de hele cast mee,
+              // waardoor een opnieuw gemaakte regel ineens iemand anders in beeld had.
+              cast: sceneCast(scene, werk.cast, werk.verhaallijn), speakerId: regel.characterId,
+              kind: regel.kind ?? "dialoog", actie: regel.actie ?? "", seconden: regel.seconden ?? undefined,
+              narratorVoice: werk.narratorVoice ?? undefined,
+              text: regel.text, emotion: regel.emotion, language: werk.language,
+              format: werk.format, styleId: werk.styleId, seed: werk.seed,
+              illustrationBrief: werk.illustrationBrief ?? "",
+              // Hetzelfde kader, licht en camerawerk als bij het eerste maken. Zonder
+              // kader werd een opnieuw gemaakte close-up ineens een ander soort shot.
+              kader: regel.kader ?? null,
+              vorigKader: vorigKaderVoor(werk, si, li),
+              shotIndex: werk.scenes.slice(0, si).reduce((n, sc) => n + sc.lines.length, 0) + li,
+              licht: scene.licht ?? null,
+              hergebruikShotImageUrl: hergebruikBeeld,
+              hergebruikAudioUrl: hergebruikStem,
+              hergebruikAudioDuration: hergebruikStem ? regel.audioDuration ?? undefined : undefined,
+              bewegingInstructie: actie.instructie,
+              voorwerpen: voorwerpenInScene(werk.voorwerpen, scene, li),
+              zit: zitHouding(scene.lines, li) && (regel.kind !== "actie" || !zegtIetsOverHouding(regel.actie)),
+            }),
+          });
+          const d = await r.json();
+          if (!r.ok) {
+            if (d.error === "insufficient_credits") gestopt = creditFout(d);
+            else mislukt.push(`regel ${li + 1} van scène ${si + 1}`);
+          } else {
+            Object.assign(regel, {
+              audioUrl: d.audioUrl, audioDuration: d.audioDuration,
+              shotImageUrl: d.shotImageUrl, videoUrl: d.videoUrl, mouthStart: d.mouthStart,
+              sprekerZeker: d.sprekerZeker ?? null,
+              beeldWaarschuwingen: d.beeldWaarschuwingen ?? null,
+            });
+            setSpec(structuredClone(werk));
+          }
+        } catch {
+          mislukt.push(`regel ${li + 1} van scène ${si + 1}`);
+        }
+        setHerstelBezig((bezig) => bezig.filter((k) => k !== `${si}-${li}`));
+      }
+    });
+    await Promise.all(werkers);
+
+    if (gestopt) setRenderFout(gestopt);
+    else if (mislukt.length) setRenderFout(`${mislukt.length} niet gelukt: ${mislukt.join(", ")}. Probeer die nog een keer.`);
+    setHerstelBezig([]);
+    setExportUrl(null);
+    void bewaar(werk, projectId);
   }
 
   // Gooit alle getekende beelden en clips weg zodat een nieuwe stijl of briefing
@@ -967,12 +993,12 @@ export default function DialoguePage() {
               <div className="border-t border-white/10 pt-4">
                 <h3 className="text-sm font-medium text-white mb-1">Scènes aanpassen</h3>
                 <p className="text-[11px] text-slate-500 mb-2.5">
-                  Klopt er iets niet? Pas de tekst aan, geef het beeld een aanwijzing, of laat alleen de beweging opnieuw maken — dan blijft het beeld dat je al goed vond staan.
+                  Klopt er iets niet? Pas de tekst aan, of maak de beweging opnieuw met een aanwijzing — dan blijft het beeld dat je al goed vond staan. Vink meerdere regels of een hele scène aan om ze in één keer opnieuw te maken. Het beeld zelf pas je aan in het storyboard.
                 </p>
                 <FragmentEditor
                   spec={spec}
                   onSpec={setSpec}
-                  onHerstel={herstelRegel}
+                  onHerstel={herstelRegels}
                   bezigMet={herstelBezig}
                   disabled={renderBezig}
                 />

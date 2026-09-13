@@ -152,6 +152,11 @@ interface Body {
   hergebruikShotImageUrl?: string;
   /** Extra aanwijzing voor ALLEEN dit bronbeeld, bijv. "zet ze bij het raam". */
   beeldInstructie?: string;
+  /**
+   * Aanwijzing van de gebruiker voor de BEWEGING van deze clip ("oma wijst naar de
+   * wagen", "de camera zoomt langzaam in"). Geldt voor de clip, niet voor het beeld.
+   */
+  bewegingInstructie?: string;
   // Vrije regieaanwijzing van de gebruiker, geldt voor elk beeld in de video.
   illustrationBrief?: string;
   /** Vaste voorwerpen die in deze scène voorkomen. Zie voorwerpenInScene. */
@@ -527,14 +532,23 @@ export async function POST(req: NextRequest) {
     const AANLOOP_MARGE = 1.0;
     const clipSec = audioDuration + AANLOOP_MARGE > 5 ? "10" : "5";
 
+    const bewegingInstructie = (b.bewegingInstructie ?? "").replace(/\s+/g, " ").trim().slice(0, 500);
+
     async function maakClip(): Promise<string | null> {
       try {
         const { request_id } = await fal.queue.submit(SEEDANCE, {
           input: {
             image_url: shotImageUrl,
-            prompt: isActieBeeld
-              ? buildActionMotionPrompt(actieTekst, b.styleId, cameraBeweging)
-              : buildDialogueMotionPrompt(spreker!, luisteraars, b.styleId, cameraBeweging),
+            prompt:
+              (isActieBeeld
+                ? buildActionMotionPrompt(actieTekst, b.styleId, cameraBeweging)
+                : buildDialogueMotionPrompt(spreker!, luisteraars, b.styleId, cameraBeweging)) +
+              // Achteraan, zodat de aanwijzing over déze clip gaat en de vaste regels
+              // (wie praat, dezelfde mensen, dezelfde stijl) er niet door wegvallen.
+              (bewegingInstructie
+                ? ` IMPORTANT DIRECTION from the user for this clip (it may be written in Dutch): "${bewegingInstructie}". ` +
+                  "Follow it, but keep the same people, their looks, who is speaking and the drawing style."
+                : ""),
             duration: clipSec,
             resolution: "720p",
             camera_fixed: true,
