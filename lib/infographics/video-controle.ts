@@ -202,6 +202,10 @@ export function leesShotOordeel(ruw: unknown, scene: number, regel: number): Con
       instructie: String(f.instructie ?? "").trim(),
     }))
     .filter((f) => SHOT_SOORTEN.includes(f.soort) && f.wat && f.instructie)
+    // Binnen of buiten hetzelfde gebouw is geen fout. Dat staat in de opdracht, en
+    // toch meldde de controle "binnen in de basiliek, terwijl het buiten hoort" —
+    // terwijl de kinderen de basiliek juist bezochten.
+    .filter((f) => !(f.soort === "plek" && /\bbinnen\b/i.test(f.wat) && /\bbuiten\b/i.test(f.wat)))
     .slice(0, 4)
     .map((f) => ({ id: "", soort: f.soort, scene, regel, wat: f.wat, herstel: { type: "shot", instructie: f.instructie } }));
 }
@@ -241,14 +245,25 @@ export function leesVerhaalOordeel(ruw: unknown, spec: DialogueSpec): ControleFo
  * scènebeeld: elk shot is daar een bewerking van. Shot voor shot herstellen zou dan
  * dezelfde fout steeds opnieuw laten tekenen. Eén herstel van de scène is goedkoper
  * en het werkt.
+ *
+ * Close-ups en detailopnames tellen daarbij niet mee. Wie er in een close-up staat
+ * zegt niets over het scènebeeld, en in de eerste proef werden twee close-ups
+ * gebundeld tot één scèneherstel met tegenstrijdige aanwijzingen ("alleen Tyrell"
+ * en "alleen Lilly").
  */
-export function bundelPerScene(fouten: ControleFout[]): ControleFout[] {
+export function bundelPerScene(fouten: ControleFout[], spec?: DialogueSpec): ControleFout[] {
+  const isDichtbij = (f: ControleFout) => {
+    const kader = f.regel !== null ? spec?.scenes[f.scene]?.lines[f.regel]?.kader : null;
+    return kader === "close" || kader === "extreme-close" || kader === "detail";
+  };
   const perScene = new Map<number, ControleFout[]>();
   for (const f of fouten) {
-    if (f.soort === "wie-in-beeld" && f.regel !== null) perScene.set(f.scene, [...(perScene.get(f.scene) ?? []), f]);
+    if (f.soort === "wie-in-beeld" && f.regel !== null && !isDichtbij(f)) {
+      perScene.set(f.scene, [...(perScene.get(f.scene) ?? []), f]);
+    }
   }
   const gebundeld = (f: ControleFout) =>
-    f.soort === "wie-in-beeld" && f.regel !== null && (perScene.get(f.scene)?.length ?? 0) >= 2;
+    f.soort === "wie-in-beeld" && f.regel !== null && !isDichtbij(f) && (perScene.get(f.scene)?.length ?? 0) >= 2;
 
   const uit = fouten.filter((f) => !gebundeld(f));
   for (const [scene, groep] of perScene) {

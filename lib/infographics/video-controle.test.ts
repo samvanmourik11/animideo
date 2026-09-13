@@ -175,6 +175,14 @@ describe("leesShotOordeel en bundelPerScene", () => {
     expect(leesShotOordeel("onzin", 0, 0)).toEqual([]);
   });
 
+  it("meldt binnen of buiten hetzelfde gebouw niet als verkeerde plek", () => {
+    const fouten = leesShotOordeel({ fouten: [
+      { soort: "plek", wat: "Binnen in de basiliek, terwijl buiten hoort.", instructie: "Show them outside." },
+      { soort: "plek", wat: "Synagoge en moskee ontbreken in de achtergrond.", instructie: "Keep the synagogue and mosque behind them." },
+    ] }, 7, 0);
+    expect(fouten.map((f) => f.wat)).toEqual(["Synagoge en moskee ontbreken in de achtergrond."]);
+  });
+
   it("maakt van een ontbrekend personage in meerdere shots één herstel van de scène", () => {
     const shot = (regel: number) => leesShotOordeel({ fouten: [{ soort: "wie-in-beeld", wat: "Lilly ontbreekt.", instructie: "Lilly on the right." }] }, 3, regel)[0];
     const los = leesShotOordeel({ fouten: [{ soort: "tekst-in-beeld", wat: "Tekst.", instructie: "No text." }] }, 3, 0)[0];
@@ -183,6 +191,19 @@ describe("leesShotOordeel en bundelPerScene", () => {
     expect(uit.find((f) => f.soort === "wie-in-beeld")).toMatchObject({ regel: null, herstel: { type: "scene", aanwijzing: "Lilly on the right." } });
     // Eén shot met een ontbrekend personage blijft een shot.
     expect(bundelPerScene([shot(1)])[0].herstel.type).toBe("shot");
+  });
+
+  it("bundelt close-ups nooit tot een herstel van de hele scène", () => {
+    const spec = proefSpec();
+    spec.scenes[0].lines[0].kader = "close";
+    spec.scenes[0].lines[2].kader = "close";
+    const tegenstrijdig = [
+      leesShotOordeel({ fouten: [{ soort: "wie-in-beeld", wat: "Extra kind.", instructie: "Only Tyrell." }] }, 0, 0)[0],
+      leesShotOordeel({ fouten: [{ soort: "wie-in-beeld", wat: "Extra kind.", instructie: "Only Lilly." }] }, 0, 2)[0],
+    ];
+    const uit = bundelPerScene(tegenstrijdig, spec);
+    expect(uit).toHaveLength(2);
+    expect(uit.every((f) => f.herstel.type === "shot")).toBe(true);
   });
 });
 

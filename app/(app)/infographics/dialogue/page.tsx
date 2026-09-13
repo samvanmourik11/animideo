@@ -644,10 +644,13 @@ export default function DialoguePage() {
     setControleBezig(true);
     setRenderFout(null);
     try {
+      // De server controleert alleen een bewaard project (één keer per versie).
+      const id = projectId ?? (await bewaar(spec, null));
+      if (!id) { setRenderFout("Je project kon niet bewaard worden. Probeer het zo nog eens."); return; }
       const r = await fetch("/api/infographics/dialogue-controle", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spec, projectId }),
+        body: JSON.stringify({ spec, projectId: id }),
       });
       const d = await r.json();
       if (!r.ok) { setRenderFout(creditFout(d)); return; }
