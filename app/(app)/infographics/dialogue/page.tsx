@@ -185,6 +185,10 @@ export default function DialoguePage() {
             portraitUrl: c.portraitUrl,
             role: c.role,
             appearance: c.appearance,
+            kleding: c.kleding,
+            nieuw: c.nieuw,
+            bibliotheekId: c.bibliotheekId,
+            soort: c.soort,
           })),
         }),
       });
@@ -826,7 +830,7 @@ export default function DialoguePage() {
             onLengte={setLengte}
           />
           <p className="text-[11px] text-slate-600">
-            De assistent stelt een complete opzet voor: personages uit je <Link href="/characters" className="text-slate-500 underline hover:text-slate-300">bibliotheek</Link> met hun rollen,
+            De assistent stelt een complete opzet voor: personages uit je <Link href="/characters" className="text-slate-500 underline hover:text-slate-300">bibliotheek</Link> met hun rollen — en past daar niemand bij het verhaal, dan tekent hij ze zelf —
             de kernboodschap, de wending, toon en tekenstijl. Die opzet stel je zelf bij vóór er één regel geschreven wordt. Denken kost vrijwel niets; pas bij het maken van de video gaat er geld op.
           </p>
         </div>

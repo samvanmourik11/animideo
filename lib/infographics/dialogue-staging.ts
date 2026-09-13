@@ -110,8 +110,8 @@ export const NATUURWETTEN =
   // Bij het paleis wapperde een rood-wit-blauwe vlag met een ster: geen enkel land.
   "Draw a flag only when its exact design is described in this prompt; otherwise leave the flagpole bare. " +
   // Lilly liep buiten op blote voeten en zat binnen bovenop de salontafel.
-  "Everyone wears their complete outfit including shoes on both feet — nobody is barefoot, indoors or " +
-  "outdoors, unless this prompt says so. People sit on chairs, benches, sofas, the floor or the ground — " +
+  "Every human character wears their complete outfit including shoes on both feet — no person is barefoot, " +
+  "indoors or outdoors, unless this prompt says so. Animals, dragons and other creatures wear nothing unless described. People sit on chairs, benches, sofas, the floor or the ground — " +
   "never on top of a table.";
 
 const MENSEN = "people|persons|crowds?|tourists|locals|visitors|pedestrians|passers-?by|vendors|shoppers|families|children|kids|residents|onlookers";

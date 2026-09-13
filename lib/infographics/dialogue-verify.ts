@@ -141,7 +141,11 @@ export interface BeeldOordeel {
  * Zonder die lijst telde het op dezelfde beelden twee rondes lang vier, en op de
  * goede beelden drie. Mislukt de telling, dan null: dan beslist de gewone controle.
  */
-export async function telMensen(imageUrl: string): Promise<number | null> {
+export async function telMensen(
+  imageUrl: string,
+  /** Speelt er een draak of dier mee, dan telt die ook als personage. */
+  metWezens = false,
+): Promise<number | null> {
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
@@ -151,7 +155,11 @@ export async function telMensen(imageUrl: string): Promise<number | null> {
         {
           role: "system",
           content:
-            "Je telt mensen op een illustratie. Loop het beeld van links naar rechts af en beschrijf ELKE getekende " +
+            (metWezens
+              ? "Je telt de personages op een illustratie: mensen én grote dieren, draken of andere wezens met een " +
+                "rol in het verhaal (geen vogeltjes of kleine beestjes op de achtergrond). "
+              : "Je telt mensen op een illustratie. ") +
+            "Loop het beeld van links naar rechts af en beschrijf ELKE getekende " +
             "persoon apart: waar hij staat, haar en kleding. Ook wie half zichtbaar, klein of op de achtergrond " +
             "staat. Twee figuren die op elkaar lijken of dezelfde kleren dragen zijn twee aparte personen: " +
             'beschrijf ze allebei. Antwoord met JSON: {"personen": [{"waar": "...", "haar": "...", "kleding": "..."}]}.',
@@ -208,7 +216,7 @@ export async function beoordeelBeeld(
     ? `\n\nVRAAG 1 — WIE PRAAT ER?\nDe spreker herken je aan een duidelijk GEOPENDE mond; wie luistert heeft de mond dicht.`
     : "";
   // Tegelijk met de beoordeling, zodat de controle er niet langer door duurt.
-  const tellingBelofte = telMensen(imageUrl);
+  const tellingBelofte = telMensen(imageUrl, iedereen.some((c) => !!c.soort && c.soort !== "mens"));
 
   try {
     const completion = await openai.chat.completions.create({

@@ -118,9 +118,10 @@ export async function POST(req: NextRequest) {
     // Tellen zonder verwachting, los van de diagnose: het bronbeeld en het midden
     // van de clip. Zie telMensen.
     const middenFrame = frames[Math.floor(frames.length / 2)];
+    const metWezens = cast.some((c) => !!c.soort && c.soort !== "mens");
     const [inBron, inClip] = await Promise.all([
-      regel.shotImageUrl ? telMensen(regel.shotImageUrl) : Promise.resolve(null),
-      middenFrame ? telMensen(middenFrame) : Promise.resolve(null),
+      regel.shotImageUrl ? telMensen(regel.shotImageUrl, metWezens) : Promise.resolve(null),
+      middenFrame ? telMensen(middenFrame, metWezens) : Promise.resolve(null),
     ]);
     const telling = [
       inBron !== null ? `bronbeeld ${inBron}` : "",

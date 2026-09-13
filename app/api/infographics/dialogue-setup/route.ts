@@ -14,10 +14,15 @@
 //
 // Wat de gebruiker zelf al invulde is heilig; zie mergeCast in lib/dialogue-setup.
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { openai } from "@/lib/openai";
+import { generateImageWithStyle } from "@/lib/image-gen";
+import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
+import { illustratieContext } from "@/lib/infographics/dialogue-staging";
+import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 import { createClient } from "@/lib/supabase/server";
 import { MAX_CAST, MAX_PER_SCENE, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
-import { mergeCast, type DialogueSetup, type VastCastLid } from "@/lib/infographics/dialogue-setup";
+import { mergeCast, hernoemIds, type DialogueSetup, type VastCastLid } from "@/lib/infographics/dialogue-setup";
 import {
   FASEN,
   MAX_DELEN,
@@ -30,7 +35,7 @@ import {
   type VerhaalDeel,
   type VerhaalModus,
 } from "@/lib/infographics/verhaallijn";
-import { STORY_STYLE_PRESETS, DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
+import { STORY_STYLE_PRESETS, DEFAULT_STORY_STYLE, buildIllustrationPrompt } from "@/lib/infographics/story-style";
 import { STORY_VOICES } from "@/lib/infographics/story-voices";
 import type { Character } from "@/lib/types";
 
@@ -120,9 +125,12 @@ function setupSchema(verhaallijn: typeof VERHAALLIJN_SCHEMA | typeof MOMENTEN_SC
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["characterId", "naam", "role", "wil", "spraak", "kleding", "leeftijd", "voice"],
+          required: ["characterId", "nieuw", "naam", "soort", "uiterlijk", "role", "wil", "spraak", "kleding", "leeftijd", "voice"],
           properties: {
             characterId: { type: "string" },
+            nieuw: { type: "boolean" },
+            soort: { type: "string", enum: ["mens", "dier", "fantasiewezen"] },
+            uiterlijk: { type: "string" },
             naam: { type: "string" },
             role: { type: "string" },
             wil: { type: "string" },
@@ -203,6 +211,49 @@ De gebruiker heeft zijn verhaal al geschreven. Jij bedenkt NIETS nieuws. Je knip
 - Neem namen van plekken, gebouwen, voorwerpen en personen letterlijk over.
 - Wie er volgens de tekst BIJ is, staat in "wie" — ook als die persoon alleen iets vertelt of uitlegt. Vertelt oma bij het fort over de geschiedenis, dan is oma bij het fort in beeld. In de eerste proef stond oma alleen thuis in beeld, terwijl ze in de tekst de hele reis meeging en overal uitleg gaf.
 - Heeft de tekst meer dan ${MAX_DELEN} momenten, voeg dan kleine momenten die bij elkaar horen samen. Laat nooit een plek weg.`;
+
+/**
+ * Tekent een personage dat niet in de bibliotheek staat.
+ *
+ * Een verhaal over een prinses en draken kon niet gemaakt worden zolang elk
+ * personage uit de bibliotheek moest komen. Het portret dat hier ontstaat is
+ * precies wat een bibliotheekportret is: één personage, van voren, op een egale
+ * achtergrond, in de tekenstijl van de video. Een credit, zoals een personage
+ * tekenen in de bibliotheek. Mislukt het, dan krijg je hem terug.
+ */
+async function tekenPersonage(
+  lid: DialogueCastMember,
+  styleId: string,
+  language: string,
+  brief: string,
+  userId: string,
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<string | null> {
+  const credit = await deductCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, `Personage tekenen: ${lid.name}`);
+  if (!credit.success) return null;
+  try {
+    const beschrijving = [
+      `${lid.name}${lid.leeftijd ? `, ${lid.leeftijd}` : ""}.`,
+      (lid.appearance ?? "").trim(),
+      (lid.kleding ?? "").trim() ? `Wearing: ${(lid.kleding ?? "").trim()}.` : "",
+    ].filter(Boolean).join(" ");
+    const opdracht =
+      `A character portrait for an animated children's story. ${beschrijving} ` +
+      `One single character, seen from the front from head to knees, standing, with a friendly neutral ` +
+      `expression, on a plain light neutral background. No other characters, no text, no frames.`;
+    const { imageUrl } = await generateImageWithStyle({
+      prompt: buildIllustrationPrompt(opdracht, styleId, language),
+      format: "9:16",
+      visualStyle: null,
+      extraContext: illustratieContext(brief),
+    });
+    return await persistFalAssetSoft(supabase, userId, imageUrl, "image");
+  } catch (e) {
+    console.error(`[dialogue-setup] personage ${lid.name} tekenen mislukt:`, e);
+    await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Refund: personage tekenen").catch(() => {});
+    return null;
+  }
+}
 
 function bibliotheekTekst(bibliotheek: Pick<Character, "id" | "name" | "description" | "gender" | "age_range">[]): string {
   return bibliotheek.length
@@ -500,6 +551,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    const userId = user.id;
     const body = (await req.json()) as Body;
     const text = (body.text ?? "").trim();
     if (!text) return NextResponse.json({ error: "Beschrijf eerst waar de video over gaat" }, { status: 400 });
@@ -546,7 +598,7 @@ ${VERHAALLES}`;
   - "titel": de naam van dit moment in twee tot vier woorden, bij voorkeur de plek ("Fort Zeelandia", "Oma onthult de wagen").
   - "wat": wat er in dit moment gebeurt, in twee of drie zinnen in ${language}, zo dicht mogelijk bij de tekst.
   - "plek": waar het gebeurt, zo concreet als de tekst het noemt.
-  - "wie": de id's uit de bibliotheek van wie er in beeld is, hooguit ${MAX_PER_SCENE}.
+  - "wie": de id's uit de cast van wie er in beeld is (een bibliotheek-id, of "nieuw-1", "nieuw-2" … voor een nieuw personage), hooguit ${MAX_PER_SCENE}.
   - "verteller": één zin die dit moment inleidt, uit of dicht bij de tekst, in de derde persoon en de verleden tijd. Verplicht bij het eerste moment en bij elke nieuwe plek; leeg als de personages het moment zelf dragen.
   - "citaten": ELKE zin die in dit moment in de tekst tussen aanhalingstekens staat, precies zoals hij er staat, met in "wie" het id van wie hem zegt. Let goed op wie dat is: "vraagt Lilly", "Oma knikt." gevolgd door haar zin, "zegt ze". Verzin geen zinnen; leeg als er in dit moment niemand iets zegt.
 - "kern": in één zin waar het verhaal over gaat, afgeleid uit de tekst. Voeg niets toe.
@@ -555,7 +607,7 @@ ${VERHAALLES}`;
   - "fase": welk deel het is.
   - "wat": twee of drie gewone zinnen in ${language} over wat er in dit deel GEBEURT. Geen dialoog, geen samenvatting van gevoelens — handelingen die je kunt laten zien.
   - "plek": waar het gebeurt, kort en tekenbaar ("de keuken bij papa").
-  - "wie": de id's uit de bibliotheek van wie er in beeld is, hooguit ${MAX_PER_SCENE}.
+  - "wie": de id's uit de cast van wie er in beeld is (een bibliotheek-id, of "nieuw-1", "nieuw-2" … voor een nieuw personage), hooguit ${MAX_PER_SCENE}.
   - "verteller": één zin in de derde persoon en de verleden tijd, zoals een voorleesboek ("Het was de laatste week voor kerst, en in huize De Vries werd het stil."). Verplicht bij het begin. Verder alleen bij een sprong in tijd of plek; anders leeg.
 - "kern": in één zin wat er onderhuids speelt — wat iemand mist, hoopt, niet durft of wil bewijzen. Een gevoel, geen gebeurtenis.
 - "wending": in één zin wat er anders loopt dan verwacht.`;
@@ -566,7 +618,7 @@ Je antwoordt uitsluitend met JSON volgens het schema.
 
 ${verhaalOpdracht}
 
-DE PERSONAGEBIBLIOTHEEK van deze gebruiker (gebruik ALLEEN deze id's):
+DE PERSONAGEBIBLIOTHEEK van deze gebruiker:
 ${bibliotheekTekst(bibliotheek)}
 
 AL VASTGELEGD DOOR DE GEBRUIKER — deze personages liggen vast, met de rol die er staat. Neem ze over en verzin er geen vervanger voor:
@@ -576,14 +628,17 @@ WAT JE LEVERT, in deze volgorde:
 - "title": korte werktitel in ${language}. Heeft de tekst zelf een titel, neem die dan over.
 - "topic": één zin die zegt waar de video over gaat.
 ${verhaalVelden}
-- "cast": ${MAX_CAST > 2 ? `twee tot ${MAX_CAST}` : "twee"} personages, ALTIJD met een "characterId" uit de bibliotheek. Neem iedereen op die in de verhaallijn in beeld komt, en niemand anders.
+- "cast": ${MAX_CAST > 2 ? `twee tot ${MAX_CAST}` : "twee"} personages. Neem iedereen op die in de verhaallijn in beeld komt, en niemand anders.
+  UIT DE BIBLIOTHEEK OF NIEUW. Past een personage uit de bibliotheek echt bij wie het in dit verhaal is — leeftijd, soort en uitstraling — gebruik dan zijn id, met "nieuw": false en "uiterlijk" leeg. Past er niemand (een prinses terwijl de bibliotheek alleen gewone kinderen heeft, een draak, een dier), maak dan een NIEUW personage: "nieuw": true, "characterId" "nieuw-1", "nieuw-2" enzovoort, en gebruik precies dat id ook in "wie" en "citaten" van de verhaallijn. Een nieuw personage wordt voor de gebruiker getekend. Een draak of dier wordt nooit door een mens gespeeld.
   Gaat het verhaal over mensen — ouders, opa, de juf — dan spelen die ZELF mee. Staan ze niet letterlijk zo in de bibliotheek, CAST ze dan: kies een personage van de juiste leeftijd met een uiterlijk dat past (ouders lijken op hun kinderen) en geef het in "naam" zijn rol in dit verhaal ("Papa"). Laat iemand waar het verhaal over gaat nooit weg omdat er niemand "Papa" heet; een acteur heet ook niet zoals zijn rol.
   Noem in "wat" alleen mensen die in de cast staan. Wie er niet in staat, kan niet getekend worden. Per personage:
   - "naam": hoe dit personage in het verhaal heet. Gebruikt de tekst een naam ("Lilly"), neem die dan precies zo over; speelt het een rol als "Papa", "Mama" of "Opa", schrijf dan die.
   - "role": wie diegene in dit verhaal is ("het broertje dat niets durft te zeggen").
   - "wil": wat diegene wil.${volg ? " Haal het uit de tekst; verzin geen tegenstelling die er niet in staat." : " Laat de verlangens BOTSEN — twee personages die hetzelfde willen hebben geen verhaal."}
   - "spraak": hoe diegene praat ("korte zinnen, stelt alles als vraag"). Maak ze onderling duidelijk verschillend.
-  - "kleding": wat diegene draagt van top tot teen, in één ENGELSE zin: bovenstuk, broek/rok/jurk en schoenen ("orange T-shirt, blue denim shorts, white sneakers"). Neem over wat de beschrijving uit de bibliotheek noemt en vul de rest passend aan. Iedereen draagt schoenen, tenzij het verhaal iets anders zegt.
+  - "kleding": wat diegene draagt van top tot teen, in één ENGELSE zin: bovenstuk, broek/rok/jurk en schoenen ("orange T-shirt, blue denim shorts, white sneakers"). Neem over wat de beschrijving uit de bibliotheek noemt en vul de rest passend aan. Iedereen draagt schoenen, tenzij het verhaal iets anders zegt. Een dier of fantasiewezen draagt niets, tenzij het verhaal het zegt: laat "kleding" dan leeg.
+  - "soort": "mens", "dier" of "fantasiewezen" (een draak, een elf).
+  - "uiterlijk": ALLEEN bij een nieuw personage, één ENGELSE zin die precies beschrijft hoe het eruitziet: wat voor wezen, leeftijd, huid of schubben en kleur, haar, gezicht, lichaamsbouw en wat het herkenbaar maakt ("an eight-year-old princess with warm brown skin, long curly black hair and a small golden tiara", "a friendly young dragon, as tall as a horse, with emerald green scales, a cream belly and small rounded wings"). Geen kleding: die staat in "kleding". Leeg bij een personage uit de bibliotheek.
   - "leeftijd": leeftijd in dit verhaal ("7 jaar", "ongeveer 40"). Bepaalt hoe groot iemand getekend wordt.
   - "voice": kies uit ${stemLijst}. Geef nooit twee personages dezelfde stem. Een kind krijgt een kinderstem.
 - "tone": "zakelijk", "speels" of "energiek", passend bij onderwerp en publiek.
@@ -637,42 +692,77 @@ Geef nu de opzet als JSON.`;
     // straks niet getekend worden.
     const opId = new Map(bibliotheek.map((c) => [c.id, c]));
 
+    // Nieuwe personages krijgen hier hun vaste id. Het model gebruikte "nieuw-1" in
+    // de cast én in de verhaallijn; die moeten straks allebei naar hetzelfde id wijzen.
+    const idVertaling = new Map<string, string>();
     const geldigeStemmen = new Set(STORY_VOICES.map((v) => v.id));
     const voorstelCast: DialogueCastMember[] = (Array.isArray(ruw.cast) ? ruw.cast : [])
       .map((c, i): DialogueCastMember | null => {
-        const rij = opId.get(String((c as { characterId?: string }).characterId ?? ""));
-        if (!rij) return null;
-        const p = c as Record<string, string>;
-        const stem = geldigeStemmen.has(p.voice) ? p.voice : "";
+        const p = (c && typeof c === "object" ? c : {}) as Record<string, unknown>;
+        const veld = (k: string) => String(p[k] ?? "").trim();
+        const modelId = veld("characterId");
+        const naam = veld("naam");
+        const rij = opId.get(modelId);
+
+        // Een personage dat al vastligt (ook een eerder getekend) wordt niet
+        // nóg eens getekend als het model het opnieuw als nieuw voorstelt.
+        const vast = rij ? null : vasteCast.find(
+          (v) => v.characterId === modelId || (naam && v.name.trim().toLowerCase() === naam.toLowerCase())
+        );
+        if (vast) {
+          if (modelId) idVertaling.set(modelId, vast.characterId);
+          return null;
+        }
+
+        const nieuw = !rij && (p.nieuw === true || /^nieuw/i.test(modelId)) && !!veld("uiterlijk");
+        if (!rij && !nieuw) return null;
+        const characterId = rij ? rij.id : `ai-${randomUUID()}`;
+        if (!rij && modelId) idVertaling.set(modelId, characterId);
+        const soort = (["mens", "dier", "fantasiewezen"] as const).find((s) => s === veld("soort")) ?? null;
+
         return {
           id: `char-${i + 1}`,
-          characterId: rij.id,
+          characterId,
           // De naam in het verhaal ("Papa") wint van die in de bibliotheek
           // ("Ousmane"): de verteller en de andere personages spreken hem zo aan.
-          name: (p.naam ?? "").trim() || rij.name,
-          role: (p.role ?? "").trim(),
-          leeftijd: (p.leeftijd ?? "").trim() || rij.age_range || null,
-          wil: (p.wil ?? "").trim() || null,
-          spraak: (p.spraak ?? "").trim() || null,
-          kleding: (p.kleding ?? "").trim() || null,
-          voice: stem,
-          portraitUrl: rij.image_url ?? "",
+          name: naam || rij?.name || "Personage",
+          role: veld("role"),
+          leeftijd: veld("leeftijd") || rij?.age_range || null,
+          wil: veld("wil") || null,
+          spraak: veld("spraak") || null,
+          kleding: veld("kleding") || null,
+          voice: geldigeStemmen.has(veld("voice")) ? veld("voice") : "",
+          portraitUrl: rij?.image_url ?? "",
           position: "left" as const,
-          appearance: rij.description ?? null,
+          appearance: rij ? rij.description ?? null : veld("uiterlijk"),
+          nieuw: rij ? null : true,
+          soort,
         };
       })
-      .filter((c): c is DialogueCastMember => c !== null && !!c.portraitUrl);
+      .filter((c): c is DialogueCastMember => c !== null);
 
     const styleId = STORY_STYLE_PRESETS.some((s) => s.id === ruw.styleId)
       ? String(ruw.styleId)
       : DEFAULT_STORY_STYLE;
 
-    let cast = mergeCast(vasteCast, voorstelCast);
+    // Eerst tekenen, dan pas samenvoegen: mergeCast laat een voorstel zonder portret vallen.
+    const teTekenen = voorstelCast.filter((c) => c.nieuw && !c.portraitUrl);
+    if (teTekenen.length) {
+      await Promise.all(
+        teTekenen.map(async (c) => {
+          c.portraitUrl = (await tekenPersonage(c, styleId, language, String(ruw.illustrationBrief ?? ""), userId, supabase)) ?? "";
+        })
+      );
+      console.log(`[dialogue-setup] ${teTekenen.filter((c) => c.portraitUrl).length} van ${teTekenen.length} nieuwe personages getekend`);
+    }
+
+    let cast = mergeCast(vasteCast, voorstelCast.filter((c) => c.portraitUrl));
+    const verhaalRuw = hernoemIds(ruw.verhaallijn, idVertaling);
 
     // Noemt de gebruiker of het verhaal papa, mama of oma, en speelt niemand die
     // rol, dan eerst casten. Dit moet VÓÓR de redactie: die kan geen personages
     // toevoegen en schrijft iemand zonder acteur anders uit het verhaal.
-    const verhaalTekst = normaliseerVerhaallijn(ruw.verhaallijn, bibliotheek.map((c) => c.id)).map((d) => d.wat).join(" ");
+    const verhaalTekst = normaliseerVerhaallijn(verhaalRuw, cast.map((c) => c.characterId)).map((d) => d.wat).join(" ");
     const ontbrekend = ontbrekendeRollen(`${text} ${verhaalTekst}`, cast);
     if (ontbrekend.length) {
       cast = await casteerRollen(ontbrekend, bibliotheek, cast, text, language);
@@ -683,7 +773,7 @@ Geef nu de opzet als JSON.`;
     let verhaal = {
       kern: String(ruw.kern ?? "").trim(),
       wending: String(ruw.wending ?? "").trim(),
-      verhaallijn: normaliseerVerhaallijn(ruw.verhaallijn, cast.map((c) => c.characterId)),
+      verhaallijn: normaliseerVerhaallijn(verhaalRuw, cast.map((c) => c.characterId)),
     };
 
     if (verhaal.verhaallijn.length && cast.length) {

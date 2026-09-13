@@ -14,6 +14,10 @@ import {
 // uploadscherm hier: uploaden, genereren en beheren gebeurt op /characters, zodat
 // er één plek is waar een personage vandaan komt en je hem in meerdere video's
 // kunt hergebruiken.
+//
+// Uitzondering: personages die de opzet zelf tekende omdat er in de bibliotheek
+// niemand paste (een prinses, een draak). Die krijgen hier een knop om ze met één
+// klik in de bibliotheek te bewaren.
 
 const POSITIES: { id: CastPosition; label: string }[] = [
   { id: "left", label: "Links" },
@@ -32,6 +36,7 @@ export default function CastPicker({
 }) {
   const [bibliotheek, setBibliotheek] = useState<Character[] | null>(null);
   const [fout, setFout] = useState<string | null>(null);
+  const [bewaarBezig, setBewaarBezig] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/characters")
@@ -43,7 +48,34 @@ export default function CastPicker({
       .catch((e) => setFout(e instanceof Error ? e.message : String(e)));
   }, []);
 
-  const gekozen = new Set(cast.map((c) => c.characterId));
+  // Een bewaard getekend personage staat daarna ook in de bibliotheek; die hoort
+  // niet nog eens als keuze onder de cast te verschijnen.
+  const gekozen = new Set(cast.flatMap((c) => [c.characterId, c.bibliotheekId ?? ""]));
+
+  async function bewaar(c: DialogueCastMember) {
+    setBewaarBezig(c.id);
+    setFout(null);
+    try {
+      const r = await fetch("/api/infographics/dialogue-personage-bewaar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          naam: c.name,
+          portraitUrl: c.portraitUrl,
+          beschrijving: [c.appearance, c.kleding ? `Kleding: ${c.kleding}` : ""].filter(Boolean).join(" "),
+          leeftijd: c.leeftijd ?? "",
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok || !d.character) throw new Error(d.error ?? "Bewaren mislukt");
+      wijzig(c.id, { bibliotheekId: d.character.id as string });
+      setBibliotheek((b) => (b ? [d.character as Character, ...b] : b));
+    } catch (e) {
+      setFout(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBewaarBezig(null);
+    }
+  }
   const vrijeStem = () => STORY_VOICES.map((v) => v.id).find((id) => !cast.some((c) => c.voice === id)) ?? STORY_VOICES[0].id;
   const vrijePositie = (): CastPosition => {
     const bezet = new Set(cast.map((c) => c.position));
@@ -102,6 +134,23 @@ export default function CastPicker({
                   />
                 </div>
               </div>
+
+              {c.nieuw && (
+                <div className="mt-2 flex items-center justify-between gap-2 text-[10px]">
+                  <span className="text-sky-300">✨ door AI getekend</span>
+                  {c.bibliotheekId ? (
+                    <span className="text-emerald-400">✓ in je bibliotheek</span>
+                  ) : (
+                    <button
+                      onClick={() => bewaar(c)}
+                      disabled={bewaarBezig === c.id || !c.portraitUrl}
+                      className="text-orange-300 hover:text-orange-200 disabled:opacity-40"
+                    >
+                      {bewaarBezig === c.id ? "bewaren…" : "＋ in bibliotheek bewaren"}
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <label className="block">

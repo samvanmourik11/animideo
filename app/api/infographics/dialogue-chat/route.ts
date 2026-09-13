@@ -87,7 +87,12 @@ interface RuwPlan {
   muziekCategorie?: string;
   kern?: string;
   wending?: string;
-  cast?: { id?: string; characterId?: string; name?: string; role?: string; leeftijd?: string; wil?: string; spraak?: string; kleding?: string; appearance?: string; voice?: string; position?: string }[];
+  cast?: {
+    id?: string; characterId?: string; name?: string; role?: string; leeftijd?: string; wil?: string; spraak?: string;
+    kleding?: string; appearance?: string; voice?: string; position?: string;
+    /** Alleen uit de opzet: het portret van een personage dat niet in de bibliotheek staat. */
+    portraitUrl?: string; nieuw?: boolean | null; bibliotheekId?: string | null; soort?: string | null;
+  }[];
   scenes?: RuweScene[];
 }
 
@@ -323,14 +328,18 @@ function maakSpec(
   const cast: DialogueCastMember[] = [];
   for (const [i, lid] of (plan.cast ?? []).slice(0, MAX_CAST).entries()) {
     const bron = opId.get((lid.characterId ?? "").trim());
-    if (!bron?.image_url) continue; // verzonnen id of personage zonder afbeelding
+    // Een personage dat de opzet zelf tekende staat niet in de bibliotheek, maar
+    // heeft wel een portret. Dat komt alleen uit de opzet: een plan van het model
+    // zelf heeft geen portretveld, dus een verzonnen id valt nog steeds af.
+    const eigenPortret = lid.nieuw ? (lid.portraitUrl ?? "").trim() : "";
+    if (!bron?.image_url && !eigenPortret) continue; // verzonnen id of personage zonder afbeelding
     const positie = (CAST_POSITIONS as readonly string[]).includes(lid.position ?? "")
       ? (lid.position as CastPosition)
       : i === 0 ? "left" : i === 1 ? "right" : "center";
     cast.push({
       id: (lid.id ?? "").trim() || `char-${i + 1}`,
-      characterId: bron.id,
-      name: (lid.name ?? "").trim() || bron.name,
+      characterId: bron?.image_url ? bron.id : (lid.characterId ?? "").trim(),
+      name: (lid.name ?? "").trim() || bron?.name || "Personage",
       role: (lid.role ?? "").trim(),
       leeftijd: (lid.leeftijd ?? "").trim() || null,
       // Verlangen en spraak gaan mee de spec in: elke latere stap die nog zinnen
@@ -339,11 +348,14 @@ function maakSpec(
       spraak: (lid.spraak ?? "").trim() || null,
       kleding: (lid.kleding ?? "").trim() || null,
       voice: lid.voice && STEMMEN.has(lid.voice) ? lid.voice : STORY_VOICES[i % STORY_VOICES.length].id,
-      portraitUrl: bron.image_url,
+      portraitUrl: bron?.image_url || eigenPortret,
       position: positie,
       // Het uiterlijk is het tweede houvast waarmee prompts de juiste persoon
       // aanwijzen; valt het model dat weg, dan de bibliotheekbeschrijving.
-      appearance: (lid.appearance ?? "").trim() || (bron.description ?? "").trim().slice(0, 200) || null,
+      appearance: (lid.appearance ?? "").trim() || (bron?.description ?? "").trim().slice(0, 200) || null,
+      nieuw: bron?.image_url ? null : true,
+      bibliotheekId: lid.bibliotheekId ?? null,
+      soort: (["mens", "dier", "fantasiewezen"] as const).find((s) => s === lid.soort) ?? null,
     });
   }
   if (cast.length < 2) {
@@ -1228,6 +1240,10 @@ export async function POST(req: NextRequest) {
           wil: c.wil ?? undefined,
           spraak: c.spraak ?? undefined,
           kleding: c.kleding ?? undefined,
+          portraitUrl: c.portraitUrl,
+          nieuw: c.nieuw ?? null,
+          bibliotheekId: c.bibliotheekId ?? null,
+          soort: c.soort ?? null,
           appearance: c.appearance ?? undefined,
           voice: c.voice,
           position: c.position,

@@ -129,6 +129,19 @@ export interface DialogueCastMember {
    * de ene keer een korte broek en de andere keer een spijkerbroek.
    */
   kleding?: string | null;
+  /**
+   * Door de opzet zelf getekend, niet uit de bibliotheek. Het verhaal van prinses
+   * Isabella had niemand in de bibliotheek die paste: geen prinses, geen draak.
+   * Het characterId begint dan met "ai-" en verwijst naar geen bibliotheekrij.
+   */
+  nieuw?: boolean | null;
+  /** Id in de personagebibliotheek, zodra een getekend personage daar bewaard is. */
+  bibliotheekId?: string | null;
+  /**
+   * Mens of iets anders. Een draak telt mee als er geteld wordt wie er in beeld is;
+   * een vogeltje op de achtergrond bij een gewone scène niet.
+   */
+  soort?: "mens" | "dier" | "fantasiewezen" | null;
   // Stem-id uit STORY_VOICES.
   voice: string;
   // Portret uit de bibliotheek: identiteits-anker voor elk twee-shot.

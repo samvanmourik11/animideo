@@ -109,19 +109,10 @@ export default function DialogueChat({
     }
   }
 
-  if (!heeftPersonages) {
-    return (
-      <div className="bg-white/5 border border-white/10 rounded-xl p-6 text-center">
-        <p className="text-sm text-slate-300 mb-1">Je hebt nog geen personages met een afbeelding.</p>
-        <p className="text-xs text-slate-500 mb-3">
-          Een dialoog heeft er minstens twee nodig — de assistent kiest ze straks uit jouw bibliotheek.
-        </p>
-        <Link href="/characters" className="inline-block bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium rounded px-4 py-2 transition">
-          Personages maken
-        </Link>
-      </div>
-    );
-  }
+  // Hier stond een blokkade als de bibliotheek leeg was. Dat hoeft niet meer: past
+  // er niemand, dan tekent de opzet zelf de personages die het verhaal nodig heeft.
+  void heeftPersonages;
+  void Link;
 
   const { regels, scenes } = planVoorLengte(lengte);
   const perRegel = CREDIT_COSTS.VOICE + CREDIT_COSTS.IMAGE_GENERATION + CREDIT_COSTS.VIDEO_GENERATION;

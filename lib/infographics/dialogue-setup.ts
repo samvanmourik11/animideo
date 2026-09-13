@@ -86,6 +86,32 @@ export interface VastCastLid {
   role?: string | null;
   /** Uit de bibliotheek (characters.description). */
   appearance?: string | null;
+  kleding?: string | null;
+  /** Door de opzet getekend; zie DialogueCastMember.nieuw. */
+  nieuw?: boolean | null;
+  bibliotheekId?: string | null;
+  soort?: DialogueCastMember["soort"];
+}
+
+/**
+ * Zet de ids in een ruwe verhaallijn om: "nieuw-1" wordt het vaste id dat dat
+ * nieuwe personage kreeg. Het model gebruikt dat tijdelijke id in de cast én in
+ * "wie" en "citaten"; zonder omzetten viel het personage uit elk moment weg.
+ */
+export function hernoemIds(ruw: unknown, vertaling: Map<string, string>): unknown {
+  if (!Array.isArray(ruw) || vertaling.size === 0) return ruw;
+  const vertaal = (id: unknown) => (typeof id === "string" ? vertaling.get(id.trim()) ?? id : id);
+  return ruw.map((deel) => {
+    if (!deel || typeof deel !== "object") return deel;
+    const d = deel as Record<string, unknown>;
+    return {
+      ...d,
+      wie: Array.isArray(d.wie) ? d.wie.map(vertaal) : d.wie,
+      citaten: Array.isArray(d.citaten)
+        ? d.citaten.map((c) => (c && typeof c === "object" ? { ...(c as Record<string, unknown>), wie: vertaal((c as Record<string, unknown>).wie) } : c))
+        : d.citaten,
+    };
+  });
 }
 
 /** Velden die de assistent mag invullen zolang de gebruiker ze leeg liet. */
@@ -125,6 +151,10 @@ export function mergeCast(
       portraitUrl: v.portraitUrl,
       position: posities(i),
       appearance: (v.appearance ?? "").trim() || null,
+      kleding: (v.kleding ?? "").trim() || null,
+      nieuw: v.nieuw ?? null,
+      bibliotheekId: v.bibliotheekId ?? null,
+      soort: v.soort ?? bij?.soort ?? null,
     };
 
     // Alleen aanvullen wat leeg is. Wat de gebruiker typte blijft staan.
