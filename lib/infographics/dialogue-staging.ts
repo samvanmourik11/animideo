@@ -386,6 +386,10 @@ export function buildActionShotPrompt(
     `same faces, hair, clothing and colours, and keep the same drawing style. ` +
     `Everything else may change: the setting, the camera distance, their poses and where they stand. ` +
     `The new shot shows: ${actie.trim()}. ` +
+    // Een actiebeeld bij Fort Zeelandia kreeg "Zeelamdia Freelandd" op de muur: het
+    // model schrijft de naam van een plek er graag op, en dan met fouten.
+    `There is NO written text anywhere in the image: no letters, words, name plates, signs or labels, ` +
+    `not on buildings, not on objects. A famous place is recognised by its shape, never by its name written on it. ` +
     `NOBODY IS TALKING in this shot: every mouth is closed. They are doing something together, not having ` +
     `a conversation, so do not put them face to face unless the action itself calls for it. ` +
     `${kader ? kaderRegie(kader) : "Show the action clearly — a wider shot is fine, the characters may be smaller in frame."} ` +

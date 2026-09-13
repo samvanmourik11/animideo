@@ -108,7 +108,7 @@ function setupSchema(verhaallijn: typeof VERHAALLIJN_SCHEMA | typeof MOMENTEN_SC
   return {
     type: "object",
     additionalProperties: false,
-    required: ["title", "topic", "verhaallijn", "kern", "wending", "cast", "tone", "angle", "styleId", "illustrationBrief", "keepTerms", "avoidTerms"],
+    required: ["title", "topic", "verhaallijn", "kern", "wending", "cast", "tone", "angle", "styleId", "illustrationBrief", "voorwerpen", "keepTerms", "avoidTerms"],
     properties: {
       title: { type: "string" },
       topic: { type: "string" },
@@ -136,6 +136,15 @@ function setupSchema(verhaallijn: typeof VERHAALLIJN_SCHEMA | typeof MOMENTEN_SC
       angle: { type: "string" },
       styleId: { type: "string" },
       illustrationBrief: { type: "string" },
+      voorwerpen: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["naam", "uiterlijk"],
+          properties: { naam: { type: "string" }, uiterlijk: { type: "string" } },
+        },
+      },
       keepTerms: { type: "array", items: { type: "string" } },
       avoidTerms: { type: "array", items: { type: "string" } },
     },
@@ -577,6 +586,7 @@ ${verhaalVelden}
 - "angle": de invalshoek ("vanuit het kind dat moet kiezen"). Leeg als dat niet nodig is.
 - "styleId": kies uit ${stijlLijst}.
 - "illustrationBrief": regie die voor ELK beeld geldt — kleurgebruik, kleding, soort omgeving. Twee zinnen, in ${language}.
+- "voorwerpen": voorwerpen die in het verhaal een hoofdrol spelen of in meer dan één moment terugkomen (een wagen, een kaart, een knuffel). "naam" zoals in het verhaal; "uiterlijk" is één ENGELSE zin die precies beschrijft hoe het eruitziet — vorm, grootte, kleuren, materiaal, bijzonderheden — zodat het in elk beeld hetzelfde getekend wordt. Hooguit vier. Leeg als er geen zijn.
 - "keepTerms": merk- en productnamen uit de brontekst die exact zo moeten blijven staan. Meestal leeg.
 - "avoidTerms": namen die beter niet vallen. Meestal leeg.`;
 
@@ -696,6 +706,20 @@ Geef nu de opzet als JSON.`;
       }
     }
 
+    // Vaste voorwerpen gaan in de beeldregie, die met ELK beeld meegaat. De
+    // Wonderwagen was onder het kleed een fauteuil, van binnen een tram, bij het fort
+    // een busje en thuis een jeep: zonder vaste beschrijving verzint het beeldmodel
+    // hem elke keer opnieuw. Zichtbaar in de opzet, dus aan te passen.
+    const voorwerpen = (Array.isArray(ruw.voorwerpen) ? ruw.voorwerpen : [])
+      .map((v) => v as { naam?: unknown; uiterlijk?: unknown })
+      .map((v) => ({ naam: String(v.naam ?? "").trim(), uiterlijk: String(v.uiterlijk ?? "").trim() }))
+      .filter((v) => v.naam && v.uiterlijk)
+      .slice(0, 4);
+    const vasteVoorwerpen = voorwerpen.length
+      ? `\n\nVaste voorwerpen — overal waar ze in beeld komen zien ze er precies zo uit: ` +
+        voorwerpen.map((v) => `${v.naam}: ${v.uiterlijk}`).join(" ")
+      : "";
+
     const setup: DialogueSetup = {
       title: String(ruw.title ?? "").trim() || "Naamloos verhaal",
       topic: String(ruw.topic ?? body.topic ?? "").trim(),
@@ -711,7 +735,7 @@ Geef nu de opzet als JSON.`;
       avoidTerms: (Array.isArray(ruw.avoidTerms) ? ruw.avoidTerms : []).map(String).map((t) => t.trim()).filter(Boolean),
       format,
       styleId,
-      illustrationBrief: String(ruw.illustrationBrief ?? "").trim(),
+      illustrationBrief: `${String(ruw.illustrationBrief ?? "").trim()}${vasteVoorwerpen}`.trim(),
       cast,
       targetSeconds,
     };

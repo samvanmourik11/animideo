@@ -12,7 +12,7 @@ import {
 } from "@/lib/infographics/dialogue-chat-tools";
 import {
   leesDeel, ordenDelen, vertellerBeeld, verhaallijnBlok, voegGelijkePlekSamen, zorgVoorVerteller, zorgVoorCitaten, kaalTekst,
-  zorgVoorMomenten,
+  zorgVoorMomenten, vertellerZinnenBijVerteller,
   scenesPerDeel, deelLabel,
   normaliseerVerhaallijn, type VerhaalDeel,
 } from "@/lib/infographics/verhaallijn";
@@ -298,7 +298,10 @@ function langsVerhaal(
   verhaallijn: VerhaalDeel[] | null | undefined,
   cast: DialogueCastMember[],
 ): DialogueScene[] {
-  const metAlleMomenten = zorgVoorMomenten(voegGelijkePlekSamen(ordenDelen(scenes)), verhaallijn, cast);
+  const metAlleMomenten = vertellerZinnenBijVerteller(
+    zorgVoorMomenten(voegGelijkePlekSamen(ordenDelen(scenes)), verhaallijn, cast),
+    cast,
+  );
   return zorgVoorCitaten(zorgVoorVerteller(metAlleMomenten, verhaallijn), verhaallijn, cast);
 }
 

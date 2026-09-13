@@ -518,20 +518,54 @@ export function zonderHerhaling(bestaand: DialogueScene[], nieuw: DialogueScene[
   return uit;
 }
 
+const RANG: Record<CastPosition, number> = { left: 0, center: 1, right: 2 };
+const PLEKKEN: CastPosition[][] = [[], ["center"], ["left", "right"], ["left", "center", "right"]];
+const zoekNaam = (naam: string) => naam.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /**
- * De personages die in DEZE scène voorkomen, in castvolgorde.
+ * De personages die in DEZE scène in beeld horen, met hun plek in dít beeld.
  *
- * Het twee-shot van een scène toonde altijd de hele cast. Met drie personages
- * ging dat nog; met zes staan er mensen in beeld die in die scène niets te
- * zoeken hebben — en het beeldmodel moet ze dan ook nog uit elkaar houden.
- * De verteller telt niet mee: die is een stem, geen figuur.
+ * Het twee-shot toonde eerst de hele cast; met zes personages stonden er mensen
+ * in beeld die er niets te zoeken hadden. Daarna waren het alleen wie er PRAAT —
+ * en dan viel wie erbij is maar zwijgt weg. In "Tyrell, Lilly en de Wonderwagen"
+ * zei Lilly "Kijk Tyrell" in een Palmentuin zonder Tyrell, en in de wagen stond in
+ * de beschrijving "Tyrell, Lilly en oma" terwijl oma niet in de lijst zat: het
+ * beeldmodel tekende toen een andere vrouw als oma. Nu tellen ook mee wie volgens
+ * de verhaallijn bij dit moment is, en wie in een zin of beeldbeschrijving bij naam
+ * genoemd wordt. Sprekers gaan voor als er meer dan drie zijn.
+ *
+ * De plek (links, midden, rechts) volgt uit hoeveel mensen er in DIT beeld staan.
+ * Oma had vast "midden", ook in een scène met alleen Tyrell: dan stond ze het ene
+ * shot links en het volgende rechts, en wist de sprekercontrole niet welke mond
+ * hij moest volgen. De volgorde van links naar rechts blijft wel gelijk, zodat
+ * niemand van kant wisselt. De verteller telt niet mee: die is een stem, geen figuur.
  */
-export function sceneCast(scene: DialogueScene, cast: DialogueCastMember[]): DialogueCastMember[] {
-  const ids = new Set(
-    scene.lines.map((l) => l.characterId).filter((id) => id && id !== VERTELLER_ID),
+export function sceneCast(
+  scene: DialogueScene,
+  cast: DialogueCastMember[],
+  verhaallijn?: VerhaalDeel[] | null,
+): DialogueCastMember[] {
+  const sprekers = new Set(scene.lines.map((l) => l.characterId).filter((id) => id && id !== VERTELLER_ID));
+  const volgensVerhaal = new Set(scene.deel ? verhaallijn?.[scene.deel - 1]?.wie ?? [] : []);
+  const tekst = scene.lines.map((l) => `${l.text ?? ""} ${l.actie ?? ""}`).join(" ");
+  const genoemd = (c: DialogueCastMember) =>
+    c.name.trim().length >= 2 &&
+    new RegExp(`(^|[^\\p{L}])${zoekNaam(c.name.trim())}([^\\p{L}]|$)`, "iu").test(tekst);
+
+  const gewicht = (c: DialogueCastMember) =>
+    sprekers.has(c.id) ? 0 : volgensVerhaal.has(c.characterId) ? 1 : genoemd(c) ? 2 : null;
+  const inBeeld = cast
+    .map((c) => ({ c, g: gewicht(c) }))
+    .filter((x): x is { c: DialogueCastMember; g: number } => x.g !== null)
+    .sort((a, b) => a.g - b.g)
+    .slice(0, MAX_PER_SCENE)
+    .map((x) => x.c);
+
+  // Niemand gevonden (bijvoorbeeld alleen muziek zonder namen): dan liever de
+  // eerste personages dan een leeg beeld zonder mensen.
+  const gekozen = inBeeld.length ? inBeeld : cast.slice(0, MAX_PER_SCENE);
+  const opVolgorde = [...gekozen].sort(
+    (a, b) => RANG[a.position] - RANG[b.position] || cast.indexOf(a) - cast.indexOf(b),
   );
-  const spelend = cast.filter((c) => ids.has(c.id));
-  // Geen enkele match (bijvoorbeeld een scène met alleen verteller of muziek):
-  // dan liever de eerste twee dan een leeg beeld zonder mensen.
-  return (spelend.length ? spelend : cast).slice(0, MAX_PER_SCENE);
+  return opVolgorde.map((c, i) => ({ ...c, position: PLEKKEN[opVolgorde.length][i] }));
 }

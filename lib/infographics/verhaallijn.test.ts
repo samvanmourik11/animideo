@@ -17,6 +17,7 @@ import {
   zorgVoorVerteller,
   zorgVoorCitaten,
   zorgVoorMomenten,
+  vertellerZinnenBijVerteller,
   voegGelijkePlekSamen,
   type VerhaalDeel,
 } from "./verhaallijn";
@@ -404,6 +405,30 @@ describe("zorgVoorVerteller bij een zin die al in de mond van een personage lag"
     })];
     const uit = zorgVoorVerteller(scenes, fortLijn);
     expect(uit[0].lines.map((l) => l.characterId)).toEqual([VERTELLER_ID, "char-2"]);
+  });
+});
+
+describe("vertellerZinnenBijVerteller", () => {
+  const cast = [{ id: "char-1", name: "Tyrell" }, { id: "char-2", name: "Lilly" }];
+  const eenRegel = (characterId: string, text: string) =>
+    vertellerZinnenBijVerteller([scene({ lines: [{ kind: "actie", characterId, text, emotion: "", actie: "They look at each other." }] })], cast)[0].lines[0];
+
+  it("geeft een zin over 'de kinderen' aan de verteller", () => {
+    const l = eenRegel("char-1", "De kinderen keken elkaar nieuwsgierig aan, benieuwd naar oma's geheim.");
+    expect(l.characterId).toBe(VERTELLER_ID);
+    expect(l.actie).toBe("They look at each other.");
+  });
+
+  it("geeft een zin waarin een personage over zichzelf in de derde persoon praat aan de verteller", () => {
+    expect(eenRegel("char-2", "Lilly's ogen werden groot van nieuwsgierigheid.").characterId).toBe(VERTELLER_ID);
+  });
+
+  it("laat een aanspreking van iemand anders staan", () => {
+    expect(eenRegel("char-2", "Kijk Tyrell, dat is de mooiste vogel!").characterId).toBe("char-2");
+  });
+
+  it("laat een zin in de eerste persoon staan, ook met de eigen naam erin", () => {
+    expect(eenRegel("char-1", "Ik ben Tyrell en ik wil naar Suriname!").characterId).toBe("char-1");
   });
 });
 

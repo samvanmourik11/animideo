@@ -830,6 +830,9 @@ ${m.moment.verteller
 - Zet de letterlijke zinnen erin, precies zoals ze er staan, door die persoon, in die volgorde.
 - Gebruik uit de tekst ALLEEN de letterlijke zinnen die hierboven bij JOUW moment staan. Zinnen die bij een ander moment horen, komen daar — niet hier.
 - Vul aan met gewone zinnen van de personages die in beeld zijn: wat ze zien, wat ze ervan vinden, wat iemand uitlegt. ALLEEN over wat de tekst over dit moment vertelt. Geen nieuwe gebeurtenissen, plekken, voorwerpen of mensen, en niets wat bij een ander moment hoort.
+- Wat er onder "Wat er gebeurt" staat, moet je ZIEN of HOREN. Gebeurt er iets — een kleed gaat van een wagen, iemand wijst iets aan, ze stappen ergens in — laat dat dan zien in een actiebeeld. In de eerste video liep oma naar de kamer, maar ging het kleed er nooit af.
+- Een zin in de derde persoon of de verleden tijd ("De kinderen keken elkaar aan") is van de verteller, nooit van een personage.
+- Noem in de "actie" van een beeld iedereen die erin staat bij naam. Wie in de scène is maar niet genoemd wordt, komt niet in beeld.
 - Een actiebeeld beschrijf je in het Engels, op menselijke schaal: lopen, wijzen, kijken, iets aanraken. Geen rijdende of vliegende voertuigen, geen machines die bewegen.
 - Wissel de kaders af. Een close-up kan maar met één personage.
 - Gesproken tekst in het ${m.taal}: één natuurlijke zin van ongeveer twaalf woorden, zoals je tegen kinderen praat. Getallen voluit.

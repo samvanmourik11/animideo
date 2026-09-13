@@ -272,7 +272,7 @@ export default function DialoguePage() {
       // Alleen wie er in DEZE scene speelt. De hele cast meesturen gaf bij
       // meer dan drie personages beelden vol mensen die er niets te zoeken
       // hadden — en het beeldmodel moest ze dan ook nog uit elkaar houden.
-      setting: s.setting, cast: sceneCast(s, werk.cast), styleId: werk.styleId,
+      setting: s.setting, cast: sceneCast(s, werk.cast, werk.verhaallijn), styleId: werk.styleId,
       castSheetUrl: werk.castSheetUrl ?? null,
       format: werk.format, language: werk.language, seed: werk.seed,
       illustrationBrief: werk.illustrationBrief ?? "",
@@ -498,7 +498,7 @@ export default function DialoguePage() {
               body: JSON.stringify({
                 twoShotUrl: scene.twoShotUrl, castSheetUrl: werk.castSheetUrl ?? null,
                 // Alleen de spelers van deze scene; het castblad houdt de rest bij.
-                cast: sceneCast(scene, werk.cast), speakerId: regel.characterId,
+                cast: sceneCast(scene, werk.cast, werk.verhaallijn), speakerId: regel.characterId,
                 kind: regel.kind ?? "dialoog", actie: regel.actie ?? "", seconden: regel.seconden ?? undefined,
                 narratorVoice: werk.narratorVoice ?? undefined,
                 text: regel.text, emotion: regel.emotion, language: werk.language,
@@ -590,7 +590,9 @@ export default function DialoguePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           twoShotUrl: scene.twoShotUrl, castSheetUrl: spec.castSheetUrl ?? null,
-          cast: spec.cast, speakerId: regel.characterId,
+          // Dezelfde mensen als bij het eerste maken. Hier ging de hele cast mee,
+          // waardoor een opnieuw gemaakte regel ineens iemand anders in beeld had.
+          cast: sceneCast(scene, spec.cast, spec.verhaallijn), speakerId: regel.characterId,
           kind: regel.kind ?? "dialoog", actie: regel.actie ?? "", seconden: regel.seconden ?? undefined,
           narratorVoice: spec.narratorVoice ?? undefined,
           text: regel.text, emotion: regel.emotion, language: spec.language,

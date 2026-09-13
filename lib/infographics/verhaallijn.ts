@@ -490,6 +490,43 @@ export function zorgVoorVerteller(scenes: DialogueScene[], lijn: VerhaalDeel[] |
 }
 
 /**
+ * Een zin in de derde persoon hoort bij de verteller, niet bij een personage.
+ *
+ * In de Wonderwagen zei Tyrell "De kinderen keken elkaar nieuwsgierig aan, benieuwd
+ * naar oma's geheim" — over zichzelf, in de verleden tijd, terwijl Lilly niet eens in
+ * beeld stond. Zo'n zin herken je aan een personage dat zijn eigen naam noemt, of
+ * aan "de kinderen" aan het begin van een zin. Een naam als aanspreking van iemand
+ * ánders ("Kijk Tyrell", gezegd door Lilly) blijft staan, en een zin met "ik" of
+ * "mijn" ook: dat is iemand die over zichzelf praat.
+ */
+export function vertellerZinnenBijVerteller(
+  scenes: DialogueScene[],
+  cast: { id: string; name: string }[],
+): DialogueScene[] {
+  return scenes.map((s) => ({
+    ...s,
+    lines: s.lines.map((l) => {
+      const kaal = kaalTekst(l.text);
+      if (l.characterId === VERTELLER_ID || !kaal) return l;
+      const t = ` ${kaal} `;
+      if (/ (ik|mijn|me|mij) /.test(t)) return l;
+      const spreker = cast.find((c) => c.id === l.characterId);
+      const eigenNaam = !!spreker && t.includes(` ${kaalTekst(spreker.name)} `);
+      const overDeKinderen = /(^|[.!?]\s+)de kinderen\b/i.test((l.text ?? "").trim());
+      if (!eigenNaam && !overDeKinderen) return l;
+      return {
+        ...l,
+        kind: "actie",
+        characterId: VERTELLER_ID,
+        kader: l.kind === "actie" ? l.kader ?? "totaal" : "totaal",
+        actie: (l.actie ?? "").trim() || vertellerBeeld(l.text, s.setting),
+        seconden: l.seconden ?? ACTIE_STANDAARD_SEC,
+      };
+    }),
+  }));
+}
+
+/**
  * Elk moment van een GEVOLGD verhaal staat in het draaiboek, ook als het schrijven
  * ervan mislukte of alles eruit gefilterd werd.
  *

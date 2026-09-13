@@ -131,13 +131,19 @@ export function diepteRegie(kader: Kader | null | undefined): string {
   switch (kader) {
     case "extreme-close":
     case "close":
+      // "Alles erachter vervaagt" was niet genoeg: bij een close-up voor de synagoge
+      // stonden Tyrell en Lilly ineens in een kamer met een raam. Wazig mag, een
+      // andere plek niet.
       return (
-        " DEPTH OF FIELD: shallow. The face is razor sharp and everything behind it melts into a soft blur, " +
-        "with any lights in the background becoming round glowing circles. The viewer's eye has nowhere else to go."
+        " DEPTH OF FIELD: shallow. The face is razor sharp and the background is softly blurred, with any lights " +
+        "becoming round glowing circles. The background is still the SAME place as in the source image — the same " +
+        "buildings or the same room, recognisable by its colours and shapes, only out of focus. Never replace it " +
+        "with a different location or an indoor room."
       );
     case "detail":
       return (
-        " DEPTH OF FIELD: shallow. The object fills the focus and the room behind it is a soft wash of colour."
+        " DEPTH OF FIELD: shallow. The object fills the focus and behind it the same place as in the source image " +
+        "is a soft wash of its own colours — never a different location."
       );
     case "medium":
     case "van-achteren":
