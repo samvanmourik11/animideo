@@ -9,11 +9,11 @@ import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { STORY_VOICES } from "@/lib/infographics/story-voices";
+import { kiesStem, TAALCODE } from "@/lib/infographics/dialogue-stem";
 import {
   buildTurnShotPrompt, buildDialogueMotionPrompt,
   buildActionShotPrompt, buildActionMotionPrompt, illustratieContext, buildShotPrompt,
-  iederEenKeer, iedereenZichtbaar, voorwerpRegie, ZITTEN_REGEL,
+  iederEenKeer, iedereenZichtbaar, voorwerpRegie, ZITTEN_REGEL, MODELBLAD_UITLEG,
 } from "@/lib/infographics/dialogue-staging";
 import {
   zonderHerhaling as kaderZonderHerhaling,
@@ -44,15 +44,10 @@ export const maxDuration = 300;
 const SEEDANCE = "fal-ai/bytedance/seedance/v1/lite/image-to-video";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Uit de stemmenlijst zelf opgebouwd. Stond hier eerst met de hand overgetypt, en
-// liep daardoor achter: de Vlaamse stemmen en de kinderstemmen ontbraken erin.
-const ALLOWED_VOICES = new Set([
-  ...STORY_VOICES.map((v) => v.id),
-  // De overige vaste ElevenLabs-stemmen, voor oude projecten die er een bewaard hebben.
-  "Aria", "Roger", "Laura", "Charlie", "Callum", "River", "Liam",
-  "Alice", "Matilda", "Will", "Jessica", "Eric", "Chris", "Brian", "Lily", "Bill", "Rachel",
-]);
-const LANGUAGE_TO_CODE: Record<string, string> = { Nederlands: "nl", Engels: "en", Duits: "de", Frans: "fr", Spaans: "es", Italiaans: "it" };
+/** Staat er iemand te veel, dubbel of te weinig in beeld? Dan is het beeld onbruikbaar. */
+function mensenFout(fouten: string[]): boolean {
+  return /extra persoon|extra kind|extra volwassene|twee keer|ontbreekt|niet in de lijst|omstander/i.test(fouten.join(" "));
+}
 
 function ffprobeDuur(file: string): Promise<number> {
   return new Promise((resolve) => {
@@ -247,9 +242,9 @@ export async function POST(req: NextRequest) {
     // Bij een verteller pakken we de aparte vertellerstem uit de spec; die is
     // gekozen zodat hij niet klinkt als een van de personages.
     const gewensteStem = isVerteller ? (b.narratorVoice ?? "").trim() : spreker?.voice;
-    const stem = gewensteStem && ALLOWED_VOICES.has(gewensteStem) ? gewensteStem : (gewensteStem || "Charlotte");
+    const stem = kiesStem(gewensteStem);
     const snelheid = typeof b.speed === "number" && Number.isFinite(b.speed) ? Math.max(0.7, Math.min(1.2, b.speed)) : 1;
-    const taalCode = LANGUAGE_TO_CODE[b.language ?? "Nederlands"] ?? "nl";
+    const taalCode = TAALCODE[b.language ?? "Nederlands"] ?? "nl";
     const format = (b.format === "9:16" ? "9:16" : "16:9") as InfographicFormat;
 
     // Stem + bronbeeld + clip vooraf afrekenen.
@@ -319,7 +314,9 @@ export async function POST(req: NextRequest) {
     // vóórdat we aan de dure clip beginnen. Dit is de goedkope plek om de fout te
     // vangen: het bronbeeld kost $0,04 en bepaalt vrijwel volledig wat het
     // videomodel daarna doet.
-    const MAX_BEELD_POGINGEN = 3;
+    // Drie pogingen, en een vierde alleen als er dan nog iemand te veel of te weinig
+    // in beeld staat (zie de lus).
+    const MAX_BEELD_POGINGEN = 4;
     const bestaandBeeld = (b.hergebruikShotImageUrl ?? "").trim();
     const beeldInstructie = (b.beeldInstructie ?? "").trim();
     let shotImageUrl: string | null = bestaandBeeld && !beeldInstructie ? bestaandBeeld : null;
@@ -360,7 +357,18 @@ export async function POST(req: NextRequest) {
       : bewegingVoorKader(kaderNu, typeof b.shotIndex === "number" ? b.shotIndex : 0);
 
     // Alleen de beweging opnieuw: het bronbeeld staat er al en is goedgekeurd.
-    for (let poging = 1; shotImageUrl === null && poging <= MAX_BEELD_POGINGEN; poging++) {
+    //
+    // Deze lus stopte altijd na één poging: het afgekeurde beeld ging meteen in
+    // shotImageUrl, en een lege shotImageUrl was juist de voorwaarde om door te gaan.
+    // Elke afkeuring bleef zo een waarschuwing zonder herkansing — twee Tyrells of
+    // een vreemd meisje gingen gewoon de clip in — terwijl er wél een credit voor de
+    // herkansing werd afgeschreven. Nu houden we het minst foute beeld apart bij.
+    const alHerbruikbaar = shotImageUrl !== null;
+    let beste: { url: string; fouten: string[]; oordeel: SprekerOordeel; ernst: number } | null = null;
+    for (let poging = 1; !alHerbruikbaar && poging <= MAX_BEELD_POGINGEN; poging++) {
+      if (poging === MAX_BEELD_POGINGEN && !mensenFout(beeldFouten)) break;
+      // De herkansingen zijn niet vooraf afgerekend; pas afschrijven als ze echt gebeuren.
+      if (poging > 1) await deductCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Dialoogregel: bronbeeld opnieuw");
       beeldPogingen = poging;
       try {
         const beeld = await generateImageWithStyle({
@@ -416,6 +424,7 @@ export async function POST(req: NextRequest) {
                 "continuous scene, never a split screen, never side-by-side panels, never a row of portraits. " +
                 "Do not draw the sheet, or any framed portrait or card of these characters, as an object in the shot."
               : "",
+            cast.some((c) => c.modelSheetUrl) ? MODELBLAD_UITLEG : "",
             // De cast is de cast. Dit stond alleen in de bewegings-prompt, waardoor
             // verzonnen figuranten al in het bronbeeld zaten en de videostap ze
             // netjes intact liet.
@@ -451,10 +460,11 @@ export async function POST(req: NextRequest) {
         );
         beeldOordeel = oordeel.spreker;
         beeldFouten = oordeel.fouten;
-        shotImageUrl = kandidaat;
+        // Iemand te veel of te weinig weegt het zwaarst, een verkeerde spreker daarna.
+        const ernst = (mensenFout(beeldFouten) ? 10 : 0) + (beeldOordeel === "verkeerd" ? 5 : 0) + beeldFouten.length;
+        if (!beste || ernst < beste.ernst) beste = { url: kandidaat, fouten: beeldFouten, oordeel: beeldOordeel, ernst };
 
-        const deugt = beeldOordeel !== "verkeerd" && beeldFouten.length === 0;
-        if (deugt) {
+        if (ernst === 0) {
           // In de dialoogmodus hoort er geen tekst in beeld; wat het model er toch
           // bij tekent (kalenders, blaadjes, labels) is altijd verhaspeld.
           shotImageUrl = await zonderTekst(kandidaat, format, b.language);
@@ -477,15 +487,17 @@ export async function POST(req: NextRequest) {
           kaderNu = poging >= MAX_BEELD_POGINGEN - 1 ? null : rustigerKader(kaderNu);
           console.warn(`[dialogue-line] uiterlijk dreef weg, kader terug naar ${kaderNu ?? "het scenebeeld"}`);
         }
-        // De extra pogingen zijn niet vooraf afgerekend; boek ze alsnog af zodat we
-        // niet stilzwijgend meer beelden weggeven dan begroot.
-        if (poging < MAX_BEELD_POGINGEN) {
-          await deductCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Dialoogregel: bronbeeld opnieuw");
-        }
       } catch (e) {
         console.error("[dialogue-line] bronbeeld mislukt:", e);
         break;
       }
+    }
+
+    // Geen enkele poging zonder fouten: neem de minst foute, niet zomaar de laatste.
+    if (!shotImageUrl && beste) {
+      shotImageUrl = beste.url;
+      beeldFouten = beste.fouten;
+      beeldOordeel = beste.oordeel;
     }
 
     if (!shotImageUrl) {

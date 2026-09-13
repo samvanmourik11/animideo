@@ -200,6 +200,18 @@ export function zegtIetsOverHouding(actie: string | null | undefined): boolean {
   return laatstePlek(tekst, ZIT) >= 0 || laatstePlek(tekst, OPGESTAAN) >= 0;
 }
 
+/**
+ * Een model sheet is één personage, drie keer getekend.
+ *
+ * Elk shot krijgt per personage zo'n blad mee (voren, schuin, opzij). Zonder uitleg
+ * leest het beeldmodel daar drie mensen in, en tekent het er één dubbel: twee
+ * Tyrells naast oma, een tweede Lilly aan de Waterkant.
+ */
+export const MODELBLAD_UITLEG =
+  "Some reference images are MODEL SHEETS: each one shows a SINGLE character drawn three times — from the " +
+  "front, at an angle and from the side. That is one person seen from three sides, not three people. Draw " +
+  "every character only once.";
+
 export const ZITTEN_REGEL =
   "POSE CONTINUITY — in the previous shot of this scene the characters were SITTING. They are still seated in " +
   "the same places now: nobody is standing up.";
@@ -231,6 +243,9 @@ export function voorwerpRegie(
         "exactly, but draw it inside this scene at a believable size next to the people. Do not copy the plain " +
         "background and never show the reference sheet itself."
       : "") +
+    // In de oude kamer stonden er twee Wonderwagens, elk zo groot als een speelgoedkar.
+    ` There is never more than ONE of each of these objects in the image. Each keeps its real size next to the ` +
+    `people: something people sit or ride in is bigger than they are — never a toy or a miniature.` +
     " If the scene takes place INSIDE the object, its walls, windows and seats match those colours and details." +
     (hoofdrol.length
       ? ` In this shot the ${hoofdrol.map((v) => v.naam.trim()).join(" and ")} is clearly and fully visible — it ` +

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
-import { buildTwoShotBrief, illustratieContext, iederEenKeer, voorwerpRegie } from "@/lib/infographics/dialogue-staging";
+import { buildTwoShotBrief, illustratieContext, iederEenKeer, voorwerpRegie, MODELBLAD_UITLEG } from "@/lib/infographics/dialogue-staging";
 import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld } from "@/lib/infographics/dialogue-verify";
@@ -180,6 +180,7 @@ export async function POST(req: NextRequest) {
     // dat één keer tegenhouden goedkoper is dan drie keer repareren.
     let twoShotUrl: string | null = null;
     let fouten: string[] = [];
+    let beste: { url: string; fouten: string[]; ernst: number } | null = null;
     // Twee pogingen, en een derde als de tweede nog een ONBRUIKBAAR beeld gaf.
     // Een gesplitst beeld of een vreemde erbij is niet "een smetje" maar een
     // scène die je niet kunt gebruiken; die accepteren omdat de teller op is,
@@ -211,6 +212,7 @@ export async function POST(req: NextRequest) {
         extraContext: [
           illustratieContext(body.illustrationBrief),
           castbladInstructie,
+          cast.some((c) => c.modelSheetUrl) ? MODELBLAD_UITLEG : "",
           ankerInstructie,
           locatieInstructie,
           alleenDezeMensen,
@@ -230,13 +232,19 @@ export async function POST(req: NextRequest) {
       // Alleen de fysieke controle: er praat op een twee-shot nog niemand.
       const oordeel = await beoordeelBeeld(kandidaat, null, cast, { iedereenZichtbaar: true });
       fouten = oordeel.fouten;
+      const ernst = (onbruikbaar(fouten) ? 10 : 0) + fouten.length;
+      if (!beste || ernst < beste.ernst) beste = { url: kandidaat, fouten, ernst };
       // Bij de laatste poging nemen we wat we hebben: een scène zonder anker
       // levert helemaal geen beelden op, en dat is erger dan een beeld met een smetje.
+      // Wel het minst foute beeld, niet zomaar het laatste.
       const stop = fouten.length === 0
         || poging === MAX_POGINGEN
         || (poging === 2 && !onbruikbaar(fouten));
-      if (stop) twoShotUrl = await zonderTekst(kandidaat, format, body.language);
-      else {
+      if (stop) {
+        const keuze = fouten.length === 0 ? { url: kandidaat, fouten } : beste;
+        fouten = keuze.fouten;
+        twoShotUrl = await zonderTekst(keuze.url, format, body.language);
+      } else {
         console.warn(`[dialogue-twoshot] afgekeurd (poging ${poging}): ${fouten.join("; ")}`);
         besteedExtra += CREDIT_COSTS.IMAGE_GENERATION;
       }

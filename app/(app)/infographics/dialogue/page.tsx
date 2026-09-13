@@ -15,7 +15,7 @@ import SetupPanel from "@/components/dialogue/SetupPanel";
 import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
-import { regelKlaar, kaleSetting, sceneCast, voorwerpenInScene, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
+import { regelKlaar, heeftStem, kaleSetting, sceneCast, voorwerpenInScene, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
 import { zitHouding, zegtIetsOverHouding } from "@/lib/infographics/dialogue-staging";
 import VasteVoorwerpen from "@/components/dialogue/VasteVoorwerpen";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
@@ -499,6 +499,41 @@ export default function DialoguePage() {
     }
   }
 
+  /**
+   * Alle stemmen vooraf, per stem in één opname.
+   *
+   * Zinnen die los werden ingesproken klonken elk net anders, ook van hetzelfde
+   * personage. Mislukt dit, dan is dat geen stopper: de regels die nog geen stem
+   * hebben, spreken bij hun eigen clip los in, zoals voorheen.
+   */
+  async function maakStemmen(werk: DialogueSpec): Promise<string | null> {
+    const regels = werk.scenes
+      .flatMap((s, si) => s.lines.map((l, li) => ({ l, sleutel: `${si}-${li}` })))
+      .filter(({ l }) => heeftStem(l) && !l.audioUrl && !regelKlaar(l));
+    if (regels.length === 0) return null;
+    setVoortgang(`Stemmen inspreken (${regels.length} zinnen)…`);
+    try {
+      const r = await fetch("/api/infographics/dialogue-stemmen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          regels: regels.map(({ l, sleutel }) => ({ sleutel, characterId: l.characterId, text: l.text })),
+          cast: werk.cast, narratorVoice: werk.narratorVoice ?? null, language: werk.language,
+        }),
+      });
+      const d = await r.json();
+      if (!r.ok) return d.error === "insufficient_credits" ? creditFout(d) : null;
+      for (const { l, sleutel } of regels) {
+        const stem = d.stemmen?.[sleutel];
+        if (stem?.audioUrl) Object.assign(l, { audioUrl: stem.audioUrl, audioDuration: stem.audioDuration });
+      }
+      setSpec(structuredClone(werk));
+    } catch {
+      // Terugval: per regel inspreken.
+    }
+    return null;
+  }
+
   // ---------- Video maken ----------
   async function maakVideo() {
     if (!spec) return;
@@ -508,6 +543,7 @@ export default function DialoguePage() {
     const mislukt: string[] = [];
     // Wat het storyboard nog niet had, wordt hier alsnog gemaakt.
     let gestopt = await maakBasisbeelden(werk, mislukt);
+    if (!gestopt) gestopt = await maakStemmen(werk);
 
     // Dan de regels. Alleen wat er nog niet staat, zodat opnieuw klikken een
     // hervatting is en je niet nog eens betaalt voor clips die al klaar zijn.
@@ -539,6 +575,10 @@ export default function DialoguePage() {
                 kind: regel.kind ?? "dialoog", actie: regel.actie ?? "", seconden: regel.seconden ?? undefined,
                 narratorVoice: werk.narratorVoice ?? undefined,
                 text: regel.text, emotion: regel.emotion, language: werk.language,
+                // De stem uit de opname per stem (maakStemmen). Zonder stem spreekt
+                // de regel zelf in, zoals voorheen.
+                hergebruikAudioUrl: regel.audioUrl ?? undefined,
+                hergebruikAudioDuration: regel.audioUrl ? regel.audioDuration ?? undefined : undefined,
                 format: werk.format, styleId: werk.styleId, seed: werk.seed,
                 illustrationBrief: werk.illustrationBrief ?? "",
                 // Het kader van dit shot, plus dat van het vorige zodat er geen

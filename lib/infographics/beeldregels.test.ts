@@ -175,6 +175,8 @@ describe("vaste voorwerpen", () => {
   it("beschrijft het voorwerp, en noemt het blad alleen als dat er is", () => {
     expect(voorwerpRegie([])).toBe("");
     expect(voorwerpRegie([wagen])).toContain("purple camper van");
+    expect(voorwerpRegie([wagen])).toContain("never more than ONE");
+    expect(voorwerpRegie([wagen])).toContain("never a toy");
     expect(voorwerpRegie([wagen])).not.toContain("reference image");
     expect(voorwerpRegie([{ ...wagen, bladUrl: "https://x/blad.jpg" }])).toContain("reference image");
   });
