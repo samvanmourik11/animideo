@@ -9,7 +9,7 @@
 
 import { STORY_VOICES } from "./story-voices";
 import { STORY_STYLE_PRESETS } from "./story-style";
-import { CAST_POSITIONS, planVoorLengte, REGELS_PER_SCENE } from "./dialogue-schema";
+import { CAST_POSITIONS, planVoorLengte, REGELS_PER_SCENE, VERTELLER_ID } from "./dialogue-schema";
 import { KADERS, kaderKeuzelijst } from "./verhaal-kaders";
 import { LICHTSOORTEN, lichtKeuzelijst } from "./verhaal-licht";
 import { verhaallijnBlok, scenesPerDeel, FASEN, FASE_INFO, type VerhaalDeel, type VerhaalModus } from "./verhaallijn";
@@ -495,7 +495,10 @@ Dit gaat voor alle algemene regels hierboven. Waar die botsen met dit verhaal, w
 - Elk moment speelt op zijn EIGEN plek, beschreven in "setting". Staan ze bij Fort Zeelandia, dan is de setting Fort Zeelandia — niet de kamer waar het verhaal begon. Zoveel plekken als het verhaal heeft is prima; de regel over twee of drie plekken geldt hier niet.
 - Beschrijf een echte, bestaande plek in "setting" zo dat een tekenaar hem herkent: wat voor gebouw of plek het is en wat er kenmerkend aan is.
 - Verzin GEEN gebeurtenissen, tegenslagen, ruzies of twijfels die niet in de tekst staan. Er hoeft geen wrijving bij.
-- Zinnen die in de tekst van de gebruiker tussen aanhalingstekens staan, neem je LETTERLIJK over, door dezelfde persoon.
+- Zinnen die in de tekst van de gebruiker tussen aanhalingstekens staan (hierboven met "zegt LETTERLIJK"), neem je LETTERLIJK over, door dezelfde persoon, in de scène van dat moment.
+- Letterlijk overnemen betekent NIET dat er verder niets gezegd wordt. Bij ELKE plek praten de personages gewoon: wat ze zien, wat ze ervan vinden, wat oma uitlegt — steeds binnen wat de tekst over dat moment vertelt. Een plek waar alleen de verteller iets zegt voelt als een diavoorstelling; een plek zonder één gesproken zin is fout.
+- Een verteller heeft altijd een zin. Een beeld met alleen muziek krijgt als characterId wie er het meest in beeld is, nooit "verteller".
+- Het deelnummer van een scène is het moment waarvan de scène de inhoud laat zien. Staan de zinnen van moment 2 in een scène, dan is dat deel 2.
 - Wat de tekst vertelt maar niemand zegt ("Oma vertelt dat dit een belangrijk historisch fort is"), laat je horen via de verteller of via een zin van dat personage, en laat je zien in een actiebeeld.
 - Laat in de scènes van een moment alleen de personages praten die bij dat moment in beeld zijn.
 - Staat er bij een moment een vertellerzin, open de eerste scène van dat moment dan met die verteller.
@@ -727,7 +730,7 @@ export function toonDraaiboek(
   }[],
   alleenScene?: number
 ): string {
-  const naam = (id: string) => cast.find((c) => c.id === id)?.name ?? id;
+  const naam = (id: string) => (id === VERTELLER_ID ? "Verteller" : cast.find((c) => c.id === id)?.name ?? id);
   const castRegels = cast
     .map((c) => {
       const plek = c.position === "left" ? "links" : c.position === "right" ? "rechts" : "in het midden";
@@ -749,10 +752,19 @@ export function toonDraaiboek(
           // verscheen het hier als een lege regel ("Jan [char-1] (): ") en gooide
           // het model het weg omdat er niets stond — precies de reden dat
           // actiebeelden na een samenhangcontrole verdwenen.
+          //
+          // En een actiebeeld MET een stem erover moet laten zien wie er praat en
+          // wat. Dit stond eerst voor elk actiebeeld als "geen gesproken tekst". De
+          // samenhangcontrole wist daardoor niet dat een zin van de verteller was, en
+          // gaf in een proef alle acht vertellerzinnen terug in de mond van Tyrell en
+          // Lilly — vermoedelijk ook de reden dat de kerstvideo nul vertellerregels had.
           if (l.kind === "actie") {
             const verband = (l.verband ?? "").trim();
-            return `  ${j + 1}. [ACTIEBEELD, ${l.seconden ?? 4}s, geen gesproken tekst] ${(l.actie ?? "").trim()}` +
-              (verband ? `\n       verband: ${verband}` : "");
+            const tekst = (l.text ?? "").trim();
+            const kop = tekst
+              ? `[ACTIEBEELD, ${naam(l.characterId)} [${l.characterId}] spreekt eroverheen] ${(l.actie ?? "").trim()}\n       gesproken: ${tekst}`
+              : `[ACTIEBEELD, ${l.seconden ?? 4}s, geen gesproken tekst] ${(l.actie ?? "").trim()}`;
+            return `  ${j + 1}. ${kop}` + (verband ? `\n       verband: ${verband}` : "");
           }
           return `  ${j + 1}. ${naam(l.characterId)} [${l.characterId}] (${l.emotion}): ${l.text}`;
         })

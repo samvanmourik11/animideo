@@ -11,7 +11,7 @@ import {
   type BibliotheekItem,
 } from "@/lib/infographics/dialogue-chat-tools";
 import {
-  leesDeel, ordenDelen, vertellerBeeld, verhaallijnBlok, voegGelijkePlekSamen, zorgVoorVerteller, zorgVoorCitaten,
+  leesDeel, ordenDelen, vertellerBeeld, verhaallijnBlok, voegGelijkePlekSamen, zorgVoorVerteller, zorgVoorCitaten, kaalTekst,
   normaliseerVerhaallijn, type VerhaalDeel,
 } from "@/lib/infographics/verhaallijn";
 import { STORY_VOICES, kiesVertellerStem } from "@/lib/infographics/story-voices";
@@ -158,12 +158,27 @@ const begrensSeconden = (n: unknown) =>
 function leesScenes(ruwe: RuweScene[], cast: DialogueCastMember[], vorige: DialogueScene[] = []): DialogueScene[] {
   const naarCastId = maakVertaler(cast);
 
+  // Zinnen die in de vorige versie van de verteller waren, op tekst terug te vinden.
+  const vanVerteller = new Map(
+    vorige
+      .flatMap((s) => s.lines)
+      .filter((l) => l.characterId === VERTELLER_ID && kaalTekst(l.text))
+      .map((l) => [kaalTekst(l.text), l] as const),
+  );
+
   return ruwe
     .map((s, i): DialogueScene => {
       const oud = vorige[i];
       const setting = (s.setting ?? "").trim() || oud?.setting || "";
       const lines = (s.lines ?? [])
         .map((l): DialogueLine | null => {
+          // Een vertellerzin blijft van de verteller. De samenhangcontrole gaf in een
+          // proef alle acht vertellerzinnen terug in de mond van Tyrell en Lilly. Dat
+          // is nu ook in het getoonde draaiboek opgelost, maar wie een zin uitspreekt
+          // mag niet van een model afhangen: dan komt de stem uit de verkeerde mond.
+          const eerderVerteld = vanVerteller.get(kaalTekst(l.text));
+          if (eerderVerteld) return { ...eerderVerteld };
+
           const cid = naarCastId(l.characterId);
           if (!cid) return null;
 
@@ -222,6 +237,25 @@ function leesScenes(ruwe: RuweScene[], cast: DialogueCastMember[], vorige: Dialo
       };
     })
     .filter((s) => s.lines.length > 0);
+}
+
+/**
+ * Eén regel in het log per stap: hoeveel er gesproken wordt, en door wie.
+ *
+ * Een draaiboek van de Wonderwagen kwam terug met zeven plekken waar alleen stille
+ * vertellerbeelden stonden, en achteraf was niet te zien welke van de zes stappen
+ * de zinnen had laten vallen. Hiermee wel.
+ */
+function telRegels(stap: string, scenes: DialogueScene[]): void {
+  const alle = scenes.flatMap((s) => s.lines);
+  const verteller = alle.filter((l) => l.characterId === VERTELLER_ID);
+  const metTekst = (l: DialogueLine) => !!(l.text ?? "").trim();
+  console.log(
+    `[dialogue-chat] ${stap}: ${scenes.length} scènes, ${alle.length} regels — ` +
+    `verteller ${verteller.filter(metTekst).length} met zin / ${verteller.filter((l) => !metTekst(l)).length} zonder, ` +
+    `personages ${alle.filter((l) => l.characterId !== VERTELLER_ID && metTekst(l)).length} zinnen, ` +
+    `stil ${alle.filter((l) => l.characterId !== VERTELLER_ID && !metTekst(l)).length}`
+  );
 }
 
 /**
@@ -871,6 +905,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ reply: `${probleem} Kun je aangeven welke personages je wilt gebruiken?` });
     }
 
+    telRegels("plan van het model", spec.scenes);
+
     // De verhaallijn uit de opzet reist mee in de spec, zodat een latere
     // aanpassing binnen hetzelfde verhaal blijft. Alleen personages die echt in de
     // cast staan mogen erin voorkomen.
@@ -887,6 +923,7 @@ export async function POST(req: NextRequest) {
     // Ook het EERSTE plan kan zichzelf al herhalen; dan hoort de aanvullus dat
     // gat te vullen met iets nieuws in plaats van er nog een kopie bij te doen.
     spec.scenes = langsVerhaal(zonderHerhaling([], spec.scenes), spec.verhaallijn, spec.cast);
+    telRegels("langs de verhaallijn", spec.scenes);
 
     // Twee opruimrondes die het model zelf niet betrouwbaar doet. Ze draaien alleen
     // als er echt iets mis is, dus meestal kosten ze niets.
@@ -902,6 +939,7 @@ export async function POST(req: NextRequest) {
     // Een gebruiker die op "1 minuut" klikte kreeg zo dertig seconden. Het laatste
     // woord over de lengte hoort bij de stap die over lengte gaat.
     spec.scenes = await controleerSamenhang(spec.scenes, spec.cast, spec.language ?? "Nederlands", lijnTekst, volg);
+    telRegels("na samenhang", spec.scenes);
     spec.scenes = await brengOpLengte(
       spec.scenes,
       spec.cast,
@@ -915,10 +953,12 @@ export async function POST(req: NextRequest) {
       lijnTekst,
       volg
     );
+    telRegels("na op lengte", spec.scenes);
 
     // ALS LAATSTE: zorgen dat er genoeg geïllustreerd wordt. Dit staat bewust
     // achteraan, want alle stappen hiervoor kunnen actiebeelden laten sneuvelen.
     spec.scenes = await voegIllustratiesToe(spec.scenes, spec.cast);
+    telRegels("na illustraties", spec.scenes);
 
     // ALLERLAATST: de eindredactie over de gesproken zinnen. Hierna schrijft
     // niets meer, dus wat hier goed komt blijft goed.
@@ -947,10 +987,7 @@ export async function POST(req: NextRequest) {
     // stappen hierboven hergebruikten id's op volgorde, en na een ingevoegde scène
     // konden er twee dezelfde ontstaan.
     spec.scenes = langsVerhaal(spec.scenes, spec.verhaallijn, spec.cast).map((s, i) => ({ ...s, id: `scene-${i}` }));
-    console.log(
-      `[dialogue-chat] klaar: ${spec.scenes.length} scènes, ${spec.scenes.reduce((a, s) => a + s.lines.length, 0)} regels, ` +
-      `${spec.scenes.flatMap((s) => s.lines).filter((l) => l.characterId === VERTELLER_ID).length} van de verteller`
-    );
+    telRegels("klaar", spec.scenes);
 
     // De gebruiker heeft de lengte gekozen; die is leidend, niet wat het model
     // ervan maakte. Hij hoort ook bij de spec, zodat een herziening dezelfde maat

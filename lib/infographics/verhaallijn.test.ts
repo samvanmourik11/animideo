@@ -378,6 +378,20 @@ describe("zorgVoorVerteller bij een zin die al in de mond van een personage lag"
     expect(scenes[0].lines[0].characterId).toBe("char-1");
   });
 
+  it("geeft een stil vertellerbeeld de vertellerzin, in plaats van het deel over te slaan", () => {
+    const scenes = [scene({
+      deel: 1,
+      lines: [
+        { kind: "actie", characterId: VERTELLER_ID, text: "", emotion: "", actie: "A wide view of the fort." },
+        { kind: "actie", characterId: VERTELLER_ID, text: "", emotion: "", actie: "The cannons on the wall." },
+      ],
+    })];
+    const uit = zorgVoorVerteller(scenes, fortLijn);
+    expect(uit[0].lines).toHaveLength(2);
+    expect(uit[0].lines[0].text).toBe(zin);
+    expect(uit[0].lines[0].actie).toBe("A wide view of the fort.");
+  });
+
   it("haalt de dubbele zin weg als de verteller hem al uitsprak", () => {
     const scenes = [scene({
       deel: 1,
@@ -421,6 +435,22 @@ describe("zorgVoorCitaten", () => {
     const laatste = uit[0].lines[uit[0].lines.length - 1];
     expect(laatste.text).toBe("Overal waar jullie nieuwsgierig naar zijn.");
     expect(laatste.characterId).toBe("char-3");
+  });
+
+  it("zet een zin niet dubbel als het model hem bij een verkeerd deelnummer schreef", () => {
+    // Twee momenten; de zinnen van moment 2 staan in de scène van moment 1.
+    const tweeMomenten = [moment("Bij oma", "Ze komen binnen."), geheimLijn[0]];
+    const scenes = [
+      scene({ id: "a", deel: 1, lines: [
+        { characterId: "char-1", text: "Wat voor geheim?", emotion: "nieuwsgierig" },
+        { characterId: "char-2", text: "Kunnen we echt overal naartoe?", emotion: "verrast" },
+        { characterId: "char-3", text: "Overal waar jullie nieuwsgierig naar zijn.", emotion: "blij" },
+      ] }),
+      scene({ id: "b", deel: 2, lines: [{ characterId: "char-3", text: "Kom maar mee.", emotion: "neutraal" }] }),
+    ];
+    const uit = zorgVoorCitaten(scenes, tweeMomenten, cast);
+    expect(uit[0].lines).toHaveLength(3);
+    expect(uit[1].lines).toHaveLength(1);
   });
 
   it("is veilig om vaker te draaien", () => {

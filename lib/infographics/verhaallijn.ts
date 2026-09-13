@@ -88,7 +88,7 @@ export interface VerhaalDeel {
 }
 
 /** Tekst zonder hoofdletters, leestekens en dubbele spaties — om zinnen te vergelijken. */
-const kaalTekst = (t?: string | null) =>
+export const kaalTekst = (t?: string | null) =>
   (t ?? "").toLowerCase().replace(/[^\p{L}\p{N} ]/gu, " ").replace(/\s+/g, " ").trim();
 
 const isFase = (w: unknown): w is Fase => (FASEN as readonly string[]).includes(w as string);
@@ -431,7 +431,11 @@ export function zorgVoorVerteller(scenes: DialogueScene[], lijn: VerhaalDeel[] |
     const deel = i + 1;
     const vanDeel = uit.filter((s) => s.deel === deel);
     if (vanDeel.length === 0) return;
-    if (vanDeel.some((s) => s.lines.some((l) => l.characterId === VERTELLER_ID))) return;
+    // Alleen een verteller die iets ZEGT telt. Bij de Wonderwagen stonden er bij elke
+    // plek in Paramaribo vertellerbeelden zonder tekst; die telden als "er is al een
+    // verteller", waardoor de vertellerzin nergens terechtkwam en zeven plekken
+    // alleen uit muziek bestonden.
+    if (vanDeel.some((s) => s.lines.some((l) => l.characterId === VERTELLER_ID && kaalTekst(l.text)))) return;
 
     // Het model zet de vertellerzin soms al neer, maar in de mond van een
     // personage. Bij de Wonderwagen zei Tyrell in elke scène "Hun eerste stop was
@@ -452,6 +456,15 @@ export function zorgVoorVerteller(scenes: DialogueScene[], lijn: VerhaalDeel[] |
       return;
     }
 
+    // Een vertellerbeeld zonder tekst is al het moment van de verteller, alleen
+    // zonder zin. Die zin hoort daar, in plaats van een tweede beeld ervoor.
+    for (const s of vanDeel) {
+      const j = s.lines.findIndex((l) => l.characterId === VERTELLER_ID && !kaalTekst(l.text));
+      if (j < 0) continue;
+      s.lines[j] = { ...s.lines[j], text: zin, kader: s.lines[j].kader ?? "totaal" };
+      return;
+    }
+
     const eerste = vanDeel[0];
     const regel: DialogueLine = {
       kind: "actie",
@@ -469,7 +482,7 @@ export function zorgVoorVerteller(scenes: DialogueScene[], lijn: VerhaalDeel[] |
   // Vangnet voor draaiboeken die al een verteller hadden én dezelfde zin nog eens
   // in de mond van een personage: die tweede keer valt weg.
   return uit.map((s) => {
-    const verteld = new Set(s.lines.filter((l) => l.characterId === VERTELLER_ID).map((l) => kaalTekst(l.text)));
+    const verteld = new Set(s.lines.filter((l) => l.characterId === VERTELLER_ID).map((l) => kaalTekst(l.text)).filter(Boolean));
     if (verteld.size === 0) return s;
     const lines = s.lines.filter((l) => l.characterId === VERTELLER_ID || !kaalTekst(l.text) || !verteld.has(kaalTekst(l.text)));
     return lines.length ? { ...s, lines } : s;
@@ -498,7 +511,11 @@ export function zorgVoorCitaten(
 
   lijn.forEach((d, i) => {
     const vanDeel = uit.filter((s) => s.deel === i + 1);
-    if (vanDeel.length === 0) return;
+    // Eerst bij het eigen moment zoeken, daarna in de rest van het draaiboek. Het
+    // model nummert de delen niet altijd goed: bij de Wonderwagen stonden de zinnen
+    // van moment 2 in de scène van moment 1. Alleen bij het eigen moment zoeken gaf
+    // dan elke zin twee keer — één keer van het model, één keer van ons erbij.
+    const zoekIn = [...vanDeel, ...uit.filter((s) => !vanDeel.includes(s))];
 
     for (const c of d.citaten ?? []) {
       const spreker = cast.find((k) => k.characterId === c.wie)?.id;
@@ -509,14 +526,14 @@ export function zorgVoorCitaten(
         doel.length >= 8 ? kaalTekst(tekstRegel).includes(doel) : kaalTekst(tekstRegel) === doel;
 
       let gevonden = false;
-      for (const s of vanDeel) {
+      for (const s of zoekIn) {
         const j = s.lines.findIndex((l) => l.characterId !== VERTELLER_ID && past(l.text));
         if (j < 0) continue;
         if (s.lines[j].characterId !== spreker) s.lines[j] = { ...s.lines[j], characterId: spreker };
         gevonden = true;
         break;
       }
-      if (!gevonden) {
+      if (!gevonden && vanDeel.length > 0) {
         vanDeel[vanDeel.length - 1].lines.push({
           kind: "dialoog", characterId: spreker, kader: null, text: c.tekst, emotion: "neutraal",
         });
