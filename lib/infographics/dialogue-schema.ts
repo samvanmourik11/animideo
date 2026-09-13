@@ -161,6 +161,7 @@ export interface DialogueCastMember {
 import type { Kader } from "./verhaal-kaders";
 import type { Lichtsoort } from "./verhaal-licht";
 import type { VerhaalDeel, VerhaalModus } from "./verhaallijn";
+import type { VideoControleUitslag } from "./video-controle";
 
 export const SHOT_SOORTEN = ["dialoog", "actie"] as const;
 export type ShotSoort = (typeof SHOT_SOORTEN)[number];
@@ -221,6 +222,11 @@ export interface DialogueLine {
    * Met een voice-over bepaalt de lengte van de ingesproken zin de duur.
    */
   seconden?: number | null;
+  /**
+   * Een correctie voor het bronbeeld van dit shot ("Lilly stands on the right").
+   * Komt uit de videocontrole en gaat mee bij elke nieuwe versie van dit shot.
+   */
+  beeldAanwijzing?: string | null;
   /**
    * Alleen bij kind "actie": één zin over waar dit beeld uit voortkomt en waar het
    * naartoe leidt. De assistent MOET dit invullen — wie moet opschrijven waarom een
@@ -295,6 +301,8 @@ export interface DialogueSpec {
   verhaallijn?: VerhaalDeel[] | null;
   /** Of het verhaal van de gebruiker gevolgd of door ons verzonnen is. Zie verhaallijn.ts. */
   verhaalModus?: VerhaalModus | null;
+  /** De laatste uitslag van "Laat je video controleren op fouten". Zie video-controle.ts. */
+  controle?: VideoControleUitslag | null;
   format: "16:9" | "9:16";
   cast: DialogueCastMember[];
   scenes: DialogueScene[];

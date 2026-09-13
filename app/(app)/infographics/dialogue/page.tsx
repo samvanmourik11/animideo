@@ -12,6 +12,8 @@ import DialoguePlayer, { bouwFragmenten } from "@/components/dialogue/DialoguePl
 import FragmentEditor, { type HerstelActie } from "@/components/dialogue/FragmentEditor";
 import ArtDirection from "@/components/dialogue/ArtDirection";
 import SetupPanel from "@/components/dialogue/SetupPanel";
+import VideoControle from "@/components/dialogue/VideoControle";
+import { pasHerstelToe, type ControleFout } from "@/lib/infographics/video-controle";
 import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
@@ -59,6 +61,8 @@ export default function DialoguePage() {
   const [herstelBezig, setHerstelBezig] = useState<string | null>(null);
   // Van welke scène het storyboard nu een nieuw basisbeeld maakt.
   const [hertekenBezig, setHertekenBezig] = useState<number | null>(null);
+  // De videocontrole loopt.
+  const [controleBezig, setControleBezig] = useState(false);
 
   const creditFout = (d: { error?: string; required?: number; credits?: number; detail?: string }) =>
     d.error === "insufficient_credits"
@@ -463,11 +467,17 @@ export default function DialoguePage() {
   }
 
   // ---------- Video maken ----------
-  async function maakVideo() {
-    if (!spec) return;
+  /**
+   * `basis` is het draaiboek om mee te werken als dat nét veranderd is — na een herstel
+   * uit de videocontrole. De state is dan nog niet bijgewerkt, en dan zou dit de oude
+   * versie maken.
+   */
+  async function maakVideo(basis?: DialogueSpec) {
+    const bron = basis ?? spec;
+    if (!bron) return;
     setRenderBezig(true); setRenderFout(null); setExportUrl(null); setStap(5);
 
-    const werk: DialogueSpec = structuredClone(spec);
+    const werk: DialogueSpec = structuredClone(bron);
     const mislukt: string[] = [];
     // Wat het storyboard nog niet had, wordt hier alsnog gemaakt.
     let gestopt = await maakBasisbeelden(werk, mislukt);
@@ -513,6 +523,8 @@ export default function DialoguePage() {
                 // camerabewegingen rouleren en niet elke scene opnieuw bij
                 // "inzoomen" beginnen.
                 shotIndex: werk.scenes.slice(0, si).reduce((n, sc) => n + sc.lines.length, 0) + li,
+                // Een correctie uit de videocontrole ("Lilly stands on the right").
+                beeldInstructie: regel.beeldAanwijzing ?? undefined,
                 licht: scene.licht ?? null,
               }),
             });
@@ -624,6 +636,47 @@ export default function DialoguePage() {
     }
   }
 
+  // ---------- De videocontrole ----------
+
+  /** Laat elk shot bekijken en naast het verhaal leggen. Zie /api/infographics/dialogue-controle. */
+  async function controleerVideo() {
+    if (!spec || controleBezig) return;
+    setControleBezig(true);
+    setRenderFout(null);
+    try {
+      const r = await fetch("/api/infographics/dialogue-controle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spec, projectId }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setRenderFout(creditFout(d)); return; }
+      setSpec((prev) => prev && { ...prev, controle: d.controle });
+    } catch (e) {
+      setRenderFout(e instanceof Error ? e.message : String(e));
+    } finally {
+      setControleBezig(false);
+    }
+  }
+
+  /**
+   * Herstelt fouten uit de controle: het draaiboek wordt aangepast (zie pasHerstelToe),
+   * en daarna maakt "Verder maken" precies wat daardoor opnieuw moet — niets meer.
+   */
+  function herstelFouten(fouten: ControleFout[]) {
+    if (!spec || renderBezig || fouten.length === 0) return;
+    const nieuw = pasHerstelToe(spec, fouten);
+    setSpec(nieuw);
+    setExportUrl(null);
+    void maakVideo(nieuw);
+  }
+
+  function negeerFout(fout: ControleFout) {
+    setSpec((prev) => prev?.controle
+      ? { ...prev, controle: { ...prev.controle, fouten: prev.controle.fouten.map((f) => (f.id === fout.id ? { ...f, genegeerd: true } : f)) } }
+      : prev);
+  }
+
   // Gooit alle getekende beelden en clips weg zodat een nieuwe stijl of briefing
   // op de HELE video wordt toegepast. De stemmen blijven staan: die veranderen
   // niet mee met de beeldregie, en opnieuw inspreken zou zonde van het geld zijn.
@@ -730,7 +783,7 @@ export default function DialoguePage() {
                   Storyboard maken ({schatStoryboardCredits(spec)} credits)
                 </button>
               )}
-              <button onClick={maakVideo} disabled={renderBezig}
+              <button onClick={() => maakVideo()} disabled={renderBezig}
                 className="text-[11px] text-slate-400 hover:text-white underline disabled:opacity-40">
                 of meteen de hele video ({schatCredits(spec)} credits)
               </button>
@@ -811,7 +864,7 @@ export default function DialoguePage() {
                   {renderBezig ? "Bezig…" : `Ontbrekende beelden maken (${schatStoryboardCredits(spec)} credits)`}
                 </button>
               )}
-              <button onClick={maakVideo} disabled={renderBezig || hertekenBezig !== null}
+              <button onClick={() => maakVideo()} disabled={renderBezig || hertekenBezig !== null}
                 className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition">
                 Clips maken ({schatCredits(spec)} credits)
               </button>
@@ -836,7 +889,7 @@ export default function DialoguePage() {
       {stap === 5 && spec && (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-3">
-            <button onClick={maakVideo} disabled={renderBezig}
+            <button onClick={() => maakVideo()} disabled={renderBezig}
               className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition">
               {renderBezig ? "Bezig…" : klaarAantal === alleRegels.length ? "Alles staat klaar" : `Verder maken (${schatCredits(spec)} credits)`}
             </button>
@@ -872,6 +925,15 @@ export default function DialoguePage() {
                 format={spec.format}
                 musicUrl={spec.musicUrl}
                 musicVolume={spec.musicVolume}
+              />
+
+              <VideoControle
+                spec={spec}
+                bezig={controleBezig}
+                disabled={renderBezig || herstelBezig !== null}
+                onControleer={controleerVideo}
+                onHerstel={herstelFouten}
+                onNegeer={negeerFout}
               />
 
               {/* Per moment ingrijpen, direct onder de video: je ziet het bronbeeld
