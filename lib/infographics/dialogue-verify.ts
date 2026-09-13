@@ -1,5 +1,6 @@
 import { openai } from "@/lib/openai";
 import { uiterlijkVan, type DialogueCastMember, type CastPosition } from "./dialogue-schema";
+import { telFout } from "./beeldtelling";
 
 // Controleren WIE er praat, in plaats van hopen dat het klopt.
 //
@@ -176,8 +177,11 @@ export async function beoordeelBeeld(
           content:
             "Je beoordeelt een illustratie voor een animatievideo.\n\n" +
             (spreker
-              ? 'Antwoord met JSON: {"spreker": "links"|"rechts"|"midden"|"onduidelijk", "fouten": ["...", "..."]}.\n\n'
-              : 'Antwoord met JSON: {"fouten": ["...", "..."]}.\n\n') +
+              ? 'Antwoord met JSON: {"aantalMensen": <getal>, "spreker": "links"|"rechts"|"midden"|"onduidelijk", "fouten": ["...", "..."]}.\n\n'
+              : 'Antwoord met JSON: {"aantalMensen": <getal>, "fouten": ["...", "..."]}.\n\n') +
+            "TEL EERST: hoeveel mensen staan er in het beeld? Tel iedereen apart, ook wie half zichtbaar, klein, " +
+            "op de achtergrond of dubbel getekend is. Twee figuren die er hetzelfde uitzien tellen als twee. " +
+            "Zet dat getal in \"aantalMensen\".\n\n" +
             "Zet in \"fouten\" alleen dingen die ECHT NIET KUNNEN, elk in een paar woorden:\n" +
             "- een persoon die in of onder een object, tank, bak of water staat in plaats van ernaast\n" +
             "- ontbrekende, dubbele of vergroeide ledematen, handen of vingers\n" +
@@ -225,12 +229,17 @@ export async function beoordeelBeeld(
     });
 
     const antwoord = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as {
+      aantalMensen?: unknown;
       spreker?: string;
       fouten?: string[];
     };
     const fouten = Array.isArray(antwoord.fouten)
       ? antwoord.fouten.map((f) => String(f).trim()).filter(Boolean).slice(0, 5)
       : [];
+    // De telling wint van de open vraag: die zag vier mensen waar er drie hoorden
+    // niet als fout. Vooraan, zodat hij niet wegvalt als er al vijf andere fouten zijn.
+    const telling = telFout(antwoord.aantalMensen, iedereen.length, opties.iedereenZichtbaar === true);
+    if (telling) fouten.unshift(telling);
 
     if (!spreker) return { spreker: "onduidelijk", fouten };
 
