@@ -12,7 +12,7 @@ import { STORY_STYLE_PRESETS } from "./story-style";
 import { CAST_POSITIONS, planVoorLengte, REGELS_PER_SCENE } from "./dialogue-schema";
 import { KADERS, kaderKeuzelijst } from "./verhaal-kaders";
 import { LICHTSOORTEN, lichtKeuzelijst } from "./verhaal-licht";
-import { verhaallijnBlok, scenesPerDeel, FASEN, FASE_INFO, type VerhaalDeel } from "./verhaallijn";
+import { verhaallijnBlok, scenesPerDeel, FASEN, FASE_INFO, type VerhaalDeel, type VerhaalModus } from "./verhaallijn";
 
 export const DRAAIBOEK_TOOL = {
   type: "function" as const,
@@ -165,7 +165,8 @@ export const DRAAIBOEK_TOOL = {
               deel: {
                 type: "integer",
                 description:
-                  "Bij welk deel van de verhaallijn deze scène hoort: 1 = begin, 2 = probleem, 3 = tegenslag, " +
+                  "Bij welk deel van de verhaallijn deze scène hoort: het nummer uit de verhaallijn (1 = het eerste " +
+                  "deel). Is er geen verhaallijn meegegeven: 1 = begin, 2 = probleem, 3 = tegenslag, " +
                   "4 = omslag, 5 = slot. De nummers lopen op en slaan geen deel over.",
               },
               setting: {
@@ -354,7 +355,7 @@ const LICHT_SCHEMA = {
 
 const DEEL_SCHEMA = {
   type: "integer",
-  description: "Bij welk deel van de verhaallijn deze scène hoort (1 = begin … 5 = slot). Neem het over uit het draaiboek; een nieuwe scène krijgt het deel waar hij tussen staat.",
+  description: "Bij welk deel van de verhaallijn deze scène hoort (1 = het eerste deel). Neem het over uit het draaiboek; een nieuwe scène krijgt het deel waar hij tussen staat.",
 } as const;
 
 export const HERZIE_DRAAIBOEK_TOOL = {
@@ -458,8 +459,10 @@ export interface VastgesteldeOpzet {
   keepTerms?: string[];
   avoidTerms?: string[];
   cast?: { id: string; characterId?: string; name: string; role?: string | null; leeftijd?: string | null; wil?: string | null; spraak?: string | null }[];
-  /** Wat er gebeurt, in vijf delen. Zie verhaallijn.ts. */
+  /** Wat er gebeurt: vijf delen (verzonnen) of een moment per moment (gevolgd). Zie verhaallijn.ts. */
   verhaallijn?: VerhaalDeel[] | null;
+  /** "volgen" = het eigen verhaal van de gebruiker, daar wordt niets bij verzonnen. */
+  modus?: VerhaalModus | null;
 }
 
 /**
@@ -473,6 +476,32 @@ export interface VastgesteldeOpzet {
 function verhaallijnOpdracht(opzet: VastgesteldeOpzet, aantalScenes: number): string {
   const blok = verhaallijnBlok(opzet.verhaallijn, opzet.cast ?? []);
   if (!blok) return "";
+  const lijn = opzet.verhaallijn ?? [];
+
+  // Het eigen verhaal van de gebruiker. De algemene regels hierboven (hooguit drie
+  // plekken, wrijving in elke scène, een verhaalboog) botsen daarmee: bij de
+  // Wonderwagen hielden ze de kinderen de hele video bij oma, terwijl het verhaal
+  // over een reis langs zeven plekken ging. Hier staat daarom expliciet dat het
+  // verhaal wint.
+  if (opzet.modus === "volgen") {
+    const scenes = scenesPerDeel(Math.max(aantalScenes, lijn.length), lijn.length, false);
+    return `
+
+${blok}
+
+DIT IS HET EIGEN VERHAAL VAN DE GEBRUIKER — VOLG HET PRECIES
+Dit gaat voor alle algemene regels hierboven. Waar die botsen met dit verhaal, wint het verhaal.
+- Elk moment hierboven wordt minstens één scène, in deze volgorde, met het nummer van het moment in "deel". Sla er GEEN over. Scènes per moment, ongeveer: ${scenes.join(", ")}.
+- Elk moment speelt op zijn EIGEN plek, beschreven in "setting". Staan ze bij Fort Zeelandia, dan is de setting Fort Zeelandia — niet de kamer waar het verhaal begon. Zoveel plekken als het verhaal heeft is prima; de regel over twee of drie plekken geldt hier niet.
+- Beschrijf een echte, bestaande plek in "setting" zo dat een tekenaar hem herkent: wat voor gebouw of plek het is en wat er kenmerkend aan is.
+- Verzin GEEN gebeurtenissen, tegenslagen, ruzies of twijfels die niet in de tekst staan. Er hoeft geen wrijving bij.
+- Zinnen die in de tekst van de gebruiker tussen aanhalingstekens staan, neem je LETTERLIJK over, door dezelfde persoon.
+- Wat de tekst vertelt maar niemand zegt ("Oma vertelt dat dit een belangrijk historisch fort is"), laat je horen via de verteller of via een zin van dat personage, en laat je zien in een actiebeeld.
+- Laat in de scènes van een moment alleen de personages praten die bij dat moment in beeld zijn.
+- Staat er bij een moment een vertellerzin, open de eerste scène van dat moment dan met die verteller.
+- Is de lengte krap voor het aantal momenten, maak de momenten dan korter (een vertellerzin en één of twee shots) in plaats van er een over te slaan.`;
+  }
+
   const verdeling = scenesPerDeel(aantalScenes)
     .map((n, i) => `${FASE_INFO[FASEN[i]].label.toLowerCase()} ${n}`)
     .join(", ");
@@ -671,7 +700,8 @@ Verder:
 
 HOEVEEL PLEKKEN
 Gebruik voor de hele video hooguit twee of drie verschillende plekken, en kom er
-gerust naar terug. Een gesprek dat elke scene in een andere kamer staat voelt niet
+gerust naar terug. (Volg je het eigen verhaal van de gebruiker en noemt dat meer
+plekken, dan gebruik je al die plekken, elk op zijn eigen moment.) Een gesprek dat elke scene in een andere kamer staat voelt niet
 als een verhaal maar als losse plaatjes achter elkaar. Kom je terug op een plek die
 er al was, schrijf de omgeving dan LETTERLIJK hetzelfde op als de vorige keer.
 
@@ -729,8 +759,7 @@ export function toonDraaiboek(
         .join("\n");
       // Deel en licht staan erbij zodat elke stap die het draaiboek teruggeeft ze
       // kan overnemen. Wat hier niet staat, kan een model ook niet bewaren.
-      const fase = s.deel ? FASEN[s.deel - 1] : undefined;
-      const deel = fase ? ` — deel ${s.deel} (${FASE_INFO[fase].label.toLowerCase()})` : "";
+      const deel = s.deel ? ` — deel ${s.deel}` : "";
       return `SCÈNE ${start + i + 1}${deel} — licht: ${s.licht ?? "dag"} — omgeving: ${s.setting}\n${regels}`;
     })
     .join("\n\n");
@@ -774,7 +803,7 @@ Roep de functie aan zodra je weet wat er moet gebeuren. Antwoord verder kort en 
  * het model het hele draaiboek herschrijven en ben je de zinnen kwijt waar de
  * gebruiker misschien net tevreden over was.
  */
-export function buildSamenhangSysteem(draaiboek: string, taal: string, verhaallijn?: string | null): string {
+export function buildSamenhangSysteem(draaiboek: string, taal: string, verhaallijn?: string | null, volg = false): string {
   return `Je bent eindredacteur van een korte geanimeerde video en controleert of het draaiboek als één verhaal loopt.
 
 DIT IS HET DRAAIBOEK:
@@ -786,7 +815,11 @@ WAAR JE OP LET
 2. Sluit de regel ná een actiebeeld erop aan? Als ze net zijn aangekomen, praten ze verder alsof ze er zijn — ze herhalen niet wat we al gezien hebben.
 3. Staat er een actiebeeld dat niets toevoegt? Verwijder het.
 4. Ontbreekt er een stap waardoor het verhaal springt? Bijvoorbeeld: ze besluiten te vertrekken en staan in de volgende regel al ergens anders zonder dat we ze hebben zien gaan. Voeg dan een kort actiebeeld toe.
-5. Heeft het geheel een begin, een midden en een afsluiting?${verhaallijn ? "\n6. Volgt het draaiboek de verhaallijn hierboven? Wordt het probleem niet al opgelost vóór deel 4, de omslag? Is dat wel zo, herschrijf dan die regels zodat de oplossing pas in de omslag komt." : ""}
+5. Heeft het geheel een begin, een midden en een afsluiting?${verhaallijn
+  ? volg
+    ? "\n6. Dit is het eigen verhaal van de gebruiker. Komt elk moment van de verhaallijn in het draaiboek voor, op zijn eigen plek en in de goede volgorde? Ontbreekt er een, voeg die scène dan toe. Verzin niets wat niet in de verhaallijn staat, en haal geen zinnen weg die de gebruiker zelf schreef."
+    : "\n6. Volgt het draaiboek de verhaallijn hierboven? Wordt het probleem niet al opgelost vóór deel 4, de omslag? Is dat wel zo, herschrijf dan die regels zodat de oplossing pas in de omslag komt."
+  : ""}
 
 HOE JE AANPAST
 - Verander ZO WEINIG MOGELIJK. Klopt het al, geef het draaiboek dan letterlijk ongewijzigd terug.
@@ -833,7 +866,8 @@ export function buildUitbreidSysteem(
   briefing?: string | null,
   kern?: string | null,
   wending?: string | null,
-  verhaallijn?: string | null
+  verhaallijn?: string | null,
+  volg = false
 ): string {
   const tekort = Math.max(0, doelSeconden - huidigeSeconden);
   // BEWUST ANDERHALF KEER het tekort vragen. Het model levert stelselmatig minder
@@ -874,7 +908,11 @@ Geef het VOLLEDIGE draaiboek terug — de bestaande scènes én de nieuwe, in de
 WAAR DE NIEUWE SCÈNES KOMEN
 - IN HET MIDDEN, niet erachter. Zoek de scène waarin het verhaal aankomt op de plek waar het over gaat, en bouw dáárna uit: wat maken ze daar mee, wat ontdekken ze, wat gaat er anders dan gedacht, wie komen ze tegen.
 - De slotscène van het huidige draaiboek BLIJFT de slotscène. Er komt niets achter het einde. Eindigt het verhaal met thuiskomen of afscheid nemen, dan gebeurt dat één keer, helemaal aan het eind.
-- Loopt het verhaal nu al te snel naar huis, verplaats dat afscheid dan naar achteren en zet je nieuwe scènes ervoor.${verhaallijn ? "\n- Er is een verhaallijn: zet de nieuwe scènes in deel 2 en 3 (probleem en tegenslag) en geef ze dat deelnummer. Daar mag het verhaal het langst duren; de omslag en het slot schuiven mee naar achteren." : ""}
+- Loopt het verhaal nu al te snel naar huis, verplaats dat afscheid dan naar achteren en zet je nieuwe scènes ervoor.${verhaallijn
+  ? volg
+    ? "\n- DIT IS HET EIGEN VERHAAL VAN DE GEBRUIKER. Verzin GEEN nieuwe gebeurtenissen, plekken of tegenslagen. Maak de bestaande momenten langer: meer van wat er op die plek te zien en te beleven is, meer van de verteller. Een nieuwe scène krijgt het deelnummer van het moment waar hij bij hoort."
+    : "\n- Er is een verhaallijn: zet de nieuwe scènes in deel 2 en 3 (probleem en tegenslag) en geef ze dat deelnummer. Daar mag het verhaal het langst duren; de omslag en het slot schuiven mee naar achteren."
+  : ""}
 - Een nieuwe scène is één plek en één moment met meerdere regels, niet één losse zin.
 
 WAT DE NIEUWE SCÈNES DOEN

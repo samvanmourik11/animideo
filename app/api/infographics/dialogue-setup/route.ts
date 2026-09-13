@@ -1,11 +1,16 @@
-// DE OPZET UITWERKEN — goedkope tekstcalls die van een los idee een compleet
-// ingevuld voorstel maken: het VERHAAL in vijf delen, titel, kern, wending, toon,
-// tekenstijl, beeldregie en een rolverdeling uit de eigen personagebibliotheek.
+// DE OPZET UITWERKEN — goedkope tekstcalls die van een idee of een uitgewerkt
+// verhaal een compleet ingevuld voorstel maken: de VERHAALLIJN, titel, kern,
+// wending, toon, tekenstijl, beeldregie en een rolverdeling uit de eigen
+// personagebibliotheek.
 //
 // Waarom een aparte route en niet gewoon het draaiboek: een draaiboek is duur en
 // staat vast zodra het er is. Dit voorstel is goedkoop, leesbaar in tien seconden
 // en volledig aanpasbaar. Je regisseert dus vóór het schrijven in plaats van
 // achteraf te corrigeren op een script dat er al omheen geschreven is.
+//
+// Twee soorten invoer, twee soorten werk (zie verhaallijn.ts): een IDEE wordt een
+// verhaal met vijf vaste delen; een UITGEWERKT VERHAAL wordt moment voor moment
+// overgenomen, zonder er iets bij te verzinnen.
 //
 // Wat de gebruiker zelf al invulde is heilig; zie mergeCast in lib/dialogue-setup.
 import { NextRequest, NextResponse } from "next/server";
@@ -15,18 +20,23 @@ import { MAX_CAST, MAX_PER_SCENE, type DialogueCastMember } from "@/lib/infograp
 import { mergeCast, type DialogueSetup, type VastCastLid } from "@/lib/infographics/dialogue-setup";
 import {
   FASEN,
+  MAX_DELEN,
+  isUitgewerktVerhaal,
+  isVerhaalModus,
   normaliseerVerhaallijn,
+  ontbrekendeNamen,
   ontbrekendeRollen,
   verhaalProblemen,
   type VerhaalDeel,
+  type VerhaalModus,
 } from "@/lib/infographics/verhaallijn";
 import { STORY_STYLE_PRESETS, DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
 import { STORY_VOICES } from "@/lib/infographics/story-voices";
 import type { Character } from "@/lib/types";
 
 export const runtime = "nodejs";
-// Twee tekstcalls achter elkaar (voorstel en verhaalredactie) passen niet
-// betrouwbaar in een minuut.
+// Meerdere tekstcalls achter elkaar (voorstel, casting, redactie of aanvullen)
+// passen niet betrouwbaar in een minuut.
 export const maxDuration = 120;
 
 interface Body {
@@ -37,8 +47,13 @@ interface Body {
   language?: string;
   /** Personages die de gebruiker zelf al vastlegde. Die liggen vast. */
   vasteCast?: VastCastLid[];
+  /** Weglaten = zelf bepalen aan de hand van de tekst. */
+  modus?: VerhaalModus;
 }
 
+type BibliotheekRij = Pick<Character, "id" | "name" | "description" | "gender" | "age_range" | "image_url">;
+
+// Een VERZONNEN verhaal: precies vijf delen met een vaste fase.
 const VERHAALLIJN_SCHEMA = {
   type: "array",
   items: {
@@ -55,45 +70,77 @@ const VERHAALLIJN_SCHEMA = {
   },
 } as const;
 
+// Een GEVOLGD verhaal: zoveel momenten als de tekst heeft, elk met een eigen naam.
+// Bewust zonder fase: met "begin, probleem, tegenslag" in het schema gaat het model
+// een tegenslag zoeken, ook in een verhaal waar er geen is.
+const MOMENTEN_SCHEMA = {
+  type: "array",
+  items: {
+    type: "object",
+    additionalProperties: false,
+    required: ["titel", "wat", "plek", "wie", "verteller", "citaten"],
+    properties: {
+      titel: { type: "string" },
+      wat: { type: "string" },
+      plek: { type: "string" },
+      wie: { type: "array", items: { type: "string" } },
+      verteller: { type: "string" },
+      // De zinnen die de gebruiker zelf schreef. Die komen er later letterlijk in,
+      // bij de juiste persoon; zie zorgVoorCitaten.
+      citaten: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["wie", "tekst"],
+          properties: { wie: { type: "string" }, tekst: { type: "string" } },
+        },
+      },
+    },
+  },
+} as const;
+
 // De VOLGORDE van de velden is hier niet willekeurig: het model vult ze van boven
 // naar beneden in. Eerst het verhaal, dan pas wat het "betekent" en wie erin
 // speelt. Andersom verzon het eerst een kernboodschap en schreef het daarna een
 // verhaaltje dat die boodschap netjes uitlegde — zonder dat er iets gebeurde.
-const SETUP_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["title", "topic", "verhaallijn", "kern", "wending", "cast", "tone", "angle", "styleId", "illustrationBrief", "keepTerms", "avoidTerms"],
-  properties: {
-    title: { type: "string" },
-    topic: { type: "string" },
-    verhaallijn: VERHAALLIJN_SCHEMA,
-    kern: { type: "string" },
-    wending: { type: "string" },
-    cast: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["characterId", "naam", "role", "wil", "spraak", "leeftijd", "voice"],
-        properties: {
-          characterId: { type: "string" },
-          naam: { type: "string" },
-          role: { type: "string" },
-          wil: { type: "string" },
-          spraak: { type: "string" },
-          leeftijd: { type: "string" },
-          voice: { type: "string" },
+function setupSchema(verhaallijn: typeof VERHAALLIJN_SCHEMA | typeof MOMENTEN_SCHEMA) {
+  return {
+    type: "object",
+    additionalProperties: false,
+    required: ["title", "topic", "verhaallijn", "kern", "wending", "cast", "tone", "angle", "styleId", "illustrationBrief", "keepTerms", "avoidTerms"],
+    properties: {
+      title: { type: "string" },
+      topic: { type: "string" },
+      verhaallijn,
+      kern: { type: "string" },
+      wending: { type: "string" },
+      cast: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["characterId", "naam", "role", "wil", "spraak", "leeftijd", "voice"],
+          properties: {
+            characterId: { type: "string" },
+            naam: { type: "string" },
+            role: { type: "string" },
+            wil: { type: "string" },
+            spraak: { type: "string" },
+            leeftijd: { type: "string" },
+            voice: { type: "string" },
+          },
         },
       },
+      tone: { type: "string", enum: ["zakelijk", "speels", "energiek"] },
+      angle: { type: "string" },
+      styleId: { type: "string" },
+      illustrationBrief: { type: "string" },
+      keepTerms: { type: "array", items: { type: "string" } },
+      avoidTerms: { type: "array", items: { type: "string" } },
     },
-    tone: { type: "string", enum: ["zakelijk", "speels", "energiek"] },
-    angle: { type: "string" },
-    styleId: { type: "string" },
-    illustrationBrief: { type: "string" },
-    keepTerms: { type: "array", items: { type: "string" } },
-    avoidTerms: { type: "array", items: { type: "string" } },
-  },
-} as const;
+  };
+}
 
 const REDACTIE_SCHEMA = {
   type: "object",
@@ -132,14 +179,33 @@ Waarom dit werkt:
 6. Twee of drie plekken voor het hele verhaal, en er wordt naar teruggekeerd.
 7. De oplossing komt van de HOOFDPERSONEN zelf: ze durven iets, doen iets of zien iets in. Niet van toeval (een sneeuwstorm, een telefoontje, iets wat toevallig gebeurt) en niet van een volwassene die binnenloopt en het voor ze bedenkt. Noor pakt zelf de zaklamp.`;
 
-function bibliotheekTekst(
-  bibliotheek: Pick<Character, "id" | "name" | "description" | "gender" | "age_range">[],
-): string {
+// Het tegenovergestelde van VERHAALLES. Bij "Tyrell, Lilly en de Wonderwagen" gaf de
+// gebruiker een compleet verhaal met een reis langs zeven plekken in Paramaribo;
+// de verhaalles maakte er een verhaal met een verzonnen tegenslag van, en de hele
+// reis werd één zin in het slot. Wie een verhaal bedenkt en er iets anders uit
+// ziet komen, haakt af.
+const VOLGLES = `JE VOLGT HET VERHAAL VAN DE GEBRUIKER
+De gebruiker heeft zijn verhaal al geschreven. Jij bedenkt NIETS nieuws. Je knipt zijn verhaal op in momenten, in zijn volgorde, zodat er straks scènes van gemaakt kunnen worden. Wie een verhaal bedenkt en er iets anders uit ziet komen, raakt gefrustreerd — neem het dus over zoals het er staat.
+
+- Elke gebeurtenis en elke plek uit de tekst wordt een eigen moment. Sla niets over, ook niet als het er veel zijn: bezoeken ze zeven plekken, dan zijn dat zeven momenten, en niet één moment "ze bezoeken de stad".
+- Verzin geen tegenslag, geen ruzie, geen twijfel, geen probleem en geen andere afloop dan in de tekst staat.
+- Elk moment speelt op de plek waar het in de tekst gebeurt. Staan ze volgens de tekst bij een fort, dan is de plek dat fort — niet de kamer waar het verhaal begon.
+- Neem namen van plekken, gebouwen, voorwerpen en personen letterlijk over.
+- Wie er volgens de tekst BIJ is, staat in "wie" — ook als die persoon alleen iets vertelt of uitlegt. Vertelt oma bij het fort over de geschiedenis, dan is oma bij het fort in beeld. In de eerste proef stond oma alleen thuis in beeld, terwijl ze in de tekst de hele reis meeging en overal uitleg gaf.
+- Heeft de tekst meer dan ${MAX_DELEN} momenten, voeg dan kleine momenten die bij elkaar horen samen. Laat nooit een plek weg.`;
+
+function bibliotheekTekst(bibliotheek: Pick<Character, "id" | "name" | "description" | "gender" | "age_range">[]): string {
   return bibliotheek.length
     ? bibliotheek
         .map((c) => `- id "${c.id}": ${c.name}${c.gender ? `, ${c.gender}` : ""}${c.age_range ? `, ${c.age_range}` : ""}${c.description ? ` — ${c.description}` : ""}`)
         .join("\n")
     : "(de gebruiker heeft nog geen personages met een afbeelding)";
+}
+
+function castTekstVoor(cast: DialogueCastMember[]): string {
+  return cast
+    .map((c) => `- id "${c.characterId}": ${c.name}${c.role ? ` — ${c.role}` : ""}${c.wil ? `; wil: ${c.wil}` : ""}`)
+    .join("\n");
 }
 
 // Welk soort stem bij een rol hoort. De stem kiezen we zelf in plaats van het
@@ -164,7 +230,7 @@ const STEMSOORT: Record<string, RegExp> = {
  */
 async function casteerRollen(
   rollen: string[],
-  bibliotheek: Pick<Character, "id" | "name" | "description" | "gender" | "age_range" | "image_url">[],
+  bibliotheek: BibliotheekRij[],
   cast: DialogueCastMember[],
   briefing: string,
   language: string,
@@ -277,13 +343,15 @@ Antwoord uitsluitend met JSON volgens het schema.`;
 }
 
 /**
- * Tweede lezing van het verhaal, door een strenge eindredacteur.
+ * Tweede lezing van een VERZONNEN verhaal, door een strenge eindredacteur.
  *
  * De eerste call doet twintig dingen tegelijk (titel, stijl, stemmen, cast) en
  * dan wint het makkelijkste verhaal: iedereen is het eens en het probleem lost
  * zichzelf op. Deze call doet één ding: het verhaal lezen alsof het een
- * voorleesboek is, en repareren wat niet werkt. Kost een paar cent en een
- * kwart minuut; het verhaal was het zwakste punt van de hele video.
+ * voorleesboek is, en repareren wat niet werkt.
+ *
+ * NOOIT bij een gevolgd verhaal: deze redacteur is gebouwd om tegenslagen te
+ * verzinnen, en dat is precies wat daar niet mag.
  *
  * Mislukt hij, dan houden we het eerste voorstel. Een redactie die stuk gaat mag
  * de opzet niet tegenhouden.
@@ -294,9 +362,6 @@ async function redigeerVerhaal(
   briefing: string,
   language: string,
 ): Promise<{ kern: string; wending: string; verhaallijn: VerhaalDeel[] } | null> {
-  const castTekst = cast
-    .map((c) => `- id "${c.characterId}": ${c.name}${c.role ? ` — ${c.role}` : ""}${c.wil ? `; wil: ${c.wil}` : ""}`)
-    .join("\n");
   const problemen = verhaalProblemen(voorstel.verhaallijn, cast);
 
   const system = `Je bent eindredacteur van voorleesverhalen die tot korte animatievideo's worden gemaakt. Je krijgt een verhaallijn in vijf delen en maakt er een beter verhaal van. Je bent streng: de meeste eerste versies zijn te braaf.
@@ -304,10 +369,10 @@ async function redigeerVerhaal(
 ${VERHAALLES}
 
 DE CAST (gebruik in "wie" alleen deze id's, hooguit ${MAX_PER_SCENE} per deel):
-${castTekst}
+${castTekstVoor(cast)}
 
 HOE JE WERKT
-Loop de zes punten hierboven langs. Klopt een punt niet, herschrijf dan de delen die het nodig hebben — verzin gerust een tegenslag, een voorwerp of een misverstand erbij. Klopt het wel, laat die delen dan staan.
+Loop de punten hierboven langs. Klopt een punt niet, herschrijf dan de delen die het nodig hebben — verzin gerust een tegenslag, een voorwerp of een misverstand erbij. Klopt het wel, laat die delen dan staan.
 - Blijf binnen wat de gebruiker wilde: dezelfde situatie, dezelfde personages, dezelfde feiten en namen.
 - Iedereen in de cast speelt in minstens één deel mee.
 - Noem in "wat" alleen mensen die in de cast staan. Je kunt niemand toevoegen, en wie er niet in staat kan niet getekend worden.
@@ -363,6 +428,60 @@ Geef de verbeterde verhaallijn als JSON.`;
   }
 }
 
+/**
+ * Een GEVOLGD verhaal aanvullen met de momenten die het model oversloeg.
+ *
+ * Welke dat zijn weten we zonder model: namen van plekken uit de tekst die nergens
+ * in de verhaallijn staan. Dan is de vraag aan het model heel klein — "voeg deze
+ * toe op de juiste plek, verander de rest niet" — en dat doet het betrouwbaar.
+ */
+async function vulVerhaalAan(
+  lijn: VerhaalDeel[],
+  ontbrekend: string[],
+  cast: DialogueCastMember[],
+  briefing: string,
+  language: string,
+): Promise<VerhaalDeel[] | null> {
+  const system = `Je krijgt het verhaal van een gebruiker en een verhaallijn die ervan gemaakt is: één deel per moment, in de volgorde van het verhaal. Daarin ontbreekt iets. Deze namen uit het verhaal komen nergens in de verhaallijn voor: ${ontbrekend.join(", ")}.
+
+Voeg de momenten waarin ze voorkomen toe, op de plek in de volgorde waar ze in het verhaal staan. Elke plek wordt een eigen moment. Verander de momenten die er al staan niet, en verzin niets wat niet in het verhaal staat.
+
+DE CAST (gebruik in "wie" alleen deze id's, hooguit ${MAX_PER_SCENE} per moment):
+${castTekstVoor(cast)}
+
+Per moment: "titel" (twee tot vier woorden, bij voorkeur de plek), "wat" (wat er gebeurt, in het ${language}, dicht bij de tekst), "plek", "wie", "verteller" (één inleidende zin, of leeg) en "citaten" (elke zin die in dat moment tussen aanhalingstekens staat, letterlijk, met wie hem zegt — neem ze van bestaande momenten ongewijzigd over). Geef de VOLLEDIGE verhaallijn terug, hooguit ${MAX_DELEN} momenten. Antwoord uitsluitend met JSON.`;
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0.2,
+      max_tokens: 5000,
+      messages: [
+        { role: "system", content: system },
+        {
+          role: "user",
+          content: `HET VERHAAL:\n"""\n${briefing.slice(0, 8000)}\n"""\n\nDE HUIDIGE VERHAALLIJN:\n${JSON.stringify(lijn.map(({ fase: _fase, ...d }) => d), null, 2)}`,
+        },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "verhaal_aanvullen",
+          strict: true,
+          schema: { type: "object", additionalProperties: false, required: ["verhaallijn"], properties: { verhaallijn: MOMENTEN_SCHEMA } },
+        },
+      },
+    });
+    const ruw = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as Record<string, unknown>;
+    const aangevuld = normaliseerVerhaallijn(ruw.verhaallijn, cast.map((c) => c.characterId));
+    // Aanvullen mag nooit korter maken: dan is er iets weggevallen in plaats van bijgekomen.
+    return aangevuld.length > lijn.length ? aangevuld : null;
+  } catch (e) {
+    console.error("[dialogue-setup] verhaal aanvullen mislukt:", e);
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
@@ -377,6 +496,10 @@ export async function POST(req: NextRequest) {
     const language = body.language ?? "Nederlands";
     const format = body.format === "9:16" ? "9:16" : "16:9";
     const targetSeconds = Math.max(20, Math.min(300, Math.round(body.targetSeconds ?? 60)));
+    const modus: VerhaalModus = isVerhaalModus(body.modus)
+      ? body.modus
+      : isUitgewerktVerhaal(text) ? "volgen" : "verzinnen";
+    const volg = modus === "volgen";
 
     // De bibliotheek meegeven zodat de assistent uit ÉCHTE personages kan kiezen.
     // Zonder deze lijst verzint hij namen die nergens een portret bij hebben, en
@@ -388,7 +511,7 @@ export async function POST(req: NextRequest) {
       .not("image_url", "is", null)
       .order("updated_at", { ascending: false })
       .limit(40);
-    const bibliotheek = (rijen ?? []) as Pick<Character, "id" | "name" | "description" | "gender" | "age_range" | "image_url">[];
+    const bibliotheek = (rijen ?? []) as BibliotheekRij[];
 
     const vastLijst = vasteCast.length
       ? vasteCast
@@ -399,14 +522,37 @@ export async function POST(req: NextRequest) {
     const stemLijst = STORY_VOICES.map((v) => `"${v.id}"`).join(", ");
     const stijlLijst = STORY_STYLE_PRESETS.map((s) => `"${s.id}" (${s.name})`).join(", ");
 
+    const verhaalOpdracht = volg
+      ? VOLGLES
+      : `JE MAAKT ER EEN ECHT VERHAAL VAN
+De gebruiker geeft meestal een onderwerp of een situatie, geen compleet verhaal. Jouw werk is daar een verhaal van te maken. Verzin gerust gebeurtenissen die de gebruiker niet noemde: een voorwerp, een misverstand, een geheim, een plek, iets wat misgaat. Blijf wel binnen zijn wereld en zijn bedoeling, en neem namen, feiten en cijfers die hij noemt letterlijk over.
+
+${VERHAALLES}`;
+
+    const verhaalVelden = volg
+      ? `- "verhaallijn": één deel per moment uit de tekst, in de volgorde van de tekst. Per deel:
+  - "titel": de naam van dit moment in twee tot vier woorden, bij voorkeur de plek ("Fort Zeelandia", "Oma onthult de wagen").
+  - "wat": wat er in dit moment gebeurt, in twee of drie zinnen in ${language}, zo dicht mogelijk bij de tekst.
+  - "plek": waar het gebeurt, zo concreet als de tekst het noemt.
+  - "wie": de id's uit de bibliotheek van wie er in beeld is, hooguit ${MAX_PER_SCENE}.
+  - "verteller": één zin die dit moment inleidt, uit of dicht bij de tekst, in de derde persoon en de verleden tijd. Verplicht bij het eerste moment en bij elke nieuwe plek; leeg als de personages het moment zelf dragen.
+  - "citaten": ELKE zin die in dit moment in de tekst tussen aanhalingstekens staat, precies zoals hij er staat, met in "wie" het id van wie hem zegt. Let goed op wie dat is: "vraagt Lilly", "Oma knikt." gevolgd door haar zin, "zegt ze". Verzin geen zinnen; leeg als er in dit moment niemand iets zegt.
+- "kern": in één zin waar het verhaal over gaat, afgeleid uit de tekst. Voeg niets toe.
+- "wending": het verrassende moment dat in de tekst zelf staat (bijvoorbeeld iets dat onthuld wordt). Leeg als er geen is.`
+      : `- "verhaallijn": precies vijf delen, in de volgorde begin, probleem, tegenslag, omslag, slot. Per deel:
+  - "fase": welk deel het is.
+  - "wat": twee of drie gewone zinnen in ${language} over wat er in dit deel GEBEURT. Geen dialoog, geen samenvatting van gevoelens — handelingen die je kunt laten zien.
+  - "plek": waar het gebeurt, kort en tekenbaar ("de keuken bij papa").
+  - "wie": de id's uit de bibliotheek van wie er in beeld is, hooguit ${MAX_PER_SCENE}.
+  - "verteller": één zin in de derde persoon en de verleden tijd, zoals een voorleesboek ("Het was de laatste week voor kerst, en in huize De Vries werd het stil."). Verplicht bij het begin. Verder alleen bij een sprong in tijd of plek; anders leeg.
+- "kern": in één zin wat er onderhuids speelt — wat iemand mist, hoopt, niet durft of wil bewijzen. Een gevoel, geen gebeurtenis.
+- "wending": in één zin wat er anders loopt dan verwacht.`;
+
     const system = `Je bent schrijver en regisseur van korte geanimeerde VERHAAL-video's, in de stijl van de sprookjeskanalen voor kinderen: personages die samen iets beleven, met een verteller die het verhaal draagt. Je schrijft nu NOG GEEN dialoog. Je levert de OPZET: het verhaal zelf, en de keuzes waar de scenarist straks mee aan de slag gaat.
 
 Je antwoordt uitsluitend met JSON volgens het schema.
 
-JE MAAKT ER EEN ECHT VERHAAL VAN
-De gebruiker geeft meestal een onderwerp of een situatie, geen compleet verhaal. Jouw werk is daar een verhaal van te maken. Verzin gerust gebeurtenissen die de gebruiker niet noemde: een voorwerp, een misverstand, een geheim, een plek, iets wat misgaat. Blijf wel binnen zijn wereld en zijn bedoeling, en neem namen, feiten en cijfers die hij noemt letterlijk over.
-
-${VERHAALLES}
+${verhaalOpdracht}
 
 DE PERSONAGEBIBLIOTHEEK van deze gebruiker (gebruik ALLEEN deze id's):
 ${bibliotheekTekst(bibliotheek)}
@@ -415,22 +561,15 @@ AL VASTGELEGD DOOR DE GEBRUIKER — deze personages liggen vast, met de rol die 
 ${vastLijst}
 
 WAT JE LEVERT, in deze volgorde:
-- "title": korte werktitel in ${language}.
+- "title": korte werktitel in ${language}. Heeft de tekst zelf een titel, neem die dan over.
 - "topic": één zin die zegt waar de video over gaat.
-- "verhaallijn": precies vijf delen, in de volgorde begin, probleem, tegenslag, omslag, slot. Per deel:
-  - "fase": welk deel het is.
-  - "wat": twee of drie gewone zinnen in ${language} over wat er in dit deel GEBEURT. Geen dialoog, geen samenvatting van gevoelens — handelingen die je kunt laten zien.
-  - "plek": waar het gebeurt, kort en tekenbaar ("de keuken bij papa").
-  - "wie": de id's uit de bibliotheek van wie er in beeld is, hooguit ${MAX_PER_SCENE}.
-  - "verteller": één zin in de derde persoon en de verleden tijd, zoals een voorleesboek ("Het was de laatste week voor kerst, en in huize De Vries werd het stil."). Verplicht bij het begin. Verder alleen bij een sprong in tijd of plek; anders leeg.
-- "kern": in één zin wat er onderhuids speelt — wat iemand mist, hoopt, niet durft of wil bewijzen. Een gevoel, geen gebeurtenis.
-- "wending": in één zin wat er anders loopt dan verwacht.
+${verhaalVelden}
 - "cast": ${MAX_CAST > 2 ? `twee tot ${MAX_CAST}` : "twee"} personages, ALTIJD met een "characterId" uit de bibliotheek. Neem iedereen op die in de verhaallijn in beeld komt, en niemand anders.
   Gaat het verhaal over mensen — ouders, opa, de juf — dan spelen die ZELF mee. Staan ze niet letterlijk zo in de bibliotheek, CAST ze dan: kies een personage van de juiste leeftijd met een uiterlijk dat past (ouders lijken op hun kinderen) en geef het in "naam" zijn rol in dit verhaal ("Papa"). Laat iemand waar het verhaal over gaat nooit weg omdat er niemand "Papa" heet; een acteur heet ook niet zoals zijn rol.
   Noem in "wat" alleen mensen die in de cast staan. Wie er niet in staat, kan niet getekend worden. Per personage:
-  - "naam": hoe dit personage in het verhaal heet. Meestal de naam uit de bibliotheek; speelt het een rol als "Papa", "Mama" of "Opa", schrijf dan die.
+  - "naam": hoe dit personage in het verhaal heet. Gebruikt de tekst een naam ("Lilly"), neem die dan precies zo over; speelt het een rol als "Papa", "Mama" of "Opa", schrijf dan die.
   - "role": wie diegene in dit verhaal is ("het broertje dat niets durft te zeggen").
-  - "wil": wat diegene wil. Laat de verlangens BOTSEN — twee personages die hetzelfde willen hebben geen verhaal.
+  - "wil": wat diegene wil.${volg ? " Haal het uit de tekst; verzin geen tegenstelling die er niet in staat." : " Laat de verlangens BOTSEN — twee personages die hetzelfde willen hebben geen verhaal."}
   - "spraak": hoe diegene praat ("korte zinnen, stelt alles als vraag"). Maak ze onderling duidelijk verschillend.
   - "leeftijd": leeftijd in dit verhaal ("7 jaar", "ongeveer 40"). Bepaalt hoe groot iemand getekend wordt.
   - "voice": kies uit ${stemLijst}. Geef nooit twee personages dezelfde stem. Een kind krijgt een kinderstem.
@@ -441,7 +580,7 @@ WAT JE LEVERT, in deze volgorde:
 - "keepTerms": merk- en productnamen uit de brontekst die exact zo moeten blijven staan. Meestal leeg.
 - "avoidTerms": namen die beter niet vallen. Meestal leeg.`;
 
-    const userPrompt = `WAT DE GEBRUIKER WIL MAKEN:
+    const userPrompt = `${volg ? "HET VERHAAL VAN DE GEBRUIKER — volg het precies" : "WAT DE GEBRUIKER WIL MAKEN"}:
 """
 ${text.slice(0, 8000)}
 """
@@ -454,15 +593,21 @@ Geef nu de opzet als JSON.`;
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o",
-      temperature: 0.8,
-      max_tokens: 3000,
+      temperature: volg ? 0.3 : 0.8,
+      // Een gevolgd verhaal kan twintig momenten hebben; met 3000 tokens werd de
+      // lijst halverwege afgebroken.
+      max_tokens: volg ? 6000 : 3000,
       messages: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },
       ],
       response_format: {
         type: "json_schema",
-        json_schema: { name: "dialogue_setup", strict: true, schema: SETUP_SCHEMA as unknown as Record<string, unknown> },
+        json_schema: {
+          name: "dialogue_setup",
+          strict: true,
+          schema: setupSchema(volg ? MOMENTEN_SCHEMA : VERHAALLIJN_SCHEMA) as unknown as Record<string, unknown>,
+        },
       },
     });
 
@@ -525,15 +670,29 @@ Geef nu de opzet als JSON.`;
       wending: String(ruw.wending ?? "").trim(),
       verhaallijn: normaliseerVerhaallijn(ruw.verhaallijn, cast.map((c) => c.characterId)),
     };
-    // De eerste redactieronde draait altijd. Een tweede alleen als de controle
-    // daarna nog iets aantoonbaar fouts vindt: in de eerste proef liet de redactie
-    // een omslag via de telefoon gewoon staan, terwijl hij expliciet genoemd was.
+
     if (verhaal.verhaallijn.length && cast.length) {
-      for (let ronde = 1; ronde <= 2; ronde++) {
-        const beter = await redigeerVerhaal(verhaal, cast, text, language);
-        if (!beter) break;
-        verhaal = beter;
-        if (verhaalProblemen(verhaal.verhaallijn, cast).length === 0) break;
+      if (volg) {
+        // Een gevolgd verhaal wordt niet geredigeerd maar op VOLLEDIGHEID gecontroleerd.
+        const weg = ontbrekendeNamen(text, verhaal.verhaallijn);
+        if (weg.length) {
+          console.log(`[dialogue-setup] ontbreekt in de verhaallijn: ${weg.join(", ")}`);
+          const aangevuld = await vulVerhaalAan(verhaal.verhaallijn, weg, cast, text, language);
+          if (aangevuld) verhaal = { ...verhaal, verhaallijn: aangevuld };
+          const nogWeg = ontbrekendeNamen(text, verhaal.verhaallijn);
+          if (nogWeg.length) console.warn(`[dialogue-setup] na aanvullen nog weg: ${nogWeg.join(", ")}`);
+        }
+        console.log(`[dialogue-setup] gevolgd verhaal: ${verhaal.verhaallijn.length} momenten`);
+      } else {
+        // De eerste redactieronde draait altijd. Een tweede alleen als de controle
+        // daarna nog iets aantoonbaar fouts vindt: in de eerste proef liet de redactie
+        // een omslag via de telefoon gewoon staan, terwijl hij expliciet genoemd was.
+        for (let ronde = 1; ronde <= 2; ronde++) {
+          const beter = await redigeerVerhaal(verhaal, cast, text, language);
+          if (!beter) break;
+          verhaal = beter;
+          if (verhaalProblemen(verhaal.verhaallijn, cast).length === 0) break;
+        }
       }
     }
 
@@ -544,6 +703,7 @@ Geef nu de opzet als JSON.`;
       kern: verhaal.kern,
       wending: verhaal.wending,
       verhaallijn: verhaal.verhaallijn,
+      modus,
       tone: ["zakelijk", "speels", "energiek"].includes(String(ruw.tone)) ? String(ruw.tone) : "zakelijk",
       angle: String(ruw.angle ?? "").trim(),
       language,

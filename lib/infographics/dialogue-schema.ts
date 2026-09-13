@@ -160,7 +160,7 @@ export interface DialogueCastMember {
 // Die laatste twee zijn hetzelfde in de data: een actiebeeld MET gesproken tekst.
 import type { Kader } from "./verhaal-kaders";
 import type { Lichtsoort } from "./verhaal-licht";
-import type { VerhaalDeel } from "./verhaallijn";
+import type { VerhaalDeel, VerhaalModus } from "./verhaallijn";
 
 export const SHOT_SOORTEN = ["dialoog", "actie"] as const;
 export type ShotSoort = (typeof SHOT_SOORTEN)[number];
@@ -293,6 +293,8 @@ export interface DialogueSpec {
    * zodat een latere aanpassing binnen hetzelfde verhaal blijft.
    */
   verhaallijn?: VerhaalDeel[] | null;
+  /** Of het verhaal van de gebruiker gevolgd of door ons verzonnen is. Zie verhaallijn.ts. */
+  verhaalModus?: VerhaalModus | null;
   format: "16:9" | "9:16";
   cast: DialogueCastMember[];
   scenes: DialogueScene[];

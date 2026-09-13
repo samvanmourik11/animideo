@@ -1,5 +1,5 @@
 import { MAX_CAST, type CastPosition, type DialogueCastMember } from "./dialogue-schema";
-import type { VerhaalDeel } from "./verhaallijn";
+import type { VerhaalDeel, VerhaalModus } from "./verhaallijn";
 
 /**
  * DE OPZET — alle dimensies van de video, op één plek, vóór er iets geschreven is.
@@ -37,6 +37,12 @@ export interface DialogueSetup {
    * Zie verhaallijn.ts. Optioneel zodat een opzet van vóór deze stap blijft werken.
    */
   verhaallijn?: VerhaalDeel[];
+  /**
+   * "volgen": de gebruiker gaf een uitgewerkt verhaal en dat nemen we moment voor
+   * moment over. "verzinnen": de gebruiker gaf een idee en wij bedachten het
+   * verhaal. Afwezig = verzinnen, zoals de opzet vóór 13-09-2026 altijd deed.
+   */
+  modus?: VerhaalModus;
 
   // ── Toon ──
   /** "zakelijk" | "speels" | "energiek" — zie buildDialoguePrompt. */

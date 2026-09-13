@@ -10,7 +10,7 @@ import {
   ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC,
 } from "@/lib/infographics/dialogue-schema";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
-import { FASEN, FASE_INFO } from "@/lib/infographics/verhaallijn";
+import { deelLabel } from "@/lib/infographics/verhaallijn";
 
 // Het draaiboek: de gebruiker heeft hier het laatste woord over wat er gezegd
 // wordt, door wie, en waar het zich afspeelt. De AI levert een eerste versie, maar
@@ -216,9 +216,12 @@ export default function ScriptBoard({
               <span className="text-[11px] uppercase tracking-wide text-slate-500">Scène {si + 1}</span>
               {/* Bij welk deel van het verhaal deze scène hoort. Zo zie je in het
                   draaiboek waar de omslag valt, en of er iets te vroeg opgelost wordt. */}
-              {!!scene.deel && FASEN[scene.deel - 1] && (
-                <span className="text-[10px] rounded-full bg-orange-500/15 text-orange-300 px-1.5 py-0.5">
-                  {FASE_INFO[FASEN[scene.deel - 1]].label}
+              {!!scene.deel && !!spec.verhaallijn?.[scene.deel - 1] && (
+                <span
+                  title={spec.verhaallijn?.[scene.deel - 1]?.wat}
+                  className="text-[10px] rounded-full bg-orange-500/15 text-orange-300 px-1.5 py-0.5 max-w-[7rem] truncate"
+                >
+                  {deelLabel(spec.verhaallijn?.[scene.deel - 1], scene.deel - 1)}
                 </span>
               )}
             </div>

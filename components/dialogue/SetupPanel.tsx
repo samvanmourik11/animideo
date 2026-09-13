@@ -5,7 +5,10 @@ import ArtDirection from "./ArtDirection";
 import { DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
 import { opzetKlaar, type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import { MAX_PER_SCENE, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
-import { FASE_INFO, verhaalProblemen, type VerhaalDeel } from "@/lib/infographics/verhaallijn";
+import {
+  FASE_INFO, MAX_DELEN, SECONDEN_PER_MOMENT, passendeLengte, verhaalProblemen,
+  type VerhaalDeel, type VerhaalModus,
+} from "@/lib/infographics/verhaallijn";
 
 // DE OPZET — alle dimensies van de video op één scherm, vóór er iets geschreven is.
 //
@@ -112,31 +115,100 @@ function Termen({
  * punt van alles, en dat zag je pas in de video. Hier lees je het in een halve
  * minuut en zie je meteen of de oplossing te vroeg komt of iemand nooit meespeelt.
  */
+// Dezelfde lengtes als bij het idee. Hier nog een keer, omdat je pas in de opzet
+// ziet hoeveel momenten je verhaal heeft — en dus of de gekozen lengte past.
+const LENGTES = [30, 60, 120, 180, 300] as const;
+const lengteLabel = (s: number) => (s < 60 ? `${s} sec` : `${s / 60} min`);
+
 function Verhaallijn({
   lijn,
   cast,
+  modus,
+  bron,
+  lengte,
   onChange,
+  onLengte,
+  onWissel,
   disabled,
 }: {
   lijn: VerhaalDeel[];
   cast: DialogueCastMember[];
+  modus: VerhaalModus;
+  bron: string;
+  lengte: number;
   onChange: (lijn: VerhaalDeel[]) => void;
+  onLengte: (seconden: number) => void;
+  /** Een nieuw voorstel in de andere modus. */
+  onWissel: (modus: VerhaalModus) => void;
   disabled?: boolean;
 }) {
-  const problemen = verhaalProblemen(lijn, cast);
+  const volg = modus === "volgen";
+  const problemen = verhaalProblemen(lijn, cast, volg ? bron : null);
   const zetDeel = (i: number, velden: Partial<VerhaalDeel>) =>
     onChange(lijn.map((d, j) => (j === i ? { ...d, ...velden } : d)));
-
-  if (lijn.length === 0) {
-    return (
-      <p className="text-[11px] text-slate-500">
-        Deze opzet heeft nog geen verhaallijn. Klik op “Ander voorstel” om er een te laten maken.
-      </p>
-    );
-  }
+  const verwijder = (i: number) => onChange(lijn.filter((_, j) => j !== i));
+  const voegToe = (na: number) => {
+    const nieuw = [...lijn];
+    nieuw.splice(na + 1, 0, { fase: null, titel: "", wat: "", plek: lijn[na]?.plek ?? "", wie: lijn[na]?.wie ?? [], verteller: "" });
+    onChange(nieuw);
+  };
+  // Dertien momenten in één minuut is vijf seconden per plek: dat flitst voorbij.
+  // Niet stilletjes ophogen — een langere video kost meer — maar het laten zien.
+  const teKort = lijn.length > 0 && lengte < lijn.length * SECONDEN_PER_MOMENT;
+  const passend = passendeLengte(lijn.length, LENGTES);
 
   return (
     <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/5 border border-white/10 px-3 py-2">
+        <p className="text-[11px] text-slate-300 min-w-0">
+          {volg
+            ? "Je gaf een uitgewerkt verhaal. De assistent volgt het moment voor moment en verzint er niets bij."
+            : "Je gaf een idee. De assistent bedacht er een verhaal omheen, met een begin, een probleem, een tegenslag en een omslag."}
+        </p>
+        <button
+          type="button"
+          onClick={() => onWissel(volg ? "verzinnen" : "volgen")}
+          disabled={disabled}
+          className="text-[11px] text-orange-300 hover:text-orange-200 underline disabled:opacity-40"
+        >
+          {volg ? "Liever er een nieuw verhaal van laten maken" : "Volg liever precies mijn tekst"}
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-slate-400 mr-1">Lengte</span>
+        {LENGTES.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => onLengte(s)}
+            disabled={disabled}
+            className={`text-[11px] px-2.5 py-1 rounded-full transition disabled:opacity-40 ${
+              lengte === s ? "bg-orange-500 text-white" : "bg-white/5 text-slate-300 hover:bg-white/10"
+            }`}
+          >
+            {lengteLabel(s)}
+          </button>
+        ))}
+      </div>
+      {teKort && (
+        <p className="text-[11px] text-amber-300">
+          ⚠ Je verhaal heeft {lijn.length} momenten. In {lengteLabel(lengte)} krijgt elk moment maar zo&apos;n{" "}
+          {Math.max(1, Math.round(lengte / lijn.length))} seconden.{" "}
+          {passend > lengte && (
+            <button type="button" onClick={() => onLengte(passend)} disabled={disabled} className="underline hover:text-amber-200">
+              Maak er {lengteLabel(passend)} van
+            </button>
+          )}
+        </p>
+      )}
+
+      {lijn.length === 0 ? (
+        <p className="text-[11px] text-slate-500">
+          Deze opzet heeft nog geen verhaallijn. Klik op “Ander voorstel” om er een te laten maken.
+        </p>
+      ) : (
+      <>
       {problemen.length > 0 && (
         <ul className="text-[11px] text-amber-300 space-y-0.5">
           {problemen.map((p) => <li key={p}>⚠ {p}</li>)}
@@ -144,12 +216,40 @@ function Verhaallijn({
       )}
       <ol className="space-y-2">
         {lijn.map((d, i) => (
-          <li key={d.fase} className="rounded-lg border border-white/10 bg-slate-900/40 p-3">
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-1.5">
+          <li key={d.fase ?? `moment-${i}`} className="rounded-lg border border-white/10 bg-slate-900/40 p-3">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1.5">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-orange-300">
-                {i + 1}. {FASE_INFO[d.fase].label}
+                {i + 1}.{d.fase ? ` ${FASE_INFO[d.fase].label}` : ""}
               </span>
-              <span className="text-[10px] text-slate-500">{FASE_INFO[d.fase].uitleg}</span>
+              {d.fase ? (
+                <span className="text-[10px] text-slate-500">{FASE_INFO[d.fase].uitleg}</span>
+              ) : (
+                <>
+                  <input
+                    value={d.titel}
+                    onChange={(e) => zetDeel(i, { titel: e.target.value })}
+                    disabled={disabled}
+                    placeholder="naam van dit moment"
+                    className="flex-1 min-w-0 bg-transparent text-[11px] font-semibold uppercase tracking-wide text-orange-300 placeholder:normal-case placeholder:font-normal placeholder:text-slate-600 outline-none focus:bg-slate-900/60 rounded px-1 disabled:opacity-50"
+                  />
+                  <span className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => voegToe(i)}
+                      disabled={disabled || lijn.length >= MAX_DELEN}
+                      title="Moment eronder toevoegen"
+                      className="text-xs text-slate-500 hover:text-emerald-400 disabled:opacity-30"
+                    >+</button>
+                    <button
+                      type="button"
+                      onClick={() => verwijder(i)}
+                      disabled={disabled || lijn.length <= 1}
+                      title="Moment verwijderen"
+                      className="text-xs text-slate-500 hover:text-red-400 disabled:opacity-30"
+                    >✕</button>
+                  </span>
+                </>
+              )}
             </div>
             <textarea
               value={d.wat}
@@ -198,9 +298,31 @@ function Verhaallijn({
               placeholder="🎙 vertellerzin die dit deel opent (mag leeg)"
               className="mt-1.5 w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs italic text-violet-200 placeholder:not-italic placeholder:text-slate-600 disabled:opacity-50"
             />
+            {/* De zinnen die de gebruiker zelf schreef. Die komen er letterlijk in,
+                bij deze persoon. Wegklikken = de scenarist mag hem zelf verwoorden. */}
+            {(d.citaten ?? []).length > 0 && (
+              <ul className="mt-1.5 space-y-0.5">
+                {(d.citaten ?? []).map((c, k) => (
+                  <li key={k} className="flex items-start gap-1.5 text-[11px] text-slate-300">
+                    <span className="shrink-0 text-slate-500">💬 letterlijk</span>
+                    <span className="shrink-0 text-orange-300">{cast.find((p) => p.characterId === c.wie)?.name ?? "?"}:</span>
+                    <span className="min-w-0 italic">“{c.tekst}”</span>
+                    <button
+                      type="button"
+                      onClick={() => zetDeel(i, { citaten: (d.citaten ?? []).filter((_, x) => x !== k) })}
+                      disabled={disabled}
+                      title="Deze zin niet letterlijk overnemen"
+                      className="ml-auto shrink-0 text-slate-600 hover:text-red-400 disabled:opacity-30"
+                    >✕</button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </li>
         ))}
       </ol>
+      </>
+      )}
     </div>
   );
 }
@@ -223,7 +345,8 @@ export default function SetupPanel({
   setup: DialogueSetup;
   onChange: (s: DialogueSetup) => void;
   onGenereer: () => void;
-  onOpnieuwVoorstellen: () => void;
+  /** Een nieuw voorstel; met een modus erbij in die modus (volgen of verzinnen). */
+  onOpnieuwVoorstellen: (modus?: VerhaalModus) => void;
   bezig?: boolean;
   voorstelBezig?: boolean;
   credits: number;
@@ -245,12 +368,14 @@ export default function SetupPanel({
             className="bg-transparent text-lg font-semibold text-white w-full outline-none focus:bg-slate-900/60 rounded px-1 -ml-1 disabled:opacity-50"
           />
           <p className="text-[11px] text-slate-500 px-1">
-            De assistent bedacht een verhaal en wie erin speelt. Pas aan wat niet klopt — pas daarna worden de scènes geschreven.
+            {setup.modus === "volgen"
+              ? "De assistent knipte je verhaal op in momenten en koos wie erin speelt. Pas aan wat niet klopt — pas daarna worden de scènes geschreven."
+              : "De assistent bedacht een verhaal en wie erin speelt. Pas aan wat niet klopt — pas daarna worden de scènes geschreven."}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={onOpnieuwVoorstellen}
+            onClick={() => onOpnieuwVoorstellen()}
             disabled={uit}
             title="Laat de assistent een nieuw voorstel doen. Wat jij zelf hebt ingevuld bij de rolverdeling blijft staan."
             className="text-xs px-3 py-2 rounded bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10 disabled:opacity-40"
@@ -277,15 +402,22 @@ export default function SetupPanel({
           (setup.verhaallijn ?? []).length === 0
             ? "nog geen verhaallijn"
             : (() => {
-                const n = verhaalProblemen(setup.verhaallijn, setup.cast).length;
-                return n ? `${n} ${n === 1 ? "aandachtspunt" : "aandachtspunten"}` : "begin, probleem, tegenslag, omslag, slot";
+                const volg = setup.modus === "volgen";
+                const n = verhaalProblemen(setup.verhaallijn, setup.cast, volg ? setup.text : null).length;
+                if (n) return `${n} ${n === 1 ? "aandachtspunt" : "aandachtspunten"}`;
+                return volg ? `je eigen verhaal, ${(setup.verhaallijn ?? []).length} momenten` : "begin, probleem, tegenslag, omslag, slot";
               })()
         }
       >
         <Verhaallijn
           lijn={setup.verhaallijn ?? []}
           cast={setup.cast}
+          modus={setup.modus ?? "verzinnen"}
+          bron={setup.text}
+          lengte={setup.targetSeconds}
           onChange={(lijn) => zet("verhaallijn", lijn)}
+          onLengte={(s) => zet("targetSeconds", s)}
+          onWissel={(modus) => onOpnieuwVoorstellen(modus)}
           disabled={uit}
         />
       </Groep>

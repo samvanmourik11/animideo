@@ -3,7 +3,7 @@
 import { Fragment, useState } from "react";
 import { regelKlaar, isActie, VERTELLER_ID, type DialogueSpec, type DialogueScene } from "@/lib/infographics/dialogue-schema";
 import { LICHTSOORTEN, STANDAARD_LICHT, lichtLabel, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
-import { FASEN, FASE_INFO } from "@/lib/infographics/verhaallijn";
+import { deelLabel } from "@/lib/infographics/verhaallijn";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 
 // HET STORYBOARD — één basisbeeld per scène, vóór er één clip gemaakt wordt.
@@ -151,15 +151,14 @@ export default function Storyboard({
       {spec.scenes.map((scene, si) => {
         // Boven de eerste scène van elk verhaaldeel staat wat er in dat deel
         // gebeurt. Zo lees je het bord als een verhaal, niet als losse plaatjes.
-        const fase = scene.deel ? FASEN[scene.deel - 1] : undefined;
-        const nieuwDeel = !!fase && scene.deel !== spec.scenes[si - 1]?.deel;
         const deel = scene.deel ? spec.verhaallijn?.[scene.deel - 1] : undefined;
+        const nieuwDeel = !!deel && scene.deel !== spec.scenes[si - 1]?.deel;
         return (
           <Fragment key={scene.id}>
-            {nieuwDeel && fase && (
+            {nieuwDeel && !!scene.deel && (
               <div className="col-span-full pt-2">
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-orange-300">
-                  {scene.deel}. {FASE_INFO[fase].label}
+                  {scene.deel}. {deelLabel(deel, scene.deel - 1)}
                 </h3>
                 {deel?.wat && <p className="text-[11px] text-slate-500 mt-0.5">{deel.wat}</p>}
               </div>

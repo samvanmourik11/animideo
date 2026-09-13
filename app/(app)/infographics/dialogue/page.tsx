@@ -13,6 +13,7 @@ import FragmentEditor, { type HerstelActie } from "@/components/dialogue/Fragmen
 import ArtDirection from "@/components/dialogue/ArtDirection";
 import SetupPanel from "@/components/dialogue/SetupPanel";
 import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
+import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
 import { regelKlaar, kaleSetting, sceneCast, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
@@ -158,7 +159,7 @@ export default function DialoguePage() {
 
   // Een nieuw voorstel vragen. Wat de gebruiker zelf koos gaat als vaste cast mee,
   // zodat "ander voorstel" niet stilzwijgend zijn rolverdeling weggooit.
-  async function opnieuwVoorstellen() {
+  async function opnieuwVoorstellen(modus?: VerhaalModus) {
     if (!setup) return;
     setSetupBezig(true);
     setFout(null);
@@ -172,6 +173,9 @@ export default function DialoguePage() {
           targetSeconds: setup.targetSeconds,
           format: setup.format,
           language: setup.language,
+          // Wisselt de gebruiker van "volg mijn tekst" naar "maak er een verhaal van"
+          // (of andersom), dan geldt die keuze; anders blijft de huidige modus staan.
+          modus: modus ?? setup.modus,
           vasteCast: setup.cast.map((c) => ({
             characterId: c.characterId,
             name: c.name,

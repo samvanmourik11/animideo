@@ -11,7 +11,7 @@ import {
   type BibliotheekItem,
 } from "@/lib/infographics/dialogue-chat-tools";
 import {
-  leesDeel, ordenDelen, vertellerBeeld, verhaallijnBlok, voegGelijkePlekSamen, zorgVoorVerteller,
+  leesDeel, ordenDelen, vertellerBeeld, verhaallijnBlok, voegGelijkePlekSamen, zorgVoorVerteller, zorgVoorCitaten,
   normaliseerVerhaallijn, type VerhaalDeel,
 } from "@/lib/infographics/verhaallijn";
 import { STORY_VOICES, kiesVertellerStem } from "@/lib/infographics/story-voices";
@@ -226,11 +226,16 @@ function leesScenes(ruwe: RuweScene[], cast: DialogueCastMember[], vorige: Dialo
 
 /**
  * Het draaiboek langs de verhaallijn leggen: deelnummers op volgorde, zinnen op
- * dezelfde plek in één scène, en een verteller waar de verhaallijn er een vraagt.
+ * dezelfde plek in één scène, een verteller waar de verhaallijn er een vraagt, en
+ * elke letterlijke zin uit het verhaal van de gebruiker bij de juiste persoon.
  * Allemaal zonder model, dus het kan na elke stap opnieuw zonder iets te kosten.
  */
-function langsVerhaal(scenes: DialogueScene[], verhaallijn?: VerhaalDeel[] | null): DialogueScene[] {
-  return zorgVoorVerteller(voegGelijkePlekSamen(ordenDelen(scenes)), verhaallijn);
+function langsVerhaal(
+  scenes: DialogueScene[],
+  verhaallijn: VerhaalDeel[] | null | undefined,
+  cast: DialogueCastMember[],
+): DialogueScene[] {
+  return zorgVoorCitaten(zorgVoorVerteller(voegGelijkePlekSamen(ordenDelen(scenes)), verhaallijn), verhaallijn, cast);
 }
 
 /**
@@ -416,7 +421,8 @@ async function controleerSamenhang(
   scenes: DialogueScene[],
   cast: DialogueCastMember[],
   taal: string,
-  verhaallijn?: string
+  verhaallijn?: string,
+  volg = false
 ): Promise<DialogueScene[]> {
   try {
     const completion = await openai.chat.completions.create({
@@ -425,7 +431,7 @@ async function controleerSamenhang(
       max_tokens: 8000,
       tools: [HERZIE_DRAAIBOEK_TOOL],
       messages: [
-        { role: "system", content: buildSamenhangSysteem(toonDraaiboek(cast, scenes), taal, verhaallijn) },
+        { role: "system", content: buildSamenhangSysteem(toonDraaiboek(cast, scenes), taal, verhaallijn, volg) },
         { role: "user", content: "Loop het draaiboek na en geef het terug zoals het moet worden." },
       ],
     });
@@ -496,7 +502,8 @@ async function brengOpLengte(
   briefing?: string | null,
   kern?: string | null,
   wending?: string | null,
-  verhaallijn?: string
+  verhaallijn?: string,
+  volg = false
 ): Promise<DialogueScene[]> {
   let huidig = [...scenes];
 
@@ -518,7 +525,7 @@ async function brengOpLengte(
         // dertig seconden.
         tool_choice: { type: "function", function: { name: HERZIE_DRAAIBOEK_TOOL.function.name } },
         messages: [
-          { role: "system", content: buildUitbreidSysteem(toonDraaiboek(cast, huidig), taal, duur, doel, briefing, kern, wending, verhaallijn) },
+          { role: "system", content: buildUitbreidSysteem(toonDraaiboek(cast, huidig), taal, duur, doel, briefing, kern, wending, verhaallijn, volg) },
           { role: "user", content: "Geef het volledige draaiboek terug, met de nieuwe scènes op de juiste plek." },
         ],
       });
@@ -762,6 +769,7 @@ export async function POST(req: NextRequest) {
             id: c.id, characterId: c.characterId, name: c.name, role: c.role, leeftijd: c.leeftijd, wil: c.wil, spraak: c.spraak,
           })),
           verhaallijn: opzet.verhaallijn ?? null,
+          modus: opzet.modus ?? null,
         }
       : null;
 
@@ -871,10 +879,14 @@ export async function POST(req: NextRequest) {
     // Als tekst voor elke stap die hierna nog schrijft. Zonder de lijn erbij
     // "verbeterde" de eindredactie het verhaal weer terug tot een gesprek.
     const lijnTekst = verhaallijnBlok(spec.verhaallijn, spec.cast) || undefined;
+    // Het eigen verhaal van de gebruiker: geen enkele stap hierna mag er iets bij
+    // verzinnen of zijn zinnen "aanscherpen".
+    const volg = opzet?.modus === "volgen" && verhaallijn.length > 0;
+    spec.verhaalModus = opzet?.modus ?? null;
 
     // Ook het EERSTE plan kan zichzelf al herhalen; dan hoort de aanvullus dat
     // gat te vullen met iets nieuws in plaats van er nog een kopie bij te doen.
-    spec.scenes = langsVerhaal(zonderHerhaling([], spec.scenes), spec.verhaallijn);
+    spec.scenes = langsVerhaal(zonderHerhaling([], spec.scenes), spec.verhaallijn, spec.cast);
 
     // Twee opruimrondes die het model zelf niet betrouwbaar doet. Ze draaien alleen
     // als er echt iets mis is, dus meestal kosten ze niets.
@@ -889,7 +901,7 @@ export async function POST(req: NextRequest) {
     // waarna de eindredactie alle scènes herschreef en er de helft uit snoeide.
     // Een gebruiker die op "1 minuut" klikte kreeg zo dertig seconden. Het laatste
     // woord over de lengte hoort bij de stap die over lengte gaat.
-    spec.scenes = await controleerSamenhang(spec.scenes, spec.cast, spec.language ?? "Nederlands", lijnTekst);
+    spec.scenes = await controleerSamenhang(spec.scenes, spec.cast, spec.language ?? "Nederlands", lijnTekst, volg);
     spec.scenes = await brengOpLengte(
       spec.scenes,
       spec.cast,
@@ -900,7 +912,8 @@ export async function POST(req: NextRequest) {
       berichten.filter((m) => m.role === "user").map((m) => m.content).sort((a, b) => b.length - a.length)[0],
       spec.kern,
       spec.wending,
-      lijnTekst
+      lijnTekst,
+      volg
     );
 
     // ALS LAATSTE: zorgen dat er genoeg geïllustreerd wordt. Dit staat bewust
@@ -909,9 +922,15 @@ export async function POST(req: NextRequest) {
 
     // ALLERLAATST: de eindredactie over de gesproken zinnen. Hierna schrijft
     // niets meer, dus wat hier goed komt blijft goed.
-    spec.scenes = await scherpDialoogAan(
-      spec.scenes, spec.cast, spec.language ?? "Nederlands", spec.kern, spec.wending, lijnTekst
-    );
+    //
+    // NIET bij het eigen verhaal van de gebruiker. Deze redacteur herschrijft
+    // bewust de meeste zinnen en zoekt wrijving; bij de Wonderwagen zou hij "Kunnen
+    // we echt overal naartoe?" vervangen door iemand die tegensputtert.
+    if (!volg) {
+      spec.scenes = await scherpDialoogAan(
+        spec.scenes, spec.cast, spec.language ?? "Nederlands", spec.kern, spec.wending, lijnTekst
+      );
+    }
 
     // Laatste zeef over het HELE draaiboek. Elke stap hierboven laat een model
     // scènes schrijven, en elk van die stappen kan herhalen. Twee keer hetzelfde
@@ -927,7 +946,7 @@ export async function POST(req: NextRequest) {
     // opgesplitst of de verteller eruit geschreven hebben. Daarna nieuwe id's: de
     // stappen hierboven hergebruikten id's op volgorde, en na een ingevoegde scène
     // konden er twee dezelfde ontstaan.
-    spec.scenes = langsVerhaal(spec.scenes, spec.verhaallijn).map((s, i) => ({ ...s, id: `scene-${i}` }));
+    spec.scenes = langsVerhaal(spec.scenes, spec.verhaallijn, spec.cast).map((s, i) => ({ ...s, id: `scene-${i}` }));
     console.log(
       `[dialogue-chat] klaar: ${spec.scenes.length} scènes, ${spec.scenes.reduce((a, s) => a + s.lines.length, 0)} regels, ` +
       `${spec.scenes.flatMap((s) => s.lines).filter((l) => l.characterId === VERTELLER_ID).length} van de verteller`
