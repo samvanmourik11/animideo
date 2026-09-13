@@ -39,12 +39,42 @@ function isEngels(taal: string): boolean {
   return /^(engels|english)$/i.test(taal.trim());
 }
 
+const normaal = (t: string) => t.toLowerCase().replace(/[^a-zà-ÿ0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+
+/**
+ * Is deze "zin" eigenlijk een beschrijving van een personage uit de opzet?
+ *
+ * In de zesde Wonderwagen-video zeiden oma, Tyrell en Lilly hun eigen castbeschrijving
+ * hardop: "Rustig en geheimzinnig, vertelt graag verhalen." De scenarist had de regel
+ * "praat: …" uit de cast als tekst ingevuld.
+ */
+export function isCastBeschrijving(tekst: string, castTeksten: string[]): boolean {
+  const zin = normaal(tekst);
+  if (zin.length < 8) return false;
+  return castTeksten.some((b) => {
+    const beschrijving = normaal(b);
+    if (beschrijving.length < 8) return false;
+    if (beschrijving === zin) return true;
+    // Een deel ervan telt alleen bij een lang stuk: "de klant" komt ook in gewone zinnen voor.
+    return (zin.length >= 15 && beschrijving.includes(zin)) || (beschrijving.length >= 15 && zin.includes(beschrijving));
+  });
+}
+
 /**
  * Wat er aantoonbaar mis is met een geschreven moment, als zinnen die je de
  * scenarist kunt teruggeven. Leeg = niets gevonden.
  */
-export function momentProblemen(lines: RegelLike[], taal: string): string[] {
+export function momentProblemen(lines: RegelLike[], taal: string, castTeksten: string[] = []): string[] {
   const problemen: string[] = [];
+
+  const beschrijvingen = lines.filter((l) => isCastBeschrijving(l.text ?? "", castTeksten));
+  if (beschrijvingen.length) {
+    problemen.push(
+      `Deze "zinnen" zijn beschrijvingen van een personage uit de cast, geen tekst die iemand uitspreekt: ` +
+      `${beschrijvingen.map((l) => `"${(l.text ?? "").trim()}"`).join(", ")}. Laat het personage in plaats daarvan ` +
+      `iets zeggen wat bij dit moment past.`
+    );
+  }
 
   const engels = isEngels(taal) ? [] : lines.filter((l) => lijktEngels(l.text ?? ""));
   if (engels.length) {
@@ -58,7 +88,7 @@ export function momentProblemen(lines: RegelLike[], taal: string): string[] {
   // een diavoorstelling. De regel stond al in de opdracht, maar werd genegeerd.
   const personagePraat = lines.some((l) => {
     const wie = (l.characterId ?? "").trim().toLowerCase();
-    return wie && wie !== VERTELLER_ID && (l.text ?? "").trim();
+    return wie && wie !== VERTELLER_ID && (l.text ?? "").trim() && !isCastBeschrijving(l.text ?? "", castTeksten);
   });
   if (!personagePraat) {
     problemen.push(
@@ -75,10 +105,10 @@ export function momentProblemen(lines: RegelLike[], taal: string): string[] {
  * met muziek dan een Engelse zin in een Nederlandse video. Een actiebeeld houdt zijn
  * beeld maar verliest de zin; een gewone regel of een Engelse vertellerzin vervalt.
  */
-export function zonderVerkeerdeTaal<T extends RegelLike>(lines: T[], taal: string): T[] {
-  if (isEngels(taal)) return lines;
+export function zonderVerkeerdeTaal<T extends RegelLike>(lines: T[], taal: string, castTeksten: string[] = []): T[] {
   return lines.flatMap((l) => {
-    if (!lijktEngels(l.text ?? "")) return [l];
+    const fout = (!isEngels(taal) && lijktEngels(l.text ?? "")) || isCastBeschrijving(l.text ?? "", castTeksten);
+    if (!fout) return [l];
     const verteller = (l.characterId ?? "").trim().toLowerCase() === VERTELLER_ID;
     if (l.kind === "actie" && !verteller) return [{ ...l, text: "" }];
     return [];

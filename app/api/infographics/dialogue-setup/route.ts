@@ -120,13 +120,14 @@ function setupSchema(verhaallijn: typeof VERHAALLIJN_SCHEMA | typeof MOMENTEN_SC
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["characterId", "naam", "role", "wil", "spraak", "leeftijd", "voice"],
+          required: ["characterId", "naam", "role", "wil", "spraak", "kleding", "leeftijd", "voice"],
           properties: {
             characterId: { type: "string" },
             naam: { type: "string" },
             role: { type: "string" },
             wil: { type: "string" },
             spraak: { type: "string" },
+            kleding: { type: "string" },
             leeftijd: { type: "string" },
             voice: { type: "string" },
           },
@@ -259,13 +260,14 @@ async function casteerRollen(
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["rol", "characterId", "leeftijd", "wil", "spraak"],
+          required: ["rol", "characterId", "leeftijd", "wil", "spraak", "kleding"],
           properties: {
             rol: { type: "string", enum: teCasten },
             characterId: { type: "string" },
             leeftijd: { type: "string" },
             wil: { type: "string" },
             spraak: { type: "string" },
+            kleding: { type: "string" },
           },
         },
       },
@@ -288,7 +290,7 @@ ${cast.map((c) => `- ${c.name}${c.leeftijd ? `, ${c.leeftijd}` : ""}${c.appearan
 DE BIBLIOTHEEK (gebruik alleen deze id's):
 ${bibliotheekTekst(vrij)}
 
-Geef per rol ook "leeftijd" ("ongeveer 40"), "wil" (wat deze persoon in dit verhaal wil, in een halve zin, en ANDERS dan wat de anderen willen) en "spraak" (hoe deze persoon praat, in een halve zin). In het ${language}.
+Geef per rol ook "leeftijd" ("ongeveer 40"), "wil" (wat deze persoon in dit verhaal wil, in een halve zin, en ANDERS dan wat de anderen willen) en "spraak" (hoe deze persoon praat, in een halve zin). In het ${language}. Geef ook "kleding": wat deze persoon draagt van top tot teen, in één ENGELSE zin — bovenstuk, broek, rok of jurk, en schoenen ("lilac cardigan, dark trousers, brown shoes"). Iedereen draagt schoenen.
 
 Antwoord uitsluitend met JSON volgens het schema.`;
 
@@ -307,7 +309,7 @@ Antwoord uitsluitend met JSON volgens het schema.`;
       },
     });
     const ruw = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as {
-      keuzes?: { rol: string; characterId: string; leeftijd: string; wil: string; spraak: string }[];
+      keuzes?: { rol: string; characterId: string; leeftijd: string; wil: string; spraak: string; kleding?: string }[];
     };
 
     const vlaams = /vlaams/i.test(language);
@@ -335,6 +337,7 @@ Antwoord uitsluitend met JSON volgens het schema.`;
         leeftijd: (k.leeftijd ?? "").trim() || rij.age_range || null,
         wil: (k.wil ?? "").trim() || null,
         spraak: (k.spraak ?? "").trim() || null,
+        kleding: (k.kleding ?? "").trim() || null,
         voice: stem?.id ?? "",
         portraitUrl: rij.image_url,
         position: "left",
@@ -580,6 +583,7 @@ ${verhaalVelden}
   - "role": wie diegene in dit verhaal is ("het broertje dat niets durft te zeggen").
   - "wil": wat diegene wil.${volg ? " Haal het uit de tekst; verzin geen tegenstelling die er niet in staat." : " Laat de verlangens BOTSEN — twee personages die hetzelfde willen hebben geen verhaal."}
   - "spraak": hoe diegene praat ("korte zinnen, stelt alles als vraag"). Maak ze onderling duidelijk verschillend.
+  - "kleding": wat diegene draagt van top tot teen, in één ENGELSE zin: bovenstuk, broek/rok/jurk en schoenen ("orange T-shirt, blue denim shorts, white sneakers"). Neem over wat de beschrijving uit de bibliotheek noemt en vul de rest passend aan. Iedereen draagt schoenen, tenzij het verhaal iets anders zegt.
   - "leeftijd": leeftijd in dit verhaal ("7 jaar", "ongeveer 40"). Bepaalt hoe groot iemand getekend wordt.
   - "voice": kies uit ${stemLijst}. Geef nooit twee personages dezelfde stem. Een kind krijgt een kinderstem.
 - "tone": "zakelijk", "speels" of "energiek", passend bij onderwerp en publiek.
@@ -650,6 +654,7 @@ Geef nu de opzet als JSON.`;
           leeftijd: (p.leeftijd ?? "").trim() || rij.age_range || null,
           wil: (p.wil ?? "").trim() || null,
           spraak: (p.spraak ?? "").trim() || null,
+          kleding: (p.kleding ?? "").trim() || null,
           voice: stem,
           portraitUrl: rij.image_url ?? "",
           position: "left" as const,

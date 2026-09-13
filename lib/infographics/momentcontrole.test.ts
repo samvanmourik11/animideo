@@ -68,7 +68,35 @@ describe("zonderVerkeerdeTaal", () => {
   });
 });
 
+describe("castbeschrijving als zin", () => {
+  const castTeksten = ["Rustig en geheimzinnig, vertelt graag verhalen", "Enthousiast en nieuwsgierig, stelt veel vragen", "de klant"];
+
+  it("ziet de beschrijving die oma hardop zei", () => {
+    const lines = [
+      { kind: "actie", characterId: "verteller", text: "Ze besloten hun eerste bestemming te kiezen." },
+      { kind: "actie", characterId: "char-3", text: "Rustig en geheimzinnig, vertelt graag verhalen." },
+      { kind: "dialoog", characterId: "char-1", text: "Waar gaan we als eerste naartoe, oma?" },
+    ];
+    expect(momentProblemen(lines, "Nederlands", castTeksten).join(" ")).toContain("beschrijvingen van een personage");
+    expect(zonderVerkeerdeTaal(lines, "Nederlands", castTeksten)).toEqual([
+      lines[0],
+      { kind: "actie", characterId: "char-3", text: "" },
+      lines[2],
+    ]);
+  });
+
+  it("laat een gewone zin met een kort rolwoord staan", () => {
+    const lines = [{ kind: "dialoog", characterId: "char-1", text: "Ik ben vandaag de klant in deze winkel." }];
+    expect(momentProblemen(lines, "Nederlands", castTeksten)).toEqual([]);
+  });
+});
+
 describe("uiterlijkVan", () => {
+  it("zet de kleding van top tot teen erachter", () => {
+    expect(uiterlijkVan({ name: "Lilly", appearance: "Lilly heeft een afro.", kleding: "yellow T-shirt, blue shorts, white sneakers" }))
+      .toBe("Lilly heeft een afro. Outfit: yellow T-shirt, blue shorts, white sneakers.");
+  });
+
   it("maakt van 'hij' en 'het personage' de naam", () => {
     expect(uiterlijkVan({
       name: "Lilly",

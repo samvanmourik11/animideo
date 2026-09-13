@@ -4,6 +4,8 @@ import { isKader, kaderPast } from "@/lib/infographics/verhaal-kaders";
 import { isLichtsoort } from "@/lib/infographics/verhaal-licht";
 import { openai } from "@/lib/openai";
 import { momentProblemen, zonderVerkeerdeTaal } from "@/lib/infographics/momentcontrole";
+import { vasteZinnen, redactieFout } from "@/lib/infographics/verhaalredactie";
+import { buildVerhaalRedactieSysteem } from "@/lib/infographics/dialogue-chat-tools";
 import { createClient } from "@/lib/supabase/server";
 import {
   DRAAIBOEK_TOOL, HERZIE_DRAAIBOEK_TOOL, buildChatSysteem, buildSamenhangSysteem,
@@ -85,7 +87,7 @@ interface RuwPlan {
   muziekCategorie?: string;
   kern?: string;
   wending?: string;
-  cast?: { id?: string; characterId?: string; name?: string; role?: string; leeftijd?: string; wil?: string; spraak?: string; appearance?: string; voice?: string; position?: string }[];
+  cast?: { id?: string; characterId?: string; name?: string; role?: string; leeftijd?: string; wil?: string; spraak?: string; kleding?: string; appearance?: string; voice?: string; position?: string }[];
   scenes?: RuweScene[];
 }
 
@@ -335,6 +337,7 @@ function maakSpec(
       // schrijft heeft ze nodig, anders vervlakken de personages halverwege alsnog.
       wil: (lid.wil ?? "").trim() || null,
       spraak: (lid.spraak ?? "").trim() || null,
+      kleding: (lid.kleding ?? "").trim() || null,
       voice: lid.voice && STEMMEN.has(lid.voice) ? lid.voice : STORY_VOICES[i % STORY_VOICES.length].id,
       portraitUrl: bron.image_url,
       position: positie,
@@ -471,6 +474,85 @@ async function schoonSettings(scenes: DialogueScene[], cast: DialogueCastMember[
     });
   } catch (e) {
     console.error("[dialogue-chat] settings opschonen mislukt:", e);
+  }
+}
+
+/**
+ * Maakt van de los geschreven momenten één doorlopend verhaal.
+ *
+ * Het eigen verhaal van de gebruiker wordt moment voor moment geschreven, elk in een
+ * eigen aanroep, zodat er geen moment wegvalt. Het nadeel voelde Sam meteen: "het is
+ * zo aan elkaar geplakt". Lilly vroeg "Kunnen we echt overal naartoe?" terwijl oma
+ * nog niets over de Wonderwagen had verteld, twee plekken na elkaar begonnen met
+ * dezelfde uitroep, en niemand reageerde op een ander.
+ *
+ * De gewone samenhangcontrole mag hier niet: die verplaatst en schrapt scènes. Deze
+ * redacteur mag alleen zinnen aanvullen en herschrijven, en wat hij teruggeeft wordt
+ * per scène nagekeken (redactieFout): vaste zinnen letterlijk op hun plek, geen
+ * Engelse zinnen, niet te veel erbij of eraf. Een scène die dat niet haalt blijft zoals
+ * hij was.
+ */
+async function redigeerEigenVerhaal(
+  scenes: DialogueScene[],
+  cast: DialogueCastMember[],
+  taal: string,
+  lijnTekst: string | undefined,
+  lijn: VerhaalDeel[] | null | undefined,
+  castTeksten: string[],
+): Promise<DialogueScene[]> {
+  const vast = vasteZinnen(lijn, cast);
+  const naamVan = (id: string) => (id === VERTELLER_ID ? "verteller" : cast.find((c) => c.id === id)?.name ?? id);
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0.4,
+      max_tokens: 8000,
+      tools: [HERZIE_DRAAIBOEK_TOOL],
+      tool_choice: { type: "function", function: { name: HERZIE_DRAAIBOEK_TOOL.function.name } },
+      messages: [
+        {
+          role: "system",
+          content: buildVerhaalRedactieSysteem(
+            toonDraaiboek(cast, scenes),
+            taal,
+            lijnTekst ?? "",
+            vast.map((v) => `- ${naamVan(v.characterId)}: "${v.tekst}"`),
+          ),
+        },
+        { role: "user", content: "Maak er één doorlopend verhaal van en geef het complete draaiboek terug." },
+      ],
+    });
+    const call = completion.choices[0]?.message?.tool_calls?.[0];
+    if (!call) return scenes;
+    const uit = JSON.parse(call.function.arguments || "{}") as { scenes?: RuweScene[] };
+    const ruwe = Array.isArray(uit.scenes) ? uit.scenes : [];
+    if (ruwe.length !== scenes.length) {
+      console.warn(`[dialogue-chat] verhaalredactie gaf ${ruwe.length} scènes in plaats van ${scenes.length}; origineel behouden`);
+      return scenes;
+    }
+    // Plek, licht en deel horen bij de scène, niet bij de redacteur.
+    const nieuw = leesScenes(
+      ruwe.map((r, i) => ({ ...r, deel: scenes[i].deel ?? r.deel, setting: scenes[i].setting, licht: scenes[i].licht ?? r.licht })),
+      cast,
+      scenes,
+    );
+    if (nieuw.length !== scenes.length) return scenes;
+
+    let herschreven = 0;
+    const uitkomst = scenes.map((oud, i) => {
+      const fout = redactieFout(oud, nieuw[i], vast, castTeksten, taal);
+      if (fout) {
+        console.warn(`[dialogue-chat] verhaalredactie scène ${i + 1} niet overgenomen: ${fout}`);
+        return oud;
+      }
+      herschreven++;
+      return { ...nieuw[i], id: oud.id, setting: oud.setting, licht: oud.licht, deel: oud.deel };
+    });
+    console.log(`[dialogue-chat] verhaalredactie: ${herschreven} van ${scenes.length} scènes overgenomen`);
+    return uitkomst;
+  } catch (e) {
+    console.error("[dialogue-chat] verhaalredactie mislukt:", e);
+    return scenes;
   }
 }
 
@@ -936,6 +1018,11 @@ async function schrijfMomenten(opzet: DialogueSetup, gewensteLengte: number): Pr
   const perMoment = scenesPerDeel(planVoorLengte(gewensteLengte).regels, lijn.length, false);
   const persoon = (characterId: string) => opzet.cast.find((c) => c.characterId === characterId);
   const naarCastId = maakVertaler(opzet.cast);
+  // De beschrijvingen uit de opzet. Een moment kreeg ze letterlijk als gesproken
+  // tekst: "Enthousiast en nieuwsgierig, stelt veel vragen" klonk uit Tyrells mond.
+  const castTeksten = opzet.cast
+    .flatMap((c) => [c.spraak, c.wil, c.role, c.appearance, c.kleding])
+    .filter((t): t is string => !!t && t.trim().length > 0);
   const castBlok = opzet.cast
     .map((c) => `- id "${c.id}" = ${c.name}${c.role ? ` (${c.role})` : ""}${c.leeftijd ? `, ${c.leeftijd}` : ""}${c.spraak ? `; praat: ${c.spraak}` : ""}`)
     .join("\n");
@@ -981,6 +1068,7 @@ async function schrijfMomenten(opzet: DialogueSetup, gewensteLengte: number): Pr
                 role: "system",
                 content: buildMomentSysteem({
                   bron: opzet.text, overzicht, castBlok, nummer: i + 1, totaal: lijn.length,
+                  voorwerpen: (opzet.voorwerpen ?? []).map((v) => `- ${v.naam}: ${v.uiterlijk}`).join("\n"),
                   label: deelLabel(d, i), moment: d, inBeeld, citaten, aantalRegels, taal,
                 }),
               },
@@ -999,7 +1087,7 @@ async function schrijfMomenten(opzet: DialogueSetup, gewensteLengte: number): Pr
             `actiebeeld zonder beschrijving ${ruw.filter((l) => l.kind === "actie" && !(l.actie ?? "").trim()).length}, ` +
             `onbekende spreker ${onbekend.length}${onbekend.length ? ` (${[...new Set(onbekend)].join(", ")})` : ""}`
           );
-          const problemen = momentProblemen(ruw, taal);
+          const problemen = momentProblemen(ruw, taal, castTeksten);
           if (problemen.length && poging < 2) {
             console.warn(`[dialogue-chat] moment ${i + 1} opnieuw: ${problemen.join(" | ")}`);
             feedback =
@@ -1008,7 +1096,7 @@ async function schrijfMomenten(opzet: DialogueSetup, gewensteLengte: number): Pr
             continue;
           }
           if (problemen.length) console.warn(`[dialogue-chat] moment ${i + 1} blijft na poging 2: ${problemen.join(" | ")}`);
-          const schoon = scenes.map((s) => ({ ...s, lines: zonderVerkeerdeTaal(s.lines ?? [], taal) }));
+          const schoon = scenes.map((s) => ({ ...s, lines: zonderVerkeerdeTaal(s.lines ?? [], taal, castTeksten) }));
           return schoon.some((s) => s.lines.length) ? schoon : [noodScene];
         }
       } catch (e) {
@@ -1139,6 +1227,7 @@ export async function POST(req: NextRequest) {
           leeftijd: c.leeftijd ?? undefined,
           wil: c.wil ?? undefined,
           spraak: c.spraak ?? undefined,
+          kleding: c.kleding ?? undefined,
           appearance: c.appearance ?? undefined,
           voice: c.voice,
           position: c.position,
@@ -1227,6 +1316,18 @@ export async function POST(req: NextRequest) {
       spec.scenes = await scherpDialoogAan(
         spec.scenes, spec.cast, spec.language ?? "Nederlands", spec.kern, spec.wending, lijnTekst
       );
+    }
+
+    // Het eigen verhaal van de gebruiker als één doorlopend verhaal. Hier, omdat
+    // alle stappen die zinnen schrijven dan geweest zijn.
+    if (volg) {
+      const castTeksten = spec.cast
+        .flatMap((c) => [c.spraak, c.wil, c.role, c.appearance, c.kleding])
+        .filter((t): t is string => !!t && t.trim().length > 0);
+      spec.scenes = await redigeerEigenVerhaal(
+        spec.scenes, spec.cast, spec.language ?? "Nederlands", lijnTekst, spec.verhaallijn, castTeksten,
+      );
+      telRegels("na verhaalredactie", spec.scenes);
     }
 
     // Laatste zeef over het HELE draaiboek. Elke stap hierboven laat een model

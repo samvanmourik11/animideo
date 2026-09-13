@@ -108,7 +108,11 @@ export const NATUURWETTEN =
   "only on a synagogue, a crescent only on a mosque — never two faiths' symbols on one building. When in " +
   "doubt, leave the symbol off. " +
   // Bij het paleis wapperde een rood-wit-blauwe vlag met een ster: geen enkel land.
-  "Draw a flag only when its exact design is described in this prompt; otherwise leave the flagpole bare.";
+  "Draw a flag only when its exact design is described in this prompt; otherwise leave the flagpole bare. " +
+  // Lilly liep buiten op blote voeten en zat binnen bovenop de salontafel.
+  "Everyone wears their complete outfit including shoes on both feet — nobody is barefoot, indoors or " +
+  "outdoors, unless this prompt says so. People sit on chairs, benches, sofas, the floor or the ground — " +
+  "never on top of a table.";
 
 const MENSEN = "people|persons|crowds?|tourists|locals|visitors|pedestrians|passers-?by|vendors|shoppers|families|children|kids|residents|onlookers";
 const MENSENZIN = new RegExp(

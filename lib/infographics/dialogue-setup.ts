@@ -89,7 +89,7 @@ export interface VastCastLid {
 }
 
 /** Velden die de assistent mag invullen zolang de gebruiker ze leeg liet. */
-const AANVULBAAR = ["role", "wil", "spraak", "leeftijd", "appearance"] as const;
+const AANVULBAAR = ["role", "wil", "spraak", "leeftijd", "appearance", "kleding"] as const;
 
 /**
  * Het voorstel van de assistent samenvoegen met wat de gebruiker al vastlegde.

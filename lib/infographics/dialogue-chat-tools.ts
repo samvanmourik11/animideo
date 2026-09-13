@@ -811,6 +811,8 @@ export function buildMomentSysteem(m: {
   citaten: string[];
   aantalRegels: number;
   taal: string;
+  /** Vaste voorwerpen uit de opzet, één per regel ("- Wonderwagen: a large …"). */
+  voorwerpen?: string;
 }): string {
   return `Je schrijft één moment uit een geanimeerde verhaalvideo voor kinderen. Het verhaal is van de gebruiker en ligt vast; jij maakt van ÉÉN moment de scène.
 
@@ -824,7 +826,7 @@ ${m.overzicht}
 
 DE CAST (gebruik exact deze id's):
 ${m.castBlok}
-
+${m.voorwerpen ? `\nVASTE VOORWERPEN — noem ze bij hun naam, en beschrijf ze in "setting" of "actie" nooit anders dan hier, ook niet kleiner of groter:\n${m.voorwerpen}\n` : ""}
 JOUW MOMENT: ${m.nummer} van ${m.totaal} — ${m.label}
 Wat er gebeurt: ${m.moment.wat}
 Plek: ${m.moment.plek || "zoals de tekst het beschrijft"}
@@ -844,11 +846,47 @@ ${m.moment.verteller
 - Vul aan met gewone zinnen van de personages die in beeld zijn: wat ze zien, wat ze ervan vinden, wat iemand uitlegt. ALLEEN over wat de tekst over dit moment vertelt. Geen nieuwe gebeurtenissen, plekken, voorwerpen of mensen, en niets wat bij een ander moment hoort.
 - Wat er onder "Wat er gebeurt" staat, moet je ZIEN of HOREN. Gebeurt er iets — een kleed gaat van een wagen, iemand wijst iets aan, ze stappen ergens in — laat dat dan zien in een actiebeeld. In de eerste video liep oma naar de kamer, maar ging het kleed er nooit af.
 - Een zin in de derde persoon of de verleden tijd ("De kinderen keken elkaar aan") is van de verteller, nooit van een personage.
+- Onthult of legt iemand in dit moment iets uit — wat een voorwerp is, wat het kan, waar ze heen gaan — dan ZEGT die persoon dat hardop in een eigen zin, vóórdat een ander erop reageert. "Kunnen we echt overal naartoe?" komt pas nadat iemand heeft verteld dat het kan.
+- Elke vraag of reactie heeft een aanleiding in de regel ervoor. Personages reageren op elkaar, niet alleen met losse uitroepen.
+- Wat achter "praat:" in de cast staat, zegt HOE iemand praat. Het is nooit een zin om uit te spreken.
 - Noem in de "actie" van een beeld iedereen die erin staat bij naam. Wie in de scène is maar niet genoemd wordt, komt niet in beeld.
 - Een actiebeeld beschrijf je in het Engels, op menselijke schaal: lopen, wijzen, kijken, iets aanraken. Geen rijdende of vliegende voertuigen, geen machines die bewegen.
 - Wissel de kaders af. Een close-up kan maar met één personage.
 - Gesproken tekst in het ${m.taal}: één natuurlijke zin van ongeveer twaalf woorden, zoals je tegen kinderen praat. Getallen voluit.
 - In "toelichting" één korte zin.`;
+}
+
+/**
+ * Systeemprompt voor de verhaalredactie van het eigen verhaal van de gebruiker.
+ * Zie redigeerEigenVerhaal in dialogue-chat.
+ */
+export function buildVerhaalRedactieSysteem(draaiboek: string, taal: string, verhaallijn: string, vast: string[]): string {
+  return `Je bent eindredacteur van een geanimeerde verhaalvideo voor kinderen. Het verhaal is van de gebruiker en ligt vast. Het draaiboek hieronder is moment voor moment los geschreven, en dat merk je: het voelt als losse stukjes die aan elkaar geplakt zijn. Jij maakt er één doorlopend verhaal van, zoals een goed voorleesboek.
+${verhaallijn ? `\n${verhaallijn}\n` : ""}
+HET DRAAIBOEK:
+
+${draaiboek}
+
+WAT JE VERBETERT
+1. Oorzaak vóór reactie. Elke vraag of reactie heeft een aanleiding vlak ervoor. Vraagt iemand "Kunnen we echt overal naartoe?", dan heeft een ander net verteld of laten zien dat het kan. Ontbreekt die aanleiding, zet er dan een zin vóór.
+2. Wat de verhaallijn bij een moment vertelt, moet je in dat moment zien of horen. Onthult of legt iemand iets uit — wat een voorwerp is, wat het kan — laat die persoon het dan hardop zeggen.
+3. Aansluiting tussen de plekken. Laat merken dat ze verdergaan: een korte zin aan het eind van een plek of aan het begin van de volgende. Nooit twee keer dezelfde overgangszin.
+4. Personages reageren op elkaar en hebben elk hun eigen manier van praten. Geen twee keer dezelfde zin in de hele video; varieer de uitroepen ("Wauw, kijk eens…").
+5. Een zin klinkt als iets wat iemand echt zegt. Een beschrijving van een personage ("Enthousiast en nieuwsgierig, stelt veel vragen") is geen zin: vervang die door wat diegene op dat moment zegt.
+6. De verteller vertelt in de verleden tijd, zoals een voorleesboek.
+
+WAT VAST LIGT — NIET AANRAKEN
+- Deze zinnen komen uit het verhaal van de gebruiker. Ze blijven letterlijk staan, bij dezelfde persoon, in dezelfde scène en in dezelfde volgorde:
+${vast.length ? vast.join("\n") : "- (geen)"}
+- Het aantal scènes en hun volgorde, en per scène "deel", "setting" en "licht".
+- Niets verzinnen wat niet in de verhaallijn staat: geen nieuwe plekken, gebeurtenissen, voorwerpen of personen.
+- Per scène hooguit drie regels erbij en hooguit één eraf.
+
+HOE
+- Gesproken tekst in het ${taal}: één natuurlijke zin van ongeveer twaalf woorden, zoals je tegen kinderen praat.
+- Laat bestaande actiebeelden staan met hun Engelse "actie". Een nieuw actiebeeld krijgt kind "actie" en een Engelse beschrijving die laat zien wat de zin erbij zegt.
+- Gebruik exact de cast-id's uit het draaiboek, en "verteller" voor de verteller.
+- Roep de functie aan met het COMPLETE draaiboek, ook de scènes die je niet veranderde.`;
 }
 
 /** Systeemprompt voor het herzien van een bestaand draaiboek. */

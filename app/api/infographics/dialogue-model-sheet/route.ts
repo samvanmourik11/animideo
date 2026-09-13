@@ -63,6 +63,9 @@ export async function POST(req: NextRequest) {
       `same curl or texture in all three views, so that the back and side of the head are unmistakable. ` +
       `Head to feet in each view, standing upright on the same ground line, arms relaxed, neutral expression, ` +
       `the same clothing in the same colours in all three. Even spacing, nobody overlapping. ` +
+      // Wat hier ontbreekt, verzint elk later beeld zelf: zonder schoenen op het blad
+      // liep Lilly de hele video op blote voeten, ook buiten.
+      `Fully dressed from head to toe, including shoes on both feet. ` +
       `Only this ONE character appears — no other people. ` +
       `No text, no names, no labels, no numbers and no frames anywhere in the image.`;
 

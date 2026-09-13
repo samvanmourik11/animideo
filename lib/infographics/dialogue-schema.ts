@@ -120,6 +120,15 @@ export interface DialogueCastMember {
    */
   wil?: string | null;
   spraak?: string | null;
+  /**
+   * Wat dit personage draagt, van top tot teen, in het Engels ("orange T-shirt,
+   * blue denim shorts, white sneakers").
+   *
+   * De beschrijving uit de bibliotheek noemt vaak alleen een shirt. De rest
+   * verzon het beeldmodel per beeld: Lilly liep buiten op blote voeten en droeg
+   * de ene keer een korte broek en de andere keer een spijkerbroek.
+   */
+  kleding?: string | null;
   // Stem-id uit STORY_VOICES.
   voice: string;
   // Portret uit de bibliotheek: identiteits-anker voor elk twee-shot.
@@ -365,13 +374,19 @@ export interface DialogueSpec {
  * twee Lilly's werd juist doorgelaten, omdat ze "ontbrak". Met de naam op de plek
  * van het voornaamwoord zegt de beschrijving alleen nog wat je ziet.
  */
-export function uiterlijkVan(lid: { name: string; appearance?: string | null }): string {
+export function uiterlijkVan(lid: { name: string; appearance?: string | null; kleding?: string | null }): string {
   const naam = lid.name.trim();
   const tekst = (lid.appearance ?? "").trim();
-  if (!naam) return tekst;
-  return tekst
-    .replace(/(^|[.!?]\s+)het personage\b/gi, (_m, voor: string) => `${voor}${naam}`)
-    .replace(/(^|[.!?]\s+)(?:hij|zij|ze|he|she)\b/gi, (_m, voor: string) => `${voor}${naam}`);
+  const basis = naam
+    ? tekst
+        .replace(/(^|[.!?]\s+)het personage\b/gi, (_m, voor: string) => `${voor}${naam}`)
+        .replace(/(^|[.!?]\s+)(?:hij|zij|ze|he|she)\b/gi, (_m, voor: string) => `${voor}${naam}`)
+    : tekst;
+  // De kleding van top tot teen hoort bij het uiterlijk, anders verzint het
+  // beeldmodel per beeld schoenen, broeken en blote voeten.
+  const kleding = (lid.kleding ?? "").trim();
+  if (!kleding) return basis;
+  return `${basis}${basis ? " " : ""}Outfit: ${kleding.replace(/\.?$/, ".")}`;
 }
 
 /** Meer voorwerpbladen per beeld verdringen het castblad uit de referenties. */

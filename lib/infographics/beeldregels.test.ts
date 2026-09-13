@@ -141,6 +141,8 @@ describe("NATUURWETTEN", () => {
     expect(NATUURWETTEN).toContain("Star of David");
     expect(NATUURWETTEN).toContain("never two faiths' symbols on one building");
     expect(NATUURWETTEN).toContain("leave the flagpole bare");
+    expect(NATUURWETTEN).toContain("nobody is barefoot");
+    expect(NATUURWETTEN).toContain("never on top of a table");
   });
 });
 
