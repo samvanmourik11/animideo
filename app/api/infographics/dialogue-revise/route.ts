@@ -58,8 +58,6 @@ function behoudRendering(nieuw: DialogueLine, oud: DialogueLine[]): DialogueLine
     // Vergat het model het kader van een ongewijzigde regel, dan hoort het oude
     // kader erbij — de clip is er immers mee gemaakt.
     kader: nieuw.kader ?? match.kader ?? null,
-    // Een correctie uit de videocontrole hoort bij dit shot, niet bij de tekst.
-    beeldAanwijzing: match.beeldAanwijzing ?? null,
     shotImageUrl: match.shotImageUrl ?? null,
     audioUrl: match.audioUrl ?? null,
     audioDuration: match.audioDuration ?? null,
