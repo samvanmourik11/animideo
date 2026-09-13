@@ -3,6 +3,7 @@ import type { DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import { isKader, kaderPast } from "@/lib/infographics/verhaal-kaders";
 import { isLichtsoort } from "@/lib/infographics/verhaal-licht";
 import { openai } from "@/lib/openai";
+import { momentProblemen, zonderVerkeerdeTaal } from "@/lib/infographics/momentcontrole";
 import { createClient } from "@/lib/supabase/server";
 import {
   DRAAIBOEK_TOOL, HERZIE_DRAAIBOEK_TOOL, buildChatSysteem, buildSamenhangSysteem,
@@ -906,35 +907,52 @@ async function schrijfMomenten(opzet: DialogueSetup, gewensteLengte: number): Pr
       };
 
       try {
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o",
-          temperature: 0.6,
-          max_tokens: 2500,
-          tools: [HERZIE_DRAAIBOEK_TOOL],
-          tool_choice: { type: "function", function: { name: HERZIE_DRAAIBOEK_TOOL.function.name } },
-          messages: [
-            {
-              role: "system",
-              content: buildMomentSysteem({
-                bron: opzet.text, overzicht, castBlok, nummer: i + 1, totaal: lijn.length,
-                label: deelLabel(d, i), moment: d, inBeeld, citaten, aantalRegels, taal,
-              }),
-            },
-            { role: "user", content: `Schrijf moment ${i + 1}: ${deelLabel(d, i)}.` },
-          ],
-        });
-        const call = completion.choices[0]?.message?.tool_calls?.[0];
-        const uit = JSON.parse(call?.function.arguments || "{}") as { scenes?: RuweScene[] };
-        const scenes = (uit.scenes ?? []).slice(0, 2).map((s) => ({ ...s, deel: i + 1 }));
-        const ruw = scenes.flatMap((s) => s.lines ?? []);
-        const onbekend = ruw.filter((l) => !naarCastId(l.characterId)).map((l) => `"${l.characterId ?? ""}"`);
-        console.log(
-          `[dialogue-chat] moment ${i + 1} (${deelLabel(d, i)}): ${scenes.length} scènes, ${ruw.length} regels, ` +
-          `verteller ${ruw.filter((l) => (l.characterId ?? "").toLowerCase() === VERTELLER_ID).length}, ` +
-          `actiebeeld zonder beschrijving ${ruw.filter((l) => l.kind === "actie" && !(l.actie ?? "").trim()).length}, ` +
-          `onbekende spreker ${onbekend.length}${onbekend.length ? ` (${[...new Set(onbekend)].join(", ")})` : ""}`
-        );
-        return scenes.some((s) => (s.lines ?? []).length) ? scenes : [noodScene];
+        // Hooguit twee pogingen. De tweede alleen als het eerste antwoord aantoonbaar
+        // fout is (Engelse zinnen, geen personage dat iets zegt), met die fouten
+        // erbij. Klopt het meteen, dan kost dit niets extra.
+        let feedback: string | null = null;
+        for (let poging = 1; ; poging++) {
+          const completion = await openai.chat.completions.create({
+            model: "gpt-4o",
+            temperature: 0.6,
+            max_tokens: 2500,
+            tools: [HERZIE_DRAAIBOEK_TOOL],
+            tool_choice: { type: "function", function: { name: HERZIE_DRAAIBOEK_TOOL.function.name } },
+            messages: [
+              {
+                role: "system",
+                content: buildMomentSysteem({
+                  bron: opzet.text, overzicht, castBlok, nummer: i + 1, totaal: lijn.length,
+                  label: deelLabel(d, i), moment: d, inBeeld, citaten, aantalRegels, taal,
+                }),
+              },
+              { role: "user", content: `Schrijf moment ${i + 1}: ${deelLabel(d, i)}.` },
+              ...(feedback ? [{ role: "user" as const, content: feedback }] : []),
+            ],
+          });
+          const call = completion.choices[0]?.message?.tool_calls?.[0];
+          const uit = JSON.parse(call?.function.arguments || "{}") as { scenes?: RuweScene[] };
+          const scenes = (uit.scenes ?? []).slice(0, 2).map((s) => ({ ...s, deel: i + 1 }));
+          const ruw = scenes.flatMap((s) => s.lines ?? []);
+          const onbekend = ruw.filter((l) => !naarCastId(l.characterId)).map((l) => `"${l.characterId ?? ""}"`);
+          console.log(
+            `[dialogue-chat] moment ${i + 1} (${deelLabel(d, i)}) poging ${poging}: ${scenes.length} scènes, ${ruw.length} regels, ` +
+            `verteller ${ruw.filter((l) => (l.characterId ?? "").toLowerCase() === VERTELLER_ID).length}, ` +
+            `actiebeeld zonder beschrijving ${ruw.filter((l) => l.kind === "actie" && !(l.actie ?? "").trim()).length}, ` +
+            `onbekende spreker ${onbekend.length}${onbekend.length ? ` (${[...new Set(onbekend)].join(", ")})` : ""}`
+          );
+          const problemen = momentProblemen(ruw, taal);
+          if (problemen.length && poging < 2) {
+            console.warn(`[dialogue-chat] moment ${i + 1} opnieuw: ${problemen.join(" | ")}`);
+            feedback =
+              `Je vorige versie klopte niet:\n- ${problemen.join("\n- ")}\n` +
+              `Schrijf moment ${i + 1} helemaal opnieuw, met deze punten opgelost en alle andere regels nog steeds gevolgd.`;
+            continue;
+          }
+          if (problemen.length) console.warn(`[dialogue-chat] moment ${i + 1} blijft na poging 2: ${problemen.join(" | ")}`);
+          const schoon = scenes.map((s) => ({ ...s, lines: zonderVerkeerdeTaal(s.lines ?? [], taal) }));
+          return schoon.some((s) => s.lines.length) ? schoon : [noodScene];
+        }
       } catch (e) {
         console.error(`[dialogue-chat] moment ${i + 1} schrijven mislukt:`, e);
         return noodScene.lines?.length ? [noodScene] : [];

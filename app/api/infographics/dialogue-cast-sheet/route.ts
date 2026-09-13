@@ -7,7 +7,7 @@ import { illustratieContext } from "@/lib/infographics/dialogue-staging";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { deductCredits } from "@/lib/credits";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
-import type { DialogueCastMember } from "@/lib/infographics/dialogue-schema";
+import { uiterlijkVan, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
 
 // HET CASTBLAD — één beeld waarop de hele cast naast elkaar staat.
 //
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       .map((c, i) => {
         const leeftijd = (c.leeftijd ?? "").trim();
         return `${i + 1}. ${c.name}${leeftijd ? ` (${leeftijd})` : ""}` +
-          `${(c.appearance ?? "").trim() ? ` — ${(c.appearance ?? "").trim()}` : ""}`;
+          `${uiterlijkVan(c) ? ` — ${uiterlijkVan(c)}` : ""}`;
       })
       .join(" ");
 

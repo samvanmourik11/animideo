@@ -18,7 +18,7 @@ import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
 import { illustratieContext } from "@/lib/infographics/dialogue-staging";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
-import type { DialogueCastMember } from "@/lib/infographics/dialogue-schema";
+import { uiterlijkVan, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const uiterlijk = (lid.appearance ?? "").trim();
+    const uiterlijk = uiterlijkVan(lid);
     const leeftijd = (lid.leeftijd ?? "").trim();
 
     const brief =

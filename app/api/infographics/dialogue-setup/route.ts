@@ -586,7 +586,7 @@ ${verhaalVelden}
 - "angle": de invalshoek ("vanuit het kind dat moet kiezen"). Leeg als dat niet nodig is.
 - "styleId": kies uit ${stijlLijst}.
 - "illustrationBrief": regie die voor ELK beeld geldt — kleurgebruik, kleding, soort omgeving. Twee zinnen, in ${language}.
-- "voorwerpen": voorwerpen die in het verhaal een hoofdrol spelen of in meer dan één moment terugkomen (een wagen, een kaart, een knuffel). "naam" zoals in het verhaal; "uiterlijk" is één ENGELSE zin die precies beschrijft hoe het eruitziet — vorm, grootte, kleuren, materiaal, bijzonderheden — zodat het in elk beeld hetzelfde getekend wordt. Hooguit vier. Leeg als er geen zijn.
+- "voorwerpen": voorwerpen die in het verhaal een hoofdrol spelen of in meer dan één moment terugkomen (een wagen, een kaart, een knuffel). "naam" zoals in het verhaal; "uiterlijk" is één ENGELSE zin die precies beschrijft hoe het eruitziet — vorm, grootte, kleuren, materiaal, bijzonderheden — zodat het in elk beeld hetzelfde getekend wordt. Begin met wat voor ding het is (bijv. "an old wooden covered wagon on four big red wheels"), noem de hoofdkleur en twee opvallende details. Nooit alleen vage woorden als "magical" of "colorful": die kan een tekenaar op honderd manieren tekenen. Hooguit vier. Leeg als er geen zijn.
 - "keepTerms": merk- en productnamen uit de brontekst die exact zo moeten blijven staan. Meestal leeg.
 - "avoidTerms": namen die beter niet vallen. Meestal leeg.`;
 

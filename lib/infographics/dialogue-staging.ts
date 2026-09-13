@@ -23,7 +23,7 @@
 //     model zelf waar de wissel valt en negeert het opgegeven tijdstippen volledig;
 //     de stem loopt dan uit de pas met de mond. Eén spreker per clip lost dat op.
 
-import type { DialogueCastMember, DialogueVoorwerp } from "./dialogue-schema";
+import { uiterlijkVan, type DialogueCastMember, type DialogueVoorwerp } from "./dialogue-schema";
 import { STORY_STYLE_PRESETS } from "./story-style";
 import { kaderRegie, bewegingRegie, type Kader, type Beweging } from "./verhaal-kaders";
 import { beeldSfeer, type Lichtsoort } from "./verhaal-licht";
@@ -187,6 +187,17 @@ export function zitHouding(lines: { kind?: string | null; actie?: string | null 
   return false;
 }
 
+/**
+ * Zegt deze handeling zelf iets over zitten of staan? Zo niet, dan hoort een
+ * actiebeeld de houding van het vorige beeld aan te houden: "Tyrell en Lilly kijken
+ * elkaar nieuwsgierig aan" stond ineens midden in de kamer, terwijl ze net nog aan
+ * tafel zaten.
+ */
+export function zegtIetsOverHouding(actie: string | null | undefined): boolean {
+  const tekst = (actie ?? "").trim();
+  return laatstePlek(tekst, ZIT) >= 0 || laatstePlek(tekst, OPGESTAAN) >= 0;
+}
+
 export const ZITTEN_REGEL =
   "POSE CONTINUITY — in the previous shot of this scene the characters were SITTING. They are still seated in " +
   "the same places now: nobody is standing up.";
@@ -244,7 +255,7 @@ function aanduiding(lid: DialogueCastMember, hoofdletters = true): string {
   const plek = lid.position === "left" ? "on the left"
     : lid.position === "right" ? "on the right"
     : "in the middle";
-  const uiterlijk = (lid.appearance ?? "").trim();
+  const uiterlijk = uiterlijkVan(lid);
   const wie = uiterlijk ? `the person ${plek} (${uiterlijk})` : `the person ${plek}`;
   // Alleen het "the person ... left/right"-deel in kapitalen; het uiterlijk tussen
   // haakjes blijft leesbaar, want SCHREEUWENDE beschrijvingen sturen slechter.
@@ -312,7 +323,7 @@ export function buildTwoShotBrief(
   // latere bronbeelden van afgeleid worden, dus wat hier fout staat blijft de hele
   // video fout. Zonder kledingbeschrijving dobberden de personages weg.
   const beschrijf = (c: DialogueCastMember, plek: string) =>
-    `${c.name} (${(c.appearance ?? "").trim() || "as shown in the reference"}) stands ${plek}`;
+    `${c.name} (${uiterlijkVan(c) || "as shown in the reference"}) stands ${plek}`;
   // Bij één personage is links/rechts betekenisloos: die staat gewoon in beeld.
   // "Stands on the LEFT" liet het model de rechterhelft opvullen — met een tweede
   // figuur die er niet hoort.
@@ -497,7 +508,7 @@ export function buildActionShotPrompt(
   kader?: Kader | null,
 ): string {
   const wie = cast
-    .map((c) => `${c.name}${(c.appearance ?? "").trim() ? ` (${(c.appearance ?? "").trim()})` : ""}`)
+    .map((c) => `${c.name}${uiterlijkVan(c) ? ` (${uiterlijkVan(c)})` : ""}`)
     .join(" and ");
 
   return (
@@ -567,7 +578,7 @@ export function buildShotPrompt(input: {
 
   const wie = inBeeld
     .map((c) => {
-      const uiterlijk = (c.appearance ?? "").trim();
+      const uiterlijk = uiterlijkVan(c);
       const leeftijd = (c.leeftijd ?? "").trim();
       return `${c.name}${leeftijd ? ` (${leeftijd})` : ""}${uiterlijk ? ` — ${uiterlijk}` : ""}`;
     })

@@ -1,5 +1,5 @@
 import { openai } from "@/lib/openai";
-import type { DialogueCastMember, CastPosition } from "./dialogue-schema";
+import { uiterlijkVan, type DialogueCastMember, type CastPosition } from "./dialogue-schema";
 
 // Controleren WIE er praat, in plaats van hopen dat het klopt.
 //
@@ -39,7 +39,7 @@ export async function controleerSpreker(
   const opsomming = iedereen
     .map((c) => {
       const kenmerken = [
-        (c.appearance ?? "").trim(),
+        uiterlijkVan(c),
         (c.leeftijd ?? "").trim() ? `leeftijd ${(c.leeftijd ?? "").trim()}` : "",
       ].filter(Boolean).join("; ");
       return `- ${PLEK_NL[c.position]}: ${c.name}${kenmerken ? ` — ${kenmerken}` : ""}`;
@@ -154,7 +154,7 @@ export async function beoordeelBeeld(
   const opsomming = iedereen
     .map((c) => {
       const kenmerken = [
-        (c.appearance ?? "").trim(),
+        uiterlijkVan(c),
         (c.leeftijd ?? "").trim() ? `leeftijd ${(c.leeftijd ?? "").trim()}` : "",
       ].filter(Boolean).join("; ");
       return `- ${PLEK_NL[c.position]}: ${c.name}${kenmerken ? ` — ${kenmerken}` : ""}`;
@@ -201,7 +201,10 @@ export async function beoordeelBeeld(
               : "") +
             "- iemand van wie het HAAR of de KLEDING duidelijk afwijkt van zijn beschrijving hierboven: een " +
             "ander kapsel, een duidelijk ander volume of andere vorm van het haar, of andere kleding dan " +
-            "beschreven. Kleine verschillen door de camerahoek zijn geen fout; een zichtbaar ander kapsel wel\n" +
+            "beschreven. Kleine verschillen door de camerahoek zijn geen fout; een zichtbaar ander kapsel wel. " +
+            // "Lilly heeft een afro, maar is een jongen volgens de beschrijving": de
+            // bibliotheek schreef "hij" bij een meisje, en goede beelden werden afgekeurd.
+            "Of iemand een jongen of meisje is, haal je NOOIT uit de beschrijving; herken mensen aan haar en kleding\n" +
             "- een ingelijst portret, kaartje, poster of rij poppetjes van deze personages als voorwerp in de scène\n\n" +
             "Wees streng op deze punten maar zeur niet: stijlkeuzes, vlakke kleuren, ontbrekende " +
             "schaduwen, vereenvoudigde vormen en een lege achtergrond zijn GEEN fouten — dit is met " +

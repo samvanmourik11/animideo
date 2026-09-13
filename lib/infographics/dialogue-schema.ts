@@ -356,6 +356,24 @@ export interface DialogueSpec {
 
 // ---------- Hulpfuncties ----------
 
+/**
+ * Het uiterlijk van een personage, klaar voor een beeldprompt of de beeldcontrole.
+ *
+ * De beschrijvingen uit de bibliotheek zijn automatisch gemaakt en beginnen vaak
+ * met "Het personage heeft … Hij draagt …", ook bij een meisje. De beeldcontrole las
+ * dat letterlijk, zag Lilly als jongen en keurde goede beelden af — en een beeld met
+ * twee Lilly's werd juist doorgelaten, omdat ze "ontbrak". Met de naam op de plek
+ * van het voornaamwoord zegt de beschrijving alleen nog wat je ziet.
+ */
+export function uiterlijkVan(lid: { name: string; appearance?: string | null }): string {
+  const naam = lid.name.trim();
+  const tekst = (lid.appearance ?? "").trim();
+  if (!naam) return tekst;
+  return tekst
+    .replace(/(^|[.!?]\s+)het personage\b/gi, (_m, voor: string) => `${voor}${naam}`)
+    .replace(/(^|[.!?]\s+)(?:hij|zij|ze|he|she)\b/gi, (_m, voor: string) => `${voor}${naam}`);
+}
+
 /** Meer voorwerpbladen per beeld verdringen het castblad uit de referenties. */
 const MAX_VOORWERPEN_PER_BEELD = 2;
 

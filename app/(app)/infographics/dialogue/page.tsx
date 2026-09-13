@@ -16,7 +16,7 @@ import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
 import { regelKlaar, kaleSetting, sceneCast, voorwerpenInScene, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
-import { zitHouding } from "@/lib/infographics/dialogue-staging";
+import { zitHouding, zegtIetsOverHouding } from "@/lib/infographics/dialogue-staging";
 import VasteVoorwerpen from "@/components/dialogue/VasteVoorwerpen";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { MusicPickerButton } from "@/components/music/MusicPicker";
@@ -552,7 +552,7 @@ export default function DialoguePage() {
                 shotIndex: werk.scenes.slice(0, si).reduce((n, sc) => n + sc.lines.length, 0) + li,
                 licht: scene.licht ?? null,
                 voorwerpen: voorwerpenInScene(werk.voorwerpen, scene),
-                zit: regel.kind !== "actie" && zitHouding(scene.lines, li),
+                zit: zitHouding(scene.lines, li) && (regel.kind !== "actie" || !zegtIetsOverHouding(regel.actie)),
               }),
             });
             const d = await r.json();
@@ -642,7 +642,7 @@ export default function DialoguePage() {
           hergebruikAudioDuration: hergebruikStem ? regel.audioDuration ?? undefined : undefined,
           beeldInstructie: actie.soort === "beeld" ? actie.instructie : undefined,
           voorwerpen: voorwerpenInScene(spec.voorwerpen, scene),
-          zit: regel.kind !== "actie" && zitHouding(scene.lines, li),
+          zit: zitHouding(scene.lines, li) && (regel.kind !== "actie" || !zegtIetsOverHouding(regel.actie)),
         }),
       });
       const d = await r.json();

@@ -423,8 +423,9 @@ export async function POST(req: NextRequest) {
               "Do not add another person — no extra adults, no children, no bystanders, no background figures. " +
               iederEenKeer(cast.map((c) => c.name)),
             voorwerpRegie(voorwerpen),
-            // Bij een actiebeeld beschrijft de handeling zelf de houding.
-            !isActieBeeld && b.zit === true ? ZITTEN_REGEL : "",
+            // Ook bij een actiebeeld, zolang de handeling zelf niets over zitten of
+            // staan zegt; dat beslist de pagina (zie zegtIetsOverHouding).
+            b.zit === true ? ZITTEN_REGEL : "",
             // Een gerichte correctie van de gebruiker op dít ene beeld weegt
             // zwaarder dan de algemene briefing, dus hij staat erachter.
             beeldInstructie ? `IMPORTANT CORRECTION for this specific shot: ${beeldInstructie}` : "",
