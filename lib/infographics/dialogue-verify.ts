@@ -141,7 +141,14 @@ export interface BeeldOordeel {
 export async function beoordeelBeeld(
   imageUrl: string,
   spreker: DialogueCastMember | null,
-  anderen: DialogueCastMember[]
+  anderen: DialogueCastMember[],
+  opties: {
+    /**
+     * Hoort iedereen uit de lijst zichtbaar te zijn? Bij een scènebeeld en een wijd
+     * shot wel; bij een close-up valt de rest er juist met opzet buiten.
+     */
+    iedereenZichtbaar?: boolean;
+  } = {},
 ): Promise<BeeldOordeel> {
   const iedereen = [...(spreker ? [spreker] : []), ...anderen];
   const opsomming = iedereen
@@ -186,6 +193,12 @@ export async function beoordeelBeeld(
             "doorlopende scène op één plek zijn\n" +
             "- er staat een persoon in beeld die niet in de lijst hierboven voorkomt — een extra volwassene, " +
             "een extra kind, een omstander of een figuur op de achtergrond. Ook half zichtbaar of onscherp telt\n" +
+            // Het openingsbeeld van een video had twee Lilly's naast elkaar. Dat is
+            // geen "persoon die niet in de lijst staat", dus het glipte erdoor.
+            "- iemand uit de lijst staat er TWEE KEER in (twee keer hetzelfde personage)\n" +
+            (opties.iedereenZichtbaar
+              ? "- iemand uit de lijst ontbreekt in het beeld (schrijf dan: \"<naam> ontbreekt\")\n"
+              : "") +
             "- iemand van wie het HAAR of de KLEDING duidelijk afwijkt van zijn beschrijving hierboven: een " +
             "ander kapsel, een duidelijk ander volume of andere vorm van het haar, of andere kleding dan " +
             "beschreven. Kleine verschillen door de camerahoek zijn geen fout; een zichtbaar ander kapsel wel\n" +

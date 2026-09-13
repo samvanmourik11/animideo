@@ -281,6 +281,21 @@ export interface DialogueScene {
   beeldAanwijzing?: string | null;
 }
 
+/**
+ * Een voorwerp dat in het verhaal terugkomt: een wagen, een kaart, een knuffel.
+ * `uiterlijk` is Engels, want het gaat rechtstreeks naar het beeldmodel.
+ */
+export interface DialogueVoorwerp {
+  naam: string;
+  uiterlijk: string;
+  /**
+   * Het voorwerpblad: dit voorwerp één keer getekend op een egale achtergrond.
+   * Gaat als referentie mee naar elk beeld waarin het voorkomt, net als het
+   * castblad voor de personages.
+   */
+  bladUrl?: string | null;
+}
+
 export interface DialogueSpec {
   version: 1;
   title: string;
@@ -317,6 +332,8 @@ export interface DialogueSpec {
    * lengte wisselden. Hier staat het één keer vast.
    */
   castSheetUrl?: string | null;
+  /** Voorwerpen die in het verhaal terugkomen en er in elk beeld hetzelfde uit moeten zien. */
+  voorwerpen?: DialogueVoorwerp[] | null;
   /**
    * Stem van de verteller. Bewust een andere stem dan die van de cast: een
    * verteller die klinkt als een van de personages verwart de kijker.
@@ -338,6 +355,36 @@ export interface DialogueSpec {
 }
 
 // ---------- Hulpfuncties ----------
+
+/** Meer voorwerpbladen per beeld verdringen het castblad uit de referenties. */
+const MAX_VOORWERPEN_PER_BEELD = 2;
+
+/**
+ * De vaste voorwerpen die in deze scène voorkomen: bij naam genoemd in de plek,
+ * een handeling of een gesproken zin.
+ *
+ * Alleen die gaan mee naar het beeld. Met de hele lijst erbij zou de Wonderwagen
+ * ook bij het fort komen te staan, waar hij in het verhaal niet is.
+ */
+export function voorwerpenInScene(
+  voorwerpen: DialogueVoorwerp[] | null | undefined,
+  scene: Pick<DialogueScene, "setting" | "lines">,
+): DialogueVoorwerp[] {
+  const tekst = [scene.setting, ...scene.lines.flatMap((l) => [l.actie ?? "", l.text ?? ""])]
+    .join("\n")
+    .toLowerCase();
+  return (voorwerpen ?? [])
+    .filter((v) => v.uiterlijk.trim())
+    .filter((v) => {
+      const kern = v.naam.trim().toLowerCase().replace(/^(?:de|het|een|the|an?)\s+/, "");
+      if (kern.length < 2) return false;
+      if (tekst.includes(kern)) return true;
+      // "Oma's Wonderwagen" heet in de scène gewoon "de Wonderwagen".
+      const laatste = kern.split(/\s+/).pop() ?? "";
+      return laatste.length >= 4 && laatste !== kern && tekst.includes(laatste);
+    })
+    .slice(0, MAX_VOORWERPEN_PER_BEELD);
+}
 
 /** Alle regels van alle scènes, met hun plek erbij. */
 export function alleRegels(spec: DialogueSpec): { regel: DialogueLine; si: number; li: number }[] {

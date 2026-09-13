@@ -3,11 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
-import { buildTwoShotBrief, illustratieContext } from "@/lib/infographics/dialogue-staging";
+import { buildTwoShotBrief, illustratieContext, iederEenKeer, voorwerpRegie } from "@/lib/infographics/dialogue-staging";
 import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld } from "@/lib/infographics/dialogue-verify";
-import { MAX_CAST, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
+import { MAX_CAST, type DialogueCastMember, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
 
@@ -44,6 +44,10 @@ interface Body {
    * DialogueScene.beeldAanwijzing.
    */
   aanwijzing?: string;
+  /** Vaste voorwerpen die in deze scène voorkomen. Zie voorwerpenInScene. */
+  voorwerpen?: DialogueVoorwerp[];
+  /** Zitten ze bij het begin van de scène? Zie zitHouding. */
+  zit?: boolean;
 }
 
 // Het basis-twee-shot van één scène: de cast tegenover elkaar in de omgeving.
@@ -62,7 +66,9 @@ interface Body {
  */
 function onbruikbaar(fouten: string[]): boolean {
   const tekst = fouten.join(" ").toLowerCase();
-  return /verdeeld|panel|naast elkaar|onder elkaar|naad|twee tafere|extra |niet in de lijst|omstander|portret|kaartje|poster/.test(tekst);
+  // Een ontbrekend of dubbel personage hoort erbij: dit beeld is het anker voor
+  // de hele scène, dus wie hier ontbreekt, ontbreekt in elk shot erna.
+  return /verdeeld|panel|naast elkaar|onder elkaar|naad|twee tafere|extra |niet in de lijst|omstander|portret|kaartje|poster|ontbreekt|twee keer/.test(tekst);
 }
 
 export async function POST(req: NextRequest) {
@@ -110,7 +116,12 @@ export async function POST(req: NextRequest) {
       typeof body.sceneIndex === "number" ? body.sceneIndex : 0,
       !!locatieRef,
       isLichtsoort(body.licht) ? body.licht : null,
+      body.zit === true,
     );
+    const voorwerpen = (Array.isArray(body.voorwerpen) ? body.voorwerpen : [])
+      .filter((v) => typeof v?.naam === "string" && typeof v?.uiterlijk === "string")
+      .slice(0, 2);
+    const voorwerpBladen = voorwerpen.map((v) => (v.bladUrl ?? "").trim()).filter(Boolean);
     const anker = (body.anchorTwoShotUrl ?? "").trim();
     const castblad = (body.castSheetUrl ?? "").trim();
     // Het castblad gaat als "merk-referentie" mee: dat is de enige categorie die
@@ -152,7 +163,8 @@ export async function POST(req: NextRequest) {
     const alleenDezeMensen =
       `This scene contains EXACTLY ${cast.length} ${cast.length === 1 ? "person" : "people"}: ${namen}. ` +
       `Do not add another person - no extra adults, no children, no bystanders, no background figures, ` +
-      `not even partially visible or out of focus. Nobody from the reference images appears twice.`;
+      `not even partially visible or out of focus. Nobody from the reference images appears twice. ` +
+      iederEenKeer(cast.map((c) => c.name));
 
     // Het twee-shot is het ANKER van de scène: elk bronbeeld erin is een bewerking
     // hiervan. Een fout hier plant zich dus voort over alle regels van die scène,
@@ -183,7 +195,9 @@ export async function POST(req: NextRequest) {
         // castblad voor lengte en kleding, portret voor gezicht en haar — en er
         // is ruimte voor allebei in het referentiebudget.
         characterUrls: portretten,
-        brandUrls: castblad ? [castblad] : undefined,
+        // De voorwerpbladen staan bij het castblad: dezelfde soort referentie, iets
+        // wat exact overgenomen moet worden.
+        brandUrls: [castblad, ...voorwerpBladen].filter(Boolean),
         // Het anker uit scène 1 houdt cast én look gelijk over alle scènes heen.
         // Het anker houdt de personages gelijk, de locatiereferentie de kamer.
         ingredientUrls: [locatieRef, anker].filter(Boolean),
@@ -193,6 +207,7 @@ export async function POST(req: NextRequest) {
           ankerInstructie,
           locatieInstructie,
           alleenDezeMensen,
+          voorwerpRegie(voorwerpen),
           // Na de vaste regels, zodat de aanwijzing over DIT beeld gaat en niet
           // de personages of de tekenstijl kan omgooien.
           aanwijzing
@@ -206,7 +221,7 @@ export async function POST(req: NextRequest) {
       const kandidaat = await persistFalAssetSoft(supabase, user.id, result.imageUrl, "image");
 
       // Alleen de fysieke controle: er praat op een twee-shot nog niemand.
-      const oordeel = await beoordeelBeeld(kandidaat, null, cast);
+      const oordeel = await beoordeelBeeld(kandidaat, null, cast, { iedereenZichtbaar: true });
       fouten = oordeel.fouten;
       // Bij de laatste poging nemen we wat we hebben: een scène zonder anker
       // levert helemaal geen beelden op, en dat is erger dan een beeld met een smetje.

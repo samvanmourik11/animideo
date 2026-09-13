@@ -6,7 +6,7 @@ import type { DialogueSpec, DialogueLine, DialogueScene } from "@/lib/infographi
 import { KADERS, STANDAARD_KADER, kaderLabel, kaderUitleg, type Kader } from "@/lib/infographics/verhaal-kaders";
 import { LICHTSOORTEN, STANDAARD_LICHT, lichtLabel, lichtUitleg, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import {
-  regelKlaar, isActie, actieDuur, heeftStem, VERTELLER_ID,
+  regelKlaar, isActie, actieDuur, heeftStem, voorwerpenInScene, VERTELLER_ID,
   ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC,
 } from "@/lib/infographics/dialogue-schema";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
@@ -55,7 +55,11 @@ export function schatStoryboardCredits(spec: DialogueSpec): number {
   const bladen = spec.cast.filter((c) => c.portraitUrl && !c.modelSheetUrl).length;
   // Het castblad telde ook niet mee, terwijl het net zo goed een credit kost.
   const castblad = spec.castSheetUrl ? 0 : 1;
-  return (shots + bladen + castblad) * CREDIT_COSTS.IMAGE_GENERATION;
+  // Eén blad per vast voorwerp dat echt in een scène voorkomt.
+  const voorwerpen = (spec.voorwerpen ?? []).filter(
+    (v) => !v.bladUrl && spec.scenes.some((s) => voorwerpenInScene([v], s).length > 0)
+  ).length;
+  return (shots + bladen + castblad + voorwerpen) * CREDIT_COSTS.IMAGE_GENERATION;
 }
 
 /**

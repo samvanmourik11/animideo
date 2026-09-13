@@ -179,7 +179,13 @@ export const DRAAIBOEK_TOOL = {
                   "binnen of buiten is — een lege of vage omgeving levert een leeg beeld op. " +
                   "Speelt een scène op een plek die eerder in dit draaiboek al voorkwam, gebruik dan LETTERLIJK " +
                   "dezelfde beschrijving, woord voor woord. Zo blijft het dezelfde kamer en niet een kamer die " +
-                  "erop lijkt. Nieuwe plek = nieuwe beschrijving.",
+                  "erop lijkt. Nieuwe plek = nieuwe beschrijving. " +
+                  // Het beeldmodel kent Paramaribo niet: "Neve Shalom Synagogue and the Mosque
+                  // Keizerstraat" werd één kerk met een kruis én een Davidster.
+                  "Een bekend gebouw beschrijf je zoals het eruitziet — vorm, kleur, materiaal en het symbool " +
+                  "dat erbij hoort — want de tekenaar kent de naam niet. Twee gebouwen naast elkaar beschrijf je " +
+                  "elk apart. Speelt de scène in of bij een voorwerp uit het verhaal (zoals een wagen), noem het " +
+                  "dan bij zijn naam. Geen publiek, voorbijgangers of andere mensen in de beschrijving.",
               },
               licht: {
                 type: "string",
@@ -342,7 +348,12 @@ const SETTING_OMSCHRIJVING =
   // woorden — en dan tekent het beeldmodel een andere kamer. Zo veranderde
   // halverwege een kerstvideo de bank, de boom en de muur van de open haard.
   "Speelt deze scène op een plek die eerder in dit draaiboek al voorkwam, gebruik dan LETTERLIJK dezelfde " +
-  "beschrijving, woord voor woord. Zo blijft het dezelfde kamer en niet een kamer die erop lijkt.";
+  "beschrijving, woord voor woord. Zo blijft het dezelfde kamer en niet een kamer die erop lijkt. " +
+  // Zie de setting-omschrijving in DRAAIBOEK_TOOL: dezelfde regels, hier voor de herzieningen.
+  "Een bekend gebouw beschrijf je zoals het eruitziet — vorm, kleur, materiaal en het symbool dat erbij " +
+  "hoort — want de tekenaar kent de naam niet. Twee gebouwen naast elkaar beschrijf je elk apart. Speelt de " +
+  "scène in of bij een voorwerp uit het verhaal (zoals een wagen), noem het dan bij zijn naam. Geen publiek, " +
+  "voorbijgangers of andere mensen in de beschrijving.";
 
 // Licht en deel stonden niet in de herzie-schema's. "licht" stond wel bij de
 // verplichte velden maar ontbrak bij de eigenschappen, dus het model wist niet wat
@@ -493,7 +504,7 @@ DIT IS HET EIGEN VERHAAL VAN DE GEBRUIKER — VOLG HET PRECIES
 Dit gaat voor alle algemene regels hierboven. Waar die botsen met dit verhaal, wint het verhaal.
 - Elk moment hierboven wordt minstens één scène, in deze volgorde, met het nummer van het moment in "deel". Sla er GEEN over. Scènes per moment, ongeveer: ${scenes.join(", ")}.
 - Elk moment speelt op zijn EIGEN plek, beschreven in "setting". Staan ze bij Fort Zeelandia, dan is de setting Fort Zeelandia — niet de kamer waar het verhaal begon. Zoveel plekken als het verhaal heeft is prima; de regel over twee of drie plekken geldt hier niet.
-- Beschrijf een echte, bestaande plek in "setting" zo dat een tekenaar hem herkent: wat voor gebouw of plek het is en wat er kenmerkend aan is.
+- Beschrijf een echte, bestaande plek in "setting" zo dat een tekenaar hem herkent: wat voor gebouw of plek het is en hoe het eruitziet (vorm, kleur, materiaal, het symbool dat erbij hoort). De tekenaar kent de naam niet. Twee gebouwen naast elkaar beschrijf je elk apart. Geen publiek of voorbijgangers.
 - Verzin GEEN gebeurtenissen, tegenslagen, ruzies of twijfels die niet in de tekst staan. Er hoeft geen wrijving bij.
 - Zinnen die in de tekst van de gebruiker tussen aanhalingstekens staan (hierboven met "zegt LETTERLIJK"), neem je LETTERLIJK over, door dezelfde persoon, in de scène van dat moment.
 - Letterlijk overnemen betekent NIET dat er verder niets gezegd wordt. Bij ELKE plek praten de personages gewoon: wat ze zien, wat ze ervan vinden, wat oma uitlegt — steeds binnen wat de tekst over dat moment vertelt. Een plek waar alleen de verteller iets zegt voelt als een diavoorstelling; een plek zonder één gesproken zin is fout.
@@ -823,7 +834,7 @@ ${m.citaten.length ? `Letterlijke zinnen uit de tekst, in deze volgorde:\n${m.ci
 
 WAT JE SCHRIJFT
 - Eén scène met "deel" ${m.nummer}. Twee scènes alleen als het moment echt van plek wisselt. Samen ongeveer ${m.aantalRegels} regels.
-- "setting": de plek in het ENGELS, concreet genoeg om te tekenen. Is het een echte, bestaande plek, beschrijf dan wat hem herkenbaar maakt. Noem geen personen.
+- "setting": de plek in het ENGELS, concreet genoeg om te tekenen. Is het een echte, bestaande plek, beschrijf dan hoe hij eruitziet (vorm, kleur, materiaal, het symbool dat erbij hoort) — de tekenaar kent de naam niet. Twee gebouwen naast elkaar beschrijf je elk apart. Speelt het in of bij een voorwerp uit het verhaal (zoals een wagen), noem het bij zijn naam. Noem geen personen, ook geen publiek of voorbijgangers.
 ${m.moment.verteller
   ? `- De eerste regel is de vertellerzin, letterlijk: kind "actie", characterId "verteller", "text" is de vertellerzin, "actie" beschrijft in het Engels wat je ziet, kader een totaalbeeld.\n`
   : `- De eerste regel is een korte vertellerzin die je zelf schrijft, in de derde persoon en de verleden tijd, zoals een voorleesboek: waar ze zijn en wat ze doen, dicht bij de tekst. kind "actie", characterId "verteller", "actie" beschrijft in het Engels wat je ziet, kader een totaalbeeld.\n`}- Vul bij elk actiebeeld ALTIJD "actie" in: de Engelse beschrijving van wat je ziet.

@@ -1089,6 +1089,11 @@ export async function POST(req: NextRequest) {
     // verzinnen of zijn zinnen "aanscherpen".
     const volg = opzet?.modus === "volgen" && verhaallijn.length > 0;
     spec.verhaalModus = opzet?.modus ?? null;
+    const voorwerpen = (opzet?.voorwerpen ?? [])
+      .filter((v) => v.naam?.trim() && v.uiterlijk?.trim())
+      .map((v) => ({ naam: v.naam.trim(), uiterlijk: v.uiterlijk.trim(), bladUrl: null }))
+      .slice(0, 4);
+    spec.voorwerpen = voorwerpen.length ? voorwerpen : null;
 
     // Ook het EERSTE plan kan zichzelf al herhalen; dan hoort de aanvullus dat
     // gat te vullen met iets nieuws in plaats van er nog een kopie bij te doen.

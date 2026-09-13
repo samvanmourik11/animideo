@@ -706,19 +706,18 @@ Geef nu de opzet als JSON.`;
       }
     }
 
-    // Vaste voorwerpen gaan in de beeldregie, die met ELK beeld meegaat. De
-    // Wonderwagen was onder het kleed een fauteuil, van binnen een tram, bij het fort
-    // een busje en thuis een jeep: zonder vaste beschrijving verzint het beeldmodel
-    // hem elke keer opnieuw. Zichtbaar in de opzet, dus aan te passen.
+    // Vaste voorwerpen. De Wonderwagen was onder het kleed een fauteuil, van binnen
+    // een tram, bij het fort een busje en thuis een jeep: zonder vaste beschrijving
+    // verzint het beeldmodel hem elke keer opnieuw. Ze stonden eerst als tekst
+    // achter de beeldregie, maar die wordt aangekondigd als "hoe het eruitziet, niet
+    // wat je tekent" en ging dus mee naar beelden waar de wagen niet eens in stond.
+    // Nu een eigen lijst: elk voorwerp krijgt een blad, en gaat alleen mee naar de
+    // scènes waarin het genoemd wordt. Zichtbaar in de opzet, dus aan te passen.
     const voorwerpen = (Array.isArray(ruw.voorwerpen) ? ruw.voorwerpen : [])
       .map((v) => v as { naam?: unknown; uiterlijk?: unknown })
       .map((v) => ({ naam: String(v.naam ?? "").trim(), uiterlijk: String(v.uiterlijk ?? "").trim() }))
       .filter((v) => v.naam && v.uiterlijk)
       .slice(0, 4);
-    const vasteVoorwerpen = voorwerpen.length
-      ? `\n\nVaste voorwerpen — overal waar ze in beeld komen zien ze er precies zo uit: ` +
-        voorwerpen.map((v) => `${v.naam}: ${v.uiterlijk}`).join(" ")
-      : "";
 
     const setup: DialogueSetup = {
       title: String(ruw.title ?? "").trim() || "Naamloos verhaal",
@@ -735,7 +734,8 @@ Geef nu de opzet als JSON.`;
       avoidTerms: (Array.isArray(ruw.avoidTerms) ? ruw.avoidTerms : []).map(String).map((t) => t.trim()).filter(Boolean),
       format,
       styleId,
-      illustrationBrief: `${String(ruw.illustrationBrief ?? "").trim()}${vasteVoorwerpen}`.trim(),
+      illustrationBrief: String(ruw.illustrationBrief ?? "").trim(),
+      voorwerpen,
       cast,
       targetSeconds,
     };

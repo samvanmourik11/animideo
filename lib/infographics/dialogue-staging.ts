@@ -23,7 +23,7 @@
 //     model zelf waar de wissel valt en negeert het opgegeven tijdstippen volledig;
 //     de stem loopt dan uit de pas met de mond. Eén spreker per clip lost dat op.
 
-import type { DialogueCastMember } from "./dialogue-schema";
+import type { DialogueCastMember, DialogueVoorwerp } from "./dialogue-schema";
 import { STORY_STYLE_PRESETS } from "./story-style";
 import { kaderRegie, bewegingRegie, type Kader, type Beweging } from "./verhaal-kaders";
 import { beeldSfeer, type Lichtsoort } from "./verhaal-licht";
@@ -100,7 +100,119 @@ export const NATUURWETTEN =
   "Objects keep their real-world size relative to people, and rest on a surface that could actually " +
   "support them — nothing floats. Anything a person holds is held in a way a hand can actually hold it. " +
   "If a screen, sign, label or document is visible, leave it BLANK or show only simple shapes and " +
-  "colours — never invented lettering, never fake words, never garbled text.";
+  "colours — never invented lettering, never fake words, never garbled text. " +
+  // De synagoge en de moskee "naast elkaar" werden één kerk met een kruis op het
+  // dak en een Davidster op de gevel. Het model kent de gebouwen niet bij naam en
+  // plakt dan alle symbolen die het bij "gebedshuis" kent op één gevel.
+  "A place of worship carries only the symbol of its own faith — a cross only on a church, a Star of David " +
+  "only on a synagogue, a crescent only on a mosque — never two faiths' symbols on one building. When in " +
+  "doubt, leave the symbol off.";
+
+const MENSEN = "people|persons|crowds?|tourists|locals|visitors|pedestrians|passers-?by|vendors|shoppers|families|children|kids|residents|onlookers";
+const MENSENZIN = new RegExp(
+  `(?:\\s*,\\s*(?:and\\s+)?|\\s+(?:and|with|where|full of|filled with)\\s+)` +
+    `(?:(?:many|some|a few|several|lots of|a lot of|groups of|other|local)\\s+)?` +
+    `(?:${MENSEN})\\b(?!['’])[^,.;]*`,
+  "gi",
+);
+
+/**
+ * De plek zonder mensen erin.
+ *
+ * De schrijfstap zet er graag sfeer bij: "the Waterkant … and people enjoying the
+ * scenery". Het beeldmodel tekent die mensen dan braaf, de controle keurt ze
+ * daarna af als figuranten, en na drie betaalde pogingen staan ze er nog. De cast
+ * is de cast; wie er verder in beeld komt, staat niet in het verhaal.
+ */
+export function plekZonderMensen(setting: string): string {
+  const schoon = setting.replace(MENSENZIN, "").trim();
+  return schoon || setting.trim();
+}
+
+/**
+ * Geen klassenfoto.
+ *
+ * Drie personages in één beeld werden bijna altijd een rechte rij die de camera
+ * in kijkt: scène na scène dezelfde opstelling, alsof ze voor een foto poseren.
+ * Dat is geen losse fout maar het kost het verhaal meer dan welk foutje ook.
+ */
+export const OPSTELLING =
+  " STAGING — compose this like a still from an animated film, not a group photo: the characters are at " +
+  "slightly different distances from the camera, their bodies angled towards each other or towards what they " +
+  "are looking at, some seen more from the side. Never line everyone up in one straight row facing the camera, " +
+  "and nobody looks into the camera. If a left-to-right order is given, keep it.";
+
+/** Iedereen precies één keer. Een scène kreeg twee Lilly's naast elkaar. */
+export function iederEenKeer(namen: string[]): string {
+  return `Each of them — ${namen.join(", ")} — appears exactly ONCE in the image; nobody is drawn twice.`;
+}
+
+/**
+ * Kaders waarin iedereen die in het shot hoort ook echt zichtbaar is. Bij een
+ * close-up of een detail valt de rest er vanzelf buiten.
+ */
+export function iedereenZichtbaar(kader: Kader | null | undefined): boolean {
+  return kader !== "close" && kader !== "extreme-close" && kader !== "detail";
+}
+
+const ZIT = /\b(?:sit|sits|sitting|sat|seated)\b|\bat (?:the|a) (?:\w+ )?table\b|\bzit(?:ten)?\b|\bzaten\b|\baan (?:de )?tafel\b/gi;
+const OPGESTAAN = /\b(?:stand|stands|standing|stood|get up|gets up|got up|walk|walks|walking|walked|run|runs|running|step|steps|stepping|stepped)\b|\bop(?:ge)?staan\b|\bstaat op\b|\bstond(?:en)? op\b|\bloopt\b|\blopen\b|\bliep(?:en)?\b/gi;
+
+function laatstePlek(tekst: string, patroon: RegExp): number {
+  let plek = -1;
+  for (const m of tekst.matchAll(patroon)) plek = m.index ?? plek;
+  return plek;
+}
+
+/**
+ * Zitten ze nog? Kijkt naar het laatste actiebeeld vóór regel `tot` in deze
+ * scène dat iets over zitten of staan zegt.
+ *
+ * Tyrell en Lilly zaten in het actiebeeld aan tafel bij oma, en in de gesproken
+ * regel direct daarna stonden ze ineens midden in de kamer: elk shot wordt los
+ * getekend en wist niet hoe het vorige eindigde.
+ */
+export function zitHouding(lines: { kind?: string | null; actie?: string | null }[], tot: number): boolean {
+  for (let i = Math.min(tot, lines.length) - 1; i >= 0; i--) {
+    const l = lines[i];
+    if (l.kind !== "actie") continue;
+    const actie = (l.actie ?? "").trim();
+    const zit = laatstePlek(actie, ZIT);
+    const staat = laatstePlek(actie, OPGESTAAN);
+    // Een handeling die niets over de houding zegt ("ze kijken elkaar aan")
+    // verandert er ook niets aan: dan kijken we verder terug.
+    if (zit < 0 && staat < 0) continue;
+    return zit > staat;
+  }
+  return false;
+}
+
+export const ZITTEN_REGEL =
+  "POSE CONTINUITY — in the previous shot of this scene the characters were SITTING. They are still seated in " +
+  "the same places now: nobody is standing up.";
+
+/**
+ * Voorwerpen die in het verhaal terugkomen, zoals ze er in élk beeld uitzien.
+ *
+ * De Wonderwagen was onder het kleed een fauteuil, van binnen een tram, aan het
+ * water een paars busje en thuis een gele jeep met koffers. Zonder vaste
+ * beschrijving verzint het beeldmodel hem per beeld opnieuw.
+ */
+export function voorwerpRegie(voorwerpen: DialogueVoorwerp[] | null | undefined): string {
+  const bekend = (voorwerpen ?? []).filter((v) => v.naam.trim() && v.uiterlijk.trim());
+  if (!bekend.length) return "";
+  const metBlad = bekend.some((v) => (v.bladUrl ?? "").trim());
+  return (
+    `RECURRING OBJECTS — whenever one of these appears in this image, it looks exactly like this: ` +
+    bekend.map((v) => `${v.naam.trim()}: ${v.uiterlijk.trim().replace(/\.?$/, ".")}`).join(" ") +
+    (metBlad
+      ? " A reference image shows this object on a plain background: copy its shape, colours and details " +
+        "exactly, but draw it inside this scene at a believable size next to the people. Do not copy the plain " +
+        "background and never show the reference sheet itself."
+      : "") +
+    " If the scene takes place INSIDE the object, its walls, windows and seats match those colours and details."
+  );
+}
 
 /**
  * De vrije illustratie-briefing van de gebruiker, klaar om als extra context aan
@@ -188,7 +300,10 @@ export function buildTwoShotBrief(
    */
   zelfdeLocatie = false,
   licht?: Lichtsoort | null,
+  /** Zitten ze bij het begin van de scène (aan tafel, in de wagen)? Zie zitHouding. */
+  zit = false,
 ): string {
+  const plek = plekZonderMensen(setting);
   const links = cast.find((c) => c.position === "left");
   const rechts = cast.find((c) => c.position === "right");
   const midden = cast.filter((c) => c.position === "center");
@@ -215,13 +330,17 @@ export function buildTwoShotBrief(
   const alleen = cast.length === 1;
   return (
     (alleen
-      ? `${cast[0]?.name ?? "One character"} alone in ${setting.trim()}. ${opstelling}, absorbed in the moment and ` +
+      ? `${cast[0]?.name ?? "One character"} alone in ${plek}. ${opstelling}, absorbed in the moment and ` +
         `NOT looking at the viewer. There is nobody else in this shot. `
-      : `${cast.length} characters together in ${setting.trim()}. ` +
+      : `${cast.length} characters together in ${plek}. ` +
         `${opstelling}, turned three-quarters TOWARDS EACH OTHER, facing one another and clearly talking together — ` +
         `NOT looking at the viewer. `) +
     `${kaderVoorScene(sceneIndex)} ` +
-    `They stand on the solid floor or dry ground of this location. Relaxed, natural conversational posture. ` +
+    (zit
+      ? `They are SITTING in this location — on chairs, a bench or seats that fit the place — not standing. `
+      : `They stand on the solid floor or dry ground of this location. `) +
+    `Relaxed, natural conversational posture. ` +
+    (alleen ? "" : `${OPSTELLING.trim()} `) +
     (zelfdeLocatie
       ? `This is the SAME room the characters were in earlier in this video, shown from a different camera ` +
         `position. Keep the location identical to the reference image of it: the same furniture in the same ` +
@@ -457,22 +576,36 @@ export function buildShotPrompt(input: {
   const emo = (emotion ?? "").trim();
   const emoZin = emo && emo !== "neutraal" ? ` Their expression reads as "${emo}".` : "";
 
+  const meer = inBeeld.length > 1;
   const wieDoetWat = actie?.trim()
-    ? `What happens in this shot: ${actie.trim()} Nobody is speaking — every mouth stays closed.`
+    ? `What happens in this shot: ${actie.trim()} Nobody is speaking — every mouth stays closed.` +
+      // "Oma stond op en liep naar de oude kamer" noemt alleen oma, en dan tekende
+      // het model alleen oma — terwijl de kinderen met haar meeliepen.
+      (meer && iedereenZichtbaar(kader)
+        ? ` All ${inBeeld.length} of them are visible in this shot, even if the description names only some of ` +
+          `them: the others are right there with them.`
+        : "")
     : spreker
-      ? `${spreker.name} is SPEAKING: their mouth is clearly open mid-sentence, alive and engaged.${emoZin} ` +
-        (inBeeld.length > 1
-          ? `Everyone else listens in silence with a closed mouth and a calm, attentive posture.`
+      ? `${spreker.name} is SPEAKING: their mouth is clearly open mid-sentence, alive and engaged, looking at ` +
+        `the person they talk to.${emoZin} ` +
+        (meer
+          ? `Everyone else listens in silence with a closed mouth and a calm, attentive posture, turned towards ` +
+            `${spreker.name} and looking at them — not at the viewer.`
           : `There is nobody else in this shot — do not add a listener, a bystander or a second figure.`)
       : `Nobody is speaking in this shot — every mouth stays closed.`;
 
   return (
     `A single illustration for an animated children's story. ` +
-    `LOCATION: ${setting.trim()} ` +
+    `LOCATION: ${plekZonderMensen(setting)} ` +
     `IN THIS SHOT: ${inBeeld.length} character${inBeeld.length === 1 ? "" : "s"} — ${wie}. ` +
     `There is nobody else in the frame: no extra children, no extra adults, no bystanders, no background figures. ` +
+    `${iederEenKeer(inBeeld.map((c) => c.name))} ` +
+    // "Oma legt de kinderen iets uit" leverde een groepje extra kinderen op de
+    // achtergrond op: het model las "de kinderen" als nieuwe mensen.
+    `Words like "the children", "the kids", "the family" or "everyone" mean exactly these characters, never extra people. ` +
     `${kaderRegie(kader)} ` +
     `${wieDoetWat} ` +
+    (meer && iedereenZichtbaar(kader) ? `${OPSTELLING.trim()} ` : "") +
     // De plek moet hetzelfde blijven als de rest van de scene; die komt uit het
     // meegestuurde scenebeeld. Alleen het standpunt en de houdingen verschillen.
     `One reference image shows this same location earlier in the story: keep the room, furniture and colours ` +

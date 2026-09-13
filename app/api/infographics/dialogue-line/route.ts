@@ -13,6 +13,7 @@ import { STORY_VOICES } from "@/lib/infographics/story-voices";
 import {
   buildTurnShotPrompt, buildDialogueMotionPrompt,
   buildActionShotPrompt, buildActionMotionPrompt, illustratieContext, buildShotPrompt,
+  iederEenKeer, iedereenZichtbaar, voorwerpRegie, ZITTEN_REGEL,
 } from "@/lib/infographics/dialogue-staging";
 import {
   zonderHerhaling as kaderZonderHerhaling,
@@ -26,7 +27,7 @@ import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld, beoordeelBeweging, type SprekerOordeel } from "@/lib/infographics/dialogue-verify";
 import {
   sprekerHelft, ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC, VERTELLER_ID,
-  type DialogueCastMember, type ShotSoort,
+  type DialogueCastMember, type DialogueVoorwerp, type ShotSoort,
 } from "@/lib/infographics/dialogue-schema";
 import { storyCanvasSize } from "@/lib/infographics/canvas-size";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
@@ -158,6 +159,10 @@ interface Body {
   beeldInstructie?: string;
   // Vrije regieaanwijzing van de gebruiker, geldt voor elk beeld in de video.
   illustrationBrief?: string;
+  /** Vaste voorwerpen die in deze scène voorkomen. Zie voorwerpenInScene. */
+  voorwerpen?: DialogueVoorwerp[];
+  /** Zaten ze in het vorige actiebeeld van deze scène? Zie zitHouding. */
+  zit?: boolean;
 }
 
 // Eén gesproken regel = één clip waarin precies dit personage praat en de anderen
@@ -342,6 +347,10 @@ export async function POST(req: NextRequest) {
     // scenebeeld af staat, hoe meer het model opnieuw moet verzinnen — en hoe
     // groter de kans dat het haar of de kleding verandert.
     let kaderNu: Kader | null = gekozenKader;
+    const voorwerpen = (Array.isArray(b.voorwerpen) ? b.voorwerpen : [])
+      .filter((v) => typeof v?.naam === "string" && typeof v?.uiterlijk === "string")
+      .slice(0, 2);
+    const voorwerpBladen = voorwerpen.map((v) => (v.bladUrl ?? "").trim()).filter(Boolean);
     // Wat de camera DOET tijdens de clip. Afgeleid van het kader — je zoomt in op
     // een gezicht, je draait om iemand heen, je onthult een plek door uit te
     // zoomen — met de scene-index erin zodat twee clips achter elkaar niet
@@ -389,7 +398,7 @@ export async function POST(req: NextRequest) {
           // Het castblad weegt het zwaarst: het legt de identiteit én de
           // onderlinge lengte vast. Zonder blad (oudere projecten) doen de
           // portretten dat werk, maar die zeggen niets over lichaamsbouw.
-          brandUrls: (b.castSheetUrl ?? "").trim() ? [(b.castSheetUrl ?? "").trim()] : undefined,
+          brandUrls: [(b.castSheetUrl ?? "").trim(), ...voorwerpBladen].filter(Boolean),
           // Identiteit: liefst de model sheet (voren, schuin, opzij), anders het
           // portret. Het portret toont maar één hoek; bij een shot van opzij moest
           // het model de rest van het hoofd zelf verzinnen en veranderde het haar.
@@ -411,7 +420,11 @@ export async function POST(req: NextRequest) {
             // verzonnen figuranten al in het bronbeeld zaten en de videostap ze
             // netjes intact liet.
             `This shot contains ONLY these ${cast.length === 1 ? "person" : "people"}: ${cast.map((c) => c.name).join(" and ")}. ` +
-              "Do not add another person — no extra adults, no children, no bystanders, no background figures.",
+              "Do not add another person — no extra adults, no children, no bystanders, no background figures. " +
+              iederEenKeer(cast.map((c) => c.name)),
+            voorwerpRegie(voorwerpen),
+            // Bij een actiebeeld beschrijft de handeling zelf de houding.
+            !isActieBeeld && b.zit === true ? ZITTEN_REGEL : "",
             // Een gerichte correctie van de gebruiker op dít ene beeld weegt
             // zwaarder dan de algemene briefing, dus hij staat erachter.
             beeldInstructie ? `IMPORTANT CORRECTION for this specific shot: ${beeldInstructie}` : "",
@@ -424,7 +437,17 @@ export async function POST(req: NextRequest) {
         // dat fysiek niet kan (mensen ín een tank, zwevende voorwerpen, verzonnen
         // tekst op een scherm)? Bij een actiebeeld praat er niemand, dus dan telt
         // alleen het tweede.
-        const oordeel = await beoordeelBeeld(kandidaat, isActieBeeld ? null : spreker!, luisteraars);
+        // Bij een actiebeeld staat de hele cast in beeld, ook wie eroverheen praat.
+        // Hier ging alleen `luisteraars` mee: de cast MIN de stem. Praatte Lilly over
+        // een actiebeeld, dan stond zij niet in de lijst en keurde de controle haar af
+        // als "extra kind" — drie betaalde pogingen lang, en elke afkeuring zette het
+        // camerakader een stap terug.
+        const oordeel = await beoordeelBeeld(
+          kandidaat,
+          isActieBeeld ? null : spreker!,
+          isActieBeeld ? cast : luisteraars,
+          { iedereenZichtbaar: iedereenZichtbaar(kaderNu) },
+        );
         beeldOordeel = oordeel.spreker;
         beeldFouten = oordeel.fouten;
         shotImageUrl = kandidaat;

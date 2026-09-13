@@ -34,6 +34,8 @@ const MAX_TOTAL_REFS = 8;
 const MAX_STYLE_REFS = 3;
 const MAX_CHARACTER_REFS = 3; // tot 2 karakter-ankers + 1 vorige-scène (chaining)
 const MAX_BRAND_REFS = 3;     // échte merk-objecten (boot, kleding, locatie, …)
+// Ruim onder de 50.000 die Nano Banana accepteert. Zie de uitleg bij fullPrompt.
+const MAX_PROMPT_TEKENS = 12000;
 
 export interface NanoBananaInput {
   // Plain-language wat er in het beeld moet komen (script-zin, scene-prompt).
@@ -156,7 +158,17 @@ export async function generateImageWithStyle(input: NanoBananaInput): Promise<Na
   }
   promptParts.push("No text overlays, no watermarks, no logos.");
 
-  const fullPrompt = promptParts.join(" ").slice(0, 4000);
+  // Hier stond een afkapgrens van 4000 tekens, nog uit de tijd van Flux en
+  // DALL-E. Nano Banana neemt er 50.000. In de dialoogmodus was het scènebeeld
+  // alleen al 4200 tekens, dus viel ALLES wat achteraan kwam stilzwijgend weg: het
+  // verbod op extra of dubbele personen, de uitleg bij het castblad, de briefing
+  // van de klant en de reden waarom de vorige poging was afgekeurd. Het model
+  // heeft die regels nooit gezien — vandaar de dubbele Lilly en de figuranten.
+  const heel = promptParts.join(" ");
+  if (heel.length > MAX_PROMPT_TEKENS) {
+    console.warn(`[image-gen] prompt van ${heel.length} tekens afgekapt op ${MAX_PROMPT_TEKENS}`);
+  }
+  const fullPrompt = heel.slice(0, MAX_PROMPT_TEKENS);
 
   const pro = input.quality === "pro";
   const usedModel = allRefs.length > 0

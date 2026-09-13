@@ -15,7 +15,9 @@ import SetupPanel from "@/components/dialogue/SetupPanel";
 import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
-import { regelKlaar, kaleSetting, sceneCast, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
+import { regelKlaar, kaleSetting, sceneCast, voorwerpenInScene, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
+import { zitHouding } from "@/lib/infographics/dialogue-staging";
+import VasteVoorwerpen from "@/components/dialogue/VasteVoorwerpen";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { MusicPickerButton } from "@/components/music/MusicPicker";
 import { findMusicTrackByUrl } from "@/lib/music/library";
@@ -281,6 +283,10 @@ export default function DialoguePage() {
       locationRefUrl: zelfdePlek?.twoShotUrl ?? null,
       licht: s.licht ?? null,
       aanwijzing: s.beeldAanwijzing ?? undefined,
+      voorwerpen: voorwerpenInScene(werk.voorwerpen, s),
+      // Het scènebeeld volgt de houding van het openingsbeeld: zitten ze aan tafel,
+      // dan tekenen we ze niet eerst staand midden in de kamer.
+      zit: zitHouding(s.lines, 1),
     };
   }
 
@@ -358,6 +364,37 @@ export default function DialoguePage() {
         }
       } catch { mislukt.push("castblad"); }
     }
+    // Dan één blad per vast voorwerp, zoals het castblad voor de personages. Alleen
+    // voor voorwerpen die echt in een scène voorkomen: een blad dat nergens gebruikt
+    // wordt is een weggegooide credit.
+    if (!gestopt) {
+      const nodig = (werk.voorwerpen ?? []).filter(
+        (v) => !v.bladUrl && werk.scenes.some((s) => voorwerpenInScene([v], s).length > 0)
+      );
+      for (const v of nodig) {
+        setVoortgang(`Voorwerp vastleggen: ${v.naam}…`);
+        try {
+          const r = await fetch("/api/infographics/dialogue-voorwerp-blad", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              voorwerp: v, styleId: werk.styleId, language: werk.language,
+              illustrationBrief: werk.illustrationBrief ?? "", seed: werk.seed,
+            }),
+          });
+          const d = await r.json();
+          if (!r.ok) {
+            if (d.error === "insufficient_credits") { gestopt = creditFout(d); break; }
+            // Zonder blad gaat de beschrijving in woorden nog steeds mee.
+            mislukt.push(`voorwerp ${v.naam}`);
+          } else if (d.bladUrl) {
+            v.bladUrl = d.bladUrl;
+            setSpec(structuredClone(werk));
+          }
+        } catch { mislukt.push(`voorwerp ${v.naam}`); }
+      }
+    }
+
     // Hier stond een kale `return`, waardoor de knop bij te weinig credits eeuwig
     // op "Bezig…" bleef staan: het afronden hieronder werd nooit bereikt.
     if (gestopt) return gestopt;
@@ -514,6 +551,8 @@ export default function DialoguePage() {
                 // "inzoomen" beginnen.
                 shotIndex: werk.scenes.slice(0, si).reduce((n, sc) => n + sc.lines.length, 0) + li,
                 licht: scene.licht ?? null,
+                voorwerpen: voorwerpenInScene(werk.voorwerpen, scene),
+                zit: regel.kind !== "actie" && zitHouding(scene.lines, li),
               }),
             });
             const d = await r.json();
@@ -602,6 +641,8 @@ export default function DialoguePage() {
           hergebruikAudioUrl: hergebruikStem,
           hergebruikAudioDuration: hergebruikStem ? regel.audioDuration ?? undefined : undefined,
           beeldInstructie: actie.soort === "beeld" ? actie.instructie : undefined,
+          voorwerpen: voorwerpenInScene(spec.voorwerpen, scene),
+          zit: regel.kind !== "actie" && zitHouding(scene.lines, li),
         }),
       });
       const d = await r.json();
@@ -775,6 +816,13 @@ export default function DialoguePage() {
                 }
                 onOpnieuw={tekenOpnieuw}
               />
+              <div className="mt-3">
+                <VasteVoorwerpen
+                  voorwerpen={spec.voorwerpen ?? []}
+                  onChange={(v) => setSpec({ ...spec, voorwerpen: v.length ? v : null })}
+                  disabled={renderBezig}
+                />
+              </div>
             </div>
           </details>
 

@@ -2,6 +2,7 @@
 
 import CastPicker from "./CastPicker";
 import ArtDirection from "./ArtDirection";
+import VasteVoorwerpen from "./VasteVoorwerpen";
 import { DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
 import { opzetKlaar, type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import { MAX_PER_SCENE, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
@@ -537,6 +538,11 @@ export default function SetupPanel({
           brief={setup.illustrationBrief}
           onStyle={(id) => zet("styleId", id)}
           onBrief={(t) => zet("illustrationBrief", t)}
+          disabled={uit}
+        />
+        <VasteVoorwerpen
+          voorwerpen={setup.voorwerpen ?? []}
+          onChange={(v) => zet("voorwerpen", v)}
           disabled={uit}
         />
       </Groep>

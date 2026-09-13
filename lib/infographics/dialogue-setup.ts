@@ -1,4 +1,4 @@
-import { MAX_CAST, type CastPosition, type DialogueCastMember } from "./dialogue-schema";
+import { MAX_CAST, type CastPosition, type DialogueCastMember, type DialogueVoorwerp } from "./dialogue-schema";
 import type { VerhaalDeel, VerhaalModus } from "./verhaallijn";
 
 /**
@@ -62,6 +62,8 @@ export interface DialogueSetup {
   styleId: string;
   /** Regie die voor élk beeld geldt (huisstijlkleuren, decor, kleding). */
   illustrationBrief: string;
+  /** Voorwerpen die terugkomen (de Wonderwagen). Optioneel voor opzetten van vóór deze lijst. */
+  voorwerpen?: DialogueVoorwerp[];
 
   // ── Cast ──
   cast: DialogueCastMember[];
