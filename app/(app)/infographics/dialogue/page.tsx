@@ -9,7 +9,8 @@ import CastPicker from "@/components/dialogue/CastPicker";
 import ScriptBoard, { schatCredits, schatStoryboardCredits } from "@/components/dialogue/ScriptBoard";
 import Storyboard, { type HertekenWijziging } from "@/components/dialogue/Storyboard";
 import DialoguePlayer, { bouwFragmenten } from "@/components/dialogue/DialoguePlayer";
-import FragmentEditor, { type HerstelActie, type RegelPlek } from "@/components/dialogue/FragmentEditor";
+import FragmentEditor, { type RegelPlek } from "@/components/dialogue/FragmentEditor";
+import type { FragmentDiagnose } from "@/lib/infographics/fragment-diagnose";
 import ArtDirection from "@/components/dialogue/ArtDirection";
 import SetupPanel from "@/components/dialogue/SetupPanel";
 import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
@@ -643,17 +644,42 @@ export default function DialoguePage() {
   }
 
   /**
+   * Vraagt de achterkant wat er mis is met dit fragment. Null = geen antwoord; dan
+   * wordt alleen de beweging opnieuw gemaakt en blijft het beeld staan.
+   */
+  async function vraagDiagnose(werk: DialogueSpec, si: number, li: number): Promise<FragmentDiagnose | null> {
+    const scene = werk.scenes[si];
+    try {
+      const r = await fetch("/api/infographics/dialogue-diagnose", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          regel: scene.lines[li],
+          setting: scene.setting,
+          cast: sceneCast(scene, werk.cast, werk.verhaallijn),
+        }),
+      });
+      if (!r.ok) return null;
+      const d = await r.json();
+      return (d.diagnose as FragmentDiagnose | undefined) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Maakt één of meer regels opnieuw, en alleen het deel dat kapot is.
    *
-   * Een regel bestaat uit stem, bronbeeld en beweging. Alles overdoen omdat de
-   * beweging niet deugde is zonde van het geld én van een beeld dat je net goed
-   * vond, dus we sturen mee wat hergebruikt mag worden.
+   * Eerst kijkt de achterkant wat er mis is (vraagDiagnose): zit de fout al in het
+   * bronbeeld, dan komt er een nieuw beeld met een gerichte aanwijzing; anders
+   * alleen een nieuwe beweging en blijft het beeld staan. De stem blijft altijd
+   * staan zolang de tekst niet veranderd is — die klinkt dan gelijk aan de rest.
    *
    * Meerdere regels lopen drie tegelijk, net als bij het maken van de video. Alle
    * uitkomsten landen in één werkkopie: los van elkaar opgeslagen zou de laatste
    * regel die klaar is de andere weer overschrijven met hun oude versie.
    */
-  async function herstelRegels(taken: RegelPlek[], actie: HerstelActie) {
+  async function herstelRegels(taken: RegelPlek[]) {
     if (!spec || herstelBezig.length > 0 || taken.length === 0) return;
     const werk: DialogueSpec = structuredClone(spec);
     const geldig = taken.filter(({ si, li }) => werk.scenes[si]?.twoShotUrl && werk.scenes[si]?.lines[li]);
@@ -671,10 +697,11 @@ export default function DialoguePage() {
         const scene = werk.scenes[si];
         const regel = scene.lines[li];
         try {
-          const hergebruikBeeld = actie.soort === "beweging" ? regel.shotImageUrl ?? undefined : undefined;
-          // De stem blijft staan zolang de tekst niet veranderd is; bij "alles
-          // opnieuw" wil je hem juist wél opnieuw laten inspreken.
-          const hergebruikStem = actie.soort === "alles" ? undefined : regel.audioUrl ?? undefined;
+          const diagnose = regel.videoUrl || regel.shotImageUrl ? await vraagDiagnose(werk, si, li) : null;
+          const nieuwBeeld = !regel.shotImageUrl || diagnose?.opnieuw === "beeld";
+          const hergebruikBeeld = nieuwBeeld ? undefined : regel.shotImageUrl ?? undefined;
+          // Bij een gewijzigde tekst is audioUrl al leeg, en spreekt de regel zelf in.
+          const hergebruikStem = regel.audioUrl ?? undefined;
 
           const r = await fetch("/api/infographics/dialogue-line", {
             method: "POST",
@@ -698,7 +725,12 @@ export default function DialoguePage() {
               hergebruikShotImageUrl: hergebruikBeeld,
               hergebruikAudioUrl: hergebruikStem,
               hergebruikAudioDuration: hergebruikStem ? regel.audioDuration ?? undefined : undefined,
-              bewegingInstructie: actie.instructie,
+              // Alleen bij een bestaand beeld dat afgekeurd is: zonder beeld wordt er
+              // sowieso een nieuw getekend, en dan is er niets om te corrigeren.
+              beeldInstructie: nieuwBeeld && regel.shotImageUrl
+                ? diagnose?.beeldAanwijzing || "Draw this shot again and get the people, their places and the location exactly right."
+                : undefined,
+              bewegingInstructie: diagnose?.bewegingAanwijzing || undefined,
               voorwerpen: voorwerpenInScene(werk.voorwerpen, scene, li),
               zit: zitHouding(scene.lines, li) && (regel.kind !== "actie" || !zegtIetsOverHouding(regel.actie)),
             }),
@@ -993,12 +1025,12 @@ export default function DialoguePage() {
               <div className="border-t border-white/10 pt-4">
                 <h3 className="text-sm font-medium text-white mb-1">Scènes aanpassen</h3>
                 <p className="text-[11px] text-slate-500 mb-2.5">
-                  Klopt er iets niet? Pas de tekst aan, of maak de beweging opnieuw met een aanwijzing — dan blijft het beeld dat je al goed vond staan. Vink meerdere regels of een hele scène aan om ze in één keer opnieuw te maken. Het beeld zelf pas je aan in het storyboard.
+                  Klopt er iets niet? Druk op opnieuw: er wordt eerst gekeken wat er mis is, en alleen dat deel wordt opnieuw gemaakt. Vink meerdere regels of een hele scène aan om ze in één keer opnieuw te maken. Het beeld van een hele scène pas je aan in het storyboard.
                 </p>
                 <FragmentEditor
                   spec={spec}
                   onSpec={setSpec}
-                  onHerstel={herstelRegels}
+                  onOpnieuw={herstelRegels}
                   bezigMet={herstelBezig}
                   disabled={renderBezig}
                 />
