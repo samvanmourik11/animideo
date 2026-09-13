@@ -838,6 +838,7 @@ WAT JE SCHRIJFT
 ${m.moment.verteller
   ? `- De eerste regel is de vertellerzin, letterlijk: kind "actie", characterId "verteller", "text" is de vertellerzin, "actie" beschrijft in het Engels wat je ziet, kader een totaalbeeld.\n`
   : `- De eerste regel is een korte vertellerzin die je zelf schrijft, in de derde persoon en de verleden tijd, zoals een voorleesboek: waar ze zijn en wat ze doen, dicht bij de tekst. kind "actie", characterId "verteller", "actie" beschrijft in het Engels wat je ziet, kader een totaalbeeld.\n`}- Vul bij elk actiebeeld ALTIJD "actie" in: de Engelse beschrijving van wat je ziet.
+- Klinkt er een zin over een beeld, dan laat de "actie" precies zien wat die zin zegt: dezelfde handeling, dezelfde richting, op dezelfde plek en hetzelfde moment. Zegt de verteller "ze stapten weer in de Wonderwagen", dan zie je ze instappen — niet uitstappen, en niet ergens anders.
 - Zet de letterlijke zinnen erin, precies zoals ze er staan, door die persoon, in die volgorde.
 - Gebruik uit de tekst ALLEEN de letterlijke zinnen die hierboven bij JOUW moment staan. Zinnen die bij een ander moment horen, komen daar — niet hier.
 - Vul aan met gewone zinnen van de personages die in beeld zijn: wat ze zien, wat ze ervan vinden, wat iemand uitlegt. ALLEEN over wat de tekst over dit moment vertelt. Geen nieuwe gebeurtenissen, plekken, voorwerpen of mensen, en niets wat bij een ander moment hoort.

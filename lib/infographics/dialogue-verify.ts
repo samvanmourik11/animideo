@@ -133,6 +133,48 @@ export interface BeeldOordeel {
 }
 
 /**
+ * Hoeveel mensen staan er op dit beeld? Een aparte vraag, bewust zonder te zeggen
+ * wie er in hoort.
+ *
+ * Kreeg het visie-model de lijst "Tyrell, Lilly en oma" erbij, dan telde het op twee
+ * beelden met een dubbele Lilly keer op keer drie: het zag wat het verwachtte.
+ * Zonder die lijst telde het op dezelfde beelden twee rondes lang vier, en op de
+ * goede beelden drie. Mislukt de telling, dan null: dan beslist de gewone controle.
+ */
+async function telMensen(imageUrl: string): Promise<number | null> {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0,
+      max_tokens: 500,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Je telt mensen op een illustratie. Loop het beeld van links naar rechts af en beschrijf ELKE getekende " +
+            "persoon apart: waar hij staat, haar en kleding. Ook wie half zichtbaar, klein of op de achtergrond " +
+            "staat. Twee figuren die op elkaar lijken of dezelfde kleren dragen zijn twee aparte personen: " +
+            'beschrijf ze allebei. Antwoord met JSON: {"personen": [{"waar": "...", "haar": "...", "kleding": "..."}]}.',
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Beschrijf iedereen die op dit beeld staat." },
+            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+          ],
+        },
+      ],
+      response_format: { type: "json_object" },
+    });
+    const uit = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as { personen?: unknown };
+    return Array.isArray(uit.personen) ? uit.personen.length : null;
+  } catch (e) {
+    console.error("[dialogue-verify] mensen tellen mislukt:", e);
+    return null;
+  }
+}
+
+/**
  * Beoordeelt een bronbeeld in één aanroep op twee dingen: praat de juiste
  * persoon, en staat er iets in dat fysiek onmogelijk is?
  *
@@ -165,6 +207,8 @@ export async function beoordeelBeeld(
   const sprekerVraag = spreker
     ? `\n\nVRAAG 1 — WIE PRAAT ER?\nDe spreker herken je aan een duidelijk GEOPENDE mond; wie luistert heeft de mond dicht.`
     : "";
+  // Tegelijk met de beoordeling, zodat de controle er niet langer door duurt.
+  const tellingBelofte = telMensen(imageUrl);
 
   try {
     const completion = await openai.chat.completions.create({
@@ -177,11 +221,8 @@ export async function beoordeelBeeld(
           content:
             "Je beoordeelt een illustratie voor een animatievideo.\n\n" +
             (spreker
-              ? 'Antwoord met JSON: {"aantalMensen": <getal>, "spreker": "links"|"rechts"|"midden"|"onduidelijk", "fouten": ["...", "..."]}.\n\n'
-              : 'Antwoord met JSON: {"aantalMensen": <getal>, "fouten": ["...", "..."]}.\n\n') +
-            "TEL EERST: hoeveel mensen staan er in het beeld? Tel iedereen apart, ook wie half zichtbaar, klein, " +
-            "op de achtergrond of dubbel getekend is. Twee figuren die er hetzelfde uitzien tellen als twee. " +
-            "Zet dat getal in \"aantalMensen\".\n\n" +
+              ? 'Antwoord met JSON: {"spreker": "links"|"rechts"|"midden"|"onduidelijk", "fouten": ["...", "..."]}.\n\n'
+              : 'Antwoord met JSON: {"fouten": ["...", "..."]}.\n\n') +
             "Zet in \"fouten\" alleen dingen die ECHT NIET KUNNEN, elk in een paar woorden:\n" +
             "- een persoon die in of onder een object, tank, bak of water staat in plaats van ernaast\n" +
             "- ontbrekende, dubbele of vergroeide ledematen, handen of vingers\n" +
@@ -229,7 +270,6 @@ export async function beoordeelBeeld(
     });
 
     const antwoord = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as {
-      aantalMensen?: unknown;
       spreker?: string;
       fouten?: string[];
     };
@@ -238,7 +278,7 @@ export async function beoordeelBeeld(
       : [];
     // De telling wint van de open vraag: die zag vier mensen waar er drie hoorden
     // niet als fout. Vooraan, zodat hij niet wegvalt als er al vijf andere fouten zijn.
-    const telling = telFout(antwoord.aantalMensen, iedereen.length, opties.iedereenZichtbaar === true);
+    const telling = telFout(await tellingBelofte, iedereen.length, opties.iedereenZichtbaar === true);
     if (telling) fouten.unshift(telling);
 
     if (!spreker) return { spreker: "onduidelijk", fouten };

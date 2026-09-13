@@ -387,8 +387,16 @@ const MAX_VOORWERPEN_PER_BEELD = 2;
 export function voorwerpenInScene(
   voorwerpen: DialogueVoorwerp[] | null | undefined,
   scene: Pick<DialogueScene, "setting" | "lines">,
+  /**
+   * Alleen kijken tot en met deze regel. In de oude kamer stond de Wonderwagen al
+   * onbedekt náást het kleed waar oma hem nog onder vandaan moest halen: het
+   * scènebeeld kreeg de wagen mee omdat hij later in de scène genoemd werd. Wat pas
+   * straks onthuld wordt, hoort nog niet in beeld.
+   */
+  totRegel?: number,
 ): DialogueVoorwerp[] {
-  const tekst = [scene.setting, ...scene.lines.flatMap((l) => [l.actie ?? "", l.text ?? ""])]
+  const regels = typeof totRegel === "number" ? scene.lines.slice(0, totRegel + 1) : scene.lines;
+  const tekst = [scene.setting, ...regels.flatMap((l) => [l.actie ?? "", l.text ?? ""])]
     .join("\n")
     .toLowerCase();
   return (voorwerpen ?? [])

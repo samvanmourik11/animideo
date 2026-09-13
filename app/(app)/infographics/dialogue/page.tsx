@@ -283,7 +283,7 @@ export default function DialoguePage() {
       locationRefUrl: zelfdePlek?.twoShotUrl ?? null,
       licht: s.licht ?? null,
       aanwijzing: s.beeldAanwijzing ?? undefined,
-      voorwerpen: voorwerpenInScene(werk.voorwerpen, s),
+      voorwerpen: voorwerpenInScene(werk.voorwerpen, s, 0),
       // Het scènebeeld volgt de houding van het openingsbeeld: zitten ze aan tafel,
       // dan tekenen we ze niet eerst staand midden in de kamer.
       zit: zitHouding(s.lines, 1),
@@ -591,7 +591,7 @@ export default function DialoguePage() {
                 // "inzoomen" beginnen.
                 shotIndex: werk.scenes.slice(0, si).reduce((n, sc) => n + sc.lines.length, 0) + li,
                 licht: scene.licht ?? null,
-                voorwerpen: voorwerpenInScene(werk.voorwerpen, scene),
+                voorwerpen: voorwerpenInScene(werk.voorwerpen, scene, li),
                 zit: zitHouding(scene.lines, li) && (regel.kind !== "actie" || !zegtIetsOverHouding(regel.actie)),
               }),
             });
@@ -681,7 +681,7 @@ export default function DialoguePage() {
           hergebruikAudioUrl: hergebruikStem,
           hergebruikAudioDuration: hergebruikStem ? regel.audioDuration ?? undefined : undefined,
           beeldInstructie: actie.soort === "beeld" ? actie.instructie : undefined,
-          voorwerpen: voorwerpenInScene(spec.voorwerpen, scene),
+          voorwerpen: voorwerpenInScene(spec.voorwerpen, scene, li),
           zit: zitHouding(scene.lines, li) && (regel.kind !== "actie" || !zegtIetsOverHouding(regel.actie)),
         }),
       });

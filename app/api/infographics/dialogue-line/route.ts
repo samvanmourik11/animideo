@@ -343,7 +343,18 @@ export async function POST(req: NextRequest) {
     // vallen we terug op een rustiger standpunt: hoe verder de camera van het
     // scenebeeld af staat, hoe meer het model opnieuw moet verzinnen — en hoe
     // groter de kans dat het haar of de kleding verandert.
-    let kaderNu: Kader | null = gekozenKader;
+    // Een gewoon medium shot van een gesprek wordt een BEWERKING van het scènebeeld,
+    // geen nieuwe tekening. Het scènebeeld is gecontroleerd en door de gebruiker in
+    // het storyboard gezien; een nieuwe tekening van dezelfde drie mensen op
+    // ongeveer dezelfde afstand voegt weinig toe, maar leverde wel de dubbele
+    // personages op (2.4 en 9.4 in de vijfde Wonderwagen-video). Close-ups en
+    // bijzondere standpunten blijven nieuwe tekeningen: daar zit de afwisseling.
+    let kaderNu: Kader | null = !isActieBeeld && gekozenKader === "medium" ? null : gekozenKader;
+    // Model sheets alleen als er één persoon in beeld komt. Bij meer mensen tellen
+    // drie sheets plus het castblad plus het scènebeeld al snel vijftien getekende
+    // figuren voor drie personages.
+    const personenInShot = isActieBeeld ? cast.length : 1 + luisteraars.length;
+    const metModelSheets = () => personenInShot === 1 || kaderNu === "close" || kaderNu === "extreme-close";
     const voorwerpen = (Array.isArray(b.voorwerpen) ? b.voorwerpen : [])
       .filter((v) => typeof v?.naam === "string" && typeof v?.uiterlijk === "string")
       .slice(0, 2);
@@ -410,7 +421,9 @@ export async function POST(req: NextRequest) {
           // Identiteit: liefst de model sheet (voren, schuin, opzij), anders het
           // portret. Het portret toont maar één hoek; bij een shot van opzij moest
           // het model de rest van het hoofd zelf verzinnen en veranderde het haar.
-          characterUrls: cast.map((c) => c.modelSheetUrl || c.portraitUrl).filter(Boolean),
+          characterUrls: cast
+            .map((c) => (metModelSheets() ? c.modelSheetUrl || c.portraitUrl : c.portraitUrl || c.modelSheetUrl))
+            .filter(Boolean),
           extraContext: [
             illustratieContext(b.illustrationBrief),
             (b.castSheetUrl ?? "").trim()
@@ -424,7 +437,7 @@ export async function POST(req: NextRequest) {
                 "continuous scene, never a split screen, never side-by-side panels, never a row of portraits. " +
                 "Do not draw the sheet, or any framed portrait or card of these characters, as an object in the shot."
               : "",
-            cast.some((c) => c.modelSheetUrl) ? MODELBLAD_UITLEG : "",
+            metModelSheets() && cast.some((c) => c.modelSheetUrl) ? MODELBLAD_UITLEG : "",
             // De cast is de cast. Dit stond alleen in de bewegings-prompt, waardoor
             // verzonnen figuranten al in het bronbeeld zaten en de videostap ze
             // netjes intact liet.

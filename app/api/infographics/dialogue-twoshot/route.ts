@@ -84,7 +84,12 @@ export async function POST(req: NextRequest) {
     const cast = (Array.isArray(body.cast) ? body.cast : []).slice(0, MAX_CAST);
     // Model sheet gaat vóór het portret: die toont het personage van meerdere
     // kanten, wat een scenebeeld met een eigen camerastandpunt nodig heeft.
-    const portretten = cast.map((c) => c.modelSheetUrl || c.portraitUrl).filter((u): u is string => !!u);
+    // Met meer personages in beeld liever het portret: een model sheet toont iemand
+    // drie keer, en drie sheets plus het castblad zijn twaalf getekende figuren voor
+    // een beeld waar er drie in horen. Dat is precies waar de dubbele Lilly vandaan komt.
+    const portretten = cast
+      .map((c) => (cast.length === 1 ? c.modelSheetUrl || c.portraitUrl : c.portraitUrl || c.modelSheetUrl))
+      .filter((u): u is string => !!u);
     // Eén personage is genoeg. Dit heette het "twee-shot" omdat elke scene twee
     // pratende mensen naast elkaar toonde, maar sinds de camerakaders bestaat een
     // scene waarin één personage alleen in beeld is — een close-up, iemand alleen
@@ -122,8 +127,13 @@ export async function POST(req: NextRequest) {
       .filter((v) => typeof v?.naam === "string" && typeof v?.uiterlijk === "string")
       .slice(0, 2);
     const voorwerpBladen = voorwerpen.map((v) => (v.bladUrl ?? "").trim()).filter(Boolean);
-    const anker = (body.anchorTwoShotUrl ?? "").trim();
     const castblad = (body.castSheetUrl ?? "").trim();
+    // Het anker (het scènebeeld van een eerdere scène) stamt uit de tijd vóór het
+    // castblad en de model sheets. Nu die de personages vastleggen, doet het vooral
+    // kwaad: de Waterkant werd oma's woonkamer met de rivier achter het raam, en het
+    // zijn drie extra getekende mensen tussen de referenties, wat dubbele personages
+    // in de hand werkt. Alleen zonder castblad gaat het nog mee.
+    const anker = castblad ? "" : (body.anchorTwoShotUrl ?? "").trim();
     // Het castblad gaat als "merk-referentie" mee: dat is de enige categorie die
     // vooraan in de rij staat en het zwaarst weegt. Precies wat we willen — de
     // personages moeten hier exact van overgenomen worden, ook hun onderlinge
@@ -212,7 +222,7 @@ export async function POST(req: NextRequest) {
         extraContext: [
           illustratieContext(body.illustrationBrief),
           castbladInstructie,
-          cast.some((c) => c.modelSheetUrl) ? MODELBLAD_UITLEG : "",
+          cast.length === 1 && cast[0].modelSheetUrl ? MODELBLAD_UITLEG : "",
           ankerInstructie,
           locatieInstructie,
           alleenDezeMensen,

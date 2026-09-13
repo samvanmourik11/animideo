@@ -160,6 +160,17 @@ describe("vaste voorwerpen", () => {
     expect(voorwerpenInScene([wagen, kaart], s)).toEqual([kaart]);
   });
 
+  it("zet een voorwerp pas in beeld vanaf de regel waarin het genoemd wordt", () => {
+    const s = scene("an old room with a large object under a cloth", [
+      { kind: "actie", actie: "Oma walks into the old room" },
+      { kind: "actie", actie: "Oma pulls the cloth off the Wonderwagen" },
+      { kind: "dialoog", text: "Kunnen we echt overal naartoe?" },
+    ]);
+    expect(voorwerpenInScene([wagen], s, 0)).toEqual([]);
+    expect(voorwerpenInScene([wagen], s, 1)).toEqual([wagen]);
+    expect(voorwerpenInScene([wagen], s, 2)).toEqual([wagen]);
+  });
+
   it("laat een voorwerp thuis dat niet in de scène voorkomt", () => {
     const s = scene("Fort Zeelandia with cannons", [{ kind: "dialoog", text: "Wat een kanonnen!" }]);
     expect(voorwerpenInScene([wagen, kaart], s)).toEqual([]);

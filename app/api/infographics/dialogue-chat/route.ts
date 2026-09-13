@@ -475,6 +475,64 @@ async function schoonSettings(scenes: DialogueScene[], cast: DialogueCastMember[
 }
 
 /**
+ * Laat elk beeld zien wat de zin eroverheen zegt.
+ *
+ * "Aan het einde van de dag stapten ze weer in de Wonderwagen" kreeg als beeld
+ * "Tyrell and Lilly step out of the glowing Wonderwagen": precies het omgekeerde.
+ * De vertellerzin komt uit de verhaallijn, het beeld schrijft het model er zelf bij,
+ * en een vangnet dat een lege beschrijving opvult ("a calm establishing view")
+ * weet al helemaal niet wat er gezegd wordt. Eén aanroep over het hele draaiboek,
+ * en alleen de beelden die niet kloppen worden herschreven — de zinnen nooit.
+ */
+async function beeldBijZin(scenes: DialogueScene[]): Promise<void> {
+  const paren = scenes
+    .flatMap((s) => s.lines.map((l) => ({ l, plek: s.setting })))
+    .filter(({ l }) => l.kind === "actie" && (l.text ?? "").trim() && (l.actie ?? "").trim());
+  if (paren.length === 0) return;
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0,
+      max_tokens: 2500,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Je controleert een draaiboek voor een animatievideo. Bij elk beeld klinkt een zin, van de verteller " +
+            "of van een personage. Het beeld moet laten zien wat die zin zegt: dezelfde handeling, dezelfde " +
+            "richting (instappen is niet uitstappen, aankomen is niet vertrekken), op de plek van de scène en op " +
+            "hetzelfde moment. Een beeld mag méér tonen dan de zin noemt, maar nooit iets anders of het " +
+            "tegenovergestelde. Is het beeld een lege algemene omschrijving terwijl de zin een handeling noemt, " +
+            "dan klopt het ook niet.\n\n" +
+            "Geef ALLEEN de beelden die niet kloppen, met een nieuwe ENGELSE beschrijving die wél past: één zin, " +
+            "op menselijke schaal, op de plek van de scène, en noem iedereen die in beeld is bij naam. " +
+            'Antwoord met JSON: {"fouten": [{"nr": <nummer>, "waarom": "...", "actie": "..."}]}. ' +
+            "Klopt alles, geef dan een lege lijst.",
+        },
+        {
+          role: "user",
+          content: JSON.stringify(paren.map((p, nr) => ({ nr, plek: p.plek, zin: p.l.text, beeld: p.l.actie }))),
+        },
+      ],
+      response_format: { type: "json_object" },
+    });
+    const uit = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as { fouten?: { nr?: unknown; waarom?: unknown; actie?: unknown }[] };
+    let hersteld = 0;
+    for (const f of Array.isArray(uit.fouten) ? uit.fouten : []) {
+      const nr = typeof f.nr === "number" ? f.nr : -1;
+      const actie = typeof f.actie === "string" ? f.actie.trim() : "";
+      if (!paren[nr] || !actie) continue;
+      console.log(`[dialogue-chat] beeld past niet bij "${paren[nr].l.text}": ${String(f.waarom ?? "")} → ${actie}`);
+      paren[nr].l.actie = actie;
+      hersteld++;
+    }
+    if (hersteld) console.log(`[dialogue-chat] ${hersteld} beeld(en) passend gemaakt bij hun zin`);
+  } catch (e) {
+    console.error("[dialogue-chat] beeld bij zin controleren mislukt:", e);
+  }
+}
+
+/**
  * Loopt het draaiboek na op verhaallogica: volgt elk actiebeeld uit wat eraan
  * voorafgaat, sluit het gesprek erna erop aan, en zit er niets tussen dat niets
  * toevoegt?
@@ -1186,6 +1244,9 @@ export async function POST(req: NextRequest) {
     // stappen hierboven hergebruikten id's op volgorde, en na een ingevoegde scène
     // konden er twee dezelfde ontstaan.
     spec.scenes = langsVerhaal(spec.scenes, spec.verhaallijn, spec.cast).map((s, i) => ({ ...s, id: `scene-${i}` }));
+    // Pas hierna: langsVerhaal kan nog vertellerbeelden met een algemene
+    // beschrijving hebben toegevoegd.
+    await beeldBijZin(spec.scenes);
     telRegels("klaar", spec.scenes);
 
     // De gebruiker heeft de lengte gekozen; die is leidend, niet wat het model
