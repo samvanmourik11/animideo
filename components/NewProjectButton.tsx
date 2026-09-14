@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { canUseStudio } from "@/lib/studio/access";
+import { canUseStudio, isAdminAccount } from "@/lib/studio/access";
 
 export default function NewProjectButton({ userId }: { userId: string }) {
   const router = useRouter();
@@ -11,10 +11,17 @@ export default function NewProjectButton({ userId }: { userId: string }) {
   // Tijdens soft-launch is de Creator Studio alleen zichtbaar voor toegestane
   // account(s). De server-pagina's blokkeren bovendien directe toegang.
   const [studioAllowed, setStudioAllowed] = useState(false);
+  // De upload-tool is uit het klantmenu gehaald; alleen interne accounts zien
+  // hem nog. Bewust isAdminAccount en niet canUseStudio: die laatste kan in één
+  // klap voor iedereen open, en dan zou deze knop ongewild meeliften.
+  const [adminAllowed, setAdminAllowed] = useState(false);
   useEffect(() => {
-    createClient().auth.getUser().then(({ data }) => setStudioAllowed(canUseStudio(data.user?.email)));
+    createClient().auth.getUser().then(({ data }) => {
+      setStudioAllowed(canUseStudio(data.user?.email));
+      setAdminAllowed(isAdminAccount(data.user?.email));
+    });
   }, []);
-  const [loading, setLoading] = useState<"studio" | "story" | "infographics" | "explainer" | null>(null);
+  const [loading, setLoading] = useState<"studio" | "story" | "infographics" | "explainer" | "free" | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   // Sluit dropdown bij klik buiten het component
@@ -51,6 +58,32 @@ export default function NewProjectButton({ userId }: { userId: string }) {
     setLoading("explainer");
     setOpen(false);
     router.push("/explainer/new");
+  }
+
+  async function createFree() {
+    setLoading("free");
+    setOpen(false);
+    const vandaag = new Date().toLocaleDateString("nl-NL", { day: "numeric", month: "long" });
+    const { data, error } = await createClient()
+      .from("projects")
+      .insert({
+        user_id: userId,
+        title: `Eigen video — ${vandaag}`,
+        language: "Dutch",
+        format: "16:9",
+        visual_style: "Cinematic",
+        status: "Draft",
+        mode: "free",
+      })
+      .select()
+      .single();
+
+    if (!error && data) {
+      router.push(`/project/${data.id}/free`);
+    } else {
+      alert("Kon project niet aanmaken: " + error?.message);
+      setLoading(null);
+    }
   }
 
   const busy = loading !== null;
@@ -123,6 +156,27 @@ export default function NewProjectButton({ userId }: { userId: string }) {
                 <div>
                   <p className="text-sm font-medium text-white">Explainer-video</p>
                   <p className="text-xs text-slate-500 mt-0.5">Flat animated uitleg-video met voice-over, geen poppetjes</p>
+                </div>
+              </button>
+            </>
+          )}
+
+          {/* Alleen intern: de upload-tool staat niet meer in het klantmenu. */}
+          {adminAllowed && (
+            <>
+              <div className="px-4 pt-3 pb-1.5 mt-1 border-t border-white/[0.09]">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  Alleen voor jou
+                </p>
+              </div>
+              <button
+                onClick={createFree}
+                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
+              >
+                <span className="text-lg leading-none mt-0.5">🖼️</span>
+                <div>
+                  <p className="text-sm font-medium text-white">Upload eigen afbeeldingen</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Eigen foto&apos;s omzetten naar video</p>
                 </div>
               </button>
             </>
