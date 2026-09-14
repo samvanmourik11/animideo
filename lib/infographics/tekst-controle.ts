@@ -1,5 +1,6 @@
 import { openai } from "@/lib/openai";
 import { editIllustration } from "@/lib/image-gen";
+import { beeldVoorKijkvraag } from "@/lib/infographics/beeld-inline";
 
 // SPELLINGCONTROLE OP WAT ER ÉCHT IN BEELD STAAT.
 //
@@ -44,7 +45,8 @@ async function leesBeeldtekst(imageUrl: string): Promise<string[]> {
         {
           role: "user",
           content: [
-            { type: "image_url" as const, image_url: { url: imageUrl, detail: "high" as const } },
+            // Zelf opgehaald in plaats van alleen de link: zie beeld-inline.ts.
+            { type: "image_url" as const, image_url: { url: await beeldVoorKijkvraag(imageUrl), detail: "high" as const } },
             {
               type: "text" as const,
               text:

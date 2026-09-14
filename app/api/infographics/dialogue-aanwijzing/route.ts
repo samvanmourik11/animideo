@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { openai } from "@/lib/openai";
 import { bewerkBeeld } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
+import { beeldAlsDataUrl } from "@/lib/infographics/beeld-inline";
 import {
   aanwijzingContext, aanwijzingVraag, AANWIJZING_SCHEMA, AANWIJZING_SYSTEEM,
 } from "@/lib/infographics/beeld-aanwijzing";
@@ -47,7 +48,29 @@ export async function POST(req: NextRequest) {
     // het shot met de aanwijzing zoals die er staat.
     if (!doel) return NextResponse.json({ klein: false, begrepen: null, instructie: aanwijzing });
 
+    // De beelden halen we zelf op en sturen ze verkleind mee. Met alleen de links moest
+    // OpenAI tot negen beelden zelf downloaden, en één trage download liet de hele
+    // aanwijzing mislukken ("Unable to download content … before the timeout").
     const context = aanwijzingContext(spec, si, li);
+    const [doelBeeld, ...contextBeelden] = await Promise.all([
+      beeldAlsDataUrl(doel, { maxZijde: 1024 }),
+      ...context.map((c) => beeldAlsDataUrl(c.url, { maxZijde: 512 })),
+    ]);
+    if (!doelBeeld) {
+      return NextResponse.json({ error: "Het beeld kon niet worden opgehaald. Probeer het zo nog eens." }, { status: 502 });
+    }
+    const vergelijking = context.flatMap((c, i) => {
+      const beeld = contextBeelden[i];
+      return beeld
+        ? [
+            { type: "text" as const, text: `Ter vergelijking, ${c.label}:` },
+            { type: "image_url" as const, image_url: { url: beeld, detail: "low" as const } },
+          ]
+        : [];
+    });
+    const overgeslagen = contextBeelden.filter((b) => !b).length;
+    if (overgeslagen) console.warn(`[dialogue-aanwijzing] ${overgeslagen} vergelijkingsbeeld(en) niet opgehaald, zonder verder`);
+
     const antwoord = await openai.chat.completions.create({
       model: "gpt-4o",
       temperature: 0.2,
@@ -58,11 +81,8 @@ export async function POST(req: NextRequest) {
           role: "user",
           content: [
             { type: "text", text: `${aanwijzingVraag(spec, si, li, aanwijzing)}\nHIER HET DOELBEELD:` },
-            { type: "image_url", image_url: { url: doel, detail: "high" } },
-            ...context.flatMap((c) => [
-              { type: "text" as const, text: `Ter vergelijking, ${c.label}:` },
-              { type: "image_url" as const, image_url: { url: c.url, detail: "low" as const } },
-            ]),
+            { type: "image_url", image_url: { url: doelBeeld, detail: "high" } },
+            ...vergelijking,
           ],
         },
       ],

@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import ffmpegPath from "ffmpeg-static";
 import { openai } from "@/lib/openai";
+import { beeldVoorKijkvraag } from "@/lib/infographics/beeld-inline";
 import { createClient } from "@/lib/supabase/server";
 import { leesDiagnose } from "@/lib/infographics/fragment-diagnose";
 import { telMensen } from "@/lib/infographics/dialogue-verify";
@@ -155,7 +156,11 @@ export async function POST(req: NextRequest) {
           role: "user",
           content: [
             { type: "text", text: context },
-            ...beelden.map((url) => ({ type: "image_url" as const, image_url: { url, detail: "high" as const } })),
+            // Zelf opgehaald in plaats van alleen de link: zie beeld-inline.ts.
+            ...(await Promise.all(beelden.map((u) => beeldVoorKijkvraag(u)))).map((url) => ({
+              type: "image_url" as const,
+              image_url: { url, detail: "high" as const },
+            })),
           ],
         },
       ],

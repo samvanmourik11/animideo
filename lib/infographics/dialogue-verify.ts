@@ -1,4 +1,5 @@
 import { openai } from "@/lib/openai";
+import { beeldVoorKijkvraag } from "@/lib/infographics/beeld-inline";
 import { uiterlijkVan, type DialogueCastMember, type CastPosition } from "./dialogue-schema";
 import { telFout } from "./beeldtelling";
 
@@ -69,7 +70,7 @@ export async function controleerSpreker(
               type: "text",
               text: `In dit beeld staan deze personen:\n${opsomming}\n\nWie heeft zijn of haar mond open?`,
             },
-            { type: "image_url", image_url: { url: imageUrl, detail: "low" } },
+            { type: "image_url", image_url: { url: await beeldVoorKijkvraag(imageUrl, 768), detail: "low" } },
           ],
         },
       ],
@@ -168,7 +169,9 @@ export async function telMensen(
           role: "user",
           content: [
             { type: "text", text: "Beschrijf iedereen die op dit beeld staat." },
-            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+            // Zelf opgehaald: met alleen de link faalde deze controle geregeld stil op
+            // "Unable to download content … before the timeout". Zie beeld-inline.ts.
+            { type: "image_url", image_url: { url: await beeldVoorKijkvraag(imageUrl), detail: "high" } },
           ],
         },
       ],
@@ -270,7 +273,9 @@ export async function beoordeelBeeld(
               type: "text",
               text: `In dit beeld staan deze personen:\n${opsomming}${sprekerVraag}\n\nBeoordeel het beeld.`,
             },
-            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+            // Zelf opgehaald: met alleen de link faalde deze controle geregeld stil op
+            // "Unable to download content … before the timeout". Zie beeld-inline.ts.
+            { type: "image_url", image_url: { url: await beeldVoorKijkvraag(imageUrl), detail: "high" } },
           ],
         },
       ],
@@ -341,7 +346,8 @@ export async function beoordeelBeweging(frameUrls: string[], beschrijving: strin
           role: "user",
           content: [
             { type: "text", text: `De clip hoort dit te tonen: ${beschrijving || "een gesprek tussen twee mensen"}.` },
-            ...frameUrls.map((url) => ({
+            // Zelf opgehaald in plaats van alleen de links: zie beeld-inline.ts.
+            ...(await Promise.all(frameUrls.map((u) => beeldVoorKijkvraag(u, 768)))).map((url) => ({
               type: "image_url" as const,
               image_url: { url, detail: "low" as const },
             })),
