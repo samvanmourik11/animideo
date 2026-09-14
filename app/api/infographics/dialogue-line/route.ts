@@ -12,7 +12,7 @@ import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { kiesStem, TAALCODE } from "@/lib/infographics/dialogue-stem";
 import {
   buildDialogueMotionPrompt, buildActionMotionPrompt, illustratieContext, buildShotPrompt,
-  iederEenKeer, iedereenZichtbaar, voorwerpRegie, ZITTEN_REGEL, MODELBLAD_UITLEG,
+  iederEenKeer, iedereenZichtbaar, voorwerpRegie, wereldRegie, ZITTEN_REGEL, MODELBLAD_UITLEG, STIJL_VAST,
 } from "@/lib/infographics/dialogue-staging";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
 import {
@@ -165,6 +165,8 @@ interface Body {
   zit?: boolean;
   /** Wat je in dit shot ziet, uit de beeldregie (Engels). Zie DialogueLine.beeld. */
   beeld?: string;
+  /** Hoe het gebied er in elk beeld uitziet. Zie DialogueScene.wereld. */
+  wereld?: string;
   /**
    * Alleen het beeld van deze regel, zonder stem en clip: voor het storyboard per
    * zin. De clip gebruikt dat beeld later via hergebruikShotImageUrl.
@@ -453,6 +455,9 @@ export async function POST(req: NextRequest) {
               ? "One reference image is a CHARACTER LINE-UP SHEET of everyone in this video, full body. " +
                 "The people in this shot must match that sheet exactly — same faces, hair, clothing, build, " +
                 "and the same height difference between them. " +
+                // Lilly kwam in één shot een stuk kleiner en dunner uit dan op het blad:
+                // haar leeftijd in het verhaal ("6-10 jaar") won het van het blad.
+                "Their heights relative to each other are exactly as on the sheet; their ages in the story never change that. " +
                 // Zie dialogue-twoshot: zonder dit verbod neemt het model ook de
                 // OPSTELLING van het blad over (gespleten beeld, een rij portretten)
                 // of tekent het de kaartjes als voorwerp in de scène.
@@ -467,6 +472,9 @@ export async function POST(req: NextRequest) {
             `This shot contains ONLY these ${cast.length === 1 ? "person" : "people"}: ${cast.map((c) => c.name).join(" and ")}. ` +
               "Do not add another person — no extra adults, no children, no bystanders, no background figures. " +
               iederEenKeer(cast.map((c) => c.name)),
+            // Hetzelfde bos in elk beeld, en dezelfde look: zie wereldRegie en STIJL_VAST.
+            wereldRegie(b.wereld),
+            STIJL_VAST,
             voorwerpRegie(voorwerpen, isActieBeeld ? actieTekst : null),
             // Ook bij een actiebeeld, zolang de handeling zelf niets over zitten of
             // staan zegt; dat beslist de pagina (zie zegtIetsOverHouding).

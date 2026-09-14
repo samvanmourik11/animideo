@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   kaderVoorScene, buildTwoShotBrief, buildTurnShotPrompt, buildShotPrompt,
-  buildDialogueMotionPrompt, buildActionMotionPrompt,
+  buildDialogueMotionPrompt, buildActionMotionPrompt, wereldRegie,
 } from "./dialogue-staging";
 import type { DialogueCastMember } from "./dialogue-schema";
 
@@ -22,6 +22,23 @@ const lid = (extra: Partial<DialogueCastMember> = {}): DialogueCastMember => ({
   ...extra,
 });
 const cast = [lid(), lid({ id: "char-2", characterId: "uuid-2", name: "Lily", position: "right" })];
+
+// Elk beeld wordt los getekend. Het bos wisselde per beeld van seizoen en stijl, en
+// Lilly was in één shot kleiner dan op het castblad omdat haar leeftijd meeging.
+describe("wereld en lengte", () => {
+  it("zet geen leeftijd in het shot; de lengte komt van het castblad", () => {
+    const p = buildShotPrompt({ setting: "a forest", inBeeld: [lid({ leeftijd: "6-10 jaar" })], kader: "medium" });
+    expect(p).not.toContain("6-10 jaar");
+  });
+
+  it("zet de wereld van het gebied er letterlijk in", () => {
+    expect(wereldRegie("tall beech trees, brown leaves")).toContain("tall beech trees, brown leaves.");
+  });
+
+  it("laat de wereldregel weg als er geen wereld is", () => {
+    expect(wereldRegie("  ")).toBe("");
+  });
+});
 
 describe("kaderVoorScene", () => {
   it("geeft opeenvolgende scenes een ander camerastandpunt", () => {
@@ -197,6 +214,13 @@ describe("buildShotPrompt", () => {
     const p = buildShotPrompt({ setting: "a forest", inBeeld: [tyrel, lily], actie: "a white flower", kader: "detail" });
     expect(p).toContain("no faces");
     expect(p).not.toContain("IN THIS SHOT: 2 characters");
+  });
+
+  // Bij haar eigen zin stond Lilly links, bij die van Tyrell rechts.
+  it("zet de personages van links naar rechts, ook als de rechter praat", () => {
+    const p = buildShotPrompt({ setting: "a forest", inBeeld: [lily, tyrel], spreker: lily, kader: "medium" });
+    expect(p).toContain("from left to right");
+    expect(p.indexOf("Tyrel —")).toBeLessThan(p.indexOf("Lily —"));
   });
 });
 

@@ -3,7 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
-import { buildTwoShotBrief, illustratieContext, iederEenKeer, voorwerpRegie, MODELBLAD_UITLEG } from "@/lib/infographics/dialogue-staging";
+import {
+  buildTwoShotBrief, illustratieContext, iederEenKeer, voorwerpRegie, wereldRegie, MODELBLAD_UITLEG, STIJL_VAST,
+} from "@/lib/infographics/dialogue-staging";
 import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld } from "@/lib/infographics/dialogue-verify";
@@ -20,6 +22,8 @@ interface Body {
   sceneIndex?: number;
   /** Het licht in deze scène (dag, nacht, kaarslicht…). Zie verhaal-licht.ts. */
   licht?: Lichtsoort | null;
+  /** Hoe het gebied er in elk beeld uitziet. Zie DialogueScene.wereld. */
+  wereld?: string | null;
   cast?: DialogueCastMember[];
   styleId?: string;
   format?: InfographicFormat;
@@ -106,7 +110,7 @@ export async function POST(req: NextRequest) {
     // was het plekbeeld van scène 2 exact dat van scène 1, maar fel en overscherp,
     // en zo elke scène daarna. Zonder zo'n voorbeeld kwam dezelfde scène twee keer
     // zacht en natuurlijk terug, net als het eerste beeld. Wie er staat komt uit
-    // portretten en castblad, de plek uit de omschrijving.
+    // portretten en castblad, de plek uit de omschrijving, het bos uit de wereld.
     const aanwijzing = (body.aanwijzing ?? "").trim().slice(0, 500);
     const brief = buildTwoShotBrief(
       setting,
@@ -130,7 +134,8 @@ export async function POST(req: NextRequest) {
         "side by side, full body. That sheet defines exactly what these people look like AND how tall they " +
         "are relative to each other. Copy them from it precisely: the same faces, hair, clothing, colours, " +
         "body build and — this matters — the same height difference between them. Whoever is taller on the " +
-        "sheet is taller here, by the same amount. Do not restyle or re-age anyone. " +
+        "sheet is taller here, by the same amount. Do not restyle or re-age anyone; their ages in the story " +
+        "never change their heights. " +
         // Zonder deze laatste zin neemt het model niet alleen de PERSONEN maar ook
         // de OPSTELLING van het blad over: in een kerstvideo leverde dat een beeld
         // op dat in twee panelen was gedeeld met een naad in het midden, en een
@@ -187,6 +192,9 @@ export async function POST(req: NextRequest) {
           castbladInstructie,
           cast.length === 1 && cast[0].modelSheetUrl ? MODELBLAD_UITLEG : "",
           alleenDezeMensen,
+          // Hetzelfde bos in elk beeld, en dezelfde look: zie wereldRegie en STIJL_VAST.
+          wereldRegie(body.wereld),
+          STIJL_VAST,
           voorwerpRegie(voorwerpen),
           // Na de vaste regels, zodat de aanwijzing over DIT beeld gaat en niet
           // de personages of de tekenstijl kan omgooien.

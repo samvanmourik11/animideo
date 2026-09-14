@@ -323,6 +323,16 @@ export interface DialogueScene {
    * vult dit in (zie beeldregie.ts).
    */
   gebied?: string | null;
+  /**
+   * Hoe dat gebied er in élk beeld uitziet (Engels): soort bomen, bodem, planten,
+   * seizoen, kleuren. Voor alle scènes in hetzelfde gebied dezelfde tekst.
+   *
+   * Elk beeld wordt los getekend, en "a lush green forest" liet het model per beeld
+   * kiezen: herfstbladeren, een zonnig park, reuzenbloemen, een kleibos. Met één
+   * vaste beschrijving per gebied toonden vijf proefbeelden hetzelfde bos.
+   * Null = de beeldregie heeft dit nog niet ingevuld; leeg = hij gaf er geen.
+   */
+  wereld?: string | null;
   /** Is de beeldregie over deze scène gegaan (eigen plek, beeld per regel)? */
   geregisseerd?: boolean | null;
 }

@@ -279,6 +279,7 @@ export default function DialoguePage() {
       format: werk.format, language: werk.language, seed: werk.seed,
       illustrationBrief: werk.illustrationBrief ?? "",
       sceneIndex: si,
+      wereld: s.wereld ?? null,
       licht: s.licht ?? null,
       aanwijzing: s.beeldAanwijzing ?? undefined,
       voorwerpen: voorwerpenInScene(werk.voorwerpen, s, 0),
@@ -325,6 +326,7 @@ export default function DialoguePage() {
       format: werk.format, styleId: werk.styleId, seed: werk.seed,
       illustrationBrief: werk.illustrationBrief ?? "",
       setting: scene.setting,
+      wereld: scene.wereld ?? undefined,
       beeld: regel.beeld ?? undefined,
       // Het kader van dit shot, plus dat van het vorige zodat er geen twee dezelfde
       // achter elkaar komen. Het vorige shot kan in een eerdere scene liggen.
@@ -696,6 +698,7 @@ export default function DialoguePage() {
         // Een aanwijzing over de oude plek ("de boom links") klopt niet meer bij een nieuwe.
         beeldAanwijzing: null,
         gebied: null,
+        wereld: null,
         geregisseerd: null,
         lines: s.lines.map((l) => ({
           ...l, beeld: null, beeldAanwijzing: null, shotImageUrl: null,

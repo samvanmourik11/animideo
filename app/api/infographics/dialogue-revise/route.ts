@@ -150,6 +150,7 @@ function bouwScene(
     beeldAanwijzing: zelfdeBeeld ? oudeScene?.beeldAanwijzing ?? null : null,
     // Een nieuwe plek hoort opnieuw langs de beeldregie; dezelfde plek niet.
     gebied: zelfdeBeeld ? oudeScene?.gebied ?? null : null,
+    wereld: zelfdeBeeld ? oudeScene?.wereld ?? null : null,
     geregisseerd: zelfdeBeeld ? oudeScene?.geregisseerd ?? null : null,
   };
 }

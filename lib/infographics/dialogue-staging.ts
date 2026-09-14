@@ -114,6 +114,37 @@ export const NATUURWETTEN =
   "indoors or outdoors, unless this prompt says so. Animals, dragons and other creatures wear nothing unless described. People sit on chairs, benches, sofas, the floor or the ground — " +
   "never on top of a table.";
 
+/**
+ * Hoe het gebied er in élk beeld uitziet, uit de beeldregie (DialogueScene.wereld).
+ *
+ * Elk beeld wordt los getekend vanaf tekst. "A lush green forest" liet het model per
+ * beeld kiezen: herfstbladeren, een zonnig park, een boom op een witte achtergrond,
+ * reuzenbloemen. In een proef gaf één vaste beschrijving per gebied vijf beelden met
+ * hetzelfde bos. Een klein, onscherp plekbeeld als voorbeeld hield het bos ook gelijk,
+ * maar kopieerde dan de houdingen en opstelling van dat beeld in elk shot.
+ */
+export function wereldRegie(wereld?: string | null): string {
+  const tekst = (wereld ?? "").trim();
+  if (!tekst) return "";
+  return (
+    `THE WORLD OF THIS VIDEO — every image in this area shows the same place: ${tekst.replace(/\.?$/, ".")} ` +
+    `Keep this exactly; only the spot within it changes.`
+  );
+}
+
+/**
+ * Eén look voor de hele video.
+ *
+ * De stijl Soft 3D noemt "clay-like" en "toy-like". Meestal kwam er een bos als uit
+ * een animatiefilm uit, en één keer een kleibos met lollybomen naast gewone bomen.
+ * Fantasieplanten kwamen uit een vrolijke briefing ("veel kleurrijke bloemen").
+ */
+export const STIJL_VAST =
+  "ONE LOOK FOR THE WHOLE VIDEO — the people and the surroundings are rendered in exactly the same style as the " +
+  "character references and the line-up sheet, with the same level of realism and detail in every image. Never switch " +
+  "to clay, plasticine, felt, papercut or toy-like scenery, never rounded lollipop trees, never a flat or empty " +
+  "background. No fantasy plants, no oversized or glowing flowers, unless this prompt names them.";
+
 const MENSEN = "people|persons|crowds?|tourists|locals|visitors|pedestrians|passers-?by|vendors|shoppers|families|children|kids|residents|onlookers";
 const MENSENZIN = new RegExp(
   `(?:\\s*,\\s*(?:and\\s+)?|\\s+(?:and|with|where|full of|filled with)\\s+)` +
@@ -392,7 +423,9 @@ export function buildTwoShotBrief(
       : "") +
     // Dit twee-shot is het ANKER voor alle beelden van deze scène, dus de
     // onderlinge lengte die hier ontstaat geldt de rest van de video.
-    `Give each person a body height that fits their age; people of the same age are about the same height.` +
+    // Het castblad beslist, niet de leeftijd: "6-10 jaar" naast "10 jaar" gaf een
+    // Lilly die per beeld kleiner of groter was dan Tyrell.
+    `Give each person exactly the body height shown on the character line-up sheet; only without a sheet, a height that fits their age.` +
     // Na de tekenstijl, want die schrijft bij Soft 3D "studio lighting" voor.
     beeldSfeer(licht, null) +
     NATUURWETTEN
@@ -644,11 +677,19 @@ export function buildShotPrompt(input: {
 }): string {
   const { setting, inBeeld, spreker, emotion, actie, beeld, kader, styleId, licht } = input;
 
-  const wie = inBeeld
+  // Zonder leeftijd: de lengte komt van het castblad. Met "Lilly (6-10 jaar)" naast
+  // "Tyrell (10 jaar)" tekende het model Lilly in één shot een stuk kleiner en
+  // dunner dan in de rest, waar ze even groot waren als op het blad.
+  //
+  // Van links naar rechts, zoals op het plekbeeld. De spreker stond vooraan in de
+  // lijst, en elk shot wordt los getekend: bij haar eigen zin stond Lilly links en
+  // bij die van Tyrell rechts, dus twee shots achter elkaar wisselden ze van kant.
+  const rang: Record<string, number> = { left: 0, center: 1, right: 2 };
+  const wie = [...inBeeld]
+    .sort((a, b) => (rang[a.position] ?? 1) - (rang[b.position] ?? 1))
     .map((c) => {
       const uiterlijk = uiterlijkVan(c);
-      const leeftijd = (c.leeftijd ?? "").trim();
-      return `${c.name}${leeftijd ? ` (${leeftijd})` : ""}${uiterlijk ? ` — ${uiterlijk}` : ""}`;
+      return `${c.name}${uiterlijk ? ` — ${uiterlijk}` : ""}`;
     })
     .join("; ");
 
@@ -691,7 +732,7 @@ export function buildShotPrompt(input: {
     (detail
       ? `IN THIS SHOT: no faces and no full characters — this is a close insert of an object. At most a hand or ` +
         `arm of ${namen} may reach into the frame. There is nobody else in the frame. `
-      : `IN THIS SHOT: ${inBeeld.length} character${inBeeld.length === 1 ? "" : "s"} — ${wie}. ` +
+      : `IN THIS SHOT: ${inBeeld.length} character${inBeeld.length === 1 ? "" : "s"}${meer ? ", from left to right" : ""} — ${wie}. ` +
         `There is nobody else in the frame: no extra children, no extra adults, no bystanders, no background figures. ` +
         `${iederEenKeer(inBeeld.map((c) => c.name))} ` +
         // "Oma legt de kinderen iets uit" leverde een groepje extra kinderen op de
