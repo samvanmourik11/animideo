@@ -26,6 +26,8 @@ interface Body {
   seed?: number;
   /** Het castblad van deze video: voorbeeld voor de look, niet voor wat er getekend wordt. */
   castSheetUrl?: string;
+  /** Portretten van de cast: voorbeeld voor de look als er nog geen castblad is. */
+  portretUrls?: string[];
 }
 
 export async function POST(req: NextRequest) {
@@ -64,12 +66,19 @@ export async function POST(req: NextRequest) {
     // hoe echt het moet. In het bos stak hij af als een plastic bloem. Het castblad
     // laat zien in welke wereld het voorwerp thuishoort.
     const castblad = (body.castSheetUrl ?? "").trim();
+    // In de opzet en het draaiboek bestaat het castblad nog niet; dan laten de
+    // portretten zien in welke look het voorwerp hoort.
+    const portretten = castblad
+      ? []
+      : (Array.isArray(body.portretUrls) ? body.portretUrls : [])
+          .filter((u): u is string => typeof u === "string" && /^https:\/\//.test(u))
+          .slice(0, 2);
     const voorbeeld = (body.voorwerp?.voorbeeldUrl ?? "").trim();
     const lookRegels = [
-      castblad
-        ? "One reference image shows the characters of this video. Use it ONLY for the look: the rendering style, " +
-          "materials, level of realism, shading and colours. Do not draw any of these people — this image contains " +
-          "only the object."
+      castblad || portretten.length
+        ? `${castblad ? "One reference image shows" : "The first reference images show"} the characters of this video. ` +
+          "Use them ONLY for the look: the rendering style, materials, level of realism, shading and colours. Do not " +
+          "draw any of these people — this image contains only the object."
         : "",
       voorbeeld
         ? "One reference image shows this same object drawn earlier in another style. Keep its shape, proportions, " +
@@ -84,7 +93,7 @@ export async function POST(req: NextRequest) {
       format: "16:9",
       visualStyle: null,
       seed: typeof body.seed === "number" ? body.seed : undefined,
-      ingredientUrls: [castblad, voorbeeld].filter(Boolean),
+      ingredientUrls: [castblad, ...portretten, voorbeeld].filter(Boolean),
       extraContext: [illustratieContext(body.illustrationBrief), lookRegels].filter(Boolean).join(" "),
     });
 

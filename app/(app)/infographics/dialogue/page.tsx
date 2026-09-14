@@ -16,9 +16,10 @@ import SetupPanel from "@/components/dialogue/SetupPanel";
 import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
-import { regelKlaar, heeftStem, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
+import { regelKlaar, heeftStem, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
 import { leesRegie, pasRegieToe, regieNodig } from "@/lib/infographics/beeldregie";
 import { MAX_VOORWERPEN, voegVoorwerpenSamen } from "@/lib/infographics/voorwerp-bibliotheek";
+import { tekenVoorwerp, voorwerpSleutel, type TekenContext } from "@/lib/infographics/voorwerp-tekenen";
 import { zitHouding, zegtIetsOverHouding } from "@/lib/infographics/dialogue-staging";
 import VasteVoorwerpen from "@/components/dialogue/VasteVoorwerpen";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
@@ -70,9 +71,74 @@ export default function DialoguePage() {
   // Voorwerpen uit het draaiboek halen (zie zoekVoorwerpen).
   const [voorwerpenBezig, setVoorwerpenBezig] = useState(false);
   const [voorwerpenMelding, setVoorwerpenMelding] = useState<string | null>(null);
+  // Welke voorwerpen nu getekend worden (voorwerpSleutel), in de opzet of het draaiboek.
+  const [voorwerpTekenBezig, setVoorwerpTekenBezig] = useState<string[]>([]);
+
+  /** Wat het tekenen van een voorwerp uit de spec nodig heeft. */
+  function tekenContext(werk: DialogueSpec): TekenContext {
+    return {
+      styleId: werk.styleId, language: werk.language, illustrationBrief: werk.illustrationBrief,
+      seed: werk.seed, castSheetUrl: werk.castSheetUrl, cast: werk.cast,
+    };
+  }
+
+  // Het plaatje landt alleen op een voorwerp met nog dezelfde naam en beschrijving: is
+  // het intussen aangepast, dan hoort dat plaatje er niet meer bij.
+  const zetBladInSpec = (sleutel: string, bladUrl: string) =>
+    setSpec((prev) => prev && {
+      ...prev,
+      voorwerpen: (prev.voorwerpen ?? []).map((v) => (voorwerpSleutel(v) === sleutel ? { ...v, bladUrl } : v)),
+    });
+  const zetBladInOpzet = (sleutel: string, bladUrl: string) =>
+    setSetup((prev) => prev && {
+      ...prev,
+      voorwerpen: (prev.voorwerpen ?? []).map((v) => (voorwerpSleutel(v) === sleutel ? { ...v, bladUrl } : v)),
+    });
 
   /**
-   * Voorwerpen uit het draaiboek halen en erbij zetten.
+   * Voorwerpen tekenen, zodat je ze in de opzet en het draaiboek al ziet.
+   *
+   * Eerst gebeurde dit pas bij het storyboard: de vakjes naast de klaproos en de
+   * grote boom bleven leeg, en je keurde ze goed zonder te zien hoe ze eruitzagen.
+   */
+  async function tekenVoorwerpenVoor(
+    lijst: DialogueVoorwerp[],
+    ctx: TekenContext,
+    zetBlad: (sleutel: string, bladUrl: string) => void,
+  ) {
+    const teDoen = lijst.filter(
+      (v) => v.naam.trim() && v.uiterlijk.trim() && !voorwerpTekenBezig.includes(voorwerpSleutel(v)),
+    );
+    if (!teDoen.length) return;
+    setVoorwerpTekenBezig((bezig) => [...bezig, ...teDoen.map(voorwerpSleutel)]);
+    const fouten: string[] = [];
+    await Promise.all(teDoen.map(async (v) => {
+      const uit = await tekenVoorwerp(v, ctx);
+      if ("fout" in uit) fouten.push(`${v.naam}: ${uit.fout}`);
+      else zetBlad(voorwerpSleutel(v), uit.bladUrl);
+      setVoorwerpTekenBezig((bezig) => bezig.filter((k) => k !== voorwerpSleutel(v)));
+    }));
+    if (fouten.length) setVoorwerpenMelding(`Tekenen niet gelukt. ${fouten.join("; ")}`);
+  }
+
+  function tekenVoorwerpenInDraaiboek(indices: number[]) {
+    if (!spec) return;
+    const lijst = indices.map((i) => spec.voorwerpen?.[i]).filter((v): v is DialogueVoorwerp => !!v);
+    void tekenVoorwerpenVoor(lijst, tekenContext(spec), zetBladInSpec);
+  }
+
+  function tekenVoorwerpenInOpzet(indices: number[]) {
+    if (!setup) return;
+    const lijst = indices.map((i) => setup.voorwerpen?.[i]).filter((v): v is DialogueVoorwerp => !!v);
+    void tekenVoorwerpenVoor(
+      lijst,
+      { styleId: setup.styleId, language: setup.language, illustrationBrief: setup.illustrationBrief, cast: setup.cast },
+      zetBladInOpzet,
+    );
+  }
+
+  /**
+   * Voorwerpen uit het draaiboek halen, erbij zetten en meteen tekenen.
    *
    * De opzet koos voor een verhaal over een klaproos en een grote boom geen enkel
    * voorwerp (zie de route dialogue-voorwerpen). Wat er al staat blijft staan, met
@@ -93,18 +159,26 @@ export default function DialoguePage() {
       if (!r.ok) { setVoorwerpenMelding(d.detail || d.error || "Voorwerpen zoeken mislukt"); return; }
       const gevonden = (d.voorwerpen ?? []) as NonNullable<DialogueSpec["voorwerpen"]>;
       const bestaand = werk.voorwerpen ?? [];
-      const erbij = voegVoorwerpenSamen(bestaand, gevonden).length - bestaand.length;
+      const nieuw = voegVoorwerpenSamen(bestaand, gevonden).slice(bestaand.length);
       setSpec((prev) => {
         if (!prev) return prev;
         const samen = voegVoorwerpenSamen(prev.voorwerpen ?? [], gevonden);
         return { ...prev, voorwerpen: samen.length ? samen : null };
       });
+      // Meteen tekenen wat nog geen plaatje heeft: een voorwerp uit de bibliotheek
+      // brengt zijn plaatje in deze stijl vaak al mee.
+      const zonderPlaatje = nieuw.filter((v) => !v.bladUrl);
+      if (zonderPlaatje.length) void tekenVoorwerpenVoor(zonderPlaatje, tekenContext(werk), zetBladInSpec);
       setVoorwerpenMelding(
         gevonden.length === 0
           ? "Geen voorwerpen gevonden die een rol spelen of in meer beelden terugkomen."
-          : erbij === 0
+          : nieuw.length === 0
             ? "Geen nieuwe voorwerpen: wat er gevonden is, staat er al."
-            : `${erbij} ${erbij === 1 ? "voorwerp" : "voorwerpen"} toegevoegd. Kijk of de beschrijving klopt: ze worden getekend bij het storyboard.`,
+            : `${nieuw.length} ${nieuw.length === 1 ? "voorwerp" : "voorwerpen"} toegevoegd` +
+              (zonderPlaatje.length
+                ? `, de plaatjes worden nu getekend (${zonderPlaatje.length * CREDIT_COSTS.IMAGE_GENERATION} ${zonderPlaatje.length * CREDIT_COSTS.IMAGE_GENERATION === 1 ? "credit" : "credits"}).`
+                : ".") +
+              " Klopt een plaatje niet, pas dan de beschrijving aan en teken hem opnieuw.",
       );
     } catch (e) {
       setVoorwerpenMelding(e instanceof Error ? e.message : String(e));
@@ -479,39 +553,17 @@ export default function DialoguePage() {
       );
       for (const v of nodig) {
         setVoortgang(`Voorwerp vastleggen: ${v.naam}…`);
-        try {
-          const r = await fetch("/api/infographics/dialogue-voorwerp-blad", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              voorwerp: v, styleId: werk.styleId, language: werk.language,
-              illustrationBrief: werk.illustrationBrief ?? "", seed: werk.seed,
-              // Het castblad bestaat op dit punt al en laat zien in welke look het voorwerp hoort.
-              castSheetUrl: werk.castSheetUrl ?? undefined,
-            }),
-          });
-          const d = await r.json();
-          if (!r.ok) {
-            if (d.error === "insufficient_credits") { gestopt = creditFout(d); break; }
-            // Zonder blad gaat de beschrijving in woorden nog steeds mee.
-            mislukt.push(`voorwerp ${v.naam}`);
-          } else if (d.bladUrl) {
-            v.bladUrl = d.bladUrl;
-            setSpec(structuredClone(werk));
-            // Een bibliotheekvoorwerp dat voor het eerst in deze stijl getekend is: dat
-            // blad terug naar de bibliotheek, zodat de volgende video in deze stijl
-            // exact hetzelfde voorwerp krijgt. Mislukt dat, dan werkt deze video door.
-            if (v.bibliotheekId && werk.styleId) {
-              void fetch("/api/voorwerpen", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  id: v.bibliotheekId, naam: v.naam, uiterlijk: v.uiterlijk, styleId: werk.styleId, bladUrl: d.bladUrl,
-                }),
-              }).catch(() => {});
-            }
-          }
-        } catch { mislukt.push(`voorwerp ${v.naam}`); }
+        // Het castblad bestaat op dit punt al en laat zien in welke look het voorwerp
+        // hoort. Het blad van een bibliotheekvoorwerp gaat terug naar de bibliotheek.
+        const uit = await tekenVoorwerp(v, tekenContext(werk));
+        if ("fout" in uit) {
+          if (uit.geenCredits) { gestopt = uit.fout; break; }
+          // Zonder blad gaat de beschrijving in woorden nog steeds mee.
+          mislukt.push(`voorwerp ${v.naam}`);
+        } else {
+          v.bladUrl = uit.bladUrl;
+          setSpec(structuredClone(werk));
+        }
       }
     }
 
@@ -1085,6 +1137,8 @@ export default function DialoguePage() {
           bezig={schrijfBezig}
           voorstelBezig={setupBezig}
           credits={CREDIT_COSTS.SCRIPT_GENERATION}
+          onTekenVoorwerpen={tekenVoorwerpenInOpzet}
+          voorwerpTekenBezig={voorwerpTekenBezig}
         />
       )}
 
@@ -1178,6 +1232,8 @@ export default function DialoguePage() {
               voorwerpen={spec.voorwerpen ?? []}
               onChange={(v) => setSpec({ ...spec, voorwerpen: v.length ? v : null })}
               styleId={spec.styleId}
+              onTeken={tekenVoorwerpenInDraaiboek}
+              tekenBezig={voorwerpTekenBezig}
               disabled={renderBezig || voorwerpenBezig}
             />
           </div>

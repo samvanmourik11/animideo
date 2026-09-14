@@ -342,6 +342,8 @@ export default function SetupPanel({
   bezig = false,
   voorstelBezig = false,
   credits,
+  onTekenVoorwerpen,
+  voorwerpTekenBezig = [],
 }: {
   setup: DialogueSetup;
   onChange: (s: DialogueSetup) => void;
@@ -351,6 +353,9 @@ export default function SetupPanel({
   bezig?: boolean;
   voorstelBezig?: boolean;
   credits: number;
+  /** Voorwerpen (indexen) nu tekenen, zodat je ze in de opzet al ziet. */
+  onTekenVoorwerpen?: (indices: number[]) => void;
+  voorwerpTekenBezig?: string[];
 }) {
   const zet = <K extends keyof DialogueSetup>(veld: K, waarde: DialogueSetup[K]) =>
     onChange({ ...setup, [veld]: waarde });
@@ -554,6 +559,8 @@ export default function SetupPanel({
           voorwerpen={setup.voorwerpen ?? []}
           onChange={(v) => zet("voorwerpen", v)}
           styleId={setup.styleId}
+          onTeken={onTekenVoorwerpen}
+          tekenBezig={voorwerpTekenBezig}
           disabled={uit}
         />
       </Groep>
