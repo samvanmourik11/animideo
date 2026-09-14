@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { fetchMetHerkansing } from "@/lib/netwerk-herkansing";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -8,6 +9,9 @@ export async function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Een haperende verbinding liet de inlogcontrole mislukken ("Unauthorized" terwijl
+      // je ingelogd was). Lezen wordt opnieuw geprobeerd; zie netwerk-herkansing.ts.
+      global: { fetch: fetchMetHerkansing },
       cookies: {
         getAll() {
           return cookieStore.getAll();

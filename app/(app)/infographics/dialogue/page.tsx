@@ -54,6 +54,8 @@ export default function DialoguePage() {
   const [setupBezig, setSetupBezig] = useState(false);
   const [schrijfBezig, setSchrijfBezig] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
+  // Apart van `fout`: een gelukte bewaarbeurt ruimt deze melding op, maar nooit een andere fout.
+  const [bewaarFout, setBewaarFout] = useState<string | null>(null);
 
   const [renderBezig, setRenderBezig] = useState(false);
   const [renderFout, setRenderFout] = useState<string | null>(null);
@@ -238,8 +240,19 @@ export default function DialoguePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId: id, title: teBewaren.title, spec: teBewaren }),
       });
-      const d = await res.json();
-      if (!res.ok) { setFout(d.detail || d.error || "Opslaan mislukt"); return id; }
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // Hier stond de kale serverfout bovenaan: "Unauthorized", terwijl Sam gewoon
+        // ingelogd was en de verbinding met de database even haperde. Bewaren gaat bij
+        // de volgende wijziging vanzelf opnieuw, en de melding verdwijnt als dat lukt.
+        setBewaarFout(
+          res.status === 401
+            ? "Bewaren lukte even niet: de verbinding met de server haperde. Bij je volgende wijziging wordt het opnieuw geprobeerd. Blijft deze melding staan, log dan opnieuw in."
+            : `Bewaren mislukt: ${d.detail || d.error || "onbekende fout"}. Bij je volgende wijziging wordt het opnieuw geprobeerd.`,
+        );
+        return id;
+      }
+      setBewaarFout(null);
       if (d.id && d.id !== id) {
         setProjectId(d.id);
         window.history.replaceState(null, "", `?project=${d.id}`);
@@ -953,13 +966,22 @@ export default function DialoguePage() {
           const scene = werk.scenes[si];
           const regel = scene.lines[li];
           try {
-            const r = await fetch("/api/infographics/dialogue-line", {
+            // Het beeld uit het storyboard gaat mee: de clip brengt dát in beweging, in
+            // plaats van een nieuw beeld te tekenen dat niemand gezien heeft.
+            const verzoek = JSON.stringify(regelVerzoek(werk, si, li, { hergebruikBeeld: regel.shotImageUrl }));
+            const stuur = () => fetch("/api/infographics/dialogue-line", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              // Het beeld uit het storyboard gaat mee: de clip brengt dát in beweging, in
-              // plaats van een nieuw beeld te tekenen dat niemand gezien heeft.
-              body: JSON.stringify(regelVerzoek(werk, si, li, { hergebruikBeeld: regel.shotImageUrl })),
+              body: verzoek,
             });
+            let r = await stuur();
+            // Vier regels mislukten met "Unauthorized" terwijl Sam ingelogd was: de
+            // inlogcontrole kreeg door een haperende verbinding geen antwoord. Die
+            // controle komt vóór het maken en afschrijven, dus één keer opnieuw kost niets.
+            if (r.status === 401) {
+              await new Promise((klaar) => setTimeout(klaar, 2000));
+              r = await stuur();
+            }
             const d = await r.json();
             if (!r.ok) {
               if (d.error === "insufficient_credits") gestopt = creditFout(d);
@@ -1146,6 +1168,7 @@ export default function DialoguePage() {
       </p>
       {projectLaden && <p className="text-sm text-blue-300 mb-4">Dialoog laden…</p>}
       {fout && <p className="text-sm text-red-400 mb-4">{fout}</p>}
+      {bewaarFout && <p className="text-[11px] text-amber-300 mb-4">{bewaarFout}</p>}
 
       <div className="flex items-center gap-2 mb-6 text-[11px]">
         {([[1, "Idee"], [2, "Opzet"], [3, "Draaiboek"], [4, "Storyboard"], [5, "Video"]] as const).map(([n, label]) => (

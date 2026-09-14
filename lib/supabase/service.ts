@@ -1,4 +1,5 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { fetchMetHerkansing } from "@/lib/netwerk-herkansing";
 
 /**
  * Service-role Supabase client — bypasses RLS.
@@ -11,5 +12,7 @@ export function createServiceClient() {
   if (!url || !key) throw new Error("Missing Supabase service role env vars");
   return createSupabaseClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
+    // Lezen wordt bij een haperende verbinding opnieuw geprobeerd; schrijven nooit.
+    global: { fetch: fetchMetHerkansing },
   });
 }

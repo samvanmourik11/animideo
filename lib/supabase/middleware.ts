@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { fetchMetHerkansing } from "@/lib/netwerk-herkansing";
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -8,6 +9,8 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      // Zelfde haperingen als in de routes; zie netwerk-herkansing.ts.
+      global: { fetch: fetchMetHerkansing },
       cookies: {
         getAll() {
           return request.cookies.getAll();
