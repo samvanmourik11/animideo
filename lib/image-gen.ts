@@ -409,6 +409,48 @@ export async function bewerkBeeld(input: {
   return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: prompt, refsUsed: [input.bronUrl, ...refs] };
 }
 
+/**
+ * Een beeld afmaken waarin een voorwerp als egale bruine vorm is ingeschilderd.
+ *
+ * Voor wat een bewerking in woorden niet doet: een voorwerp doortrekken tot de grond.
+ * "De deur moet tot de grond reiken" gaf acht keer bijna hetzelfde beeld terug; met de
+ * deur als vorm tot op het pad tekende hetzelfde model een deur die op de grond staat.
+ * Alleen de schets gaat mee: met het origineel als tweede beeld erbij gaf het model
+ * gewoon het origineel terug. Zie schets-bewerking.ts.
+ */
+export async function maakSchetsAf(input: {
+  schetsUrl: string;
+  /** Engels, kort: "the wooden door". */
+  voorwerp: string;
+  /** De begrepen aanwijzing, voor details als het houtsnijwerk. */
+  instructie?: string;
+  format?: string;
+}): Promise<NanoBananaResult> {
+  const wat = input.voorwerp.trim();
+  const prompt = [
+    "Edit this image. A flat brown shape has been painted onto it as a rough guide.",
+    `Turn that brown shape into ${wat}, standing on the ground and filling the whole brown shape, drawn with the same ` +
+      "materials, colours and level of detail as the rest of the picture.",
+    input.instructie?.trim() ? `What was asked: ${input.instructie.trim()}` : "",
+    "Nothing brown may remain. Everything that is not brown stays exactly as it is: the people in front, their poses, " +
+      "faces and clothes, the surroundings, the lighting and the rendering style. No text, no watermarks, no logos.",
+  ].filter(Boolean).join(" ").slice(0, MAX_PROMPT_TEKENS);
+
+  const result = await fal.subscribe(EDIT_MODEL, {
+    input: {
+      prompt,
+      image_urls: [input.schetsUrl],
+      aspect_ratio: aspectFor(input.format),
+      resolution: "2K",
+      num_images: 1,
+      output_format: "jpeg",
+    } as never,
+  });
+  const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
+  if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Nano Banana (schets afmaken)");
+  return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: prompt, refsUsed: [input.schetsUrl] };
+}
+
 export async function editImage(input: EditImageInput): Promise<NanoBananaResult> {
   const aspect = aspectFor(input.format);
 

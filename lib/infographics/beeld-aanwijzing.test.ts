@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { aanwijzingContext, aanwijzingVraag } from "./beeld-aanwijzing";
+import { aanwijzingContext, aanwijzingVraag, leesOpDeGrond, AANWIJZING_SCHEMA } from "./beeld-aanwijzing";
 import type { DialogueScene, DialogueSpec } from "./dialogue-schema";
 
 // "Het kapsel van het rechter poppetje moet hetzelfde zijn als de andere foto's van
@@ -41,6 +41,25 @@ describe("aanwijzingContext", () => {
 
   it("slaat beelden over die er nog niet zijn", () => {
     expect(aanwijzingContext({ castSheetUrl: null, scenes: [scene("a", [null, null], null)] }, 0, 0)).toEqual([]);
+  });
+});
+
+// "De deur moet tot de grond reiken": het antwoord zegt welk ding op de grond moet,
+// zodat de route een schets kan maken in plaats van een bewerking in woorden.
+describe("leesOpDeGrond", () => {
+  it("geeft het ding terug, netjes ingekort", () => {
+    expect(leesOpDeGrond("  the  wooden door ")).toBe("the wooden door");
+  });
+
+  it("geeft null als er niets op de grond hoeft, of het antwoord onbruikbaar is", () => {
+    expect(leesOpDeGrond("")).toBeNull();
+    expect(leesOpDeGrond(undefined)).toBeNull();
+    expect(leesOpDeGrond(42)).toBeNull();
+    expect(leesOpDeGrond("a".repeat(61))).toBeNull();
+  });
+
+  it("zit in het verplichte antwoord, anders weigert de strikte JSON-modus het veld", () => {
+    expect(AANWIJZING_SCHEMA.required).toContain("opDeGrond");
   });
 });
 

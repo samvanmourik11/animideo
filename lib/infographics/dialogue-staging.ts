@@ -99,6 +99,10 @@ export const NATUURWETTEN =
   "the water is behind or beside them, never around their legs. " +
   "Objects keep their real-world size relative to people, and rest on a surface that could actually " +
   "support them — nothing floats. Anything a person holds is held in a way a hand can actually hold it. " +
+  // Het geheime tuinverhaal kreeg een houten deur halverwege een muur, met stenen
+  // eronder: een deur waar niemand door kan. Acht aanwijzingen later zweefde hij nog.
+  "Doors, gates and archways stand on the ground or on a step: their bottom edge meets the floor or path, never " +
+  "set halfway up a wall with wall below them. " +
   "If a screen, sign, label or document is visible, leave it BLANK or show only simple shapes and " +
   "colours — never invented lettering, never fake words, never garbled text. " +
   // De synagoge en de moskee "naast elkaar" werden één kerk met een kruis op het

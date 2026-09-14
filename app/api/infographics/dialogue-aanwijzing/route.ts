@@ -5,8 +5,9 @@ import { bewerkBeeld } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { beeldAlsDataUrl } from "@/lib/infographics/beeld-inline";
 import {
-  aanwijzingContext, aanwijzingVraag, AANWIJZING_SCHEMA, AANWIJZING_SYSTEEM,
+  aanwijzingContext, aanwijzingVraag, leesOpDeGrond, AANWIJZING_SCHEMA, AANWIJZING_SYSTEEM,
 } from "@/lib/infographics/beeld-aanwijzing";
+import { zetOpDeGrond } from "@/lib/infographics/schets-bewerking";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { DialogueSpec } from "@/lib/infographics/dialogue-schema";
 
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    let uitleg: { begrepen?: unknown; instructie?: unknown; klein?: unknown };
+    let uitleg: { begrepen?: unknown; instructie?: unknown; klein?: unknown; opDeGrond?: unknown };
     try {
       uitleg = JSON.parse(antwoord.choices[0]?.message?.content ?? "{}");
     } catch {
@@ -100,8 +101,14 @@ export async function POST(req: NextRequest) {
     }
     const begrepen = typeof uitleg.begrepen === "string" && uitleg.begrepen.trim() ? uitleg.begrepen.trim() : null;
     const instructie = typeof uitleg.instructie === "string" && uitleg.instructie.trim() ? uitleg.instructie.trim() : aanwijzing;
-    const klein = uitleg.klein === true;
-    console.log(`[dialogue-aanwijzing] scène ${si + 1} shot ${li + 1}: "${aanwijzing}" → ${klein ? "bewerken" : "opnieuw tekenen"}: ${instructie}`);
+    const opDeGrond = leesOpDeGrond(uitleg.opDeGrond);
+    // Een zwevend voorwerp rechtzetten is een ingreep op één plek in het beeld: het
+    // goedgekeurde shot blijft staan, ook als het model het als grote wijziging zag.
+    const klein = uitleg.klein === true || !!opDeGrond;
+    console.log(
+      `[dialogue-aanwijzing] scène ${si + 1} shot ${li + 1}: "${aanwijzing}" → ` +
+        `${opDeGrond ? `schets (${opDeGrond} op de grond)` : klein ? "bewerken" : "opnieuw tekenen"}: ${instructie}`,
+    );
 
     if (!klein) return NextResponse.json({ klein: false, begrepen, instructie });
 
@@ -113,8 +120,17 @@ export async function POST(req: NextRequest) {
       );
     }
     try {
+      // "De deur moet tot de grond reiken" werd acht keer begrepen en acht keer niet
+      // uitgevoerd: een bewerking in woorden verlengt niets. Dan eerst de schets (zie
+      // schets-bewerking.ts); vindt die het voorwerp niet, dan gewoon bewerken.
+      const geschetst = opDeGrond
+        ? await zetOpDeGrond({ bronUrl: doel, voorwerp: opDeGrond, instructie, format: spec.format }).catch((e) => {
+            console.error("[dialogue-aanwijzing] schets mislukt, gewone bewerking:", e);
+            return null;
+          })
+        : null;
       const castblad = (spec.castSheetUrl ?? "").trim();
-      const bewerkt = await bewerkBeeld({
+      const nieuwUrl = geschetst ?? (await bewerkBeeld({
         bronUrl: doel,
         instructie,
         referentieUrls: [castblad],
@@ -122,8 +138,8 @@ export async function POST(req: NextRequest) {
           "The second image is the character line-up sheet: it shows exactly how the characters look. Use it only for " +
           "their appearance; do not copy its layout, background or poses.",
         format: spec.format,
-      });
-      const shotImageUrl = await persistFalAssetSoft(supabase, user.id, bewerkt.imageUrl, "image");
+      })).imageUrl;
+      const shotImageUrl = await persistFalAssetSoft(supabase, user.id, nieuwUrl, "image");
       return NextResponse.json({ klein: true, begrepen, instructie, shotImageUrl });
     } catch (e) {
       await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: storyboardbeeld aanpassen").catch(() => {});
