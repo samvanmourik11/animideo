@@ -7,6 +7,7 @@
 // van een bibliotheekvoorwerp terugzetten in de bibliotheek.
 
 import type { DialogueCastMember, DialogueVoorwerp } from "./dialogue-schema";
+import { DEFAULT_STORY_STYLE } from "./story-style";
 
 export interface TekenContext {
   styleId?: string | null;
@@ -19,7 +20,8 @@ export interface TekenContext {
   cast?: Pick<DialogueCastMember, "portraitUrl">[];
 }
 
-export type TekenUitkomst = { bladUrl: string } | { fout: string; geenCredits: boolean };
+/** `bladStijl`: de stijl waarin het blad echt getekend is — zonder styleId tekent de route Flat vector. */
+export type TekenUitkomst = { bladUrl: string; bladStijl: string } | { fout: string; geenCredits: boolean };
 
 /** Herkent een voorwerp tijdens het tekenen: een andere naam of beschrijving is een ander voorwerp. */
 export function voorwerpSleutel(v: Pick<DialogueVoorwerp, "naam" | "uiterlijk">): string {
@@ -60,7 +62,7 @@ export async function tekenVoorwerp(v: DialogueVoorwerp, ctx: TekenContext): Pro
         body: JSON.stringify({ id: v.bibliotheekId, naam: v.naam, uiterlijk: v.uiterlijk, styleId: ctx.styleId, bladUrl: d.bladUrl }),
       }).catch(() => {});
     }
-    return { bladUrl: d.bladUrl as string };
+    return { bladUrl: d.bladUrl as string, bladStijl: ctx.styleId || DEFAULT_STORY_STYLE };
   } catch (e) {
     return { fout: e instanceof Error ? e.message : String(e), geenCredits: false };
   }

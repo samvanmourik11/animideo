@@ -18,7 +18,7 @@ import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
 import { regelKlaar, heeftStem, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
 import { leesRegie, pasRegieToe, regieNodig } from "@/lib/infographics/beeldregie";
-import { MAX_VOORWERPEN, voegVoorwerpenSamen } from "@/lib/infographics/voorwerp-bibliotheek";
+import { MAX_VOORWERPEN, voegVoorwerpenSamen, voorwerpenVoorStijl, type BibliotheekVoorwerp } from "@/lib/infographics/voorwerp-bibliotheek";
 import { tekenVoorwerp, voorwerpSleutel, type TekenContext } from "@/lib/infographics/voorwerp-tekenen";
 import { zitHouding, zegtIetsOverHouding } from "@/lib/infographics/dialogue-staging";
 import VasteVoorwerpen from "@/components/dialogue/VasteVoorwerpen";
@@ -84,16 +84,41 @@ export default function DialoguePage() {
 
   // Het plaatje landt alleen op een voorwerp met nog dezelfde naam en beschrijving: is
   // het intussen aangepast, dan hoort dat plaatje er niet meer bij.
-  const zetBladInSpec = (sleutel: string, bladUrl: string) =>
+  const zetBladInSpec = (sleutel: string, bladUrl: string, bladStijl: string) =>
     setSpec((prev) => prev && {
       ...prev,
-      voorwerpen: (prev.voorwerpen ?? []).map((v) => (voorwerpSleutel(v) === sleutel ? { ...v, bladUrl } : v)),
+      voorwerpen: (prev.voorwerpen ?? []).map((v) => (voorwerpSleutel(v) === sleutel ? { ...v, bladUrl, bladStijl } : v)),
     });
-  const zetBladInOpzet = (sleutel: string, bladUrl: string) =>
+  const zetBladInOpzet = (sleutel: string, bladUrl: string, bladStijl: string) =>
     setSetup((prev) => prev && {
       ...prev,
-      voorwerpen: (prev.voorwerpen ?? []).map((v) => (voorwerpSleutel(v) === sleutel ? { ...v, bladUrl } : v)),
+      voorwerpen: (prev.voorwerpen ?? []).map((v) => (voorwerpSleutel(v) === sleutel ? { ...v, bladUrl, bladStijl } : v)),
     });
+
+  /**
+   * Voorwerpbladen in de tekenstijl van deze video houden (zie voorwerpenVoorStijl).
+   * Vervalt er een blad terwijl het storyboard al bestaat, dan wordt het meteen in de
+   * goede stijl getekend: een shot dat je daarna opnieuw maakt zou anders zonder
+   * boomplaatje gaan, en dat is erger dan met een verkeerd.
+   */
+  async function voorwerpenInStijl(werk: DialogueSpec) {
+    if (!werk.voorwerpen?.length) return;
+    let bibliotheek: BibliotheekVoorwerp[] = [];
+    try {
+      const r = await fetch("/api/voorwerpen");
+      const d = await r.json();
+      if (r.ok && Array.isArray(d.voorwerpen)) bibliotheek = d.voorwerpen;
+    } catch { /* dan weet alleen het voorwerp zelf in welke stijl zijn blad is */ }
+    const stijl = werk.styleId ?? DEFAULT_STORY_STYLE;
+    const nieuw = voorwerpenVoorStijl(werk.voorwerpen, stijl, { bibliotheek });
+    if (nieuw.every((v, i) => v === werk.voorwerpen![i])) return;
+    // Op de nieuwste spec: je kunt intussen doorwerken.
+    setSpec((prev) => (prev?.voorwerpen?.length
+      ? { ...prev, voorwerpen: voorwerpenVoorStijl(prev.voorwerpen, prev.styleId ?? DEFAULT_STORY_STYLE, { bibliotheek }) }
+      : prev));
+    const vervallen = nieuw.filter((v, i) => !v.bladUrl && !!werk.voorwerpen![i].bladUrl);
+    if (werk.castSheetUrl && vervallen.length) void tekenVoorwerpenVoor(vervallen, tekenContext(werk), zetBladInSpec);
+  }
 
   /**
    * Voorwerpen tekenen, zodat je ze in de opzet en het draaiboek al ziet.
@@ -104,7 +129,7 @@ export default function DialoguePage() {
   async function tekenVoorwerpenVoor(
     lijst: DialogueVoorwerp[],
     ctx: TekenContext,
-    zetBlad: (sleutel: string, bladUrl: string) => void,
+    zetBlad: (sleutel: string, bladUrl: string, bladStijl: string) => void,
   ) {
     const teDoen = lijst.filter(
       (v) => v.naam.trim() && v.uiterlijk.trim() && !voorwerpTekenBezig.includes(voorwerpSleutel(v)),
@@ -115,7 +140,7 @@ export default function DialoguePage() {
     await Promise.all(teDoen.map(async (v) => {
       const uit = await tekenVoorwerp(v, ctx);
       if ("fout" in uit) fouten.push(`${v.naam}: ${uit.fout}`);
-      else zetBlad(voorwerpSleutel(v), uit.bladUrl);
+      else zetBlad(voorwerpSleutel(v), uit.bladUrl, uit.bladStijl);
       setVoorwerpTekenBezig((bezig) => bezig.filter((k) => k !== voorwerpSleutel(v)));
     }));
     if (fouten.length) setVoorwerpenMelding(`Tekenen niet gelukt. ${fouten.join("; ")}`);
@@ -256,6 +281,7 @@ export default function DialoguePage() {
         if (geladen.targetSeconds) setLengte(geladen.targetSeconds);
         setProjectId(id);
         setStap(3);
+        void voorwerpenInStijl(geladen);
       } catch (e) {
         setFout(e instanceof Error ? e.message : String(e));
       } finally {
@@ -562,6 +588,7 @@ export default function DialoguePage() {
           mislukt.push(`voorwerp ${v.naam}`);
         } else {
           v.bladUrl = uit.bladUrl;
+          v.bladStijl = uit.bladStijl;
           setSpec(structuredClone(werk));
         }
       }
@@ -1227,7 +1254,17 @@ export default function DialoguePage() {
               <ArtDirection
                 styleId={spec.styleId ?? DEFAULT_STORY_STYLE}
                 brief={spec.illustrationBrief ?? ""}
-                onStyle={(id) => setSpec({ ...spec, styleId: id })}
+                onStyle={(id) => {
+                  // Getekende voorwerpen horen bij de vorige stijl: die worden een voorbeeld
+                  // en het storyboard tekent ze opnieuw. Zie voorwerpenVoorStijl.
+                  const werk = {
+                    ...spec,
+                    styleId: id,
+                    voorwerpen: spec.voorwerpen && voorwerpenVoorStijl(spec.voorwerpen, id, { vorigeStijl: spec.styleId ?? DEFAULT_STORY_STYLE }),
+                  };
+                  setSpec(werk);
+                  void voorwerpenInStijl(werk);
+                }}
                 onBrief={(t) => setSpec({ ...spec, illustrationBrief: t || null })}
                 disabled={renderBezig}
                 gemaakteBeelden={

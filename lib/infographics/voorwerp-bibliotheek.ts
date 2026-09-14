@@ -64,9 +64,45 @@ export function naarDialoogVoorwerp(v: BibliotheekVoorwerp, styleId?: string | n
     naam: v.naam,
     uiterlijk: v.uiterlijk,
     bladUrl: blad,
+    bladStijl: blad ? styleId ?? null : null,
     bibliotheekId: v.id,
     voorbeeldUrl: blad ? null : bladUitAndereStijl(v, styleId),
   };
+}
+
+/**
+ * Voorwerpbladen die bij de tekenstijl van deze video horen.
+ *
+ * De grote boom werd getekend toen de video nog Flat vector was. Daarna werd het
+ * Soft 3D, maar het platte boomplaatje ging mee naar elk shot: het beeldmodel nam de
+ * platte kruin over (groene klodders) en tekende de boom in elk shot weer anders. Een
+ * blad uit een andere stijl is daarom alleen nog een voorbeeld voor de vorm, en het
+ * voorwerp wordt in de goede stijl opnieuw getekend. Heeft de bibliotheek het al in
+ * deze stijl, dan komt dat blad.
+ *
+ * Een voorwerp van vóór `bladStijl` weet zelf niet in welke stijl zijn blad is. Dan
+ * zegt de bibliotheek het, of `vorigeStijl` bij een stijlwissel; anders blijft het staan.
+ * Wat niet verandert, komt als hetzelfde object terug.
+ */
+export function voorwerpenVoorStijl(
+  voorwerpen: DialogueVoorwerp[] | null | undefined,
+  styleId: string,
+  opties: { bibliotheek?: BibliotheekVoorwerp[]; vorigeStijl?: string | null } = {},
+): DialogueVoorwerp[] {
+  return (voorwerpen ?? []).map((v) => {
+    const bieb = v.bibliotheekId ? opties.bibliotheek?.find((b) => b.id === v.bibliotheekId) : undefined;
+    const uitBieb = bieb ? bladVoorStijl(bieb, styleId) : null;
+    if (uitBieb) {
+      return uitBieb === v.bladUrl && v.bladStijl === styleId
+        ? v
+        : { ...v, bladUrl: uitBieb, bladStijl: styleId, voorbeeldUrl: null };
+    }
+    if (!v.bladUrl) return v;
+    const stijlInBieb = bieb ? Object.entries(bieb.bladen).find(([, url]) => url === v.bladUrl)?.[0] : undefined;
+    const stijl = v.bladStijl ?? stijlInBieb ?? opties.vorigeStijl ?? null;
+    if (!stijl || stijl === styleId) return v;
+    return { ...v, bladUrl: null, bladStijl: null, voorbeeldUrl: v.bladUrl };
+  });
 }
 
 /** De bibliotheek als lijst voor een opdracht aan het taalmodel. */
@@ -87,8 +123,15 @@ const naamSleutel = (naam: string) => naam.trim().toLowerCase().replace(/^(?:de|
  * het id maar noemt het dezelfde naam, dan hoort hij er ook bij. Wat niet in de
  * bibliotheek staat, is nieuw en wordt voor deze video getekend.
  */
+/** Zoekwoorden uit een antwoord: kort, uniek, en de naam zelf hoeft er niet nog eens in. */
+export function leesZoekwoorden(ruw: unknown, naam = ""): string[] {
+  const lijst = Array.isArray(ruw) ? ruw : [];
+  const woorden = lijst.map((w) => String(w ?? "").trim().toLowerCase()).filter((w) => w.length >= 3 && w.length <= 40);
+  return [...new Set(woorden)].filter((w) => w !== naam.trim().toLowerCase()).slice(0, 8);
+}
+
 export function koppelVoorwerpen(
-  voorstel: { naam?: unknown; uiterlijk?: unknown; bibliotheekId?: unknown }[],
+  voorstel: { naam?: unknown; uiterlijk?: unknown; bibliotheekId?: unknown; zoekwoorden?: unknown }[],
   bibliotheek: BibliotheekVoorwerp[],
   styleId?: string | null,
 ): DialogueVoorwerp[] {
@@ -106,9 +149,12 @@ export function koppelVoorwerpen(
     const sleutel = bieb ? `id:${bieb.id}` : `naam:${naamSleutel(naam)}`;
     if (gezien.has(sleutel)) continue;
     gezien.add(sleutel);
+    // De zoekwoorden komen altijd uit het antwoord, ook bij een bibliotheekvoorwerp:
+    // die hangen af van hoe DIT draaiboek het ding beschrijft.
+    const zoekwoorden = leesZoekwoorden(ruw.zoekwoorden, naam);
     uit.push(bieb
-      ? naarDialoogVoorwerp(bieb, styleId)
-      : { naam, uiterlijk, bladUrl: null, bibliotheekId: null, voorbeeldUrl: null });
+      ? { ...naarDialoogVoorwerp(bieb, styleId), zoekwoorden }
+      : { naam, uiterlijk, bladUrl: null, bibliotheekId: null, voorbeeldUrl: null, zoekwoorden });
     if (uit.length >= MAX_VOORWERPEN) break;
   }
   return uit;
@@ -121,11 +167,18 @@ export function koppelVoorwerpen(
  */
 export function voegVoorwerpenSamen(bestaand: DialogueVoorwerp[], gevonden: DialogueVoorwerp[]): DialogueVoorwerp[] {
   const uit = [...bestaand];
-  const staatErAl = (v: DialogueVoorwerp) =>
-    uit.some((x) => (!!v.bibliotheekId && x.bibliotheekId === v.bibliotheekId) || naamSleutel(x.naam) === naamSleutel(v.naam));
+  const indexVan = (v: DialogueVoorwerp) =>
+    uit.findIndex((x) => (!!v.bibliotheekId && x.bibliotheekId === v.bibliotheekId) || naamSleutel(x.naam) === naamSleutel(v.naam));
   for (const v of gevonden) {
-    if (uit.length >= MAX_VOORWERPEN) break;
-    if (!staatErAl(v)) uit.push(v);
+    const i = indexVan(v);
+    if (i >= 0) {
+      // Een voorwerp dat er al stond houdt alles, maar krijgt wel de zoekwoorden erbij:
+      // de grote boom van voor de zoekwoorden ging anders nooit mee naar "a massive oak".
+      const woorden = [...new Set([...(uit[i].zoekwoorden ?? []), ...(v.zoekwoorden ?? [])])];
+      if (woorden.length) uit[i] = { ...uit[i], zoekwoorden: woorden };
+      continue;
+    }
+    if (uit.length < MAX_VOORWERPEN) uit.push(v);
   }
   return uit;
 }
@@ -140,11 +193,12 @@ export const VOORWERPEN_ZOEKEN_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["naam", "uiterlijk", "bibliotheekId"],
+        required: ["naam", "uiterlijk", "bibliotheekId", "zoekwoorden"],
         properties: {
           naam: { type: "string" },
           uiterlijk: { type: "string" },
           bibliotheekId: { type: "string" },
+          zoekwoorden: { type: "array", items: { type: "string" } },
         },
       },
     },
@@ -165,6 +219,7 @@ PER VOORWERP
 - "naam": zoals het in het verhaal heet, in de taal van het verhaal ("klaproos", "de grote eik", "Wonderwagen").
 - "uiterlijk": één ENGELSE zin die precies beschrijft hoe het eruitziet, zodat een tekenaar het elke keer hetzelfde tekent: wat voor ding het is, de hoofdkleur, twee opvallende details en hoe groot het is naast de personages. Voorbeeld van de vorm (niet van de inhoud): "an old brass lantern with a round glass window and a curled handle, about the size of a child's head". Natuurgetrouw en passend bij wat het verhaal zegt; nooit alleen vage woorden als "magical" of "colourful".
 - "bibliotheekId": staat het voorwerp in DE VOORWERPENBIBLIOTHEEK (hetzelfde ding, ook als het verhaal het iets anders noemt), gebruik dan dat id en neem naam en uiterlijk letterlijk uit de bibliotheek over. Anders leeg.
+- "zoekwoorden": drie tot zes losse woorden waarmee het draaiboek en de beschrijvingen van de shots dit ding noemen of kunnen noemen, in het Nederlands én het Engels, zonder lidwoord ("boom", "eik", "tree", "oak"). Specifiek genoeg om niets anders te raken: "bloem" of "flower" alleen als er geen andere bloemen in het verhaal voorkomen.
 - Staan er VOORWERPEN DIE AL VASTLIGGEN, geef die ook terug, ongewijzigd.`;
 
 /** De vraag om de voorwerpen uit een geschreven draaiboek te halen. */

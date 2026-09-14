@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   bladUitAndereStijl, bladVoorStijl, koppelVoorwerpen, leesBibliotheekVoorwerp, naarDialoogVoorwerp, tabelOntbreekt,
-  voegVoorwerpenSamen, voorwerpenZoekPrompt,
+  voegVoorwerpenSamen, voorwerpenVoorStijl, voorwerpenZoekPrompt,
   MAX_VOORWERPEN, type BibliotheekVoorwerp,
 } from "./voorwerp-bibliotheek";
 
@@ -32,7 +32,7 @@ describe("koppelVoorwerpen", () => {
 
   it("maakt van een onbekend voorwerp een nieuw voorwerp zonder blad", () => {
     const [uit] = koppelVoorwerpen([{ naam: "bosanemoon", uiterlijk: "a small white woodland flower", bibliotheekId: "bestaat-niet" }], [WAGEN], "soft-3d");
-    expect(uit).toEqual({ naam: "bosanemoon", uiterlijk: "a small white woodland flower", bladUrl: null, bibliotheekId: null, voorbeeldUrl: null });
+    expect(uit).toEqual({ naam: "bosanemoon", uiterlijk: "a small white woodland flower", bladUrl: null, bibliotheekId: null, voorbeeldUrl: null, zoekwoorden: [] });
   });
 
   it("zet hetzelfde voorwerp er maar één keer in", () => {
@@ -95,6 +95,71 @@ describe("voegVoorwerpenSamen", () => {
   it("gaat niet over het maximum", () => {
     const vol = Array.from({ length: MAX_VOORWERPEN }, (_, i) => ({ naam: `ding ${i}`, uiterlijk: "x" }));
     expect(voegVoorwerpenSamen(vol, [{ naam: "nog een", uiterlijk: "y" }])).toHaveLength(MAX_VOORWERPEN);
+  });
+});
+
+// "grote boom" in de lijst, "a massive oak tree" in de shots: zonder zoekwoorden ging
+// het boomplaatje niet mee.
+describe("zoekwoorden", () => {
+  it("komen mee uit het antwoord, zonder dubbelingen, lege woorden of de naam zelf", () => {
+    const [uit] = koppelVoorwerpen(
+      [{ naam: "grote boom", uiterlijk: "a huge oak", bibliotheekId: "", zoekwoorden: ["Tree", "oak", "tree", "", "grote boom", "x"] }],
+      [], "soft-3d",
+    );
+    expect(uit.zoekwoorden).toEqual(["tree", "oak"]);
+  });
+
+  it("komen ook bij een bibliotheekvoorwerp uit het antwoord", () => {
+    const [uit] = koppelVoorwerpen([{ bibliotheekId: "w-1", naam: "x", uiterlijk: "y", zoekwoorden: ["wagon", "wagen"] }], [WAGEN], "soft-3d");
+    expect(uit.bibliotheekId).toBe("w-1");
+    expect(uit.zoekwoorden).toEqual(["wagon", "wagen"]);
+  });
+
+  it("worden bij een voorwerp dat er al stond aangevuld, zonder de rest te veranderen", () => {
+    const boom = { naam: "grote boom", uiterlijk: "a huge oak", bladUrl: "https://x/boom.png" };
+    const [uit] = voegVoorwerpenSamen([boom], [{ naam: "Grote boom", uiterlijk: "anders", bladUrl: null, zoekwoorden: ["tree", "oak"] }]);
+    expect(uit).toEqual({ ...boom, zoekwoorden: ["tree", "oak"] });
+  });
+});
+
+// De grote boom was getekend in Flat vector, de video werd Soft 3D, en het platte
+// boomplaatje ging mee naar elk shot: in elk beeld een andere boom.
+describe("voorwerpenVoorStijl", () => {
+  const boom = { naam: "grote boom", uiterlijk: "a huge oak", bladUrl: "https://x/boom-plat.png", bladStijl: "flat-vector" };
+
+  it("maakt van een blad uit een andere stijl een voorbeeld, zodat het opnieuw getekend wordt", () => {
+    const [uit] = voorwerpenVoorStijl([boom], "soft-3d");
+    expect(uit).toEqual({ ...boom, bladUrl: null, bladStijl: null, voorbeeldUrl: "https://x/boom-plat.png" });
+  });
+
+  it("laat een blad in de goede stijl ongemoeid", () => {
+    expect(voorwerpenVoorStijl([boom], "flat-vector")[0]).toBe(boom);
+  });
+
+  it("weet bij een voorwerp zonder bladstijl via de bibliotheek in welke stijl het blad is", () => {
+    const oud = { naam: "Wonderwagen", uiterlijk: WAGEN.uiterlijk, bladUrl: "https://x/wagen-plat.png", bibliotheekId: "w-1" };
+    const bieb = { ...WAGEN, bladen: { "flat-vector": "https://x/wagen-plat.png" } };
+    expect(voorwerpenVoorStijl([oud], "soft-3d", { bibliotheek: [bieb] })[0]).toMatchObject({
+      bladUrl: null, voorbeeldUrl: "https://x/wagen-plat.png",
+    });
+  });
+
+  it("neemt het blad uit de bibliotheek als die het voorwerp al in deze stijl heeft", () => {
+    const oud = { naam: "Wonderwagen", uiterlijk: WAGEN.uiterlijk, bladUrl: "https://x/wagen-plat.png", bladStijl: "flat-vector", bibliotheekId: "w-1" };
+    expect(voorwerpenVoorStijl([oud], "soft-3d", { bibliotheek: [WAGEN] })[0]).toMatchObject({
+      bladUrl: "https://x/wagen-3d.png", bladStijl: "soft-3d", voorbeeldUrl: null,
+    });
+  });
+
+  it("gaat bij een stijlwissel uit van de vorige stijl, en laat zonder die kennis alles staan", () => {
+    const oud = { naam: "klaproos", uiterlijk: "a red poppy", bladUrl: "https://x/klaproos.png" };
+    expect(voorwerpenVoorStijl([oud], "papercut", { vorigeStijl: "soft-3d" })[0].bladUrl).toBeNull();
+    expect(voorwerpenVoorStijl([oud], "papercut")[0]).toBe(oud);
+  });
+
+  it("geeft het blad van de juiste stijl mee bij een bibliotheekvoorwerp", () => {
+    expect(naarDialoogVoorwerp(WAGEN, "soft-3d").bladStijl).toBe("soft-3d");
+    expect(naarDialoogVoorwerp(WAGEN, "flat-vector").bladStijl).toBeNull();
   });
 });
 

@@ -18,6 +18,17 @@ describe("voorwerpenInScene", () => {
   it("neemt geen voorwerp mee dat nergens genoemd wordt", () => {
     expect(voorwerpenInScene([{ naam: "Wonderwagen", uiterlijk: "a wagon" }], scene)).toHaveLength(0);
   });
+
+  // "grote boom" in de lijst, "a massive oak tree" in de beschrijving van het shot.
+  it("herkent een voorwerp ook aan zijn zoekwoorden", () => {
+    const boom = { naam: "grote boom", uiterlijk: "a huge old oak with a hollow", zoekwoorden: ["tree", "oak"] };
+    const metBoom: Pick<DialogueScene, "setting" | "lines"> = {
+      setting: "a forest clearing",
+      lines: [{ characterId: "c1", text: "Wauw!", emotion: "blij", beeld: "Tyrell looks up at the massive oak." }],
+    };
+    expect(voorwerpenInScene([boom], metBoom)).toHaveLength(1);
+    expect(voorwerpenInScene([{ ...boom, zoekwoorden: null }], metBoom)).toHaveLength(0);
+  });
 });
 
 // De bug die dit moet vangen: een video van twee minuten kwam terug met het

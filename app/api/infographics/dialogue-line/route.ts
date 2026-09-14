@@ -482,6 +482,11 @@ export async function POST(req: NextRequest) {
             // Een gerichte correctie van de gebruiker op dít ene beeld weegt
             // zwaarder dan de algemene briefing, dus hij staat erachter.
             beeldInstructie ? `IMPORTANT CORRECTION for this specific shot: ${beeldInstructie}` : "",
+            // Een herkansing weet waarom de vorige poging is afgekeurd, bijvoorbeeld een
+            // kind te veel of een verkeerde spreker. Anders tekende hij dezelfde fout.
+            poging > 1 && beeldFouten.length
+              ? `The previous attempt was rejected for these mistakes — avoid them: ${beeldFouten.join("; ")}.`
+              : "",
           ].filter(Boolean).join(" ").trim() || undefined,
         });
         const kandidaat = await persistFalAssetSoft(supabase, user.id, beeld.imageUrl, "image");

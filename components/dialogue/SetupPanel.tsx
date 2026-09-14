@@ -3,6 +3,7 @@
 import CastPicker from "./CastPicker";
 import ArtDirection from "./ArtDirection";
 import VasteVoorwerpen from "./VasteVoorwerpen";
+import { voorwerpenVoorStijl } from "@/lib/infographics/voorwerp-bibliotheek";
 import { DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
 import { opzetKlaar, type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import { MAX_PER_SCENE, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
@@ -551,7 +552,13 @@ export default function SetupPanel({
         <ArtDirection
           styleId={setup.styleId || DEFAULT_STORY_STYLE}
           brief={setup.illustrationBrief}
-          onStyle={(id) => zet("styleId", id)}
+          // Een voorwerp dat al in de vorige stijl getekend is, wordt een voorbeeld voor
+          // de vorm en opnieuw getekend. Zie voorwerpenVoorStijl.
+          onStyle={(id) => onChange({
+            ...setup,
+            styleId: id,
+            voorwerpen: setup.voorwerpen && voorwerpenVoorStijl(setup.voorwerpen, id, { vorigeStijl: setup.styleId || DEFAULT_STORY_STYLE }),
+          })}
           onBrief={(t) => zet("illustrationBrief", t)}
           disabled={uit}
         />

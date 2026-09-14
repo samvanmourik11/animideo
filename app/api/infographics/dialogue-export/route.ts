@@ -9,6 +9,9 @@ import { storyCanvasSize } from "@/lib/infographics/canvas-size";
 import { STORY_FPS } from "@/lib/infographics/story-layout";
 import type { DialogueSpec } from "@/lib/infographics/dialogue-schema";
 import { renderMusicBed } from "@/lib/music/bed";
+import {
+  beginEindFade, montagePlan, overgangOffsets, segmentAudioFilter, segmentVideoFilter, SCENE_OVERGANG,
+} from "@/lib/infographics/dialoog-montage";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -17,11 +20,9 @@ export const maxDuration = 300;
 // moment waarop de mond opengaat en precies zo lang als de zin duurt — zo begint
 // de stem op de mondbeweging en praat er niemand door nadat het geluid stopt.
 //
-// Tussen de segmenten een korte overvloeier. Dat is geen opsmuk: het kader en de
-// personages blijven hetzelfde tussen twee regels, dus een harde las ziet eruit
-// als een sprong. Prijs daarvan is dat we niet meer met de concat-demuxer kunnen
-// stream-copyen; alles gaat door één filtergraph.
-const XFADE = 0.25;
+// Hoe de clips in elkaar overlopen (gewone lassen binnen een scène, een zachte
+// overvloeier over een stil moment tussen scènes, een fade aan begin en eind) staat
+// in dialoog-montage.ts. Alles gaat door één filtergraph, dus geen stream-copy.
 
 function runFfmpeg(args: string[], limietMs = 280_000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -78,71 +79,78 @@ export async function POST(req: NextRequest) {
     const fps = STORY_FPS;
     dir = await mkdtemp(path.join(tmpdir(), "dialogue-"));
 
-    // ---------- 1. Per regel een segment op maat ----------
-    // `scene` bepaalt waar een overvloeier mag komen: alleen bij een scènewissel.
-    const segmenten: { file: string; dur: number; scene: number }[] = [];
+    // ---------- 1. Welke regels er in de video komen ----------
+    // Eerst de lijst, dan pas de segmenten: of een regel een stille kop of staart
+    // krijgt, hangt af van de regel ervoor en erna (zie montagePlan).
+    const kandidaten: { scene: number; clip: string; stem: string | null; spraak: number; start: number; isActie: boolean }[] = [];
     let n = 0;
     for (const [si, scene] of spec.scenes.entries()) {
       for (const regel of scene.lines) {
         if (!regel.videoUrl) continue;
+        const isActie = regel.kind === "actie";
+        const metStem = !!regel.audioUrl;
+        if (!isActie && !metStem) continue;
 
         const clip = path.join(dir, `c${n}.mp4`);
-        const isActie = regel.kind === "actie";
+        const stem = path.join(dir, `a${n}.mp3`);
         n++;
         if (!(await download(regel.videoUrl, clip))) continue;
         const clipDuur = await probeDuur(clip);
 
-        const seg = path.join(dir, `s${String(segmenten.length).padStart(3, "0")}.mp4`);
-        const scaleV = `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${fps},setsar=1,format=yuv420p`;
-
-        // Een actiebeeld ZONDER voice-over: de muziek draagt het. We plakken er wel
-        // een stil audiospoor onder, want alle segmenten moeten dezelfde parameters
-        // hebben voordat ze aan elkaar kunnen.
-        if (isActie && !regel.audioUrl) {
+        // Een actiebeeld ZONDER voice-over: de muziek draagt het.
+        if (!metStem) {
           const duur = Math.max(1, Math.min(regel.seconden ?? 4, clipDuur || (regel.seconden ?? 4)));
-          await runFfmpeg([
-            "-i", clip, "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-            "-filter_complex", `[0:v]${scaleV}[v]`,
-            "-map", "[v]", "-map", "1:a", "-t", duur.toFixed(3), ...ENC(fps), "-y", seg,
-          ]);
-          segmenten.push({ file: seg, dur: duur, scene: si });
+          kandidaten.push({ scene: si, clip, stem: null, spraak: duur, start: 0, isActie });
           continue;
         }
 
-        if (!regel.audioUrl) continue;
-        const stem = path.join(dir, `a${n}.mp3`);
-        if (!(await download(regel.audioUrl, stem))) continue;
-
+        if (!(await download(regel.audioUrl as string, stem))) continue;
         // De echte audiolengte meten in plaats van audioDuration uit de spec
         // vertrouwen: die is een schatting en een te lage waarde kapt de zin af.
         const stemDuur = (await probeDuur(stem)) || regel.audioDuration || 4;
         // Nooit voorbij het einde van de clip beginnen.
         // Bij een voice-over hoeft er niets op een mond te vallen: begin op nul.
         const start = isActie ? 0 : Math.max(0, Math.min(regel.mouthStart ?? 0, Math.max(0, clipDuur - stemDuur)));
-
-        await runFfmpeg([
-          "-ss", start.toFixed(3), "-i", clip, "-i", stem,
-          "-filter_complex",
-          `[0:v]${scaleV}[v];[1:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo[a]`,
-          "-map", "[v]", "-map", "[a]", "-t", stemDuur.toFixed(3), ...ENC(fps), "-y", seg,
-        ]);
-        segmenten.push({ file: seg, dur: stemDuur, scene: si });
+        kandidaten.push({ scene: si, clip, stem, spraak: stemDuur, start, isActie });
       }
     }
 
-    if (segmenten.length === 0) {
+    if (kandidaten.length === 0) {
       return NextResponse.json({ error: "Nog geen clips gegenereerd om te exporteren" }, { status: 400 });
     }
 
-    // ---------- 2. Aan elkaar vloeien ----------
+    // ---------- 2. Per regel een segment op maat ----------
+    const plan = montagePlan(kandidaten.map((k) => ({ scene: k.scene, spraak: k.spraak })));
+    const schaal = `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${fps},setsar=1,format=yuv420p`;
+    const segmenten: { file: string; dur: number; scene: number }[] = [];
+    for (const [i, k] of kandidaten.entries()) {
+      const p = plan[i];
+      const seg = path.join(dir, `s${String(i).padStart(3, "0")}.mp4`);
+      // Bij een gesproken regel blijft het laatste beeld staan in de stilte erna; bij
+      // een actiebeeld loopt de beweging door. Zie segmentVideoFilter.
+      const beeldFilter = segmentVideoFilter(schaal, p, !k.isActie);
+      if (!k.stem) {
+        // Alle segmenten moeten dezelfde parameters hebben voordat ze aan elkaar
+        // kunnen, dus ook een stil actiebeeld krijgt een (stil) audiospoor.
+        await runFfmpeg([
+          "-i", k.clip, "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
+          "-filter_complex", `[0:v]${beeldFilter}[v]`,
+          "-map", "[v]", "-map", "1:a", "-t", p.duur.toFixed(3), ...ENC(fps), "-y", seg,
+        ]);
+      } else {
+        await runFfmpeg([
+          "-ss", k.start.toFixed(3), "-i", k.clip, "-i", k.stem,
+          "-filter_complex", `[0:v]${beeldFilter}[v];[1:a]${segmentAudioFilter(p)}[a]`,
+          "-map", "[v]", "-map", "[a]", "-t", p.duur.toFixed(3), ...ENC(fps), "-y", seg,
+        ]);
+      }
+      segmenten.push({ file: seg, dur: p.duur, scene: k.scene });
+    }
+
+    // ---------- 3. Per scène aan elkaar ----------
     //
-    // Een overvloeier hoort bij een SCÈNEWISSEL, niet bij elke gesproken regel.
-    // Binnen één scène komen alle beelden uit hetzelfde twee-shot: dezelfde
-    // mensen, dezelfde omgeving, alleen een andere mond en houding. Daar een
-    // dissolve overheen leggen ziet eruit als geflikker, en dat gebeurde bij élke
-    // zin — twintig keer in een video van twee minuten.
-    //
-    // Dus: binnen een scène harde lassen (concat), tussen scènes een korte fade.
+    // Binnen één scène harde lassen (concat): een dissolve bij elke gesproken regel
+    // zag eruit als geflikker, twintig keer in een video van twee minuten.
     const groepen: { file: string; dur: number }[] = [];
     for (let i = 0; i < segmenten.length; ) {
       const scene = segmenten[i].scene;
@@ -153,9 +161,9 @@ export async function POST(req: NextRequest) {
         groepen.push({ file: groep[0].file, dur: groep[0].dur });
         continue;
       }
-      // Alle segmenten zijn met dezelfde ENC()-parameters gemaakt, dus ze mogen
-      // zonder omcodering aan elkaar. Toch via de concat-FILTER en niet de
-      // demuxer: die laatste struikelt over kleine verschillen in tijdbasis.
+      // Alle segmenten zijn met dezelfde ENC()-parameters gemaakt. Toch via de
+      // concat-FILTER en niet de demuxer: die laatste struikelt over kleine
+      // verschillen in tijdbasis.
       const samengevoegd = path.join(dir, `g${String(groepen.length).padStart(3, "0")}.mp4`);
       const labels = groep.map((_, j) => `[${j}:v][${j}:a]`).join("");
       await runFfmpeg([
@@ -166,32 +174,28 @@ export async function POST(req: NextRequest) {
       groepen.push({ file: samengevoegd, dur: groep.reduce((a, g) => a + g.dur, 0) });
     }
 
+    // ---------- 4. Scènes in elkaar laten overvloeien ----------
+    // Elke overvloeier valt op de stille staart van de ene scène en de stille kop van
+    // de volgende; de stemmen raken elkaar dus nooit.
     const samen = path.join(dir, "samen.mp4");
-    if (groepen.length === 1) {
-      await runFfmpeg(["-i", groepen[0].file, "-c", "copy", "-movflags", "+faststart", "-y", samen]);
-    } else {
-      // Eén filtergraph die alle scènes aan elkaar vloeit. De offset van elke
-      // overgang is de som van de voorgaande lengtes minus de reeds gebruikte
-      // overvloeitijd — anders schuift elke volgende overgang te ver naar achteren.
-      const invoer = groepen.flatMap((g) => ["-i", g.file]);
-      const delen: string[] = [];
-      let vLabel = "0:v", aLabel = "0:a", gelopen = groepen[0].dur;
-      for (let i = 1; i < groepen.length; i++) {
-        const offset = Math.max(0, gelopen - XFADE);
-        const vUit = `v${i}`, aUit = `a${i}`;
-        delen.push(`[${vLabel}][${i}:v]xfade=transition=fade:duration=${XFADE}:offset=${offset.toFixed(3)}[${vUit}]`);
-        delen.push(`[${aLabel}][${i}:a]acrossfade=d=${XFADE}:c1=tri:c2=tri[${aUit}]`);
-        vLabel = vUit; aLabel = aUit;
-        gelopen = offset + groepen[i].dur;
-      }
-      await runFfmpeg([
-        ...invoer, "-filter_complex", delen.join(";"),
-        "-map", `[${vLabel}]`, "-map", `[${aLabel}]`,
-        ...ENC(fps), "-movflags", "+faststart", "-y", samen,
-      ]);
+    const { offsets, totaal } = overgangOffsets(groepen.map((g) => g.dur));
+    const invoer = groepen.flatMap((g) => ["-i", g.file]);
+    const delen: string[] = [];
+    let vLabel = "0:v", aLabel = "0:a";
+    for (let i = 1; i < groepen.length; i++) {
+      const vUit = `v${i}`, aUit = `a${i}`;
+      delen.push(`[${vLabel}][${i}:v]xfade=transition=fade:duration=${SCENE_OVERGANG}:offset=${offsets[i - 1].toFixed(3)}[${vUit}]`);
+      delen.push(`[${aLabel}][${i}:a]acrossfade=d=${SCENE_OVERGANG}:c1=tri:c2=tri[${aUit}]`);
+      vLabel = vUit; aLabel = aUit;
     }
+    delen.push(`[${vLabel}]${beginEindFade(totaal)}[veind]`);
+    await runFfmpeg([
+      ...invoer, "-filter_complex", delen.join(";"),
+      "-map", "[veind]", "-map", groepen.length > 1 ? `[${aLabel}]` : "0:a",
+      ...ENC(fps), "-movflags", "+faststart", "-y", samen,
+    ]);
 
-    // ---------- 3. Muziekbed met ducking ----------
+    // ---------- 5. Muziekbed met ducking ----------
     // Actiebeelden hebben geen stem. Met een muziekbed dat overal even zacht staat
     // vallen die momenten dood: je ziet iets gebeuren en hoort vrijwel niets.
     //
@@ -200,7 +204,8 @@ export async function POST(req: NextRequest) {
     // actiebeeld komt hij vanzelf naar voren. Gemeten op een testmix levert dat
     // ~8,5 dB meer muziek op de stille stukken op, terwijl de dialoogsegmenten
     // exact even luid blijven. Dat gaat automatisch mee met elk draaiboek, zonder
-    // dat we per segment tijdstippen hoeven bij te houden.
+    // dat we per segment tijdstippen hoeven bij te houden. Ook de stille momenten
+    // rond een scènewissel krijgen zo muziek, zodat de overgang niet stilvalt.
     let eind = samen;
     if (spec.musicUrl) {
       const bron = path.join(dir, "muziek-bron.mp3");
@@ -233,7 +238,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ---------- 4. Opslaan ----------
+    // ---------- 6. Opslaan ----------
     const bytes = await readFile(eind);
     const pad = `${user.id}/dialogue/dialoog-${Date.now()}.mp4`;
     const { error: upErr } = await supabase.storage.from("scene-assets").upload(pad, bytes, { contentType: "video/mp4", upsert: true });

@@ -356,6 +356,12 @@ export interface DialogueVoorwerp {
    */
   bladUrl?: string | null;
   /**
+   * De tekenstijl (styleId) waarin het blad getekend is. De grote boom werd getekend
+   * toen de video nog Flat vector was; na de wissel naar Soft 3D ging het platte
+   * boomplaatje mee naar elk shot. Zie voorwerpenVoorStijl.
+   */
+  bladStijl?: string | null;
+  /**
    * Id in de voorwerpenbibliotheek. Zo'n voorwerp ziet er in elke video hetzelfde uit:
    * naam, beschrijving en blad komen uit de bibliotheek. Zie voorwerp-bibliotheek.ts.
    */
@@ -365,6 +371,12 @@ export interface DialogueVoorwerp {
    * tekenen in deze stijl alleen een voorbeeld voor vorm en kleuren.
    */
   voorbeeldUrl?: string | null;
+  /**
+   * Andere woorden waarmee het draaiboek dit voorwerp noemt, in beide talen ("boom",
+   * "tree", "oak"). Het voorwerp heette "grote boom" en de beschrijvingen van de shots
+   * zeiden "a massive oak tree": zonder deze woorden ging het boomplaatje niet mee.
+   */
+  zoekwoorden?: string[] | null;
 }
 
 export interface DialogueSpec {
@@ -480,7 +492,9 @@ export function voorwerpenInScene(
     .toLowerCase();
   return (voorwerpen ?? [])
     .filter((v) => v.uiterlijk.trim())
-    .filter((v) => noemtVoorwerp(v.naam, tekst))
+    // Ook de zoekwoorden: het voorwerp heette "grote boom", de beschrijvingen van de
+    // shots zeiden "a massive oak tree", en dan ging het boomplaatje niet mee.
+    .filter((v) => [v.naam, ...(v.zoekwoorden ?? [])].some((w) => noemtVoorwerp(w, tekst)))
     .slice(0, MAX_VOORWERPEN_PER_BEELD);
 }
 
