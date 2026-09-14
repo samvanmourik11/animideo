@@ -319,8 +319,8 @@ export interface DialogueScene {
    *
    * Zeven scènes op een wandeling door het bos hadden dezelfde omschrijving en
    * werden zeven keer hetzelfde bospad. Nu krijgt elke scène een eigen plekje,
-   * maar scènes in hetzelfde gebied horen er als één bos uit te zien, met hetzelfde
-   * licht. Zie sfeerAnker in beeldregie.ts.
+   * maar scènes in hetzelfde gebied horen er als één bos uit te zien. De beeldregie
+   * vult dit in (zie beeldregie.ts).
    */
   gebied?: string | null;
   /** Is de beeldregie over deze scène gegaan (eigen plek, beeld per regel)? */

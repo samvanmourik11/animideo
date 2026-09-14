@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { leesRegie, pasRegieToe, regieNodig, regiePrompt, sfeerAnker } from "./beeldregie";
+import { dubbelePlekken, leesRegie, pasRegieToe, regieNodig, regiePrompt } from "./beeldregie";
 import type { DialogueCastMember, DialogueScene, DialogueSpec } from "./dialogue-schema";
 
 // De beeldregie bepaalt per scène een eigen plekje en per regel wat je ziet. Het
@@ -35,7 +35,7 @@ const REGIE = leesRegie({
   scenes: [{
     index: 0,
     gebied: "forest",
-    plek: "a lush forest, a small clearing carpeted with white wood anemones",
+    plek: "a small clearing carpeted with white wood anemones in a lush forest",
     regels: [
       { index: 0, beeld: "Tyrell crouches next to a white wood anemone, pointing at it." },
       { index: 1, beeld: "Lilly leans in to look at the flower." },
@@ -95,38 +95,24 @@ describe("pasRegieToe", () => {
   });
 });
 
-describe("sfeerAnker", () => {
-  const plek = (setting: string, extra: Partial<DialogueScene> = {}) => scene({ id: setting, setting, ...extra });
+// Zes bosscènes kregen van de regie alle zes dezelfde plek.
+describe("dubbelePlekken", () => {
+  const regieMet = (plekken: string[]) =>
+    leesRegie({ scenes: plekken.map((plek, index) => ({ index, gebied: "forest", plek, regels: [] })) });
 
-  it("neemt het licht over van een andere plek in hetzelfde gebied", () => {
-    const scenes = [
-      plek("a forest path", { gebied: "forest", twoShotUrl: "https://x/pad.png" }),
-      plek("a clearing with flowers", { gebied: "Forest" }),
-    ];
-    expect(sfeerAnker(scenes, 1)).toBe("https://x/pad.png");
+  it("vindt scènes die exact dezelfde plek kregen", () => {
+    const s = spec([scene({ id: "a" }), scene({ id: "b" }), scene({ id: "c" })]);
+    expect(dubbelePlekken(s, regieMet(["a forest path", "a forest path", "a clearing with flowers"]))).toEqual([[0, 1]]);
   });
 
-  it("niet uit een ander gebied", () => {
-    const scenes = [plek("a kitchen", { gebied: "house", twoShotUrl: "https://x/k.png" }), plek("a clearing", { gebied: "forest" })];
-    expect(sfeerAnker(scenes, 1)).toBeNull();
+  it("ziet een lidwoord, hoofdletter of punt niet als een andere plek", () => {
+    const s = spec([scene({ id: "a" }), scene({ id: "b" })]);
+    expect(dubbelePlekken(s, regieMet(["A forest path.", "forest path"]))).toEqual([[0, 1]]);
   });
 
-  it("niet bij ander licht: een nachtscène hoort geen middagzon te krijgen", () => {
-    const scenes = [
-      plek("a forest path", { gebied: "forest", twoShotUrl: "https://x/pad.png" }),
-      plek("a clearing", { gebied: "forest", licht: "nacht" }),
-    ];
-    expect(sfeerAnker(scenes, 1)).toBeNull();
-  });
-
-  it("niet van exact dezelfde plek, want die gaat al als locatiereferentie mee", () => {
-    const scenes = [plek("a clearing", { gebied: "forest", twoShotUrl: "https://x/1.png" }), plek("a clearing", { gebied: "forest" })];
-    expect(sfeerAnker(scenes, 1)).toBeNull();
-  });
-
-  it("niet zonder gebied", () => {
-    const scenes = [plek("a forest path", { twoShotUrl: "https://x/pad.png" }), plek("a clearing")];
-    expect(sfeerAnker(scenes, 1)).toBeNull();
+  it("telt een plek die al vastligt niet mee", () => {
+    const s = spec([scene({ id: "a" }), scene({ id: "b", twoShotUrl: "https://x/1.png" })]);
+    expect(dubbelePlekken(s, regieMet(["a forest path", "a forest path"]))).toEqual([]);
   });
 });
 
@@ -148,5 +134,9 @@ describe("regiePrompt", () => {
 
   it("geeft de zinnen mee, want daarin staat wat er te zien moet zijn", () => {
     expect(regiePrompt(spec([scene()])).vraag).toContain("bosanemoon");
+  });
+
+  it("zegt dat een overal gelijke plek uit het draaiboek niet overgenomen wordt", () => {
+    expect(regiePrompt(spec([scene()])).systeem).toContain("Neem die dan NIET over");
   });
 });

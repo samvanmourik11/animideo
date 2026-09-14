@@ -20,17 +20,6 @@ interface Body {
   sceneIndex?: number;
   /** Het licht in deze scène (dag, nacht, kaarslicht…). Zie verhaal-licht.ts. */
   licht?: Lichtsoort | null;
-  /**
-   * Een eerder beeld van DEZELFDE plek. Speelt scène 5 weer in oma's woonkamer,
-   * dan hoort dat dezelfde kamer te zijn — eerder werd het elke keer een andere
-   * kamer met een andere bank en de open haard aan een andere muur.
-   */
-  locationRefUrl?: string;
-  /**
-   * Een basisbeeld van een ANDERE plek in hetzelfde gebied, met hetzelfde licht.
-   * Alleen voor licht, kleur en de soort omgeving. Zie sfeerAnker in beeldregie.ts.
-   */
-  sfeerRefUrl?: string;
   cast?: DialogueCastMember[];
   styleId?: string;
   format?: InfographicFormat;
@@ -38,11 +27,6 @@ interface Body {
   seed?: number;
   // Vrije regieaanwijzing van de gebruiker, geldt voor elk beeld in de video.
   illustrationBrief?: string;
-  // Het twee-shot van de EERSTE scène. Elke volgende scène wordt daar visueel aan
-  // opgehangen: zelfde personages, zelfde tekenstijl, alleen een andere omgeving.
-  // Zonder dit anker werd elke scène los gegenereerd en dreven cast en look uit
-  // elkaar — de laatste scène had andere mensen in een andere kamer.
-  anchorTwoShotUrl?: string;
   castSheetUrl?: string;
   /**
    * Wat de gebruiker in het storyboard over dit beeld zei. Zie
@@ -55,13 +39,11 @@ interface Body {
   zit?: boolean;
 }
 
-// Het basis-twee-shot van één scène: de cast tegenover elkaar in de omgeving.
-// Elke gesproken regel binnen die scène wordt later een BEWERKING van dit beeld,
-// zodat de personages tussen regels niet verspringen. Vandaar dat dit een aparte
-// stap is en niet per regel opnieuw gebeurt.
+// Het beeld van de plek van één scène: de cast op die plek. In het storyboard is
+// dit de controle of plek en personages kloppen, voordat de beelden per regel
+// getekend worden (zie dialogue-line).
 //
-// Bewust GEEN Seedance-beweging hier: dit beeld is een startpunt voor de clips,
-// geen shot dat zelf in de video komt.
+// Bewust GEEN Seedance-beweging hier: dit beeld komt zelf niet in de video.
 /**
  * Is dit beeld onbruikbaar, of heeft het alleen een smetje?
  *
@@ -71,8 +53,8 @@ interface Body {
  */
 function onbruikbaar(fouten: string[]): boolean {
   const tekst = fouten.join(" ").toLowerCase();
-  // Een ontbrekend of dubbel personage hoort erbij: dit beeld is het anker voor
-  // de hele scène, dus wie hier ontbreekt, ontbreekt in elk shot erna.
+  // Een ontbrekend of dubbel personage hoort erbij: wie hier ontbreekt, ontbreekt
+  // ook in het storyboard dat de gebruiker moet beoordelen.
   return /verdeeld|panel|naast elkaar|onder elkaar|naad|twee tafere|extra |niet in de lijst|omstander|portret|kaartje|poster|ontbreekt|twee keer/.test(tekst);
 }
 
@@ -118,13 +100,19 @@ export async function POST(req: NextRequest) {
     // Een afgekeurde poging is wél gemaakt en wordt dus wél afgerekend.
     let besteedExtra = 0;
 
-    const locatieRef = (body.locationRefUrl ?? "").trim();
+    // GEEN eerder plekbeeld meer als voorbeeld: niet als anker, niet als "zelfde
+    // plek" en niet voor het licht. Een beeld dat een eerder gemaakt beeld meekrijgt,
+    // komt terug als kopie met een harde, overbelichte afwerking. In het bosverhaal
+    // was het plekbeeld van scène 2 exact dat van scène 1, maar fel en overscherp,
+    // en zo elke scène daarna. Zonder zo'n voorbeeld kwam dezelfde scène twee keer
+    // zacht en natuurlijk terug, net als het eerste beeld. Wie er staat komt uit
+    // portretten en castblad, de plek uit de omschrijving.
     const aanwijzing = (body.aanwijzing ?? "").trim().slice(0, 500);
     const brief = buildTwoShotBrief(
       setting,
       cast,
       typeof body.sceneIndex === "number" ? body.sceneIndex : 0,
-      !!locatieRef,
+      false,
       isLichtsoort(body.licht) ? body.licht : null,
       body.zit === true,
     );
@@ -133,12 +121,6 @@ export async function POST(req: NextRequest) {
       .slice(0, 2);
     const voorwerpBladen = voorwerpen.map((v) => (v.bladUrl ?? "").trim()).filter(Boolean);
     const castblad = (body.castSheetUrl ?? "").trim();
-    // Het anker (het scènebeeld van een eerdere scène) stamt uit de tijd vóór het
-    // castblad en de model sheets. Nu die de personages vastleggen, doet het vooral
-    // kwaad: de Waterkant werd oma's woonkamer met de rivier achter het raam, en het
-    // zijn drie extra getekende mensen tussen de referenties, wat dubbele personages
-    // in de hand werkt. Alleen zonder castblad gaat het nog mee.
-    const anker = castblad ? "" : (body.anchorTwoShotUrl ?? "").trim();
     // Het castblad gaat als "merk-referentie" mee: dat is de enige categorie die
     // vooraan in de rij staat en het zwaarst weegt. Precies wat we willen — de
     // personages moeten hier exact van overgenomen worden, ook hun onderlinge
@@ -159,36 +141,6 @@ export async function POST(req: NextRequest) {
         "and never a plain studio background. Do not draw the sheet itself, or any framed portrait, card or " +
         "poster of these characters, as an object inside the scene."
       : "";
-    const locatieInstructie = locatieRef
-      ? " One reference image shows THIS SAME LOCATION earlier in the video. The room, furniture, walls, " +
-        "floor, colours and decorations must match it exactly — same sofa, same tree, same fireplace, in the " +
-        "same places. Only the camera position and the characters' poses differ."
-      : "";
-    // Een beeld van dezelfde plek gaat hierboven al mee; dan is een tweede referentie
-    // voor alleen het licht overbodig.
-    const sfeerRef = (body.sfeerRefUrl ?? "").trim();
-    const metSfeer = !!sfeerRef && sfeerRef !== locatieRef;
-    const sfeerInstructie = metSfeer
-      ? " One reference image shows ANOTHER spot in this same area, earlier in the video, in the same light. Match " +
-        "its LIGHT exactly — the time of day, where the sun comes from, the colour temperature, how bright it is, and " +
-        "whether there are sun rays or haze — and its colour palette and the kind of place: the same kind of trees, " +
-        "plants, buildings or furniture. But this is a DIFFERENT spot: do not copy its composition, path or layout, " +
-        "and do not copy the people from it — they are placed as described above."
-      : "";
-    const ankerInstructie = anker
-      ? " A reference image of these SAME two people from an earlier scene in this same video is provided. " +
-        "Keep the characters identical to that image — same faces, hair, clothing, colours, drawing style, and " +
-        "the same body heights relative to each other (whoever is taller there stays taller here, by the same " +
-        "amount) — and keep them standing in the same left/right arrangement. ONLY the surroundings change to " +
-        "the new location described above." +
-        // De salontafel met kopjes en plantje uit oma's woonkamer stond ineens in de
-        // oude kamer achter in het huis: het model nam het anker ook als decor mee.
-        // Is het anker juist een beeld van deze plek, dan hoort het meubilair er wél bij.
-        (anker !== locatieRef
-          ? " Take ONLY the people from that image. None of its furniture, tables, cups, plants, rugs or other " +
-            "objects come along: this is a different place, furnished only as described above."
-          : "")
-      : "";
 
     // Wie er in beeld mag staan. De cast is de cast; achtergrondfiguren maken van
     // de hoofdpersonen figuranten in hun eigen scene.
@@ -199,11 +151,9 @@ export async function POST(req: NextRequest) {
       `not even partially visible or out of focus. Nobody from the reference images appears twice. ` +
       iederEenKeer(cast.map((c) => c.name));
 
-    // Het twee-shot is het ANKER van de scène: elk bronbeeld erin is een bewerking
-    // hiervan. Een fout hier plant zich dus voort over alle regels van die scène,
-    // terwijl de controle tot nu toe pas op die bewerkingen stond. In een test
-    // stonden de kinderen tot hun middel ín een rivier — precies het soort fout
-    // dat één keer tegenhouden goedkoper is dan drie keer repareren.
+    // Een fout in dit beeld zie je in het storyboard, en dat is precies waar hij
+    // hoort op te vallen. In een test stonden de kinderen tot hun middel ín een
+    // rivier — het soort fout dat één keer tegenhouden goedkoper is dan later repareren.
     let twoShotUrl: string | null = null;
     let fouten: string[] = [];
     let beste: { url: string; fouten: string[]; ernst: number } | null = null;
@@ -232,17 +182,10 @@ export async function POST(req: NextRequest) {
         // De voorwerpbladen staan bij het castblad: dezelfde soort referentie, iets
         // wat exact overgenomen moet worden.
         brandUrls: [castblad, ...voorwerpBladen].filter(Boolean),
-        // Het anker uit scène 1 houdt cast én look gelijk over alle scènes heen.
-        // Het anker houdt de personages gelijk, de locatiereferentie de kamer.
-        // Het sfeerbeeld (een andere plek in hetzelfde gebied) houdt het licht gelijk.
-        ingredientUrls: [locatieRef, metSfeer ? sfeerRef : "", anker].filter(Boolean),
         extraContext: [
           illustratieContext(body.illustrationBrief),
           castbladInstructie,
           cast.length === 1 && cast[0].modelSheetUrl ? MODELBLAD_UITLEG : "",
-          ankerInstructie,
-          locatieInstructie,
-          sfeerInstructie,
           alleenDezeMensen,
           voorwerpRegie(voorwerpen),
           // Na de vaste regels, zodat de aanwijzing over DIT beeld gaat en niet
@@ -262,8 +205,8 @@ export async function POST(req: NextRequest) {
       fouten = oordeel.fouten;
       const ernst = (onbruikbaar(fouten) ? 10 : 0) + fouten.length;
       if (!beste || ernst < beste.ernst) beste = { url: kandidaat, fouten, ernst };
-      // Bij de laatste poging nemen we wat we hebben: een scène zonder anker
-      // levert helemaal geen beelden op, en dat is erger dan een beeld met een smetje.
+      // Bij de laatste poging nemen we wat we hebben: een scène zonder beeld
+      // levert helemaal geen storyboard op, en dat is erger dan een beeld met een smetje.
       // Wel het minst foute beeld, niet zomaar het laatste.
       const stop = fouten.length === 0
         || poging === MAX_POGINGEN

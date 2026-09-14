@@ -140,15 +140,16 @@ export function diepteRegie(kader: Kader | null | undefined): string {
       // stonden Tyrell en Lilly ineens in een kamer met een raam. Wazig mag, een
       // andere plek niet.
       return (
+        // "Hetzelfde als in het bronbeeld" stond hier, maar een shot wordt nu vanaf
+        // de omschrijving getekend: er gaat geen bronbeeld meer mee.
         " DEPTH OF FIELD: shallow. The face is razor sharp and the background is softly blurred, with any lights " +
-        "becoming round glowing circles. The background is still the SAME place as in the source image — the same " +
-        "buildings or the same room, recognisable by its colours and shapes, only out of focus. Never replace it " +
-        "with a different location or an indoor room."
+        "becoming round glowing circles. The background is still the location of this scene — recognisable by " +
+        "its colours and shapes, only out of focus. Never replace it with a different location or an indoor room."
       );
     case "detail":
       return (
-        " DEPTH OF FIELD: shallow. The object fills the focus and behind it the same place as in the source image " +
-        "is a soft wash of its own colours — never a different location."
+        " DEPTH OF FIELD: shallow. The object fills the focus and behind it the location of this scene is a soft " +
+        "wash of its own colours — never a different location."
       );
     case "medium":
     case "van-achteren":

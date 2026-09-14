@@ -11,10 +11,10 @@ import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { kiesStem, TAALCODE } from "@/lib/infographics/dialogue-stem";
 import {
-  buildTurnShotPrompt, buildDialogueMotionPrompt,
-  buildActionShotPrompt, buildActionMotionPrompt, illustratieContext, buildShotPrompt,
+  buildDialogueMotionPrompt, buildActionMotionPrompt, illustratieContext, buildShotPrompt,
   iederEenKeer, iedereenZichtbaar, voorwerpRegie, ZITTEN_REGEL, MODELBLAD_UITLEG,
 } from "@/lib/infographics/dialogue-staging";
+import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
 import {
   zonderHerhaling as kaderZonderHerhaling,
   bewegingVoorKader,
@@ -362,16 +362,16 @@ export async function POST(req: NextRequest) {
       : null;
 
     // Het kader dat we DEZE poging gebruiken. Blijft het uiterlijk wegdrijven, dan
-    // vallen we terug op een rustiger standpunt: hoe verder de camera van het
-    // scenebeeld af staat, hoe meer het model opnieuw moet verzinnen — en hoe
-    // groter de kans dat het haar of de kleding verandert.
-    // Een gewoon medium shot van een gesprek wordt een BEWERKING van het scènebeeld,
-    // geen nieuwe tekening. Het scènebeeld is gecontroleerd en door de gebruiker in
-    // het storyboard gezien; een nieuwe tekening van dezelfde drie mensen op
-    // ongeveer dezelfde afstand voegt weinig toe, maar leverde wel de dubbele
-    // personages op (2.4 en 9.4 in de vijfde Wonderwagen-video). Close-ups en
-    // bijzondere standpunten blijven nieuwe tekeningen: daar zit de afwisseling.
-    let kaderNu: Kader | null = !isActieBeeld && gekozenKader === "medium" ? null : gekozenKader;
+    // vallen we terug op een rustiger standpunt: hoe dichter op een gezicht, hoe meer
+    // het model moet verzinnen — en hoe groter de kans dat het haar of de kleding
+    // verandert. Leeg betekent een gewoon medium shot.
+    //
+    // Een medium gesprek was hier een BEWERKING van het scènebeeld, tegen dubbele
+    // personages (2.4 en 9.4 in de vijfde Wonderwagen-video). Dat is weer een nieuwe
+    // tekening: een beeld dat van een eerder beeld wordt afgeleid, komt fel en
+    // overscherp terug en valt uit de toon naast het plekbeeld. Tegen dubbele
+    // personages staan nu het castblad, de telling in de beeldcontrole en de herkansingen.
+    let kaderNu: Kader | null = gekozenKader;
     // Model sheets alleen als er één persoon in beeld komt. Bij meer mensen tellen
     // drie sheets plus het castblad plus het scènebeeld al snel vijftien getekende
     // figuren voor drie personages.
@@ -408,38 +408,35 @@ export async function POST(req: NextRequest) {
       beeldPogingen = poging;
       try {
         const beeld = await generateImageWithStyle({
-          // MET kader: het shot wordt nieuw getekend, met het scenebeeld er alleen
-          // als plaats- en stijlreferentie bij. Een bewerking waarin ook de camera
-          // verschuift dwingt het model bijna alles opnieuw te tekenen, en dan
-          // verzint het ook het haar en de kleding opnieuw — dat is waar Lily per
-          // shot van kapsel wisselde. ZONDER kader blijft het een bewerking, zodat
-          // bestaande draaiboeken hun beelden houden.
-          prompt: kaderNu !== null
-            ? buildShotPrompt({
-                setting: (b.setting ?? "").trim() || "the same place as in the reference image",
-                inBeeld: isActieBeeld ? cast : [spreker!, ...luisteraars],
-                spreker: isActieBeeld ? null : spreker,
-                emotion: b.emotion,
-                actie: isActieBeeld ? actieTekst : null,
-                beeld: beeldRegie,
-                kader: kaderNu,
-                styleId: b.styleId,
-                licht: isLichtsoort(b.licht) ? b.licht : null,
-              })
-            : isActieBeeld
-              ? buildActionShotPrompt(cast, actieTekst, b.styleId, kaderNu, beeldRegie)
-              : buildTurnShotPrompt(spreker!, luisteraars, b.emotion, b.styleId, kaderNu, beeldRegie),
+          // Altijd een nieuwe tekening vanaf de omschrijving, met dezelfde opbouw als
+          // het plekbeeld (buildIllustrationPrompt). Eerst was dit een bewerking van
+          // het plekbeeld, of een tekening met dat beeld als referentie. Beide kwamen
+          // fel, overscherp en donkerder terug dan het plekbeeld zelf: een beeld dat
+          // van een eerder gemaakt beeld afstamt, krijgt die harde afwerking.
+          prompt: buildIllustrationPrompt(
+            buildShotPrompt({
+              setting: (b.setting ?? "").trim(),
+              inBeeld: isActieBeeld ? cast : [spreker!, ...luisteraars],
+              spreker: isActieBeeld ? null : spreker,
+              emotion: b.emotion,
+              actie: isActieBeeld ? actieTekst : null,
+              beeld: beeldRegie,
+              kader: kaderNu ?? "medium",
+              styleId: b.styleId,
+              licht: isLichtsoort(b.licht) ? b.licht : null,
+            }),
+            b.styleId,
+            b.language ?? null,
+            "omgeving",
+          ),
           format,
           visualStyle: null,
           // Zonder seed bij een herkansing: dezelfde seed zou grofweg hetzelfde
           // (foute) beeld opleveren en dan blijven we betalen voor niets.
           seed: poging === 1 && typeof b.seed === "number" ? b.seed : undefined,
-          // Het twee-shot bepaalt compositie en omgeving; de PORTRETTEN houden de
-          // identiteit vast. Zonder die portretten dobberde elke bewerking een beetje
-          // weg — haar, kleding en gezicht veranderden zichtbaar over negen regels.
-          // Bij een bewerking IS dit het beeld dat verbouwd wordt; bij nieuw
-          // tekenen dient het alleen als bewijs van hoe de kamer eruitziet.
-          ingredientUrls: [b.twoShotUrl],
+          // Geen plekbeeld als referentie meer (zie hierboven). De PORTRETTEN en het
+          // castblad houden de identiteit vast; zonder portretten dobberde het haar,
+          // de kleding en het gezicht zichtbaar weg over negen regels.
           // Het castblad weegt het zwaarst: het legt de identiteit én de
           // onderlinge lengte vast. Zonder blad (oudere projecten) doen de
           // portretten dat werk, maar die zeggen niets over lichaamsbouw.

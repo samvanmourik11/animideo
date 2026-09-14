@@ -170,15 +170,16 @@ describe("buildShotPrompt", () => {
     expect(wijd).toContain("WIDE ESTABLISHING");
   });
 
-  it("vraagt de kamer gelijk te houden aan het scenebeeld", () => {
-    const p = buildShotPrompt({ setting: "a room", inBeeld: [lily], kader: "hoog" });
-    expect(p).toContain("same location");
-    expect(p).toContain("Only the camera position");
+  // Een beeld dat van een eerder beeld werd afgeleid, kwam fel en overscherp terug
+  // naast het zachte plekbeeld. Het shot wordt dus vanaf de omschrijving getekend.
+  it("verwijst niet naar een eerder beeld, want dat gaat niet meer mee", () => {
+    const p = buildShotPrompt({ setting: "a room", inBeeld: [lily], kader: "close", spreker: lily });
+    expect(p).not.toContain("this same location earlier");
+    expect(p).not.toContain("source image");
   });
 
-  // Zeven bosscènes op daglicht, en één had oranje zonnestralen door de nevel.
-  it("houdt ook het licht gelijk aan het scenebeeld", () => {
-    expect(buildShotPrompt({ setting: "a room", inBeeld: [lily], kader: "hoog" })).toContain("the light");
+  it("zet de lichtregie van de scène erin", () => {
+    expect(buildShotPrompt({ setting: "a room", inBeeld: [lily], kader: "hoog", licht: "nacht" })).toContain("moonlight");
   });
 
   // Tyrell zei "deze bloem heet een bosanemoon" en er stond geen bloem in beeld:

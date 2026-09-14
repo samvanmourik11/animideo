@@ -21,7 +21,7 @@ import {
   type DialogueScene, type DialogueSpec,
 } from "./dialogue-schema";
 import { kaderLabel } from "./verhaal-kaders";
-import { STANDAARD_LICHT, lichtLabel } from "./verhaal-licht";
+import { lichtLabel } from "./verhaal-licht";
 
 export interface RegieRegel { index: number; beeld: string }
 export interface RegieScene { index: number; gebied: string; plek: string; regels: RegieRegel[] }
@@ -81,33 +81,33 @@ export function regieNodig(spec: Pick<DialogueSpec, "scenes">): boolean {
   );
 }
 
-const gebiedSleutel = (gebied?: string | null) => (gebied ?? "").trim().toLowerCase();
-
 /**
- * Een eerder basisbeeld uit hetzelfde gebied, met hetzelfde licht, maar van een
- * ándere plek. Gaat mee als voorbeeld voor licht en kleur.
+ * Scènes die van de regie exact dezelfde plek kregen, per groep (scène-indexen).
  *
- * Alle zeven bosscènes stonden op "Daglicht", en toch had scène 4 warme
- * zonnestralen door de nevel en ander gebladerte dan de rest: elk basisbeeld werd
- * los getekend en koos zijn eigen zon. Een beeld van exact dezelfde plek gaat al
- * mee als locatiereferentie, dus dat telt hier niet.
+ * In een nieuw draaiboek van zes bosscènes gaf de regie alle zes "a lush forest
+ * with tall green trees and a carpet of ferns": het draaiboek noemde overal
+ * dezelfde plek, en de opdracht om plekken in één gebied hetzelfde te laten
+ * beginnen deed de rest. Een vastliggende plek telt niet mee, die verandert niet.
  */
-export function sfeerAnker(scenes: DialogueScene[], si: number): string | null {
-  const scene = scenes[si];
-  if (!scene) return null;
-  const gebied = gebiedSleutel(scene.gebied);
-  if (!gebied) return null;
-  const licht = scene.licht ?? STANDAARD_LICHT;
-  const plek = kaleSetting(scene.setting);
-  const bron = scenes.find(
-    (s, i) =>
-      i !== si &&
-      !!s.twoShotUrl &&
-      gebiedSleutel(s.gebied) === gebied &&
-      (s.licht ?? STANDAARD_LICHT) === licht &&
-      kaleSetting(s.setting) !== plek,
+export function dubbelePlekken(spec: Pick<DialogueSpec, "scenes">, regie: Beeldregie): number[][] {
+  const groepen = new Map<string, number[]>();
+  for (const r of regie.scenes) {
+    const scene = spec.scenes[r.index];
+    if (!scene || plekVast(scene) || !r.plek) continue;
+    const sleutel = kaleSetting(r.plek);
+    groepen.set(sleutel, [...(groepen.get(sleutel) ?? []), r.index]);
+  }
+  return [...groepen.values()].filter((g) => g.length > 1);
+}
+
+/** De herkansing als scènes dezelfde plek kregen. */
+export function dubbelePlekVraag(groepen: number[][]): string {
+  const lijst = groepen.map((g) => `SCÈNE ${g.join(", ")}`).join("; ");
+  return (
+    `Deze scènes kregen exact dezelfde plek: ${lijst}. Geef elke scène een eigen plekje binnen het gebied, met een ` +
+    `eigen herkenbaar kenmerk. Alleen als het verhaal echt op precies dezelfde plek blijft (ze zitten nog aan dezelfde ` +
+    `tafel), mag de plek gelijk blijven. Geef de volledige beeldregie opnieuw als JSON.`
   );
-  return bron?.twoShotUrl ?? null;
 }
 
 /** Het antwoord van het model, zonder aan te nemen dat het klopt. */
@@ -164,10 +164,11 @@ const SYSTEEM = `Je bent de beeldregisseur van een getekende animatievideo. Het 
 PER SCÈNE
 - "gebied": een korte Engelse naam in kleine letters voor de grotere plek waar de scène speelt, bijvoorbeeld "forest", "grandma's house", "city harbour". Scènes in hetzelfde gebied krijgen EXACT dezelfde gebiedsnaam.
 - "plek": een ENGELSE beschrijving van precies het plekje binnen dat gebied waar deze scène speelt, in één of twee zinnen. Alleen de plek: geen personages, geen handelingen, geen licht, weer of tijdstip (dat ligt elders vast).
-  - Trekken de personages door een groter gebied (een wandeling door het bos, een tocht door de stad), dan krijgt elke scène een EIGEN plekje met een eigen herkenbaar kenmerk: een bospad tussen hoge bomen, een open plek vol bloemen, de voet van een grote oude eik, een beekje met stenen. Twee scènes achter elkaar krijgen nooit dezelfde plek, tenzij het verhaal daar echt blijft.
-  - Blijven de personages op dezelfde plek (ze zitten nog aan dezelfde tafel), neem de plek van de vorige scène dan LETTERLIJK over.
-  - Plekken in hetzelfde gebied moeten herkenbaar hetzelfde gebied zijn. Begin ze daarom met dezelfde korte omschrijving van het gebied (zelfde soort bomen, zelfde huis, zelfde kleuren) en beschrijf daarna wat dit plekje eigen maakt.
-  - Waar de personages in deze scène naar kijken of over praten en wat vast bij de plek hoort (de bloemen die ze bekijken, de grote boom), staat in de plek. Dan wordt het meteen in het basisbeeld getekend.
+  - De "huidige plek" komt uit het draaiboek en is vaak voor alle scènes hetzelfde. Neem die dan NIET over: juist dat los jij op.
+  - Trekken de personages door een groter gebied (een wandeling door het bos, een tocht door de stad), dan krijgt elke scène een EIGEN plekje met een eigen herkenbaar kenmerk: een smal bospad tussen hoge bomen, een zonnige open plek vol bloemen, de voet van een grote oude eik, een beekje met stenen. Twee scènes krijgen nooit dezelfde plek, tenzij het verhaal echt op precies dezelfde plek blijft.
+  - Blijven de personages op precies dezelfde plek (ze zitten nog aan dezelfde tafel), neem de plek van de vorige scène dan LETTERLIJK over.
+  - Plekken in hetzelfde gebied horen bij één wereld: dezelfde soort bomen, hetzelfde huis, dezelfde kleuren. Begin elke plek met wat DIT plekje eigen maakt, niet met een algemene omschrijving van het gebied.
+  - Waar de personages in deze scène naar kijken of over praten en wat vast bij de plek hoort (de bloemen die ze bekijken, de grote boom), staat in de plek. Dan wordt het meteen in het beeld van de plek getekend.
   - Verzin geen ander gebied dan de huidige plek aangeeft. Het bos blijft het bos, oma's huis blijft oma's huis.
   - Staat er "(VAST)" achter een scène, dan ligt de plek al vast: neem de huidige plek letterlijk over.
 

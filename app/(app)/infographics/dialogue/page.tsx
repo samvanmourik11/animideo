@@ -16,8 +16,8 @@ import SetupPanel from "@/components/dialogue/SetupPanel";
 import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
-import { regelKlaar, heeftStem, kaleSetting, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
-import { leesRegie, pasRegieToe, regieNodig, sfeerAnker } from "@/lib/infographics/beeldregie";
+import { regelKlaar, heeftStem, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
+import { leesRegie, pasRegieToe, regieNodig } from "@/lib/infographics/beeldregie";
 import { zitHouding, zegtIetsOverHouding } from "@/lib/infographics/dialogue-staging";
 import VasteVoorwerpen from "@/components/dialogue/VasteVoorwerpen";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
@@ -267,18 +267,9 @@ export default function DialoguePage() {
    */
   function twoShotVerzoek(werk: DialogueSpec, si: number) {
     const s = werk.scenes[si];
-    // Speelt deze scène op een plek die we al getekend hebben, dan gaat dát
-    // beeld mee als referentie voor de kamer. Eerder namen we het beeld
-    // letterlijk over: dezelfde kamer, maar ook exact hetzelfde plaatje, en
-    // daardoor was de halve video één shot. Nu tekenen we dezelfde kamer
-    // vanuit een ander camerastandpunt (zie kaderVoorScene).
-    const zelfdePlek = werk.scenes.find(
-      (sc, i) => i !== si && sc.twoShotUrl && kaleSetting(sc.setting) === kaleSetting(s.setting)
-    );
-    // Het eerste beschikbare basisbeeld van een ándere scène dient als anker. Bij
-    // een beeld dat opnieuw gemaakt wordt mag dat niet zijn eigen oude versie zijn:
-    // dan kopieert het precies de fout waarvoor je op opnieuw drukte.
-    const anker = werk.scenes.find((sc, i) => i !== si && sc.twoShotUrl)?.twoShotUrl ?? null;
+    // Hier gingen eerdere plekbeelden mee als voorbeeld (anker, zelfde plek, licht).
+    // Dat leverde kopieën met een harde, overbelichte afwerking op; zie
+    // dialogue-twoshot. Elke plek wordt nu vanaf de omschrijving getekend.
     return {
       // Alleen wie er in DEZE scene speelt. De hele cast meesturen gaf bij
       // meer dan drie personages beelden vol mensen die er niets te zoeken
@@ -287,11 +278,7 @@ export default function DialoguePage() {
       castSheetUrl: werk.castSheetUrl ?? null,
       format: werk.format, language: werk.language, seed: werk.seed,
       illustrationBrief: werk.illustrationBrief ?? "",
-      anchorTwoShotUrl: anker,
       sceneIndex: si,
-      locationRefUrl: zelfdePlek?.twoShotUrl ?? null,
-      // Een andere plek in hetzelfde gebied met hetzelfde licht: houdt de zon gelijk.
-      sfeerRefUrl: sfeerAnker(werk.scenes, si),
       licht: s.licht ?? null,
       aanwijzing: s.beeldAanwijzing ?? undefined,
       voorwerpen: voorwerpenInScene(werk.voorwerpen, s, 0),
@@ -1143,6 +1130,14 @@ export default function DialoguePage() {
                 <button onClick={() => void maakStoryboard()} disabled={renderBezig || hertekenBezig !== null || regelsBezig.length > 0}
                   className="text-sm rounded px-4 py-2 bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 disabled:opacity-40 transition">
                   {renderBezig ? "Bezig…" : `Ontbrekende beelden maken (${schatStoryboardCredits(spec)} credits)`}
+                </button>
+              )}
+              {/* Ook voor borden die al geregisseerd zijn: die kunnen nog gemaakt zijn
+                  met eerdere beelden als voorbeeld, en dan zijn ze overbelicht. */}
+              {spec.scenes.some((s) => s.twoShotUrl) && !spec.scenes.some((s) => s.twoShotUrl && !s.geregisseerd) && (
+                <button onClick={storyboardOpnieuwOpzetten} disabled={renderBezig || hertekenBezig !== null || regelsBezig.length > 0}
+                  className="text-sm rounded px-4 py-2 bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10 disabled:opacity-40 transition">
+                  Opnieuw opzetten
                 </button>
               )}
               <button onClick={maakVideo} disabled={renderBezig || hertekenBezig !== null || regelsBezig.length > 0}
