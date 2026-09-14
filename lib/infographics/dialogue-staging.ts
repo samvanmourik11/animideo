@@ -26,7 +26,7 @@
 import { noemtVoorwerp, uiterlijkVan, type DialogueCastMember, type DialogueVoorwerp } from "./dialogue-schema";
 import { STORY_STYLE_PRESETS } from "./story-style";
 import { kaderRegie, bewegingRegie, type Kader, type Beweging } from "./verhaal-kaders";
-import { beeldSfeer, type Lichtsoort } from "./verhaal-licht";
+import { beeldSfeer, diepteRegie, type Lichtsoort } from "./verhaal-licht";
 
 /**
  * De gekozen tekenstijl, als zin voor een BEWERKINGS-prompt.
@@ -56,12 +56,31 @@ const MAATVAST =
   "Whoever is taller in the source stays taller by the same amount; nobody grows, shrinks or changes age. " +
   "Keep heads, bodies and limbs in the same proportion to each other as in the source.";
 
+/**
+ * Licht en sfeer komen uit het beeld van de plek, niet uit een beschrijving.
+ *
+ * Het beeld van de plek was zacht, met nevel tussen de bomen en zonnestralen; de
+ * beelden per zin daarvan waren fel, hard en verzadigd, met exact dezelfde bomen
+ * op exact dezelfde plek. Het was dus geen andere zon maar een bewerking die de
+ * nevel wegpoetste en contrast en scherpte opvoerde. Twee teksten duwden daar
+ * mee: de stijl Soft 3D vraagt "studio lighting", en de lichtregie beschrijft hoe
+ * daglicht in het algemeen hoort te zijn — terwijl het beeld van de plek al laat
+ * zien hoe het in DEZE scène is.
+ */
+export const LICHT_UIT_BRON =
+  " LIGHT AND ATMOSPHERE — take them exactly from the reference image of this location, not from the style " +
+  "description: the same direction, colour and softness of the light, the same haze or mist in the distance, the " +
+  "same sun rays if there are any, and the same contrast, brightness and colour saturation. Do not make this image " +
+  "sharper, crisper, more contrasty or more saturated than that image, and do not add or remove haze, mist or light rays.";
+
 /** Stijlregel voor een beeldbewerking: houd exact de stijl van het bronbeeld aan. */
 function stijlBewerking(styleId?: string | null): string {
   return (
     `ART STYLE — this is the same video as the source image, so the drawing style must be IDENTICAL: ` +
     `${stijlPreamble(styleId)} Match the source image's exact line quality, colour palette, texture and ` +
-    `level of detail. Do not switch to a different illustration style. No text overlays, no watermarks, no logos.`
+    `level of detail. Do not switch to a different illustration style. No text overlays, no watermarks, no logos.` +
+    // Na de stijl, want die noemt bij Soft 3D zelf een soort licht.
+    LICHT_UIT_BRON
   );
 }
 
@@ -711,7 +730,10 @@ export function buildShotPrompt(input: {
     // De sfeer komt NA de tekenstijl: die schrijft bij Soft 3D "gentle soft studio
     // lighting" voor, en dat wint als het als laatste in de prompt staat. Dan is
     // elke nachtscene alsnog een helder verlicht speelgoedtafereel.
-    beeldSfeer(licht, kader) +
+    // Alleen de scherptediepte. Het licht zelf komt uit het beeld van de plek (zie
+    // LICHT_UIT_BRON in stijlBewerking): een beschrijving van daglicht in het
+    // algemeen poetste de nevel weg die het beeld van déze plek wel had.
+    diepteRegie(kader) +
     NATUURWETTEN
   );
 }
