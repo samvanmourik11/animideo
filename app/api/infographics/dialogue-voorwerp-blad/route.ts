@@ -24,6 +24,8 @@ interface Body {
   language?: string;
   illustrationBrief?: string;
   seed?: number;
+  /** Het castblad van deze video: voorbeeld voor de look, niet voor wat er getekend wordt. */
+  castSheetUrl?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -57,12 +59,33 @@ export async function POST(req: NextRequest) {
       `No people, no animals, no other objects and no scenery. ` +
       `No text, no names, no labels, no numbers and no frames anywhere in the image.`;
 
+    // Een bosanemoon op een lege achtergrond werd een kleibloem van speelgoed: de stijl
+    // Soft 3D noemt "clay-like" en "toy-like", en zonder omgeving is er niets dat zegt
+    // hoe echt het moet. In het bos stak hij af als een plastic bloem. Het castblad
+    // laat zien in welke wereld het voorwerp thuishoort.
+    const castblad = (body.castSheetUrl ?? "").trim();
+    const voorbeeld = (body.voorwerp?.voorbeeldUrl ?? "").trim();
+    const lookRegels = [
+      castblad
+        ? "One reference image shows the characters of this video. Use it ONLY for the look: the rendering style, " +
+          "materials, level of realism, shading and colours. Do not draw any of these people — this image contains " +
+          "only the object."
+        : "",
+      voorbeeld
+        ? "One reference image shows this same object drawn earlier in another style. Keep its shape, proportions, " +
+          "colours and details exactly, but draw it in the style of this video."
+        : "",
+      "The object belongs in the same world as the characters: natural materials and believable proportions, drawn with " +
+        "the same level of realism — never a clay, plasticine or plastic toy version of it.",
+    ].filter(Boolean).join(" ");
+
     const result = await generateImageWithStyle({
       prompt: buildIllustrationPrompt(brief, body.styleId ?? "flat-vector", body.language ?? null),
       format: "16:9",
       visualStyle: null,
       seed: typeof body.seed === "number" ? body.seed : undefined,
-      extraContext: illustratieContext(body.illustrationBrief),
+      ingredientUrls: [castblad, voorbeeld].filter(Boolean),
+      extraContext: [illustratieContext(body.illustrationBrief), lookRegels].filter(Boolean).join(" "),
     });
 
     try {

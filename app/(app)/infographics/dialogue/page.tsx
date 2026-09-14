@@ -435,6 +435,8 @@ export default function DialoguePage() {
             body: JSON.stringify({
               voorwerp: v, styleId: werk.styleId, language: werk.language,
               illustrationBrief: werk.illustrationBrief ?? "", seed: werk.seed,
+              // Het castblad bestaat op dit punt al en laat zien in welke look het voorwerp hoort.
+              castSheetUrl: werk.castSheetUrl ?? undefined,
             }),
           });
           const d = await r.json();
@@ -445,6 +447,18 @@ export default function DialoguePage() {
           } else if (d.bladUrl) {
             v.bladUrl = d.bladUrl;
             setSpec(structuredClone(werk));
+            // Een bibliotheekvoorwerp dat voor het eerst in deze stijl getekend is: dat
+            // blad terug naar de bibliotheek, zodat de volgende video in deze stijl
+            // exact hetzelfde voorwerp krijgt. Mislukt dat, dan werkt deze video door.
+            if (v.bibliotheekId && werk.styleId) {
+              void fetch("/api/voorwerpen", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  id: v.bibliotheekId, naam: v.naam, uiterlijk: v.uiterlijk, styleId: werk.styleId, bladUrl: d.bladUrl,
+                }),
+              }).catch(() => {});
+            }
           }
         } catch { mislukt.push(`voorwerp ${v.naam}`); }
       }
@@ -1096,6 +1110,7 @@ export default function DialoguePage() {
                 <VasteVoorwerpen
                   voorwerpen={spec.voorwerpen ?? []}
                   onChange={(v) => setSpec({ ...spec, voorwerpen: v.length ? v : null })}
+                  styleId={spec.styleId}
                   disabled={renderBezig}
                 />
               </div>

@@ -1272,7 +1272,12 @@ export async function POST(req: NextRequest) {
     spec.verhaalModus = opzet?.modus ?? null;
     const voorwerpen = (opzet?.voorwerpen ?? [])
       .filter((v) => v.naam?.trim() && v.uiterlijk?.trim())
-      .map((v) => ({ naam: v.naam.trim(), uiterlijk: v.uiterlijk.trim(), bladUrl: null }))
+      // Een voorwerp uit de bibliotheek houdt zijn blad: daarom is hij in elke video
+      // hetzelfde. Hier stond bladUrl vast op null.
+      .map((v) => ({
+        naam: v.naam.trim(), uiterlijk: v.uiterlijk.trim(), bladUrl: v.bladUrl ?? null,
+        bibliotheekId: v.bibliotheekId ?? null, voorbeeldUrl: v.voorbeeldUrl ?? null,
+      }))
       .slice(0, 4);
     spec.voorwerpen = voorwerpen.length ? voorwerpen : null;
 

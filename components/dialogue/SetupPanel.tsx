@@ -543,6 +543,7 @@ export default function SetupPanel({
         <VasteVoorwerpen
           voorwerpen={setup.voorwerpen ?? []}
           onChange={(v) => zet("voorwerpen", v)}
+          styleId={setup.styleId}
           disabled={uit}
         />
       </Groep>

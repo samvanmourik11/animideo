@@ -74,6 +74,9 @@ export default function NavBar({ email, credits, plan, creditsResetDate, hideLer
           <Link href="/characters" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
             Personages
           </Link>
+          <Link href="/voorwerpen" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
+            Voorwerpen
+          </Link>
           <Link href="/brand" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
             Huisstijlen
           </Link>

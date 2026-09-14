@@ -350,6 +350,16 @@ export interface DialogueVoorwerp {
    * castblad voor de personages.
    */
   bladUrl?: string | null;
+  /**
+   * Id in de voorwerpenbibliotheek. Zo'n voorwerp ziet er in elke video hetzelfde uit:
+   * naam, beschrijving en blad komen uit de bibliotheek. Zie voorwerp-bibliotheek.ts.
+   */
+  bibliotheekId?: string | null;
+  /**
+   * Een blad van dit voorwerp uit de bibliotheek in een ándere tekenstijl. Bij het
+   * tekenen in deze stijl alleen een voorbeeld voor vorm en kleuren.
+   */
+  voorbeeldUrl?: string | null;
 }
 
 export interface DialogueSpec {
@@ -458,7 +468,9 @@ export function voorwerpenInScene(
   totRegel?: number,
 ): DialogueVoorwerp[] {
   const regels = typeof totRegel === "number" ? scene.lines.slice(0, totRegel + 1) : scene.lines;
-  const tekst = [scene.setting, ...regels.flatMap((l) => [l.actie ?? "", l.text ?? ""])]
+  // Ook wat je in het shot ziet (de beeldregie): de bloem die Lilly aanwijst staat
+  // daar bij naam, terwijl haar zin alleen "kijk eens" zegt.
+  const tekst = [scene.setting, ...regels.flatMap((l) => [l.actie ?? "", l.text ?? "", l.beeld ?? ""])]
     .join("\n")
     .toLowerCase();
   return (voorwerpen ?? [])

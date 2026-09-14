@@ -16,6 +16,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { openai } from "@/lib/openai";
+import {
+  bibliotheekVoorwerpTekst, koppelVoorwerpen, leesBibliotheekVoorwerp, tabelOntbreekt, type BibliotheekVoorwerp,
+} from "@/lib/infographics/voorwerp-bibliotheek";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { illustratieContext } from "@/lib/infographics/dialogue-staging";
@@ -150,8 +153,9 @@ function setupSchema(verhaallijn: typeof VERHAALLIJN_SCHEMA | typeof MOMENTEN_SC
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["naam", "uiterlijk"],
-          properties: { naam: { type: "string" }, uiterlijk: { type: "string" } },
+          required: ["naam", "uiterlijk", "bibliotheekId"],
+          // bibliotheekId: het id uit de voorwerpenbibliotheek, of leeg voor een nieuw voorwerp.
+          properties: { naam: { type: "string" }, uiterlijk: { type: "string" }, bibliotheekId: { type: "string" } },
         },
       },
       keepTerms: { type: "array", items: { type: "string" } },
@@ -577,6 +581,21 @@ export async function POST(req: NextRequest) {
       .limit(40);
     const bibliotheek = (rijen ?? []) as BibliotheekRij[];
 
+    // De voorwerpenbibliotheek, om dezelfde reden: de Wonderwagen hoort in elke video
+    // dezelfde te zijn. Bestaat de tabel nog niet, dan gewoon zonder.
+    const { data: voorwerpRijen, error: voorwerpFout } = await supabase
+      .from("voorwerpen")
+      .select("id, naam, uiterlijk, bladen")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false })
+      .limit(60);
+    if (voorwerpFout && !tabelOntbreekt(voorwerpFout)) {
+      console.warn(`[dialogue-setup] voorwerpenbibliotheek niet gelezen: ${voorwerpFout.message}`);
+    }
+    const voorwerpBibliotheek = (voorwerpRijen ?? [])
+      .map(leesBibliotheekVoorwerp)
+      .filter((v): v is BibliotheekVoorwerp => !!v);
+
     const vastLijst = vasteCast.length
       ? vasteCast
           .map((c) => `- id "${c.characterId}": ${c.name}${c.role?.trim() ? ` — de gebruiker gaf deze rol: "${c.role.trim()}"` : " (nog geen rol gekozen)"}`)
@@ -621,6 +640,9 @@ ${verhaalOpdracht}
 DE PERSONAGEBIBLIOTHEEK van deze gebruiker:
 ${bibliotheekTekst(bibliotheek)}
 
+DE VOORWERPENBIBLIOTHEEK van deze gebruiker:
+${bibliotheekVoorwerpTekst(voorwerpBibliotheek)}
+
 AL VASTGELEGD DOOR DE GEBRUIKER — deze personages liggen vast, met de rol die er staat. Neem ze over en verzin er geen vervanger voor:
 ${vastLijst}
 
@@ -645,7 +667,7 @@ ${verhaalVelden}
 - "angle": de invalshoek ("vanuit het kind dat moet kiezen"). Leeg als dat niet nodig is.
 - "styleId": kies uit ${stijlLijst}.
 - "illustrationBrief": regie die voor ELK beeld geldt — kleurgebruik, kleding, soort omgeving. Twee zinnen, in ${language}.
-- "voorwerpen": voorwerpen die in het verhaal een hoofdrol spelen of in meer dan één moment terugkomen (een wagen, een kaart, een knuffel). "naam" zoals in het verhaal; "uiterlijk" is één ENGELSE zin die precies beschrijft hoe het eruitziet — vorm, grootte, kleuren, materiaal, bijzonderheden — zodat het in elk beeld hetzelfde getekend wordt. Begin met wat voor ding het is (bijv. "an old wooden covered wagon on four big red wheels"), noem de hoofdkleur, twee opvallende details en hoe groot het is naast de personages (bijv. "big enough for three people to sit inside"). Nooit alleen vage woorden als "magical" of "colorful": die kan een tekenaar op honderd manieren tekenen. Hooguit vier. Leeg als er geen zijn.
+- "voorwerpen": voorwerpen die in het verhaal een hoofdrol spelen of in meer dan één moment terugkomen (een wagen, een kaart, een knuffel). "naam" zoals in het verhaal; "uiterlijk" is één ENGELSE zin die precies beschrijft hoe het eruitziet — vorm, grootte, kleuren, materiaal, bijzonderheden — zodat het in elk beeld hetzelfde getekend wordt. Begin met wat voor ding het is (bijv. "an old wooden covered wagon on four big red wheels"), noem de hoofdkleur, twee opvallende details en hoe groot het is naast de personages (bijv. "big enough for three people to sit inside"). Nooit alleen vage woorden als "magical" of "colorful": die kan een tekenaar op honderd manieren tekenen. Tel ook dingen mee waar de personages in meer dan één shot naar kijken of over praten, zoals de bloem die ze bestuderen of de grote boom waar ze onder staan. "bibliotheekId": staat het voorwerp in DE VOORWERPENBIBLIOTHEEK (hetzelfde ding, ook als het verhaal het iets anders noemt), gebruik dan dat id en neem naam en uiterlijk letterlijk uit de bibliotheek over. Anders leeg. Hooguit vier. Leeg als er geen zijn.
 - "keepTerms": merk- en productnamen uit de brontekst die exact zo moeten blijven staan. Meestal leeg.
 - "avoidTerms": namen die beter niet vallen. Meestal leeg.`;
 
@@ -808,11 +830,13 @@ Geef nu de opzet als JSON.`;
     // wat je tekent" en ging dus mee naar beelden waar de wagen niet eens in stond.
     // Nu een eigen lijst: elk voorwerp krijgt een blad, en gaat alleen mee naar de
     // scènes waarin het genoemd wordt. Zichtbaar in de opzet, dus aan te passen.
-    const voorwerpen = (Array.isArray(ruw.voorwerpen) ? ruw.voorwerpen : [])
-      .map((v) => v as { naam?: unknown; uiterlijk?: unknown })
-      .map((v) => ({ naam: String(v.naam ?? "").trim(), uiterlijk: String(v.uiterlijk ?? "").trim() }))
-      .filter((v) => v.naam && v.uiterlijk)
-      .slice(0, 4);
+    // Een voorwerp uit de voorwerpenbibliotheek komt precies zo in de video, met zijn
+    // blad in deze stijl; zie koppelVoorwerpen.
+    const voorwerpen = koppelVoorwerpen(
+      (Array.isArray(ruw.voorwerpen) ? ruw.voorwerpen : []) as { naam?: unknown; uiterlijk?: unknown; bibliotheekId?: unknown }[],
+      voorwerpBibliotheek,
+      styleId,
+    );
 
     const setup: DialogueSetup = {
       title: String(ruw.title ?? "").trim() || "Naamloos verhaal",

@@ -1,6 +1,24 @@
 import { describe, it, expect } from "vitest";
-import { zonderHerhaling, sceneCast, MAX_PER_SCENE, VERTELLER_ID } from "./dialogue-schema";
+import { zonderHerhaling, sceneCast, voorwerpenInScene, MAX_PER_SCENE, VERTELLER_ID } from "./dialogue-schema";
 import type { DialogueScene, DialogueCastMember, DialogueLine } from "./dialogue-schema";
+
+// Lilly zegt "kijk eens!", en pas de beeldregie schrijft op dat ze naar de
+// bosanemoon wijst. Zonder die beschrijving ging het voorwerpblad niet mee.
+describe("voorwerpenInScene", () => {
+  const bloem = { naam: "bosanemoon", uiterlijk: "a small white woodland flower" };
+  const scene: Pick<DialogueScene, "setting" | "lines"> = {
+    setting: "a forest path",
+    lines: [{ characterId: "c2", text: "Kijk eens!", emotion: "blij", beeld: "Lilly points at the bosanemoon on the ground." }],
+  };
+
+  it("vindt een voorwerp dat alleen in de beschrijving van het shot genoemd wordt", () => {
+    expect(voorwerpenInScene([bloem], scene)).toHaveLength(1);
+  });
+
+  it("neemt geen voorwerp mee dat nergens genoemd wordt", () => {
+    expect(voorwerpenInScene([{ naam: "Wonderwagen", uiterlijk: "a wagon" }], scene)).toHaveLength(0);
+  });
+});
 
 // De bug die dit moet vangen: een video van twee minuten kwam terug met het
 // verhaal er twee keer in — scène 13 t/m 21 waren woord voor woord scène 1 t/m 9.
