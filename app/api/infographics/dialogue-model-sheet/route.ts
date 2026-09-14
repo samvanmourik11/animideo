@@ -43,10 +43,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Personage zonder afbeelding" }, { status: 400 });
     }
 
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION_PRO, "Model sheet personage");
+    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Model sheet personage");
     if (!credit.success) {
       return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION_PRO },
+        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
         { status: 402 },
       );
     }
@@ -70,8 +70,6 @@ export async function POST(req: NextRequest) {
       `No text, no names, no labels, no numbers and no frames anywhere in the image.`;
 
     const result = await generateImageWithStyle({
-      // Pro houdt personages en voorwerpen beter gelijk van beeld tot beeld.
-      quality: "pro",
       prompt: buildIllustrationPrompt(brief, body.styleId ?? "flat-vector", body.language ?? null),
       format: "16:9",
       visualStyle: null,
@@ -92,7 +90,7 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       // Het blad is gereedschap, geen bestelling. Mislukt het opslaan, geef de
       // credit dan terug: de gebruiker heeft er niets voor gekregen.
-      await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION_PRO, "Refund: model sheet");
+      await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: model sheet");
       throw e;
     }
   } catch (err: unknown) {

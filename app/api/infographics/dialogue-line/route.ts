@@ -274,7 +274,7 @@ export async function POST(req: NextRequest) {
     }
     const kosten =
       (stemNodig ? CREDIT_COSTS.VOICE : 0) +
-      (beeldNodig ? CREDIT_COSTS.IMAGE_GENERATION_PRO : 0) +
+      (beeldNodig ? CREDIT_COSTS.IMAGE_GENERATION : 0) +
       (alleenBeeld ? 0 : CREDIT_COSTS.VIDEO_GENERATION);
     const credit = await deductCredits(
       user.id, kosten,
@@ -406,12 +406,10 @@ export async function POST(req: NextRequest) {
     for (let poging = 1; !alHerbruikbaar && poging <= MAX_BEELD_POGINGEN; poging++) {
       if (poging === MAX_BEELD_POGINGEN && !mensenFout(beeldFouten)) break;
       // De herkansingen zijn niet vooraf afgerekend; pas afschrijven als ze echt gebeuren.
-      if (poging > 1) await deductCredits(userId, CREDIT_COSTS.IMAGE_GENERATION_PRO, "Dialoogregel: bronbeeld opnieuw");
+      if (poging > 1) await deductCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Dialoogregel: bronbeeld opnieuw");
       beeldPogingen = poging;
       try {
         const beeld = await generateImageWithStyle({
-          // Pro houdt personages en voorwerpen beter gelijk van beeld tot beeld.
-          quality: "pro",
           // Altijd een nieuwe tekening vanaf de omschrijving, met dezelfde opbouw als
           // het plekbeeld (buildIllustrationPrompt). Eerst was dit een bewerking van
           // het plekbeeld, of een tekening met dat beeld als referentie. Beide kwamen
@@ -492,7 +490,7 @@ export async function POST(req: NextRequest) {
           ].filter(Boolean).join(" ").trim() || undefined,
         });
         const kandidaat = await persistFalAssetSoft(supabase, user.id, beeld.imageUrl, "image");
-        besteed += CREDIT_COSTS.IMAGE_GENERATION_PRO;
+        besteed += CREDIT_COSTS.IMAGE_GENERATION;
 
         // Eén aanroep, twee oordelen: praat de juiste persoon, en staat er iets in
         // dat fysiek niet kan (mensen ín een tank, zwevende voorwerpen, verzonnen

@@ -105,18 +105,16 @@ export async function POST(req: NextRequest) {
 
     if (!klein) return NextResponse.json({ klein: false, begrepen, instructie });
 
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION_PRO, "Storyboardbeeld aanpassen");
+    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Storyboardbeeld aanpassen");
     if (!credit.success) {
       return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION_PRO },
+        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
         { status: 402 },
       );
     }
     try {
       const castblad = (spec.castSheetUrl ?? "").trim();
       const bewerkt = await bewerkBeeld({
-        // Het beeld is met Pro gemaakt; de bewerking houdt die kwaliteit.
-        quality: "pro",
         bronUrl: doel,
         instructie,
         referentieUrls: [castblad],
@@ -128,7 +126,7 @@ export async function POST(req: NextRequest) {
       const shotImageUrl = await persistFalAssetSoft(supabase, user.id, bewerkt.imageUrl, "image");
       return NextResponse.json({ klein: true, begrepen, instructie, shotImageUrl });
     } catch (e) {
-      await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION_PRO, "Refund: storyboardbeeld aanpassen").catch(() => {});
+      await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: storyboardbeeld aanpassen").catch(() => {});
       throw e;
     }
   } catch (err: unknown) {

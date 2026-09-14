@@ -44,10 +44,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Minstens twee personages met een afbeelding nodig" }, { status: 400 });
     }
 
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION_PRO, "Dialoog castblad");
+    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Dialoog castblad");
     if (!credit.success) {
       return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION_PRO },
+        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
         { status: 402 }
       );
     }
@@ -84,8 +84,6 @@ export async function POST(req: NextRequest) {
       `No text, no names, no labels, no numbers and no frames anywhere in the image.`;
 
     const result = await generateImageWithStyle({
-      // Pro houdt personages en voorwerpen beter gelijk van beeld tot beeld.
-      quality: "pro",
       prompt: buildIllustrationPrompt(brief, body.styleId ?? "flat-vector", body.language ?? null),
       format: "16:9",
       visualStyle: null,

@@ -25,9 +25,7 @@ export async function zonderTekst(
   language?: string | null,
 ): Promise<string> {
   try {
-    // Alle dialoogbeelden komen uit Pro; een tekstcorrectie met het goedkopere model
-    // zou een Pro-beeld terugbewerken.
-    const uit = await borgBeeldtekst(imageUrl, [], format, language ?? "Nederlands", "pro");
+    const uit = await borgBeeldtekst(imageUrl, [], format, language ?? "Nederlands");
     return uit.imageUrl;
   } catch (e) {
     console.error("[dialogue] tekstcontrole mislukt, beeld behouden:", e);

@@ -237,7 +237,7 @@ async function tekenPersonage(
   userId: string,
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<string | null> {
-  const credit = await deductCredits(userId, CREDIT_COSTS.IMAGE_GENERATION_PRO, `Personage tekenen: ${lid.name}`);
+  const credit = await deductCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, `Personage tekenen: ${lid.name}`);
   if (!credit.success) return null;
   try {
     const beschrijving = [
@@ -250,8 +250,6 @@ async function tekenPersonage(
       `One single character, seen from the front from head to knees, standing, with a friendly neutral ` +
       `expression, on a plain light neutral background. No other characters, no text, no frames.`;
     const { imageUrl } = await generateImageWithStyle({
-      // Pro houdt personages en voorwerpen beter gelijk van beeld tot beeld.
-      quality: "pro",
       prompt: buildIllustrationPrompt(opdracht, styleId, language),
       format: "9:16",
       visualStyle: null,
@@ -260,7 +258,7 @@ async function tekenPersonage(
     return await persistFalAssetSoft(supabase, userId, imageUrl, "image");
   } catch (e) {
     console.error(`[dialogue-setup] personage ${lid.name} tekenen mislukt:`, e);
-    await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION_PRO, "Refund: personage tekenen").catch(() => {});
+    await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Refund: personage tekenen").catch(() => {});
     return null;
   }
 }

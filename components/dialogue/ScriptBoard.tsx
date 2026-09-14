@@ -65,7 +65,7 @@ export function schatStoryboardCredits(spec: DialogueSpec): number {
   const voorwerpen = (spec.voorwerpen ?? []).filter(
     (v) => !v.bladUrl && spec.scenes.some((s) => voorwerpenInScene([v], s).length > 0)
   ).length;
-  return (shots + regelbeelden + bladen + castblad + voorwerpen) * CREDIT_COSTS.IMAGE_GENERATION_PRO;
+  return (shots + regelbeelden + bladen + castblad + voorwerpen) * CREDIT_COSTS.IMAGE_GENERATION;
 }
 
 /**

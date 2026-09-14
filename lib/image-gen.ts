@@ -334,12 +334,9 @@ export async function editIllustration(
    * moet kloppen ("ik heb het juiste logo voor op de auto geüpload"). Gaan als
    * volgende ingredienten mee naar het model, ná het bronbeeld.
    */
-  refUrls?: (string | null | undefined)[] | null,
-  /** "pro" voor beelden die met Pro gemaakt zijn: anders bewerkt het goedkopere model ze terug. */
-  quality?: "standard" | "pro" | null
+  refUrls?: (string | null | undefined)[] | null
 ): Promise<NanoBananaResult> {
   const aspect = aspectFor(format);
-  const model = quality === "pro" ? EDIT_MODEL_PRO : EDIT_MODEL;
   const refs = (refUrls ?? []).filter((u): u is string => !!u && u.trim().length > 0);
   const prompt = [
     "Edit the reference image (a flat vector infographic illustration).",
@@ -352,7 +349,7 @@ export async function editIllustration(
   ].filter(Boolean).join(" ").slice(0, 4000);
 
   const imageUrls = [sourceImageUrl, ...refs];
-  const result = await fal.subscribe(model, {
+  const result = await fal.subscribe(EDIT_MODEL, {
     input: {
       prompt,
       image_urls: imageUrls,
@@ -365,7 +362,7 @@ export async function editIllustration(
   const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
   if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Nano Banana (edit)");
 
-  return { imageUrl: tempUrl, usedModel: model, promptUsed: prompt, refsUsed: imageUrls };
+  return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: prompt, refsUsed: imageUrls };
 }
 
 /**
@@ -384,10 +381,7 @@ export async function bewerkBeeld(input: {
   referentieUrls?: (string | null | undefined)[] | null;
   referentieUitleg?: string;
   format?: string;
-  /** "pro" voor een beeld dat met Pro gemaakt is, zodat de bewerking dezelfde kwaliteit houdt. */
-  quality?: "standard" | "pro" | null;
 }): Promise<NanoBananaResult> {
-  const model = input.quality === "pro" ? EDIT_MODEL_PRO : EDIT_MODEL;
   const refs = cleanList(input.referentieUrls).filter((u) => u !== input.bronUrl).slice(0, 2);
   const prompt = [
     "Edit the first image.",
@@ -400,7 +394,7 @@ export async function bewerkBeeld(input: {
       : "",
   ].filter(Boolean).join(" ").slice(0, MAX_PROMPT_TEKENS);
 
-  const result = await fal.subscribe(model, {
+  const result = await fal.subscribe(EDIT_MODEL, {
     input: {
       prompt,
       image_urls: [input.bronUrl, ...refs],
@@ -412,7 +406,7 @@ export async function bewerkBeeld(input: {
   });
   const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
   if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Nano Banana (bewerken)");
-  return { imageUrl: tempUrl, usedModel: model, promptUsed: prompt, refsUsed: [input.bronUrl, ...refs] };
+  return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: prompt, refsUsed: [input.bronUrl, ...refs] };
 }
 
 export async function editImage(input: EditImageInput): Promise<NanoBananaResult> {

@@ -109,7 +109,7 @@ function ShotTegel({
               disabled={geblokkeerd}
               className="text-[11px] rounded px-2 py-1 bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 disabled:opacity-40 transition"
             >
-              ↻ Opnieuw maken ({CREDIT_COSTS.IMAGE_GENERATION_PRO} credits)
+              ↻ Opnieuw maken ({CREDIT_COSTS.IMAGE_GENERATION} credit)
             </button>
             <button onClick={() => setOpen(false)} className="text-[10px] text-slate-500 hover:text-white">
               Annuleren
@@ -130,7 +130,7 @@ function ShotTegel({
           disabled={geblokkeerd || !heeftPlek}
           className="text-[10px] text-slate-400 hover:text-orange-300 self-start disabled:opacity-40"
         >
-          {bezig ? "Bezig…" : `Beeld maken (${CREDIT_COSTS.IMAGE_GENERATION_PRO} credits)`}
+          {bezig ? "Bezig…" : `Beeld maken (${CREDIT_COSTS.IMAGE_GENERATION} credit)`}
         </button>
       )}
     </div>
@@ -233,7 +233,7 @@ function SceneKaart({
             disabled={geblokkeerd || eigenBezig}
             className="self-start text-xs rounded px-3 py-1.5 bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 disabled:opacity-40 transition"
           >
-            {bezig ? "Bezig…" : scene.twoShotUrl ? `↻ Plek opnieuw maken (${CREDIT_COSTS.IMAGE_GENERATION_PRO} credits)` : `Beeld maken (${CREDIT_COSTS.IMAGE_GENERATION_PRO} credits)`}
+            {bezig ? "Bezig…" : scene.twoShotUrl ? `↻ Plek opnieuw maken (${CREDIT_COSTS.IMAGE_GENERATION} credit)` : `Beeld maken (${CREDIT_COSTS.IMAGE_GENERATION} credit)`}
           </button>
           {scene.twoShotUrl && (beelden > 0 || clips > 0) && (
             <p className="text-[10px] text-slate-500">

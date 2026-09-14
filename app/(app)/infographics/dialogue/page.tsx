@@ -201,7 +201,7 @@ export default function DialoguePage() {
             ? "Geen nieuwe voorwerpen: wat er gevonden is, staat er al."
             : `${nieuw.length} ${nieuw.length === 1 ? "voorwerp" : "voorwerpen"} toegevoegd` +
               (zonderPlaatje.length
-                ? `, de plaatjes worden nu getekend (${zonderPlaatje.length * CREDIT_COSTS.IMAGE_GENERATION_PRO} ${zonderPlaatje.length * CREDIT_COSTS.IMAGE_GENERATION_PRO === 1 ? "credit" : "credits"}).`
+                ? `, de plaatjes worden nu getekend (${zonderPlaatje.length * CREDIT_COSTS.IMAGE_GENERATION} ${zonderPlaatje.length * CREDIT_COSTS.IMAGE_GENERATION === 1 ? "credit" : "credits"}).`
                 : ".") +
               " Klopt een plaatje niet, pas dan de beschrijving aan en teken hem opnieuw.",
       );

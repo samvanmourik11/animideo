@@ -26,7 +26,7 @@ export interface RegelPlek {
 // Wat opnieuw maken kost hangt af van wat er mis blijkt: alleen de beweging, of ook
 // het beeld. Een regel zonder stem krijgt er een stem bij.
 const MIN = CREDIT_COSTS.VIDEO_GENERATION;
-const MAX = CREDIT_COSTS.IMAGE_GENERATION_PRO + CREDIT_COSTS.VIDEO_GENERATION;
+const MAX = CREDIT_COSTS.IMAGE_GENERATION + CREDIT_COSTS.VIDEO_GENERATION;
 
 const sleutel = (si: number, li: number) => `${si}-${li}`;
 const plekVan = (k: string): RegelPlek => {
