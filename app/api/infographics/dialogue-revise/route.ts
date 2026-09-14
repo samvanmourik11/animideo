@@ -58,6 +58,11 @@ function behoudRendering(nieuw: DialogueLine, oud: DialogueLine[]): DialogueLine
     // Vergat het model het kader van een ongewijzigde regel, dan hoort het oude
     // kader erbij — de clip is er immers mee gemaakt.
     kader: nieuw.kader ?? match.kader ?? null,
+    // Wat je in het shot ziet en de aanwijzing van de gebruiker horen bij het
+    // beeld; zonder deze twee draaide de beeldregie opnieuw voor een zin die niet
+    // veranderd was.
+    beeld: match.beeld ?? null,
+    beeldAanwijzing: match.beeldAanwijzing ?? null,
     shotImageUrl: match.shotImageUrl ?? null,
     audioUrl: match.audioUrl ?? null,
     audioDuration: match.audioDuration ?? null,
@@ -143,6 +148,9 @@ function bouwScene(
     lines,
     twoShotUrl: zelfdeBeeld ? oudeScene?.twoShotUrl ?? null : null,
     beeldAanwijzing: zelfdeBeeld ? oudeScene?.beeldAanwijzing ?? null : null,
+    // Een nieuwe plek hoort opnieuw langs de beeldregie; dezelfde plek niet.
+    gebied: zelfdeBeeld ? oudeScene?.gebied ?? null : null,
+    geregisseerd: zelfdeBeeld ? oudeScene?.geregisseerd ?? null : null,
   };
 }
 

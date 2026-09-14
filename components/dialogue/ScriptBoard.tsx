@@ -6,7 +6,7 @@ import type { DialogueSpec, DialogueLine, DialogueScene } from "@/lib/infographi
 import { KADERS, STANDAARD_KADER, kaderLabel, kaderUitleg, type Kader } from "@/lib/infographics/verhaal-kaders";
 import { LICHTSOORTEN, STANDAARD_LICHT, lichtLabel, lichtUitleg, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import {
-  regelKlaar, isActie, actieDuur, heeftStem, voorwerpenInScene, VERTELLER_ID,
+  regelKlaar, isActie, actieDuur, heeftStem, voorwerpenInScene, bruikbareRegel, VERTELLER_ID,
   ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC,
 } from "@/lib/infographics/dialogue-schema";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
@@ -36,10 +36,13 @@ export function schatDuur(spec: DialogueSpec): number {
 
 /** Credits voor alles wat nog gemaakt moet worden (al klare regels tellen niet mee). */
 export function schatCredits(spec: DialogueSpec): number {
-  // Een actiebeeld kost geen stem: alleen een bronbeeld en een clip.
-  const beeldEnClip = CREDIT_COSTS.IMAGE_GENERATION + CREDIT_COSTS.VIDEO_GENERATION;
-  const teDoen = spec.scenes.flatMap((s) => s.lines).filter((l) => !regelKlaar(l));
-  const kosten = teDoen.reduce((a, l) => a + beeldEnClip + (isActie(l) ? 0 : CREDIT_COSTS.VOICE), 0);
+  // Het beeld per regel hoort sinds het storyboard per zin bij het storyboard en
+  // telt daar mee. Hier alleen de clip, en de stem als die er nog niet is.
+  const teDoen = spec.scenes.flatMap((s) => s.lines).filter((l) => bruikbareRegel(l) && !regelKlaar(l));
+  const kosten = teDoen.reduce(
+    (a, l) => a + CREDIT_COSTS.VIDEO_GENERATION + (heeftStem(l) && !l.audioUrl ? CREDIT_COSTS.VOICE : 0),
+    0,
+  );
   return kosten + schatStoryboardCredits(spec);
 }
 
@@ -50,6 +53,9 @@ export function schatCredits(spec: DialogueSpec): number {
  */
 export function schatStoryboardCredits(spec: DialogueSpec): number {
   const shots = spec.scenes.filter((s) => !s.twoShotUrl).length;
+  // Eén beeld per regel. Sinds het storyboard per zin worden die hier gemaakt en
+  // bekeken, niet pas bij de clips.
+  const regelbeelden = spec.scenes.flatMap((s) => s.lines).filter((l) => bruikbareRegel(l) && !l.shotImageUrl).length;
   // Eén model sheet per personage, één keer per project. Zonder deze regel stond
   // er een lager bedrag op de knop dan er werd afgeschreven.
   const bladen = spec.cast.filter((c) => c.portraitUrl && !c.modelSheetUrl).length;
@@ -59,7 +65,7 @@ export function schatStoryboardCredits(spec: DialogueSpec): number {
   const voorwerpen = (spec.voorwerpen ?? []).filter(
     (v) => !v.bladUrl && spec.scenes.some((s) => voorwerpenInScene([v], s).length > 0)
   ).length;
-  return (shots + bladen + castblad + voorwerpen) * CREDIT_COSTS.IMAGE_GENERATION;
+  return (shots + regelbeelden + bladen + castblad + voorwerpen) * CREDIT_COSTS.IMAGE_GENERATION;
 }
 
 /**
@@ -130,7 +136,9 @@ export default function ScriptBoard({
   // immers over de oude zin. We gooien het resultaat dan weg zodat er opnieuw
   // gemaakt wordt, in plaats van stilletjes de verkeerde clip te houden.
   const wijzigInhoud = (si: number, li: number, velden: Partial<DialogueLine>) =>
-    wijzigRegel(si, li, { ...velden, audioUrl: null, audioDuration: null, shotImageUrl: null, videoUrl: null, mouthStart: null });
+    // Ook wat je in het shot ziet: dat kwam uit de oude zin, en de beeldregie maakt
+    // het bij het storyboard opnieuw.
+    wijzigRegel(si, li, { ...velden, audioUrl: null, audioDuration: null, shotImageUrl: null, videoUrl: null, mouthStart: null, beeld: null });
 
   const verwijderRegel = (si: number, li: number) => {
     const scenes = spec.scenes

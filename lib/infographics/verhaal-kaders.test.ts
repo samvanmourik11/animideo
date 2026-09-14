@@ -132,9 +132,18 @@ describe("bewegingVoorKader", () => {
     expect(a).not.toBe(b);
   });
 
-  it("zoomt in op een gezicht en uit op een plek", () => {
+  it("zoomt in op een gezicht", () => {
     expect(bewegingVoorKader("close", 0)).toBe("inzoomen");
-    expect(bewegingVoorKader("totaal", 0)).toBe("uitzoomen");
+  });
+
+  // Het beeld per shot ligt vast in het storyboard. Uitzoomen en kantelen tonen
+  // wat er niet in dat beeld stond, en dat moet het videomodel dan verzinnen.
+  it("kiest nooit een beweging die iets buiten het storyboardbeeld laat zien", () => {
+    for (const k of KADERS) {
+      for (let i = 0; i < 6; i++) {
+        expect(["uitzoomen", "kantelen"]).not.toContain(bewegingVoorKader(k, i));
+      }
+    }
   });
 
   it("blijft geldig bij een rare index of een leeg kader", () => {

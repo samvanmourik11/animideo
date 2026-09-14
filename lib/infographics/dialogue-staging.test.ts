@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { kaderVoorScene, buildTwoShotBrief, buildTurnShotPrompt, buildShotPrompt } from "./dialogue-staging";
+import {
+  kaderVoorScene, buildTwoShotBrief, buildTurnShotPrompt, buildShotPrompt,
+  buildDialogueMotionPrompt, buildActionMotionPrompt,
+} from "./dialogue-staging";
 import type { DialogueCastMember } from "./dialogue-schema";
 
 // Elke scene kreeg exact hetzelfde kader, en omdat elk regelbeeld een bewerking
@@ -171,5 +174,56 @@ describe("buildShotPrompt", () => {
     const p = buildShotPrompt({ setting: "a room", inBeeld: [lily], kader: "hoog" });
     expect(p).toContain("same location");
     expect(p).toContain("Only the camera position");
+  });
+
+  // Zeven bosscènes op daglicht, en één had oranje zonnestralen door de nevel.
+  it("houdt ook het licht gelijk aan het scenebeeld", () => {
+    expect(buildShotPrompt({ setting: "a room", inBeeld: [lily], kader: "hoog" })).toContain("the light");
+  });
+
+  // Tyrell zei "deze bloem heet een bosanemoon" en er stond geen bloem in beeld:
+  // het beeld kreeg de zin niet mee. Wat je ziet komt nu uit de beeldregie.
+  it("tekent wat de beeldregie voor dit shot vastlegde", () => {
+    const p = buildShotPrompt({
+      setting: "a forest", inBeeld: [tyrel], spreker: tyrel, kader: "close",
+      beeld: "Tyrell crouches next to a white wood anemone",
+    });
+    expect(p).toContain("white wood anemone");
+    expect(p).toContain("clearly visible");
+  });
+
+  it("zet bij een detail geen personages in beeld, hooguit een hand", () => {
+    const p = buildShotPrompt({ setting: "a forest", inBeeld: [tyrel, lily], actie: "a white flower", kader: "detail" });
+    expect(p).toContain("no faces");
+    expect(p).not.toContain("IN THIS SHOT: 2 characters");
+  });
+});
+
+describe("buildTurnShotPrompt met beeldregie", () => {
+  it("laat de bewerking toevoegen wat het shot moet laten zien", () => {
+    const [spreker, luisteraar] = cast;
+    const p = buildTurnShotPrompt(spreker, [luisteraar], "blij", null, null, "Tyrel holds up a small white flower");
+    expect(p).toContain("small white flower");
+    expect(p).not.toContain("the same background and props");
+  });
+
+  it("verandert niets aan een bewerking zonder beeldregie", () => {
+    const [spreker, luisteraar] = cast;
+    expect(buildTurnShotPrompt(spreker, [luisteraar], "blij", null, null)).toContain("the same background and props");
+  });
+});
+
+// Het beeld per shot ligt vast in het storyboard. Wat de beweging daarna nog
+// toevoegt, heeft niemand gezien.
+describe("bewegingsprompts voegen niets nieuws toe", () => {
+  it("bij een gesprek", () => {
+    const [spreker, luisteraar] = cast;
+    expect(buildDialogueMotionPrompt(spreker, [luisteraar], null, "inzoomen")).toContain("NOTHING NEW");
+  });
+
+  it("bij een actiebeeld, dat de handeling al in het eerste frame toont", () => {
+    const p = buildActionMotionPrompt("they walk along the forest path", null, "meelopen");
+    expect(p).toContain("NOTHING NEW");
+    expect(p).toContain("The first frame already shows");
   });
 });

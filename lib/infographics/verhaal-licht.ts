@@ -41,9 +41,14 @@ const DEF: Record<Lichtsoort, LichtDef> = {
   dag: {
     label: "Daglicht",
     uitleg: "Gewoon overdag. Helder, vriendelijk, weinig drama.",
+    // "Warm" en verder niets liet het model per beeld zijn eigen zon kiezen: in een
+    // reeks bosscènes op daglicht had er één oranje zonnestralen door de nevel en
+    // de rest helder middaglicht. Wat daglicht NIET is, staat er nu bij.
     regie:
-      "Bright natural daylight from one clear direction — a window or the sun — so everything has a soft " +
-      "shadow falling the same way. Warm and friendly, but never flat: you can see where the light comes from.",
+      "Clear, bright daytime light from one clear direction — the sun or a window — so everything has a soft " +
+      "shadow falling the same way. Clean, natural colours as on an ordinary sunny day: no golden or orange " +
+      "glow, no visible beams or shafts of light, no haze or mist. Friendly, but never flat: you can see where " +
+      "the light comes from.",
   },
   ochtend: {
     label: "Vroege ochtend",

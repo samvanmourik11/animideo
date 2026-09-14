@@ -163,6 +163,13 @@ interface Body {
   voorwerpen?: DialogueVoorwerp[];
   /** Zaten ze in het vorige actiebeeld van deze scène? Zie zitHouding. */
   zit?: boolean;
+  /** Wat je in dit shot ziet, uit de beeldregie (Engels). Zie DialogueLine.beeld. */
+  beeld?: string;
+  /**
+   * Alleen het beeld van deze regel, zonder stem en clip: voor het storyboard per
+   * zin. De clip gebruikt dat beeld later via hergebruikShotImageUrl.
+   */
+  alleenBeeld?: boolean;
 }
 
 // Eén gesproken regel = één clip waarin precies dit personage praat en de anderen
@@ -255,15 +262,23 @@ export async function POST(req: NextRequest) {
     // Stem + bronbeeld + clip vooraf afrekenen.
     // Alleen afrekenen wat er daadwerkelijk gemaakt wordt. Wie alleen de beweging
     // overdoet betaalt geen stem en geen beeld.
-    const stemNodig = (!isActieBeeld || heeftVoiceOver) && !(b.hergebruikAudioUrl ?? "").trim();
+    // Voor het storyboard alleen het beeld: geen stem en geen clip, en daar dus ook
+    // niet voor betalen.
+    const alleenBeeld = b.alleenBeeld === true;
+    const stemNodig = !alleenBeeld && (!isActieBeeld || heeftVoiceOver) && !(b.hergebruikAudioUrl ?? "").trim();
     const beeldNodig = !( (b.hergebruikShotImageUrl ?? "").trim() && !(b.beeldInstructie ?? "").trim() );
+    if (alleenBeeld && !beeldNodig) {
+      return NextResponse.json({ error: "Dit shot heeft al een beeld" }, { status: 400 });
+    }
     const kosten =
       (stemNodig ? CREDIT_COSTS.VOICE : 0) +
       (beeldNodig ? CREDIT_COSTS.IMAGE_GENERATION : 0) +
-      CREDIT_COSTS.VIDEO_GENERATION;
+      (alleenBeeld ? 0 : CREDIT_COSTS.VIDEO_GENERATION);
     const credit = await deductCredits(
       user.id, kosten,
-      isActieBeeld ? (heeftVoiceOver ? "Dialoog: actiebeeld met stem" : "Dialoog: actiebeeld") : `Dialoogregel (${spreker!.name})`
+      alleenBeeld
+        ? "Dialoog: storyboardbeeld"
+        : isActieBeeld ? (heeftVoiceOver ? "Dialoog: actiebeeld met stem" : "Dialoog: actiebeeld") : `Dialoogregel (${spreker!.name})`
     );
     if (!credit.success) {
       return NextResponse.json({ error: "insufficient_credits", credits: credit.credits, required: kosten }, { status: 402 });
@@ -280,7 +295,9 @@ export async function POST(req: NextRequest) {
     let audioDuration = 0;
 
     const bestaandeAudio = (b.hergebruikAudioUrl ?? "").trim();
-    if ((!isActieBeeld || heeftVoiceOver) && bestaandeAudio) {
+    if (alleenBeeld) {
+      // Alleen het beeld voor het storyboard: de stem komt pas bij de clip.
+    } else if ((!isActieBeeld || heeftVoiceOver) && bestaandeAudio) {
       // Tekst is niet veranderd, dus de bestaande opname deugt nog.
       audioUrl = bestaandeAudio;
       audioDuration = typeof b.hergebruikAudioDuration === "number" && b.hergebruikAudioDuration > 0
@@ -364,6 +381,9 @@ export async function POST(req: NextRequest) {
       .filter((v) => typeof v?.naam === "string" && typeof v?.uiterlijk === "string")
       .slice(0, 2);
     const voorwerpBladen = voorwerpen.map((v) => (v.bladUrl ?? "").trim()).filter(Boolean);
+    // Wat je in dit shot ziet, uit de beeldregie. Begrensd, want wat achteraan een
+    // te lange prompt staat komt niet aan (zie MAX_PROMPT_TEKENS in image-gen).
+    const beeldRegie = (b.beeld ?? "").replace(/\s+/g, " ").trim().slice(0, 400) || null;
     // Wat de camera DOET tijdens de clip. Afgeleid van het kader — je zoomt in op
     // een gezicht, je draait om iemand heen, je onthult een plek door uit te
     // zoomen — met de scene-index erin zodat twee clips achter elkaar niet
@@ -401,13 +421,14 @@ export async function POST(req: NextRequest) {
                 spreker: isActieBeeld ? null : spreker,
                 emotion: b.emotion,
                 actie: isActieBeeld ? actieTekst : null,
+                beeld: beeldRegie,
                 kader: kaderNu,
                 styleId: b.styleId,
                 licht: isLichtsoort(b.licht) ? b.licht : null,
               })
             : isActieBeeld
-              ? buildActionShotPrompt(cast, actieTekst, b.styleId, kaderNu)
-              : buildTurnShotPrompt(spreker!, luisteraars, b.emotion, b.styleId, kaderNu),
+              ? buildActionShotPrompt(cast, actieTekst, b.styleId, kaderNu, beeldRegie)
+              : buildTurnShotPrompt(spreker!, luisteraars, b.emotion, b.styleId, kaderNu, beeldRegie),
           format,
           visualStyle: null,
           // Zonder seed bij een herkansing: dezelfde seed zou grofweg hetzelfde
@@ -523,6 +544,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Bronbeeld voor deze regel mislukt" }, { status: 500 });
     }
 
+    // Voor het storyboard zijn we hier klaar: het beeld is gemaakt en gecontroleerd.
+    // Stem en clip komen pas als de gebruiker het bord heeft bekeken.
+    if (alleenBeeld) {
+      await terugstorten();
+      return NextResponse.json({
+        shotImageUrl,
+        sprekerZeker: beeldOordeel !== "verkeerd",
+        beeldOordeel,
+        beeldPogingen,
+        beeldWaarschuwingen: beeldFouten.length ? beeldFouten.slice(0, 3) : null,
+      });
+    }
+
     // ---------- 3. Tot leven brengen, en controleren wie er beweegt ----------
     // Clipduur: Seedance kent alleen 5 of 10 seconden, en 10 kost het DUBBELE
     // ($0,216 tegen $0,108). De marge dekt de aanloop voordat de mond opengaat;
@@ -551,7 +585,12 @@ export async function POST(req: NextRequest) {
                 : ""),
             duration: clipSec,
             resolution: "720p",
-            camera_fixed: true,
+            // Stond op true, uit de tijd dat de prompt nog "static locked camera"
+            // vroeg. Sindsdien vraagt de prompt om een langzame camerabeweging (zie
+            // bewegingRegie), maar deze vlag zette de camera alsnog vast: twee
+            // tegenstrijdige opdrachten in één aanroep. De bewegingen zijn nu zo
+            // gekozen dat ze niets buiten het storyboardbeeld laten zien.
+            camera_fixed: false,
           } as never,
         });
         const deadline = Date.now() + 240_000;

@@ -413,10 +413,19 @@ export function buildTurnShotPrompt(
   emotion?: string | null,
   styleId?: string | null,
   kader?: Kader | null,
+  /** Wat je in dit shot ziet, uit de beeldregie. Zie DialogueLine.beeld. */
+  beeld?: string | null,
 ): string {
   const emo = (emotion || "").trim();
   const emoZin = emo && emo !== "neutraal"
     ? ` Their facial expression reads as "${emo}".`
+    : "";
+  // Uit de beeldregie. De bloem waar Tyrell over praat hoort in dit beeld, niet
+  // pas in de beweging: wat hier ontbreekt, verzint het videomodel.
+  const beeldTekst = (beeld ?? "").trim();
+  const watJeZiet = beeldTekst
+    ? `In this shot we see: ${beeldTekst.replace(/\.?$/, ".")} Add or adjust only what that needs — the people ` +
+      `stay exactly who they are. `
     : "";
 
   // Zonder luisteraar is er niemand om stil te houden. De regels hieronder gaan
@@ -449,8 +458,9 @@ export function buildTurnShotPrompt(
         `The CAMERA MOVES to a new position: ${kaderRegie(kader)} ` +
         `Their poses and expressions change as follows. `
       : `Edit this illustration. Keep EVERYTHING identical — the same people, the same faces, hair, clothing, ` +
-        `colours, the same background and props, the same camera framing and the same positions in the frame. ` +
-        `Change ONLY their poses and expressions, as follows. `) +
+        `colours, the same background${beeldTekst ? "" : " and props"}, the same camera framing and the same positions in the frame. ` +
+        `Change ONLY their poses and expressions${beeldTekst ? ", and what this shot needs to show" : ""}, as follows. `) +
+    watJeZiet +
     `${aanduiding(spreker)} — this is ${spreker.name} — is the one SPEAKING: their mouth is clearly OPEN ` +
     `mid-sentence, one hand is raised in an open-palm explaining gesture, leaning very slightly forward, ` +
     `engaged and animated.${emoZin} ` +
@@ -466,6 +476,19 @@ export function buildTurnShotPrompt(
     NATUURWETTEN
   );
 }
+
+/**
+ * Alles wat er in de clip te zien is, staat al in het eerste frame.
+ *
+ * Het beeld per shot ligt sinds het storyboard per zin vast en is door de
+ * gebruiker bekeken. Wat de beweging daarna nog toevoegt — een bloem die ineens
+ * opduikt, een stuk bos dat de camera onthult — heeft niemand gezien, en juist
+ * daar kwamen de fouten vandaan.
+ */
+export const NIETS_NIEUWS =
+  " NOTHING NEW — everything in this clip is already in the first frame. No object, animal, plant or person " +
+  "appears, grows or enters the frame, and the camera never reveals anything the first frame does not already " +
+  "show. Only what is already there moves.";
 
 /**
  * Bewegingsinstructie voor Seedance: precies één spreker, de rest luistert.
@@ -512,7 +535,8 @@ export function buildDialogueMotionPrompt(
     `shake, and it never cuts to a different shot. ` +
     `Keep the same people, same faces, clothing, ` +
     `colours and background, and keep everyone exactly the same height and build as in the first frame. ` +
-    `Do not add another person, new objects or text.`
+    `Do not add another person, new objects or text.` +
+    NIETS_NIEUWS
   );
 }
 
@@ -539,16 +563,22 @@ export function buildActionShotPrompt(
   actie: string,
   styleId?: string | null,
   kader?: Kader | null,
+  /** Wat je in dit shot ziet, uit de beeldregie. Zie DialogueLine.beeld. */
+  beeld?: string | null,
 ): string {
   const wie = cast
     .map((c) => `${c.name}${uiterlijkVan(c) ? ` (${uiterlijkVan(c)})` : ""}`)
     .join(" and ");
+  const beeldTekst = (beeld ?? "").trim();
 
   return (
     `Edit this illustration into a new shot showing an action. Keep the SAME PEOPLE — ${wie} — with the ` +
     `same faces, hair, clothing and colours, and keep the same drawing style. ` +
     `Everything else may change: the setting, the camera distance, their poses and where they stand. ` +
     `The new shot shows: ${actie.trim()}. ` +
+    (beeldTekst
+      ? `In detail, you see: ${beeldTekst.replace(/\.?$/, ".")} Everything named here is clearly visible. `
+      : "") +
     // Een actiebeeld bij Fort Zeelandia kreeg "Zeelamdia Freelandd" op de muur: het
     // model schrijft de naam van een plek er graag op, en dan met fouten.
     `There is NO written text anywhere in the image: no letters, words, name plates, signs or labels, ` +
@@ -564,7 +594,9 @@ export function buildActionShotPrompt(
 /** Bewegingsinstructie voor een actiebeeld: de handeling zelf, geen gesprek. */
 export function buildActionMotionPrompt(actie: string, styleId?: string | null, beweging?: Beweging | null): string {
   return (
-    `Animate this illustration. The shot shows: ${actie.trim()}. ` +
+    // "The shot shows" las het videomodel als opdracht om te laten zien wat er nog
+    // niet stond. Het eerste frame komt uit het storyboard en toont het al.
+    `Animate this illustration. The first frame already shows: ${actie.trim()}. ` +
     `Bring that action to life with clear, natural movement — the people and objects involved actually move ` +
     `and carry out what is described, at a calm and readable pace. ` +
     `NOBODY SPEAKS in this shot: all mouths stay CLOSED throughout. This is an action beat with music, ` +
@@ -573,6 +605,7 @@ export function buildActionMotionPrompt(actie: string, styleId?: string | null, 
     `The camera move is slow, smooth and continuous from the first frame to the last — never a jump, never a ` +
     `shake, and it never cuts to a different shot. ` +
     `Keep the same people, same faces, clothing and colours. Do not add another person, new text or logos. ` +
+    `${NIETS_NIEUWS.trim()} ` +
     `PHYSICAL RULES: only the PEOPLE move. Vehicles, machines, furniture and equipment stay exactly where ` +
     `they are and keep their shape — nothing drives, folds, opens, collapses, transforms, grows or shrinks. ` +
     `Bodies stay whole and keep their proportions; limbs do not stretch, merge or disappear. ` +
@@ -603,11 +636,13 @@ export function buildShotPrompt(input: {
   emotion?: string | null;
   /** Bij een actiebeeld: wat er gebeurt (Engels). */
   actie?: string | null;
+  /** Wat je in dit shot ziet, uit de beeldregie (Engels). Zie DialogueLine.beeld. */
+  beeld?: string | null;
   kader?: Kader | null;
   styleId?: string | null;
   licht?: Lichtsoort | null;
 }): string {
-  const { setting, inBeeld, spreker, emotion, actie, kader, styleId, licht } = input;
+  const { setting, inBeeld, spreker, emotion, actie, beeld, kader, styleId, licht } = input;
 
   const wie = inBeeld
     .map((c) => {
@@ -638,22 +673,40 @@ export function buildShotPrompt(input: {
           : `There is nobody else in this shot — do not add a listener, a bystander or a second figure.`)
       : `Nobody is speaking in this shot — every mouth stays closed.`;
 
+  // Een detail is een voorwerp, geen groepsportret. Hier stond ook bij een detail
+  // "IN THIS SHOT: 2 characters", terwijl het kader "no faces" vraagt: het model
+  // tekende dan een van de twee, en het voorwerp viel weg.
+  const detail = kader === "detail";
+  const namen = inBeeld.map((c) => c.name).join(" or ") || "a character";
+  // Uit de beeldregie. Wat hier niet getekend wordt, moet de beweging later
+  // verzinnen — en dat is precies wat het storyboard per zin moet voorkomen.
+  const watJeZiet = (beeld ?? "").trim()
+    ? `WHAT YOU SEE IN THIS SHOT: ${(beeld ?? "").trim().replace(/\.?$/, ".")} Everything named here is clearly ` +
+      `visible and recognisable in this image. `
+    : "";
+
   return (
     `A single illustration for an animated children's story. ` +
     `LOCATION: ${plekZonderMensen(setting)} ` +
-    `IN THIS SHOT: ${inBeeld.length} character${inBeeld.length === 1 ? "" : "s"} — ${wie}. ` +
-    `There is nobody else in the frame: no extra children, no extra adults, no bystanders, no background figures. ` +
-    `${iederEenKeer(inBeeld.map((c) => c.name))} ` +
-    // "Oma legt de kinderen iets uit" leverde een groepje extra kinderen op de
-    // achtergrond op: het model las "de kinderen" als nieuwe mensen.
-    `Words like "the children", "the kids", "the family" or "everyone" mean exactly these characters, never extra people. ` +
+    (detail
+      ? `IN THIS SHOT: no faces and no full characters — this is a close insert of an object. At most a hand or ` +
+        `arm of ${namen} may reach into the frame. There is nobody else in the frame. `
+      : `IN THIS SHOT: ${inBeeld.length} character${inBeeld.length === 1 ? "" : "s"} — ${wie}. ` +
+        `There is nobody else in the frame: no extra children, no extra adults, no bystanders, no background figures. ` +
+        `${iederEenKeer(inBeeld.map((c) => c.name))} ` +
+        // "Oma legt de kinderen iets uit" leverde een groepje extra kinderen op de
+        // achtergrond op: het model las "de kinderen" als nieuwe mensen.
+        `Words like "the children", "the kids", "the family" or "everyone" mean exactly these characters, never extra people. `) +
     `${kaderRegie(kader)} ` +
     `${wieDoetWat} ` +
+    watJeZiet +
     (meer && iedereenZichtbaar(kader) ? `${OPSTELLING.trim()} ` : "") +
     // De plek moet hetzelfde blijven als de rest van de scene; die komt uit het
     // meegestuurde scenebeeld. Alleen het standpunt en de houdingen verschillen.
-    `One reference image shows this same location earlier in the story: keep the room, furniture and colours ` +
-    `the same as there. Only the camera position and the characters' poses differ. ` +
+    // Het licht hoort daarbij: anders koos elk shot zijn eigen zon.
+    `One reference image shows this same location earlier in the story: keep the room, furniture, colours and ` +
+    `the light — where it comes from, its colour and brightness — the same as there. Only the camera position ` +
+    `and the characters' poses differ. ` +
     stijlBewerking(styleId) + MAATVAST +
     // De sfeer komt NA de tekenstijl: die schrijft bij Soft 3D "gentle soft studio
     // lighting" voor, en dat wint als het als laatste in de prompt staat. Dan is

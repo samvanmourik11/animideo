@@ -250,6 +250,19 @@ export interface DialogueLine {
    * zodat jij die redenering kunt nalezen en afkeuren.
    */
   verband?: string | null;
+  /**
+   * Wat je in dit shot ZIET, in het Engels: houding, waar ze naar kijken, en elk
+   * ding waar de zin over gaat ("Tyrell crouches next to a white wood anemone,
+   * pointing at it").
+   *
+   * Het beeld per regel kreeg alleen de emotie mee, niet de zin. Zei Tyrell "deze
+   * bloem heet een bosanemoon", dan stond er nergens een bloem en moest het
+   * videomodel die zelf verzinnen. Dit wordt vóór het storyboard vastgelegd (zie
+   * beeldregie.ts), zodat het storyboard toont wat er in de video komt.
+   */
+  beeld?: string | null;
+  /** Wat de gebruiker in het storyboard over dít shot zei. Zie DialogueScene.beeldAanwijzing. */
+  beeldAanwijzing?: string | null;
   // Bronbeeld van DEZE regel: het twee-shot van de scène, bijgewerkt zodat dit
   // personage praat en de ander in luisterhouding staat.
   shotImageUrl?: string | null;
@@ -301,6 +314,17 @@ export interface DialogueScene {
    * het basisbeeld — anders was de aanwijzing bij de volgende ronde weer vergeten.
    */
   beeldAanwijzing?: string | null;
+  /**
+   * Het grotere gebied waar deze plek bij hoort ("forest", "grandma's house").
+   *
+   * Zeven scènes op een wandeling door het bos hadden dezelfde omschrijving en
+   * werden zeven keer hetzelfde bospad. Nu krijgt elke scène een eigen plekje,
+   * maar scènes in hetzelfde gebied horen er als één bos uit te zien, met hetzelfde
+   * licht. Zie sfeerAnker in beeldregie.ts.
+   */
+  gebied?: string | null;
+  /** Is de beeldregie over deze scène gegaan (eigen plek, beeld per regel)? */
+  geregisseerd?: boolean | null;
 }
 
 /**
@@ -472,6 +496,14 @@ export function actieDuur(l: DialogueLine): number {
   if (heeftStem(l) && typeof l.audioDuration === "number" && l.audioDuration > 0) return l.audioDuration;
   const s = typeof l.seconden === "number" && Number.isFinite(l.seconden) ? l.seconden : ACTIE_STANDAARD_SEC;
   return Math.max(ACTIE_MIN_SEC, Math.min(ACTIE_MAX_SEC, s));
+}
+
+/**
+ * Heeft deze regel iets om te tekenen? Een dialoogregel zonder zin of een
+ * actiebeeld zonder handeling slaan we over, in het storyboard én bij de clips.
+ */
+export function bruikbareRegel(l: DialogueLine): boolean {
+  return isActie(l) ? !!(l.actie ?? "").trim() : !!(l.text ?? "").trim();
 }
 
 /**

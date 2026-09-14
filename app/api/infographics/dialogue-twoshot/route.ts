@@ -26,6 +26,11 @@ interface Body {
    * kamer met een andere bank en de open haard aan een andere muur.
    */
   locationRefUrl?: string;
+  /**
+   * Een basisbeeld van een ANDERE plek in hetzelfde gebied, met hetzelfde licht.
+   * Alleen voor licht, kleur en de soort omgeving. Zie sfeerAnker in beeldregie.ts.
+   */
+  sfeerRefUrl?: string;
   cast?: DialogueCastMember[];
   styleId?: string;
   format?: InfographicFormat;
@@ -159,6 +164,17 @@ export async function POST(req: NextRequest) {
         "floor, colours and decorations must match it exactly — same sofa, same tree, same fireplace, in the " +
         "same places. Only the camera position and the characters' poses differ."
       : "";
+    // Een beeld van dezelfde plek gaat hierboven al mee; dan is een tweede referentie
+    // voor alleen het licht overbodig.
+    const sfeerRef = (body.sfeerRefUrl ?? "").trim();
+    const metSfeer = !!sfeerRef && sfeerRef !== locatieRef;
+    const sfeerInstructie = metSfeer
+      ? " One reference image shows ANOTHER spot in this same area, earlier in the video, in the same light. Match " +
+        "its LIGHT exactly — the time of day, where the sun comes from, the colour temperature, how bright it is, and " +
+        "whether there are sun rays or haze — and its colour palette and the kind of place: the same kind of trees, " +
+        "plants, buildings or furniture. But this is a DIFFERENT spot: do not copy its composition, path or layout, " +
+        "and do not copy the people from it — they are placed as described above."
+      : "";
     const ankerInstructie = anker
       ? " A reference image of these SAME two people from an earlier scene in this same video is provided. " +
         "Keep the characters identical to that image — same faces, hair, clothing, colours, drawing style, and " +
@@ -218,13 +234,15 @@ export async function POST(req: NextRequest) {
         brandUrls: [castblad, ...voorwerpBladen].filter(Boolean),
         // Het anker uit scène 1 houdt cast én look gelijk over alle scènes heen.
         // Het anker houdt de personages gelijk, de locatiereferentie de kamer.
-        ingredientUrls: [locatieRef, anker].filter(Boolean),
+        // Het sfeerbeeld (een andere plek in hetzelfde gebied) houdt het licht gelijk.
+        ingredientUrls: [locatieRef, metSfeer ? sfeerRef : "", anker].filter(Boolean),
         extraContext: [
           illustratieContext(body.illustrationBrief),
           castbladInstructie,
           cast.length === 1 && cast[0].modelSheetUrl ? MODELBLAD_UITLEG : "",
           ankerInstructie,
           locatieInstructie,
+          sfeerInstructie,
           alleenDezeMensen,
           voorwerpRegie(voorwerpen),
           // Na de vaste regels, zodat de aanwijzing over DIT beeld gaat en niet

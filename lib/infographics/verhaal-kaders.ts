@@ -255,18 +255,22 @@ const BEW: Record<Beweging, BewegingDef> = {
       "The camera pulls back SLOWLY and continuously for the whole clip, revealing more of the location around " +
       "the subject with every second. A steady dolly-out — never a snap zoom.",
   },
+  // Een kwartcirkel om iemand heen of een lange rit opzij laat een deel van de plek
+  // zien dat niet in het storyboardbeeld stond, en dat verzint het videomodel dan.
+  // Klein houden: genoeg voor diepte, te weinig om iets nieuws te onthullen.
   meedraaien: {
     label: "Om het onderwerp heen",
     regie:
-      "The camera ARCS slowly around the subject for the whole clip, as if walking a quarter circle around " +
-      "them: the background slides sideways behind them and you gradually see them from a slightly different " +
-      "angle. The subject stays roughly centred while the world moves behind them.",
+      "The camera ARCS a little around the subject for the whole clip — only a few degrees — so the background " +
+      "shifts gently sideways behind them and you see them from a slightly different angle. The subject stays " +
+      "roughly centred. Nothing new comes into view: everything stays what the first frame already shows.",
   },
   meelopen: {
     label: "Meebewegen",
     regie:
-      "The camera glides sideways through the space for the whole clip — a slow, smooth tracking move that " +
-      "makes the foreground pass a little faster than the background, so the room feels three-dimensional.",
+      "The camera glides a short way sideways for the whole clip — a slow, smooth tracking move that makes the " +
+      "foreground pass a little faster than the background, so the place feels three-dimensional. It stays within " +
+      "what the first frame already shows: nothing new comes into view at the edges.",
   },
   kantelen: {
     label: "Kantelen",
@@ -298,17 +302,20 @@ export function isBeweging(waarde: unknown): waarde is Beweging {
  * `index` laat ze rouleren zodat twee opeenvolgende shots niet hetzelfde doen.
  */
 export function bewegingVoorKader(kader: Kader | null | undefined, index = 0): Beweging {
+  // Uitzoomen en kantelen staan er niet meer tussen. Het beeld per shot ligt sinds
+  // het storyboard per zin vast, en die twee bewegingen laten per definitie iets
+  // zien dat NIET in dat beeld stond: meer plek, of wat erboven zit. Dat moest het
+  // videomodel dan verzinnen — precies wat het storyboard moet voorkomen.
   const opties: Record<Kader, Beweging[]> = {
-    // Een plek onthullen of er langzaam in zakken.
-    totaal: ["uitzoomen", "meelopen", "inzoomen"],
+    totaal: ["inzoomen", "meelopen"],
     medium: ["inzoomen", "meedraaien", "meelopen"],
     // Op een gezicht werkt inzoomen het sterkst; eromheen draaien geeft leven.
     close: ["inzoomen", "meedraaien"],
     "extreme-close": ["inzoomen", "stil"],
     // Meekijken over een schouder vraagt om vooruit bewegen.
     "van-achteren": ["inzoomen", "meelopen"],
-    laag: ["inzoomen", "kantelen"],
-    hoog: ["uitzoomen", "kantelen"],
+    laag: ["inzoomen", "meedraaien"],
+    hoog: ["inzoomen", "meelopen"],
     detail: ["inzoomen", "stil"],
   };
   const rij = opties[kader ?? STANDAARD_KADER] ?? opties[STANDAARD_KADER];
