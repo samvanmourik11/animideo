@@ -514,7 +514,17 @@ export default function SetupPanel({
         />
       </Groep>
 
-      <Groep titel="Beeld" samenvatting={setup.format === "9:16" ? "Staand, social" : "Liggend"}>
+      {/* Het aantal voorwerpen staat in de rand: dichtgeklapt zag niemand dat de lijst
+          leeg was, ook niet bij een verhaal over een bloem en een grote boom. */}
+      <Groep
+        titel="Beeld en voorwerpen"
+        samenvatting={[
+          setup.format === "9:16" ? "Staand, social" : "Liggend",
+          setup.voorwerpen?.length
+            ? `${setup.voorwerpen.length} ${setup.voorwerpen.length === 1 ? "voorwerp" : "voorwerpen"}`
+            : "nog geen voorwerpen",
+        ].join(" · ")}
+      >
         <div>
           <span className="block text-[11px] text-slate-400 mb-1.5">Formaat</span>
           <div className="flex gap-1.5">

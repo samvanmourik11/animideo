@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   bladUitAndereStijl, bladVoorStijl, koppelVoorwerpen, leesBibliotheekVoorwerp, naarDialoogVoorwerp, tabelOntbreekt,
+  voegVoorwerpenSamen, voorwerpenZoekPrompt,
   MAX_VOORWERPEN, type BibliotheekVoorwerp,
 } from "./voorwerp-bibliotheek";
 
@@ -67,6 +68,50 @@ describe("leesBibliotheekVoorwerp", () => {
     expect(leesBibliotheekVoorwerp({ id: "x" })).toBeNull();
     const v = leesBibliotheekVoorwerp({ ...WAGEN, bladen: { "soft-3d": "https://x/a.png", "flat-vector": "javascript:1", papercut: 3 } });
     expect(v?.bladen).toEqual({ "soft-3d": "https://x/a.png" });
+  });
+});
+
+// De opzet koos voor een verhaal over een klaproos en een grote boom geen enkel
+// voorwerp. Het zoeken in het geschreven draaiboek vult aan zonder weg te gooien.
+describe("voegVoorwerpenSamen", () => {
+  const bloem = { naam: "klaproos", uiterlijk: "a red poppy", bladUrl: "https://x/klaproos.png", bibliotheekId: null };
+
+  it("houdt een voorwerp dat er al stond, met zijn blad", () => {
+    const uit = voegVoorwerpenSamen([bloem], [{ naam: "Klaproos", uiterlijk: "iets anders", bladUrl: null }]);
+    expect(uit).toEqual([bloem]);
+  });
+
+  it("zet een nieuw gevonden voorwerp erbij", () => {
+    const uit = voegVoorwerpenSamen([bloem], [{ naam: "de grote eik", uiterlijk: "a huge old oak", bladUrl: null }]);
+    expect(uit.map((v) => v.naam)).toEqual(["klaproos", "de grote eik"]);
+  });
+
+  it("herkent hetzelfde bibliotheekvoorwerp ook onder een andere naam", () => {
+    const wagen = naarDialoogVoorwerp(WAGEN, "soft-3d");
+    const uit = voegVoorwerpenSamen([wagen], [{ ...wagen, naam: "de wagen van oma" }]);
+    expect(uit).toHaveLength(1);
+  });
+
+  it("gaat niet over het maximum", () => {
+    const vol = Array.from({ length: MAX_VOORWERPEN }, (_, i) => ({ naam: `ding ${i}`, uiterlijk: "x" }));
+    expect(voegVoorwerpenSamen(vol, [{ naam: "nog een", uiterlijk: "y" }])).toHaveLength(MAX_VOORWERPEN);
+  });
+});
+
+describe("voorwerpenZoekPrompt", () => {
+  it("geeft het draaiboek, de bibliotheek en wat al vastligt mee", () => {
+    const { vraag } = voorwerpenZoekPrompt(
+      {
+        title: "Het bos",
+        cast: [{ id: "c1", characterId: "u1", name: "Tyrell", role: "", voice: "v", portraitUrl: "https://x/t.png", position: "left" }],
+        voorwerpen: [{ naam: "klaproos", uiterlijk: "a red poppy" }],
+        scenes: [{ id: "s", setting: "a forest path", lines: [{ characterId: "c1", text: "Deze bloem heet een klaproos.", emotion: "blij" }] }],
+      },
+      [WAGEN],
+    );
+    expect(vraag).toContain('Tyrell: "Deze bloem heet een klaproos."');
+    expect(vraag).toContain('id "w-1": Wonderwagen');
+    expect(vraag).toContain("VOORWERPEN DIE AL VASTLIGGEN");
   });
 });
 

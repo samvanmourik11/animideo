@@ -7,7 +7,7 @@
 // past niet in een video in een andere stijl (een zachte 3D-wagen tussen platte
 // tekeningen), dus daar dient het alleen als voorbeeld voor vorm en kleuren.
 
-import type { DialogueVoorwerp } from "./dialogue-schema";
+import type { DialogueSpec, DialogueVoorwerp } from "./dialogue-schema";
 
 export interface BibliotheekVoorwerp {
   id: string;
@@ -112,6 +112,92 @@ export function koppelVoorwerpen(
     if (uit.length >= MAX_VOORWERPEN) break;
   }
   return uit;
+}
+
+/**
+ * Voorwerpen die in een draaiboek gevonden zijn, erbij zetten zonder te verliezen wat
+ * er al stond: een bestaand voorwerp kan al een getekend blad hebben, of door de
+ * gebruiker aangepast zijn.
+ */
+export function voegVoorwerpenSamen(bestaand: DialogueVoorwerp[], gevonden: DialogueVoorwerp[]): DialogueVoorwerp[] {
+  const uit = [...bestaand];
+  const staatErAl = (v: DialogueVoorwerp) =>
+    uit.some((x) => (!!v.bibliotheekId && x.bibliotheekId === v.bibliotheekId) || naamSleutel(x.naam) === naamSleutel(v.naam));
+  for (const v of gevonden) {
+    if (uit.length >= MAX_VOORWERPEN) break;
+    if (!staatErAl(v)) uit.push(v);
+  }
+  return uit;
+}
+
+export const VOORWERPEN_ZOEKEN_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["voorwerpen"],
+  properties: {
+    voorwerpen: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["naam", "uiterlijk", "bibliotheekId"],
+        properties: {
+          naam: { type: "string" },
+          uiterlijk: { type: "string" },
+          bibliotheekId: { type: "string" },
+        },
+      },
+    },
+  },
+} as const;
+
+const ZOEK_SYSTEEM = `Je leest het draaiboek van een getekende animatievideo en zoekt de VOORWERPEN die in elk beeld precies hetzelfde getekend moeten worden. Elk beeld wordt los getekend: een voorwerp dat niet vastligt, ziet er in elk shot anders uit.
+
+WAT TELT ALS VOORWERP
+- Een ding dat een rol speelt in het verhaal: waar de personages naar kijken, over praten, mee spelen, in rijden of dat ze vinden. De bloem die ze bestuderen, een kaart, een knuffel, een wagen.
+- Een ding dat in meer dan één shot of scène terugkomt, zoals de grote boom waar ze onder staan.
+- Hooguit vier, de belangrijkste eerst. Een verhaal dat om een bloem draait, heeft die bloem als voorwerp.
+
+WAT NIET TELT
+Personages en dieren die meespelen, kleding, de hele plek (het bos, de kamer, de stad) en achtergronddingen die niemand noemt of bekijkt.
+
+PER VOORWERP
+- "naam": zoals het in het verhaal heet, in de taal van het verhaal ("klaproos", "de grote eik", "Wonderwagen").
+- "uiterlijk": één ENGELSE zin die precies beschrijft hoe het eruitziet, zodat een tekenaar het elke keer hetzelfde tekent: wat voor ding het is, de hoofdkleur, twee opvallende details en hoe groot het is naast de personages. Voorbeeld van de vorm (niet van de inhoud): "an old brass lantern with a round glass window and a curled handle, about the size of a child's head". Natuurgetrouw en passend bij wat het verhaal zegt; nooit alleen vage woorden als "magical" of "colourful".
+- "bibliotheekId": staat het voorwerp in DE VOORWERPENBIBLIOTHEEK (hetzelfde ding, ook als het verhaal het iets anders noemt), gebruik dan dat id en neem naam en uiterlijk letterlijk uit de bibliotheek over. Anders leeg.
+- Staan er VOORWERPEN DIE AL VASTLIGGEN, geef die ook terug, ongewijzigd.`;
+
+/** De vraag om de voorwerpen uit een geschreven draaiboek te halen. */
+export function voorwerpenZoekPrompt(
+  spec: Pick<DialogueSpec, "title" | "scenes" | "cast" | "voorwerpen">,
+  bibliotheek: Pick<BibliotheekVoorwerp, "id" | "naam" | "uiterlijk">[],
+): { systeem: string; vraag: string } {
+  const naam = (id: string) => spec.cast.find((c) => c.id === id)?.name ?? "de verteller";
+  const vast = (spec.voorwerpen ?? [])
+    .filter((v) => v.naam.trim() && v.uiterlijk.trim())
+    .map((v) => `- ${v.naam}${v.bibliotheekId ? ` (bibliotheek-id "${v.bibliotheekId}")` : ""}: ${v.uiterlijk}`)
+    .join("\n");
+  const draaiboek = spec.scenes
+    .map((s, si) => {
+      const regels = s.lines
+        .map((l) => {
+          const wat = (l.actie ?? "").trim() ? ` [beeld: ${(l.actie ?? "").trim()}]` : "";
+          const zin = (l.text ?? "").trim() ? ` ${naam(l.characterId)}: "${l.text.trim()}"` : "";
+          return wat || zin ? `  -${wat}${zin}` : null;
+        })
+        .filter(Boolean)
+        .join("\n");
+      return `SCÈNE ${si + 1} — plek: ${s.setting}\n${regels}`;
+    })
+    .join("\n\n");
+
+  const vraag =
+    `TITEL: ${spec.title}\n\n` +
+    `DE VOORWERPENBIBLIOTHEEK:\n${bibliotheekVoorwerpTekst(bibliotheek)}\n\n` +
+    (vast ? `VOORWERPEN DIE AL VASTLIGGEN:\n${vast}\n\n` : "") +
+    `DRAAIBOEK:\n${draaiboek}\n\n` +
+    `Geef nu de voorwerpen als JSON.`;
+  return { systeem: ZOEK_SYSTEEM, vraag };
 }
 
 /** Ontbreekt de tabel nog (migratie niet gedraaid)? Dan werkt de rest gewoon zonder. */

@@ -18,6 +18,7 @@ import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
 import { regelKlaar, heeftStem, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
 import { leesRegie, pasRegieToe, regieNodig } from "@/lib/infographics/beeldregie";
+import { MAX_VOORWERPEN, voegVoorwerpenSamen } from "@/lib/infographics/voorwerp-bibliotheek";
 import { zitHouding, zegtIetsOverHouding } from "@/lib/infographics/dialogue-staging";
 import VasteVoorwerpen from "@/components/dialogue/VasteVoorwerpen";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
@@ -66,6 +67,51 @@ export default function DialoguePage() {
   // Van welke regels ("si-li") het storyboard nu los een nieuw beeld maakt. Een
   // lijst, want je wilt niet op het ene beeld wachten voor je het volgende aanpast.
   const [regelsBezig, setRegelsBezig] = useState<string[]>([]);
+  // Voorwerpen uit het draaiboek halen (zie zoekVoorwerpen).
+  const [voorwerpenBezig, setVoorwerpenBezig] = useState(false);
+  const [voorwerpenMelding, setVoorwerpenMelding] = useState<string | null>(null);
+
+  /**
+   * Voorwerpen uit het draaiboek halen en erbij zetten.
+   *
+   * De opzet koos voor een verhaal over een klaproos en een grote boom geen enkel
+   * voorwerp (zie de route dialogue-voorwerpen). Wat er al staat blijft staan, met
+   * zijn blad; het resultaat landt op de nieuwste spec, want je kunt intussen doorwerken.
+   */
+  async function zoekVoorwerpen(bron?: DialogueSpec) {
+    const werk = bron ?? spec;
+    if (!werk || voorwerpenBezig) return;
+    setVoorwerpenBezig(true);
+    setVoorwerpenMelding(null);
+    try {
+      const r = await fetch("/api/infographics/dialogue-voorwerpen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ spec: werk }),
+      });
+      const d = await r.json();
+      if (!r.ok) { setVoorwerpenMelding(d.detail || d.error || "Voorwerpen zoeken mislukt"); return; }
+      const gevonden = (d.voorwerpen ?? []) as NonNullable<DialogueSpec["voorwerpen"]>;
+      const bestaand = werk.voorwerpen ?? [];
+      const erbij = voegVoorwerpenSamen(bestaand, gevonden).length - bestaand.length;
+      setSpec((prev) => {
+        if (!prev) return prev;
+        const samen = voegVoorwerpenSamen(prev.voorwerpen ?? [], gevonden);
+        return { ...prev, voorwerpen: samen.length ? samen : null };
+      });
+      setVoorwerpenMelding(
+        gevonden.length === 0
+          ? "Geen voorwerpen gevonden die een rol spelen of in meer beelden terugkomen."
+          : erbij === 0
+            ? "Geen nieuwe voorwerpen: wat er gevonden is, staat er al."
+            : `${erbij} ${erbij === 1 ? "voorwerp" : "voorwerpen"} toegevoegd. Kijk of de beschrijving klopt: ze worden getekend bij het storyboard.`,
+      );
+    } catch (e) {
+      setVoorwerpenMelding(e instanceof Error ? e.message : String(e));
+    } finally {
+      setVoorwerpenBezig(false);
+    }
+  }
 
   const creditFout = (d: { error?: string; required?: number; credits?: number; detail?: string }) =>
     d.error === "insufficient_credits"
@@ -156,6 +202,8 @@ export default function DialoguePage() {
     setLengte(secs);
     setExportUrl(null);
     setStap(3);
+    // Ook via het gesprek: zonder voorwerpen meteen zoeken (zie zoekVoorwerpen).
+    if (!nieuw.voorwerpen?.length) void zoekVoorwerpen(nieuw);
   }
 
   // ---------- De opzet ----------
@@ -234,6 +282,9 @@ export default function DialoguePage() {
       setLengte(setup.targetSeconds);
       setExportUrl(null);
       setStap(3);
+      // Meteen de voorwerpen erbij zoeken als de opzet er geen gaf. Zonder erop te
+      // wachten: het draaiboek staat al klaar om te lezen.
+      if (!(d.spec as DialogueSpec).voorwerpen?.length) void zoekVoorwerpen(d.spec as DialogueSpec);
     } catch (e) {
       setFout(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1106,16 +1157,30 @@ export default function DialoguePage() {
                 }
                 onOpnieuw={tekenOpnieuw}
               />
-              <div className="mt-3">
-                <VasteVoorwerpen
-                  voorwerpen={spec.voorwerpen ?? []}
-                  onChange={(v) => setSpec({ ...spec, voorwerpen: v.length ? v : null })}
-                  styleId={spec.styleId}
-                  disabled={renderBezig}
-                />
-              </div>
             </div>
           </details>
+
+          {/* De voorwerpen stonden onder de dichtgeklapte beeldregie, en daar zag niemand
+              dat de lijst leeg was — ook niet in een verhaal over een bloem en een grote boom. */}
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+              <h3 className="text-sm font-medium text-white">Voorwerpen</h3>
+              <button
+                onClick={() => void zoekVoorwerpen()}
+                disabled={renderBezig || voorwerpenBezig || (spec.voorwerpen?.length ?? 0) >= MAX_VOORWERPEN}
+                className="text-[11px] rounded px-2.5 py-1 bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10 disabled:opacity-40 transition"
+              >
+                {voorwerpenBezig ? "Zoeken…" : "Voorwerpen uit het draaiboek halen"}
+              </button>
+            </div>
+            {voorwerpenMelding && <p className="text-[11px] text-slate-400 mb-1.5">{voorwerpenMelding}</p>}
+            <VasteVoorwerpen
+              voorwerpen={spec.voorwerpen ?? []}
+              onChange={(v) => setSpec({ ...spec, voorwerpen: v.length ? v : null })}
+              styleId={spec.styleId}
+              disabled={renderBezig || voorwerpenBezig}
+            />
+          </div>
 
           <ScriptBoard spec={spec} onChange={setSpec} disabled={renderBezig} />
 
