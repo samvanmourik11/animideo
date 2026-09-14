@@ -128,7 +128,9 @@ export async function borgBeeldtekst(
   imageUrl: string,
   labels: string[],
   format?: string,
-  language = "Nederlands"
+  language = "Nederlands",
+  /** "pro" voor beelden uit Nano Banana Pro: anders bewerkt het goedkopere model ze terug. */
+  quality?: "standard" | "pro" | null
 ): Promise<{ imageUrl: string; hersteld: boolean; tekstVerwijderd: boolean }> {
   const bedoeld = labels.map((l) => l.trim()).filter(Boolean);
   const oordeel = await controleerBeeldtekst(imageUrl, bedoeld);
@@ -143,7 +145,7 @@ export async function borgBeeldtekst(
         `flat colour. Keep the composition, all shapes, objects, figures, colours and the illustration style exactly the same.`
       : `Remove every letter, word, number, label, caption and watermark from this image, and fill the freed area with the ` +
         `surrounding flat colour. Keep the composition, all shapes, objects, figures, colours and the illustration style exactly the same.`;
-    const hersteld = await editIllustration(imageUrl, correctie, format);
+    const hersteld = await editIllustration(imageUrl, correctie, format, null, quality);
 
     // Eén hercontrole. Nog steeds fout? Dan liever helemaal geen tekst.
     const naOordeel = await controleerBeeldtekst(hersteld.imageUrl, bedoeld);
@@ -154,7 +156,9 @@ export async function borgBeeldtekst(
       `Remove every letter, word, number, label, caption, watermark and logo from this image, and fill the freed area ` +
         `with the surrounding flat colour. Keep the composition, all shapes, objects, figures, colours and the ` +
         `illustration style exactly the same.`,
-      format
+      format,
+      null,
+      quality
     );
     return { imageUrl: kaal.imageUrl, hersteld: true, tekstVerwijderd: true };
   } catch (e) {

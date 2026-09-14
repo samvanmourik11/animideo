@@ -43,10 +43,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Voorwerp zonder naam of beschrijving" }, { status: 400 });
     }
 
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Voorwerpblad");
+    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION_PRO, "Voorwerpblad");
     if (!credit.success) {
       return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION_PRO },
         { status: 402 },
       );
     }
@@ -89,6 +89,8 @@ export async function POST(req: NextRequest) {
     ].filter(Boolean).join(" ");
 
     const result = await generateImageWithStyle({
+      // Pro houdt personages en voorwerpen beter gelijk van beeld tot beeld.
+      quality: "pro",
       prompt: buildIllustrationPrompt(brief, body.styleId ?? "flat-vector", body.language ?? null),
       format: "16:9",
       visualStyle: null,
@@ -104,7 +106,7 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       // Het blad is gereedschap, geen bestelling: mislukt het opslaan, dan krijgt
       // de gebruiker zijn credit terug.
-      await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: voorwerpblad");
+      await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION_PRO, "Refund: voorwerpblad");
       throw e;
     }
   } catch (err: unknown) {

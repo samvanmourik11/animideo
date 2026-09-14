@@ -115,8 +115,8 @@ export default function DialogueChat({
   void Link;
 
   const { regels, scenes } = planVoorLengte(lengte);
-  const perRegel = CREDIT_COSTS.VOICE + CREDIT_COSTS.IMAGE_GENERATION + CREDIT_COSTS.VIDEO_GENERATION;
-  const credits = regels * perRegel + scenes * CREDIT_COSTS.IMAGE_GENERATION;
+  const perRegel = CREDIT_COSTS.VOICE + CREDIT_COSTS.IMAGE_GENERATION_PRO + CREDIT_COSTS.VIDEO_GENERATION;
+  const credits = regels * perRegel + scenes * CREDIT_COSTS.IMAGE_GENERATION_PRO;
   const minuten = Math.max(1, Math.round(((regels * SEC_PER_CLIP) / PARALLEL + scenes * 12) / 60));
 
   return (

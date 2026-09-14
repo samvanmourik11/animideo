@@ -93,10 +93,10 @@ export async function POST(req: NextRequest) {
     const format = (body.format === "9:16" ? "9:16" : "16:9") as InfographicFormat;
     const styleId = body.styleId ?? "flat-vector";
 
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Dialoog twee-shot");
+    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION_PRO, "Dialoog twee-shot");
     if (!credit.success) {
       return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION_PRO },
         { status: 402 }
       );
     }
@@ -169,6 +169,8 @@ export async function POST(req: NextRequest) {
     const MAX_POGINGEN = 3;
     for (let poging = 1; poging <= MAX_POGINGEN && twoShotUrl === null; poging++) {
       const result = await generateImageWithStyle({
+        // Pro houdt personages en voorwerpen beter gelijk van beeld tot beeld.
+        quality: "pro",
         // true = met omgeving. Zonder dit kwam elk gesprek op een leeg wit vlak
         // terecht, want het standaardkader van de infographic-tool poetst de plek weg.
         prompt: buildIllustrationPrompt(brief, styleId, body.language ?? null, "omgeving"),
@@ -225,7 +227,7 @@ export async function POST(req: NextRequest) {
         twoShotUrl = await zonderTekst(keuze.url, format, body.language);
       } else {
         console.warn(`[dialogue-twoshot] afgekeurd (poging ${poging}): ${fouten.join("; ")}`);
-        besteedExtra += CREDIT_COSTS.IMAGE_GENERATION;
+        besteedExtra += CREDIT_COSTS.IMAGE_GENERATION_PRO;
       }
     }
 
