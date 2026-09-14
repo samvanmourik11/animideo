@@ -365,6 +365,50 @@ export async function editIllustration(
   return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: prompt, refsUsed: imageUrls };
 }
 
+/**
+ * Eén bestaand beeld bewerken met Nano Banana: alleen de gevraagde verandering.
+ *
+ * Voor een correctie in het storyboard van de dialoogmodus ("Lilly's afro zoals in de
+ * andere beelden"). In een proef bleef de rest van het beeld gelijk, ook de zachte
+ * look; Flux Kontext (editImage) veranderde bij dezelfde opdracht de gezichten en de
+ * tekenstijl. Een NIEUW beeld met een eerder beeld als voorbeeld gaf juist een harde
+ * kopie; dit is hetzelfde beeld met één wijziging.
+ */
+export async function bewerkBeeld(input: {
+  bronUrl: string;
+  instructie: string;
+  /** Hooguit twee extra beelden, bijvoorbeeld het castblad voor hoe iemand eruitziet. */
+  referentieUrls?: (string | null | undefined)[] | null;
+  referentieUitleg?: string;
+  format?: string;
+}): Promise<NanoBananaResult> {
+  const refs = cleanList(input.referentieUrls).filter((u) => u !== input.bronUrl).slice(0, 2);
+  const prompt = [
+    "Edit the first image.",
+    input.instructie.trim().replace(/\.?$/, "."),
+    "Change ONLY that. Keep everything else exactly as it is: the composition and framing, the poses and faces, the " +
+      "other characters, the background, and the lighting, colours, softness and level of detail of the image. Do not " +
+      "sharpen it, do not add contrast or saturation. No text, no watermarks, no logos.",
+    refs.length
+      ? input.referentieUitleg ?? "The other images are references for appearance only; do not copy their layout, background or poses."
+      : "",
+  ].filter(Boolean).join(" ").slice(0, MAX_PROMPT_TEKENS);
+
+  const result = await fal.subscribe(EDIT_MODEL, {
+    input: {
+      prompt,
+      image_urls: [input.bronUrl, ...refs],
+      aspect_ratio: aspectFor(input.format),
+      resolution: "2K",
+      num_images: 1,
+      output_format: "jpeg",
+    } as never,
+  });
+  const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
+  if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Nano Banana (bewerken)");
+  return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: prompt, refsUsed: [input.bronUrl, ...refs] };
+}
+
 export async function editImage(input: EditImageInput): Promise<NanoBananaResult> {
   const aspect = aspectFor(input.format);
 

@@ -263,6 +263,11 @@ export interface DialogueLine {
   beeld?: string | null;
   /** Wat de gebruiker in het storyboard over dít shot zei. Zie DialogueScene.beeldAanwijzing. */
   beeldAanwijzing?: string | null;
+  /**
+   * Wat de app van die aanwijzing begreep, in één zin ("Lilly krijgt weer haar volle
+   * afro"). Staat bij het beeld, zodat je ziet of "het rechter poppetje" goed begrepen is.
+   */
+  beeldAanwijzingUitleg?: string | null;
   // Bronbeeld van DEZE regel: het twee-shot van de scène, bijgewerkt zodat dit
   // personage praat en de ander in luisterhouding staat.
   shotImageUrl?: string | null;

@@ -84,14 +84,20 @@ function ShotTegel({
         )}
       </p>
 
+      {regel.beeldAanwijzingUitleg && (
+        <p className="text-[10px] leading-snug text-emerald-300/80" title={regel.beeldAanwijzing ?? undefined}>
+          Begrepen: {regel.beeldAanwijzingUitleg}
+        </p>
+      )}
+
       {open ? (
         <div className="flex flex-col gap-1">
           <textarea
             value={aanwijzing}
             onChange={(e) => setAanwijzing(e.target.value)}
             disabled={geblokkeerd}
-            rows={2}
-            placeholder="Wat moet er anders? Bijv. ‘de bloem groter in beeld’"
+            rows={3}
+            placeholder="Wat moet er anders? Je mag naar andere beelden verwijzen, bijv. ‘Lilly's haar zoals in shot 1’"
             className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white placeholder:text-slate-600 disabled:opacity-50 resize-y"
           />
           {regel.videoUrl && (

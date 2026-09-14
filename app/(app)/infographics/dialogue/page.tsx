@@ -763,19 +763,43 @@ export default function DialoguePage() {
 
     const tekst = aanwijzing.trim() || null;
     const werk: DialogueSpec = structuredClone(spec);
-    werk.scenes[si].lines[li].beeldAanwijzing = tekst;
+    const heeftBeeld = !!werk.scenes[si].lines[li].shotImageUrl;
 
     setRegelsBezig((bezig) => [...bezig, sleutel]);
     setRenderFout(null);
     try {
-      const r = await fetch("/api/infographics/dialogue-line", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(regelVerzoek(werk, si, li, { alleenBeeld: true, beeldInstructie: tekst })),
-      });
-      const d = await r.json();
-      if (!r.ok) { setRenderFout(creditFout(d)); return; }
-      if (!d.shotImageUrl) { setRenderFout("Er kwam geen beeld terug. Probeer het nog eens."); return; }
+      // "Het kapsel van het rechter poppetje zoals op de andere foto's" ging als losse
+      // tekst naar de beeldmaker, die die foto's niet zag. Nu wordt een aanwijzing op
+      // een bestaand beeld eerst begrepen mét de andere beelden erbij. Een kleine
+      // correctie is dan meteen een bewerking van dit beeld; een grote wijziging wordt
+      // opnieuw getekend, met de precieze instructie in plaats van de losse tekst.
+      let uitleg: string | null = null;
+      let instructie = tekst;
+      let nieuw: { shotImageUrl: string; sprekerZeker?: boolean | null; beeldWaarschuwingen?: string[] | null } | null = null;
+      if (tekst && heeftBeeld) {
+        const r = await fetch("/api/infographics/dialogue-aanwijzing", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ spec: werk, si, li, aanwijzing: tekst }),
+        });
+        const d = await r.json();
+        if (!r.ok) { setRenderFout(creditFout(d)); return; }
+        uitleg = d.begrepen ?? null;
+        instructie = d.instructie || tekst;
+        if (d.shotImageUrl) nieuw = { shotImageUrl: d.shotImageUrl };
+      }
+      if (!nieuw) {
+        const r = await fetch("/api/infographics/dialogue-line", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(regelVerzoek(werk, si, li, { alleenBeeld: true, beeldInstructie: instructie })),
+        });
+        const d = await r.json();
+        if (!r.ok) { setRenderFout(creditFout(d)); return; }
+        if (!d.shotImageUrl) { setRenderFout("Er kwam geen beeld terug. Probeer het nog eens."); return; }
+        nieuw = { shotImageUrl: d.shotImageUrl, sprekerZeker: d.sprekerZeker ?? null, beeldWaarschuwingen: d.beeldWaarschuwingen ?? null };
+      }
+      const beeld = nieuw;
       // Alleen deze regel bijwerken: intussen kan elders al een ander beeld klaar zijn.
       setSpec((prev) => prev && {
         ...prev,
@@ -784,9 +808,10 @@ export default function DialoguePage() {
           lines: s.lines.map((l, j) => j !== li ? l : {
             ...l,
             beeldAanwijzing: tekst,
-            shotImageUrl: d.shotImageUrl as string,
-            sprekerZeker: d.sprekerZeker ?? null,
-            beeldWaarschuwingen: d.beeldWaarschuwingen ?? null,
+            beeldAanwijzingUitleg: uitleg,
+            shotImageUrl: beeld.shotImageUrl,
+            sprekerZeker: beeld.sprekerZeker ?? l.sprekerZeker ?? null,
+            beeldWaarschuwingen: beeld.beeldWaarschuwingen ?? null,
             videoUrl: null,
             mouthStart: null,
           }),
