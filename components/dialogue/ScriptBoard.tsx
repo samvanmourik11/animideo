@@ -9,7 +9,7 @@ import {
   regelKlaar, isActie, actieDuur, heeftStem, voorwerpenInScene, bruikbareRegel, VERTELLER_ID,
   ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC,
 } from "@/lib/infographics/dialogue-schema";
-import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { creditTekst, schatCredits, schatStoryboardCredits } from "@/lib/infographics/dialoog-credits";
 import { deelLabel } from "@/lib/infographics/verhaallijn";
 
 // Het draaiboek: de gebruiker heeft hier het laatste woord over wat er gezegd
@@ -34,39 +34,9 @@ export function schatDuur(spec: DialogueSpec): number {
   );
 }
 
-/** Credits voor alles wat nog gemaakt moet worden (al klare regels tellen niet mee). */
-export function schatCredits(spec: DialogueSpec): number {
-  // Het beeld per regel hoort sinds het storyboard per zin bij het storyboard en
-  // telt daar mee. Hier alleen de clip, en de stem als die er nog niet is.
-  const teDoen = spec.scenes.flatMap((s) => s.lines).filter((l) => bruikbareRegel(l) && !regelKlaar(l));
-  const kosten = teDoen.reduce(
-    (a, l) => a + CREDIT_COSTS.VIDEO_GENERATION + (heeftStem(l) && !l.audioUrl ? CREDIT_COSTS.VOICE : 0),
-    0,
-  );
-  return kosten + schatStoryboardCredits(spec);
-}
-
-/**
- * Credits voor het storyboard: alles wat vóór de clips komt en er nog niet is.
- * Herkansingen bij een afgekeurd beeld komen hier niet in voor; die zijn vooraf
- * niet te voorspellen.
- */
-export function schatStoryboardCredits(spec: DialogueSpec): number {
-  const shots = spec.scenes.filter((s) => !s.twoShotUrl).length;
-  // Eén beeld per regel. Sinds het storyboard per zin worden die hier gemaakt en
-  // bekeken, niet pas bij de clips.
-  const regelbeelden = spec.scenes.flatMap((s) => s.lines).filter((l) => bruikbareRegel(l) && !l.shotImageUrl).length;
-  // Eén model sheet per personage, één keer per project. Zonder deze regel stond
-  // er een lager bedrag op de knop dan er werd afgeschreven.
-  const bladen = spec.cast.filter((c) => c.portraitUrl && !c.modelSheetUrl).length;
-  // Het castblad telde ook niet mee, terwijl het net zo goed een credit kost.
-  const castblad = spec.castSheetUrl ? 0 : 1;
-  // Eén blad per vast voorwerp dat echt in een scène voorkomt.
-  const voorwerpen = (spec.voorwerpen ?? []).filter(
-    (v) => !v.bladUrl && spec.scenes.some((s) => voorwerpenInScene([v], s).length > 0)
-  ).length;
-  return (shots + regelbeelden + bladen + castblad + voorwerpen) * CREDIT_COSTS.IMAGE_GENERATION;
-}
+// De schattingen staan bij de tarieven (dialoog-credits.ts), zodat de knop en de
+// afschrijving uit dezelfde regels komen. Hier doorgegeven voor wie ze hier zocht.
+export { schatCredits, schatStoryboardCredits };
 
 /**
  * Het camerakader van één shot, aanpasbaar.
@@ -216,7 +186,7 @@ export default function ScriptBoard({
         <span><span className="text-white font-medium">{regelAantal}</span> regels</span>
         <span>≈ <span className="text-white font-medium">{Math.round(duur)}s</span> video</span>
         <span className="ml-auto">
-          nog te maken: <span className="text-orange-300 font-medium">{credits} credits</span>
+          nog te maken: <span className="text-orange-300 font-medium">{creditTekst(credits)}</span>
           {teDoen > 0 && <> · ongeveer <span className="text-white font-medium">{wachtMinuten} min</span></>}
         </span>
       </div>

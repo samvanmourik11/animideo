@@ -20,6 +20,7 @@ import {
   bibliotheekVoorwerpTekst, koppelVoorwerpen, leesBibliotheekVoorwerp, tabelOntbreekt, type BibliotheekVoorwerp,
 } from "@/lib/infographics/voorwerp-bibliotheek";
 import { generateImageWithStyle } from "@/lib/image-gen";
+import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { illustratieContext } from "@/lib/infographics/dialogue-staging";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
@@ -237,7 +238,8 @@ async function tekenPersonage(
   userId: string,
   supabase: Awaited<ReturnType<typeof createClient>>,
 ): Promise<string | null> {
-  const credit = await deductCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, `Personage tekenen: ${lid.name}`);
+  // Voorbereiding voor het storyboard, dus gratis (dialoog-credits.ts).
+  const credit = await deductCredits(userId, DIALOOG_CREDITS.VOORBEREIDING, `Personage tekenen: ${lid.name}`);
   if (!credit.success) return null;
   try {
     const beschrijving = [
@@ -258,7 +260,9 @@ async function tekenPersonage(
     return await persistFalAssetSoft(supabase, userId, imageUrl, "image");
   } catch (e) {
     console.error(`[dialogue-setup] personage ${lid.name} tekenen mislukt:`, e);
-    await addCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Refund: personage tekenen").catch(() => {});
+    if (DIALOOG_CREDITS.VOORBEREIDING > 0) {
+      await addCredits(userId, DIALOOG_CREDITS.VOORBEREIDING, "Refund: personage tekenen").catch(() => {});
+    }
     return null;
   }
 }

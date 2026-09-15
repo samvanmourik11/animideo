@@ -17,7 +17,8 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
-import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
+import { deductCredits, addCredits } from "@/lib/credits";
+import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import { kiesStem, TAALCODE } from "@/lib/infographics/dialogue-stem";
 import { opnameTekst, opnamesPerStem, zinTijden, stiltesUitLog, knipPunten } from "@/lib/infographics/stemknippen";
 import { VERTELLER_ID, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
@@ -84,9 +85,9 @@ export async function POST(req: NextRequest) {
     });
     if (metStem.length === 0) return NextResponse.json({ stemmen: {}, mislukt: regels.map((r) => r.sleutel) });
 
-    // Hetzelfde tarief als per regel: één stem-credit per zin. ElevenLabs rekent per
-    // teken, dus in één opname kost het ons niets meer.
-    const kosten = metStem.length * CREDIT_COSTS.VOICE;
+    // Stemmen zijn gratis (dialoog-credits.ts): ElevenLabs rekent per teken, en tegen
+    // een clip valt dat weg. Het tarief blijft hier staan voor als dat ooit verandert.
+    const kosten = metStem.length * DIALOOG_CREDITS.STEM;
     const credit = await deductCredits(userId, kosten, "Dialoog: stemmen inspreken");
     if (!credit.success) {
       return NextResponse.json({ error: "insufficient_credits", credits: credit.credits, required: kosten }, { status: 402 });
@@ -159,7 +160,7 @@ export async function POST(req: NextRequest) {
 
     // Wat niet gelukt is, is ook niet afgerekend: die zinnen spreken straks per regel
     // in en betalen daar hun eigen stem-credit.
-    const terug = metStem.filter((r) => mislukt.has(r.sleutel)).length * CREDIT_COSTS.VOICE;
+    const terug = metStem.filter((r) => mislukt.has(r.sleutel)).length * DIALOOG_CREDITS.STEM;
     if (terug > 0) await addCredits(userId, terug, "Refund: stemmen inspreken");
 
     console.log(`[dialogue-stemmen] ${Object.keys(stemmen).length} zinnen in ${groepen.length} opnames, ${mislukt.size} mislukt`);

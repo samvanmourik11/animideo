@@ -3,6 +3,7 @@
 import CastPicker from "./CastPicker";
 import ArtDirection from "./ArtDirection";
 import VasteVoorwerpen from "./VasteVoorwerpen";
+import { creditTekst } from "@/lib/infographics/dialoog-credits";
 import { voorwerpenVoorStijl } from "@/lib/infographics/voorwerp-bibliotheek";
 import { DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
 import { opzetKlaar, type DialogueSetup } from "@/lib/infographics/dialogue-setup";
@@ -395,7 +396,7 @@ export default function SetupPanel({
             title={reden ?? undefined}
             className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition"
           >
-            {bezig ? "Schrijven…" : `Schrijf het draaiboek (${credits} credits)`}
+            {bezig ? "Schrijven…" : `Schrijf het draaiboek (${creditTekst(credits)})`}
           </button>
         </div>
       </div>

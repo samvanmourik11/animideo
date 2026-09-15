@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
+import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
 import { illustratieContext } from "@/lib/infographics/dialogue-staging";
@@ -43,10 +44,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Personage zonder afbeelding" }, { status: 400 });
     }
 
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Model sheet personage");
+    // Voorbereiding voor het storyboard, dus gratis (dialoog-credits.ts).
+    const credit = await deductCredits(user.id, DIALOOG_CREDITS.VOORBEREIDING, "Model sheet personage");
     if (!credit.success) {
       return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+        { error: "insufficient_credits", credits: credit.credits, required: DIALOOG_CREDITS.VOORBEREIDING },
         { status: 402 },
       );
     }
@@ -90,7 +92,7 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       // Het blad is gereedschap, geen bestelling. Mislukt het opslaan, geef de
       // credit dan terug: de gebruiker heeft er niets voor gekregen.
-      await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: model sheet");
+      if (DIALOOG_CREDITS.VOORBEREIDING > 0) await addCredits(user.id, DIALOOG_CREDITS.VOORBEREIDING, "Refund: model sheet");
       throw e;
     }
   } catch (err: unknown) {

@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
 import { MAX_VOORWERPEN, naarDialoogVoorwerp, type BibliotheekVoorwerp } from "@/lib/infographics/voorwerp-bibliotheek";
 import { voorwerpSleutel } from "@/lib/infographics/voorwerp-tekenen";
-import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { DIALOOG_CREDITS, creditTekst } from "@/lib/infographics/dialoog-credits";
 
 // Voorwerpen die in het verhaal terugkomen, met hoe ze eruitzien. Staat zowel in
 // de opzet als in het draaiboek, net als de tekenstijl: je ziet pas dat de wagen
@@ -100,7 +100,7 @@ export default function VasteVoorwerpen({
     <div>
       <span className="block text-[11px] text-slate-400 mb-1">Voorwerpen die terugkomen</span>
       <p className="text-[11px] text-slate-500 mb-1.5">
-        Zo zien ze er in élk beeld uit. Elk voorwerp wordt één keer getekend ({CREDIT_COSTS.IMAGE_GENERATION} credit) en dat
+        Zo zien ze er in élk beeld uit. Elk voorwerp wordt één keer getekend ({creditTekst(DIALOOG_CREDITS.VOORBEREIDING)}) en dat
         plaatje gaat mee naar de beelden waarin het voorkomt. Uit je{" "}
         <Link href="/voorwerpen" className="underline hover:text-slate-300">voorwerpenbibliotheek</Link> zijn ze in elke video hetzelfde.
       </p>
@@ -131,7 +131,7 @@ export default function VasteVoorwerpen({
                           disabled={disabled}
                           className="text-[10px] leading-tight text-slate-400 hover:text-emerald-400 disabled:opacity-40"
                         >
-                          Tekenen<br />({CREDIT_COSTS.IMAGE_GENERATION} credit)
+                          Tekenen<br />({creditTekst(DIALOOG_CREDITS.VOORBEREIDING)})
                         </button>
                       ) : (
                         <span className="text-[9px] text-slate-600">nog geen plaatje</span>
@@ -146,7 +146,7 @@ export default function VasteVoorwerpen({
                       title={v.bibliotheekId ? "Vervangt ook het plaatje in je bibliotheek" : undefined}
                       className="text-[10px] text-slate-500 hover:text-orange-300 disabled:opacity-40"
                     >
-                      {bezig ? "Tekenen…" : `↻ opnieuw (${CREDIT_COSTS.IMAGE_GENERATION} credit)`}
+                      {bezig ? "Tekenen…" : `↻ opnieuw (${creditTekst(DIALOOG_CREDITS.VOORBEREIDING)})`}
                     </button>
                   )}
                 </div>
@@ -250,7 +250,7 @@ export default function VasteVoorwerpen({
             disabled={disabled}
             className="text-[11px] text-slate-400 hover:text-emerald-400 disabled:opacity-30"
           >
-            Alle ontbrekende plaatjes tekenen ({zonderPlaatje.length * CREDIT_COSTS.IMAGE_GENERATION} credits)
+            Alle ontbrekende plaatjes tekenen ({creditTekst(zonderPlaatje.length * DIALOOG_CREDITS.VOORBEREIDING)})
           </button>
         )}
       </div>

@@ -12,7 +12,8 @@ import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
 import { illustratieContext } from "@/lib/infographics/dialogue-staging";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
-import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
+import { deductCredits, addCredits } from "@/lib/credits";
+import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import type { DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
 
 export const runtime = "nodejs";
@@ -43,10 +44,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Voorwerp zonder naam of beschrijving" }, { status: 400 });
     }
 
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Voorwerpblad");
+    // Voorbereiding voor het storyboard, dus gratis (dialoog-credits.ts).
+    const credit = await deductCredits(user.id, DIALOOG_CREDITS.VOORBEREIDING, "Voorwerpblad");
     if (!credit.success) {
       return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+        { error: "insufficient_credits", credits: credit.credits, required: DIALOOG_CREDITS.VOORBEREIDING },
         { status: 402 },
       );
     }
@@ -104,7 +106,7 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       // Het blad is gereedschap, geen bestelling: mislukt het opslaan, dan krijgt
       // de gebruiker zijn credit terug.
-      await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: voorwerpblad");
+      if (DIALOOG_CREDITS.VOORBEREIDING > 0) await addCredits(user.id, DIALOOG_CREDITS.VOORBEREIDING, "Refund: voorwerpblad");
       throw e;
     }
   } catch (err: unknown) {

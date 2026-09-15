@@ -30,7 +30,8 @@ import {
   type DialogueCastMember, type DialogueVoorwerp, type ShotSoort,
 } from "@/lib/infographics/dialogue-schema";
 import { storyCanvasSize } from "@/lib/infographics/canvas-size";
-import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
+import { deductCredits, addCredits } from "@/lib/credits";
+import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import type { InfographicFormat } from "@/lib/types";
 
 fal.config({ credentials: process.env.FAL_KEY });
@@ -153,6 +154,12 @@ interface Body {
   /** Extra aanwijzing voor ALLEEN dit bronbeeld, bijv. "zet ze bij het raam". */
   beeldInstructie?: string;
   /**
+   * Dit beeld valt onder de credit per scène: het storyboard of de hele video in één
+   * keer maken. Zonder is het een los beeld opnieuw maken, en dat kost een credit —
+   * standaard betalen, zodat een vergeten vlag nooit gratis beelden oplevert.
+   */
+  doorSceneBetaald?: boolean;
+  /**
    * Aanwijzing van de gebruiker voor de BEWEGING van deze clip ("oma wijst naar de
    * wagen", "de camera zoomt langzaam in"). Geldt voor de clip, niet voor het beeld.
    */
@@ -272,10 +279,13 @@ export async function POST(req: NextRequest) {
     if (alleenBeeld && !beeldNodig) {
       return NextResponse.json({ error: "Dit shot heeft al een beeld" }, { status: 400 });
     }
+    // Een kwart van wat het was: stemmen gratis, een clip 1 credit, en een beeld alleen
+    // als het los opnieuw gemaakt wordt. Zie dialoog-credits.ts.
+    const beeldPrijs = b.doorSceneBetaald === true ? 0 : DIALOOG_CREDITS.LOS_BEELD;
     const kosten =
-      (stemNodig ? CREDIT_COSTS.VOICE : 0) +
-      (beeldNodig ? CREDIT_COSTS.IMAGE_GENERATION : 0) +
-      (alleenBeeld ? 0 : CREDIT_COSTS.VIDEO_GENERATION);
+      (stemNodig ? DIALOOG_CREDITS.STEM : 0) +
+      (beeldNodig ? beeldPrijs : 0) +
+      (alleenBeeld ? 0 : DIALOOG_CREDITS.CLIP);
     const credit = await deductCredits(
       user.id, kosten,
       alleenBeeld
@@ -311,7 +321,7 @@ export async function POST(req: NextRequest) {
       });
       const ttsUrl = (tts.data as { audio?: { url: string } }).audio?.url;
       if (!ttsUrl) { await terugstorten(); return NextResponse.json({ error: "Geen audio ontvangen" }, { status: 500 }); }
-      besteed += CREDIT_COSTS.VOICE;
+      besteed += DIALOOG_CREDITS.STEM;
 
       const audioBuf = Buffer.from(await (await fetch(ttsUrl)).arrayBuffer());
       const tmpAudio = join(tmpdir(), `dline-${randomUUID()}.mp3`);
@@ -406,7 +416,7 @@ export async function POST(req: NextRequest) {
     for (let poging = 1; !alHerbruikbaar && poging <= MAX_BEELD_POGINGEN; poging++) {
       if (poging === MAX_BEELD_POGINGEN && !mensenFout(beeldFouten)) break;
       // De herkansingen zijn niet vooraf afgerekend; pas afschrijven als ze echt gebeuren.
-      if (poging > 1) await deductCredits(userId, CREDIT_COSTS.IMAGE_GENERATION, "Dialoogregel: bronbeeld opnieuw");
+      if (poging > 1) await deductCredits(userId, DIALOOG_CREDITS.HERKANSING, "Dialoogregel: bronbeeld opnieuw");
       beeldPogingen = poging;
       try {
         const beeld = await generateImageWithStyle({
@@ -490,7 +500,8 @@ export async function POST(req: NextRequest) {
           ].filter(Boolean).join(" ").trim() || undefined,
         });
         const kandidaat = await persistFalAssetSoft(supabase, user.id, beeld.imageUrl, "image");
-        besteed += CREDIT_COSTS.IMAGE_GENERATION;
+        // Alleen de eerste poging was afgerekend; een herkansing is gratis.
+        if (poging === 1) besteed += beeldPrijs;
 
         // Eén aanroep, twee oordelen: praat de juiste persoon, en staat er iets in
         // dat fysiek niet kan (mensen ín een tank, zwevende voorwerpen, verzonnen
@@ -711,7 +722,7 @@ export async function POST(req: NextRequest) {
     let clipFouten: string[] = [];
 
     if (videoUrl) {
-      besteed += CREDIT_COSTS.VIDEO_GENERATION;
+      besteed += DIALOOG_CREDITS.CLIP;
       const eerste = await controleerClip(videoUrl);
       mouthStart = eerste.mouthStart;
       clipOordeel = eerste.oordeel;
@@ -722,7 +733,7 @@ export async function POST(req: NextRequest) {
       // zeldzaam, en vaker proberen maakt de video vooral duur.
       if (clipOordeel === "verkeerd" || clipFouten.length > 0) {
         console.warn(`[dialogue-line] clip deugt niet (${clipOordeel}; ${clipFouten.join("; ")}), opnieuw`);
-        await deductCredits(userId, CREDIT_COSTS.VIDEO_GENERATION, "Dialoogregel: clip opnieuw");
+        await deductCredits(userId, DIALOOG_CREDITS.HERKANSING, "Dialoogregel: clip opnieuw");
         const tweede = await maakClip();
         if (tweede) {
           const m2 = await controleerClip(tweede);
@@ -742,7 +753,7 @@ export async function POST(req: NextRequest) {
     if (!videoUrl) {
       // Stem en bronbeeld zijn er wel; alleen de clip niet. Die teruggeven zodat
       // opnieuw proberen niet nog eens voor beeld en stem betaalt.
-      try { await addCredits(userId, CREDIT_COSTS.VIDEO_GENERATION, "Refund: dialoogclip mislukt"); } catch {}
+      try { await addCredits(userId, DIALOOG_CREDITS.CLIP, "Refund: dialoogclip mislukt"); } catch {}
       return NextResponse.json({ audioUrl, audioDuration, shotImageUrl, videoUrl: null, mouthStart: 0 });
     }
 

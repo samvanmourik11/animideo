@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { DialogueSpec, DialogueLine } from "@/lib/infographics/dialogue-schema";
 import { isActie, regelKlaar, VERTELLER_ID } from "@/lib/infographics/dialogue-schema";
-import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 
 // Aanpassen vanuit het videoscherm, per moment of meerdere tegelijk.
 //
@@ -24,9 +24,9 @@ export interface RegelPlek {
 }
 
 // Wat opnieuw maken kost hangt af van wat er mis blijkt: alleen de beweging, of ook
-// het beeld. Een regel zonder stem krijgt er een stem bij.
-const MIN = CREDIT_COSTS.VIDEO_GENERATION;
-const MAX = CREDIT_COSTS.IMAGE_GENERATION + CREDIT_COSTS.VIDEO_GENERATION;
+// het beeld. Een stem erbij is gratis (dialoog-credits.ts).
+const MIN = DIALOOG_CREDITS.CLIP;
+const MAX = DIALOOG_CREDITS.LOS_BEELD + DIALOOG_CREDITS.CLIP;
 
 const sleutel = (si: number, li: number) => `${si}-${li}`;
 const plekVan = (k: string): RegelPlek => {

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { planVoorLengte, type DialogueSpec } from "@/lib/infographics/dialogue-schema";
 import type { DialogueSetup } from "@/lib/infographics/dialogue-setup";
-import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { DIALOOG_CREDITS, creditTekst } from "@/lib/infographics/dialoog-credits";
 
 // De lengte bepaalt hoeveel scènes en regels de assistent schrijft, en dus ook wat
 // het kost en hoe lang je wacht. Die twee staan er bewust bij: bij vijf minuten
@@ -115,8 +115,8 @@ export default function DialogueChat({
   void Link;
 
   const { regels, scenes } = planVoorLengte(lengte);
-  const perRegel = CREDIT_COSTS.VOICE + CREDIT_COSTS.IMAGE_GENERATION + CREDIT_COSTS.VIDEO_GENERATION;
-  const credits = regels * perRegel + scenes * CREDIT_COSTS.IMAGE_GENERATION;
+  // Zie dialoog-credits.ts: een credit per scène voor het storyboard en een per clip.
+  const credits = regels * DIALOOG_CREDITS.CLIP + scenes * DIALOOG_CREDITS.SCENE;
   const minuten = Math.max(1, Math.round(((regels * SEC_PER_CLIP) / PARALLEL + scenes * 12) / 60));
 
   return (
@@ -137,7 +137,7 @@ export default function DialogueChat({
           ))}
         </div>
         <p className="text-[11px] text-slate-500 mt-1.5">
-          ≈ {scenes} scènes, {regels} regels · <span className="text-orange-300">{credits} credits</span> ·
+          ≈ {scenes} scènes, {regels} regels · <span className="text-orange-300">{creditTekst(credits)}</span> ·
           {" "}ongeveer {minuten} {minuten === 1 ? "minuut" : "minuten"} genereren
         </p>
       </div>

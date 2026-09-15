@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
+import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
 import {
@@ -93,15 +94,17 @@ export async function POST(req: NextRequest) {
     const format = (body.format === "9:16" ? "9:16" : "16:9") as InfographicFormat;
     const styleId = body.styleId ?? "flat-vector";
 
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Dialoog twee-shot");
+    // Het storyboard kost één credit per scène: dit plekbeeld plus de beelden van alle
+    // zinnen, die daarna gratis meekomen. Zie dialoog-credits.ts.
+    const credit = await deductCredits(user.id, DIALOOG_CREDITS.SCENE, "Dialoog: storyboard scène");
     if (!credit.success) {
       return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+        { error: "insufficient_credits", credits: credit.credits, required: DIALOOG_CREDITS.SCENE },
         { status: 402 }
       );
     }
 
-    // Een afgekeurde poging is wél gemaakt en wordt dus wél afgerekend.
+    // Een afgekeurde poging maken we op eigen kosten opnieuw (DIALOOG_CREDITS.HERKANSING).
     let besteedExtra = 0;
 
     // GEEN eerder plekbeeld meer als voorbeeld: niet als anker, niet als "zelfde
@@ -225,7 +228,7 @@ export async function POST(req: NextRequest) {
         twoShotUrl = await zonderTekst(keuze.url, format, body.language);
       } else {
         console.warn(`[dialogue-twoshot] afgekeurd (poging ${poging}): ${fouten.join("; ")}`);
-        besteedExtra += CREDIT_COSTS.IMAGE_GENERATION;
+        besteedExtra += DIALOOG_CREDITS.HERKANSING;
       }
     }
 

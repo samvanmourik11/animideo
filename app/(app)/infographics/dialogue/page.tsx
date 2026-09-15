@@ -23,6 +23,7 @@ import { tekenVoorwerp, voorwerpSleutel, type TekenContext } from "@/lib/infogra
 import { zitHouding, zegtIetsOverHouding } from "@/lib/infographics/dialogue-staging";
 import VasteVoorwerpen from "@/components/dialogue/VasteVoorwerpen";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { DIALOOG_CREDITS, creditTekst } from "@/lib/infographics/dialoog-credits";
 import { MusicPickerButton } from "@/components/music/MusicPicker";
 import { findMusicTrackByUrl } from "@/lib/music/library";
 
@@ -203,7 +204,7 @@ export default function DialoguePage() {
             ? "Geen nieuwe voorwerpen: wat er gevonden is, staat er al."
             : `${nieuw.length} ${nieuw.length === 1 ? "voorwerp" : "voorwerpen"} toegevoegd` +
               (zonderPlaatje.length
-                ? `, de plaatjes worden nu getekend (${zonderPlaatje.length * CREDIT_COSTS.IMAGE_GENERATION} ${zonderPlaatje.length * CREDIT_COSTS.IMAGE_GENERATION === 1 ? "credit" : "credits"}).`
+                ? `, de plaatjes worden nu getekend (${creditTekst(zonderPlaatje.length * DIALOOG_CREDITS.VOORBEREIDING)}).`
                 : ".") +
               " Klopt een plaatje niet, pas dan de beschrijving aan en teken hem opnieuw.",
       );
@@ -470,6 +471,8 @@ export default function DialoguePage() {
       hergebruikBeeld?: string | null;
       beeldInstructie?: string | null;
       bewegingInstructie?: string | null;
+      /** Het beeld valt onder de credit per scène (storyboard of hele video in één keer). */
+      doorSceneBetaald?: boolean;
     } = {},
   ) {
     const scene = werk.scenes[si];
@@ -506,6 +509,7 @@ export default function DialoguePage() {
       hergebruikShotImageUrl: opties.hergebruikBeeld || undefined,
       beeldInstructie: opties.beeldInstructie || undefined,
       bewegingInstructie: opties.bewegingInstructie || undefined,
+      doorSceneBetaald: opties.doorSceneBetaald || undefined,
     };
   }
 
@@ -713,7 +717,8 @@ export default function DialoguePage() {
             headers: { "Content-Type": "application/json" },
             // Een eerdere aanwijzing van de gebruiker over dit shot geldt ook voor een
             // nieuwe versie, bijvoorbeeld nadat de plek opnieuw gemaakt is.
-            body: JSON.stringify(regelVerzoek(werk, si, li, { alleenBeeld: true, beeldInstructie: regel.beeldAanwijzing })),
+            // Het storyboard is per scène afgerekend; de beelden van de zinnen komen gratis mee.
+            body: JSON.stringify(regelVerzoek(werk, si, li, { alleenBeeld: true, beeldInstructie: regel.beeldAanwijzing, doorSceneBetaald: true })),
           });
           const d = await r.json();
           if (!r.ok) {
@@ -892,7 +897,7 @@ export default function DialoguePage() {
     const credits = schatStoryboardCredits(nieuw);
     if (!window.confirm(
       `Alle beelden worden opnieuw gemaakt, met een eigen plek per scène en een beeld per zin ` +
-      `(ongeveer ${credits} credits)${clips ? `. De ${clips === 1 ? "clip die er staat, verdwijnt" : `${clips} clips die er staan, verdwijnen`}` : ""}. ` +
+      `(ongeveer ${creditTekst(credits)})${clips ? `. De ${clips === 1 ? "clip die er staat, verdwijnt" : `${clips} clips die er staan, verdwijnen`}` : ""}. ` +
       `De stemmen blijven. Doorgaan?`
     )) return;
     setSpec(nieuw);
@@ -968,7 +973,8 @@ export default function DialoguePage() {
           try {
             // Het beeld uit het storyboard gaat mee: de clip brengt dát in beweging, in
             // plaats van een nieuw beeld te tekenen dat niemand gezien heeft.
-            const verzoek = JSON.stringify(regelVerzoek(werk, si, li, { hergebruikBeeld: regel.shotImageUrl }));
+            // Ontbreekt het beeld nog, dan valt het onder de credit per scène.
+            const verzoek = JSON.stringify(regelVerzoek(werk, si, li, { hergebruikBeeld: regel.shotImageUrl, doorSceneBetaald: true }));
             const stuur = () => fetch("/api/infographics/dialogue-line", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1238,12 +1244,12 @@ export default function DialoguePage() {
               ) : (
                 <button onClick={() => void maakStoryboard()} disabled={renderBezig}
                   className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition">
-                  Storyboard maken ({schatStoryboardCredits(spec)} credits)
+                  Storyboard maken ({creditTekst(schatStoryboardCredits(spec))})
                 </button>
               )}
               <button onClick={maakVideo} disabled={renderBezig}
                 className="text-[11px] text-slate-400 hover:text-white underline disabled:opacity-40">
-                of meteen de hele video ({schatCredits(spec)} credits)
+                of meteen de hele video ({creditTekst(schatCredits(spec))})
               </button>
             </div>
           </div>
@@ -1353,7 +1359,7 @@ export default function DialoguePage() {
               {spec.scenes.some((s) => !s.twoShotUrl || s.lines.some((l) => bruikbareRegel(l) && !l.shotImageUrl)) && (
                 <button onClick={() => void maakStoryboard()} disabled={renderBezig || hertekenBezig !== null || regelsBezig.length > 0}
                   className="text-sm rounded px-4 py-2 bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 disabled:opacity-40 transition">
-                  {renderBezig ? "Bezig…" : `Ontbrekende beelden maken (${schatStoryboardCredits(spec)} credits)`}
+                  {renderBezig ? "Bezig…" : `Ontbrekende beelden maken (${creditTekst(schatStoryboardCredits(spec))})`}
                 </button>
               )}
               {/* Ook voor borden die al geregisseerd zijn: die kunnen nog gemaakt zijn
@@ -1366,7 +1372,7 @@ export default function DialoguePage() {
               )}
               <button onClick={maakVideo} disabled={renderBezig || hertekenBezig !== null || regelsBezig.length > 0}
                 className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition">
-                Clips maken ({schatCredits(spec)} credits)
+                Clips maken ({creditTekst(schatCredits(spec))})
               </button>
             </div>
           </div>
@@ -1406,7 +1412,7 @@ export default function DialoguePage() {
           <div className="flex flex-wrap items-center gap-3">
             <button onClick={maakVideo} disabled={renderBezig}
               className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition">
-              {renderBezig ? "Bezig…" : klaarAantal === alleRegels.length ? "Alles staat klaar" : `Verder maken (${schatCredits(spec)} credits)`}
+              {renderBezig ? "Bezig…" : klaarAantal === alleRegels.length ? "Alles staat klaar" : `Verder maken (${creditTekst(schatCredits(spec))})`}
             </button>
             <span className="text-xs text-slate-400">
               {klaarAantal}/{alleRegels.length} regels klaar {voortgang && `· ${voortgang}`}

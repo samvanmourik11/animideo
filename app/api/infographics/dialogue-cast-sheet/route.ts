@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
+import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
 import { illustratieContext } from "@/lib/infographics/dialogue-staging";
@@ -44,10 +45,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Minstens twee personages met een afbeelding nodig" }, { status: 400 });
     }
 
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Dialoog castblad");
+    // Voorbereiding voor het storyboard, dus gratis (dialoog-credits.ts).
+    const credit = await deductCredits(user.id, DIALOOG_CREDITS.VOORBEREIDING, "Dialoog castblad");
     if (!credit.success) {
       return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+        { error: "insufficient_credits", credits: credit.credits, required: DIALOOG_CREDITS.VOORBEREIDING },
         { status: 402 }
       );
     }

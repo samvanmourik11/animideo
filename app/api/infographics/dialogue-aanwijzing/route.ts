@@ -8,7 +8,8 @@ import {
   aanwijzingContext, aanwijzingVraag, leesOpDeGrond, AANWIJZING_SCHEMA, AANWIJZING_SYSTEEM,
 } from "@/lib/infographics/beeld-aanwijzing";
 import { zetOpDeGrond } from "@/lib/infographics/schets-bewerking";
-import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
+import { deductCredits, addCredits } from "@/lib/credits";
+import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import type { DialogueSpec } from "@/lib/infographics/dialogue-schema";
 
 export const runtime = "nodejs";
@@ -112,10 +113,10 @@ export async function POST(req: NextRequest) {
 
     if (!klein) return NextResponse.json({ klein: false, begrepen, instructie });
 
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Storyboardbeeld aanpassen");
+    const credit = await deductCredits(user.id, DIALOOG_CREDITS.LOS_BEELD, "Storyboardbeeld aanpassen");
     if (!credit.success) {
       return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+        { error: "insufficient_credits", credits: credit.credits, required: DIALOOG_CREDITS.LOS_BEELD },
         { status: 402 },
       );
     }
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest) {
       const shotImageUrl = await persistFalAssetSoft(supabase, user.id, nieuwUrl, "image");
       return NextResponse.json({ klein: true, begrepen, instructie, shotImageUrl });
     } catch (e) {
-      await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: storyboardbeeld aanpassen").catch(() => {});
+      await addCredits(user.id, DIALOOG_CREDITS.LOS_BEELD, "Refund: storyboardbeeld aanpassen").catch(() => {});
       throw e;
     }
   } catch (err: unknown) {
