@@ -34,6 +34,8 @@ const MAX_TOTAL_REFS = 8;
 const MAX_STYLE_REFS = 3;
 const MAX_CHARACTER_REFS = 3; // tot 2 karakter-ankers + 1 vorige-scène (chaining)
 const MAX_BRAND_REFS = 3;     // échte merk-objecten (boot, kleding, locatie, …)
+// Ruim onder de 50.000 die Nano Banana accepteert. Zie de uitleg bij fullPrompt.
+const MAX_PROMPT_TEKENS = 12000;
 
 export interface NanoBananaInput {
   // Plain-language wat er in het beeld moet komen (script-zin, scene-prompt).
@@ -156,7 +158,16 @@ export async function generateImageWithStyle(input: NanoBananaInput): Promise<Na
   }
   promptParts.push("No text overlays, no watermarks, no logos.");
 
-  const fullPrompt = promptParts.join(" ").slice(0, 4000);
+  // Hier stond een afkapgrens van 4000 tekens, nog uit de tijd van Flux en DALL-E.
+  // Nano Banana neemt er 50.000. In de dialoogmodus is een beeldopdracht 6000 tot 7500
+  // tekens, dus viel alles wat achteraan kwam stilzwijgend weg: het verbod op extra of
+  // dubbele personen, de uitleg bij het castblad, de briefing van de klant en de reden
+  // waarom de vorige poging was afgekeurd.
+  const heel = promptParts.join(" ");
+  if (heel.length > MAX_PROMPT_TEKENS) {
+    console.warn(`[image-gen] prompt van ${heel.length} tekens afgekapt op ${MAX_PROMPT_TEKENS}`);
+  }
+  const fullPrompt = heel.slice(0, MAX_PROMPT_TEKENS);
 
   const pro = input.quality === "pro";
   const usedModel = allRefs.length > 0
@@ -354,6 +365,92 @@ export async function editIllustration(
   if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Nano Banana (edit)");
 
   return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: prompt, refsUsed: imageUrls };
+}
+
+/**
+ * Eén bestaand beeld bewerken met Nano Banana: alleen de gevraagde verandering.
+ *
+ * Voor een correctie in het storyboard van de dialoogmodus ("Lilly's afro zoals in de
+ * andere beelden"). In een proef bleef de rest van het beeld gelijk, ook de zachte
+ * look; Flux Kontext (editImage) veranderde bij dezelfde opdracht de gezichten en de
+ * tekenstijl. Een NIEUW beeld met een eerder beeld als voorbeeld gaf juist een harde
+ * kopie; dit is hetzelfde beeld met één wijziging.
+ */
+export async function bewerkBeeld(input: {
+  bronUrl: string;
+  instructie: string;
+  /** Hooguit twee extra beelden, bijvoorbeeld het castblad voor hoe iemand eruitziet. */
+  referentieUrls?: (string | null | undefined)[] | null;
+  referentieUitleg?: string;
+  format?: string;
+}): Promise<NanoBananaResult> {
+  const refs = cleanList(input.referentieUrls).filter((u) => u !== input.bronUrl).slice(0, 2);
+  const prompt = [
+    "Edit the first image.",
+    input.instructie.trim().replace(/\.?$/, "."),
+    "Change ONLY that. Keep everything else exactly as it is: the composition and framing, the poses and faces, the " +
+      "other characters, the background, and the lighting, colours, softness and level of detail of the image. Do not " +
+      "sharpen it, do not add contrast or saturation. No text, no watermarks, no logos.",
+    refs.length
+      ? input.referentieUitleg ?? "The other images are references for appearance only; do not copy their layout, background or poses."
+      : "",
+  ].filter(Boolean).join(" ").slice(0, MAX_PROMPT_TEKENS);
+
+  const result = await fal.subscribe(EDIT_MODEL, {
+    input: {
+      prompt,
+      image_urls: [input.bronUrl, ...refs],
+      aspect_ratio: aspectFor(input.format),
+      resolution: "2K",
+      num_images: 1,
+      output_format: "jpeg",
+    } as never,
+  });
+  const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
+  if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Nano Banana (bewerken)");
+  return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: prompt, refsUsed: [input.bronUrl, ...refs] };
+}
+
+/**
+ * Een beeld afmaken waarin een voorwerp als egale bruine vorm is ingeschilderd.
+ *
+ * Voor wat een bewerking in woorden niet doet: een voorwerp doortrekken tot de grond.
+ * "De deur moet tot de grond reiken" gaf acht keer bijna hetzelfde beeld terug; met de
+ * deur als vorm tot op het pad tekende hetzelfde model een deur die op de grond staat.
+ * Alleen de schets gaat mee: met het origineel als tweede beeld erbij gaf het model
+ * gewoon het origineel terug. Zie schets-bewerking.ts.
+ */
+export async function maakSchetsAf(input: {
+  schetsUrl: string;
+  /** Engels, kort: "the wooden door". */
+  voorwerp: string;
+  /** De begrepen aanwijzing, voor details als het houtsnijwerk. */
+  instructie?: string;
+  format?: string;
+}): Promise<NanoBananaResult> {
+  const wat = input.voorwerp.trim();
+  const prompt = [
+    "Edit this image. A flat brown shape has been painted onto it as a rough guide.",
+    `Turn that brown shape into ${wat}, standing on the ground and filling the whole brown shape, drawn with the same ` +
+      "materials, colours and level of detail as the rest of the picture.",
+    input.instructie?.trim() ? `What was asked: ${input.instructie.trim()}` : "",
+    "Nothing brown may remain. Everything that is not brown stays exactly as it is: the people in front, their poses, " +
+      "faces and clothes, the surroundings, the lighting and the rendering style. No text, no watermarks, no logos.",
+  ].filter(Boolean).join(" ").slice(0, MAX_PROMPT_TEKENS);
+
+  const result = await fal.subscribe(EDIT_MODEL, {
+    input: {
+      prompt,
+      image_urls: [input.schetsUrl],
+      aspect_ratio: aspectFor(input.format),
+      resolution: "2K",
+      num_images: 1,
+      output_format: "jpeg",
+    } as never,
+  });
+  const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
+  if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Nano Banana (schets afmaken)");
+  return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: prompt, refsUsed: [input.schetsUrl] };
 }
 
 export async function editImage(input: EditImageInput): Promise<NanoBananaResult> {

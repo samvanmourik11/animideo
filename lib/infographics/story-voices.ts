@@ -14,6 +14,11 @@ export interface StoryVoice {
   label: string;
   description: string;
   /**
+   * Is dit een KINDERstem? Alleen voor de dialoogtool: de assistent kiest er een als
+   * een personage een kind is. De storytelling-tool biedt ze (nog) niet aan.
+   */
+  kind?: boolean;
+  /**
    * Talen waarvoor deze stem beschikbaar is. Leeg/afwezig = alle talen (de
    * meertalige standaardstemmen). Een Vlaamse stem wil je niet aanbieden bij
    * een Franstalig verhaal.
@@ -26,6 +31,22 @@ export const STORY_VOICES: StoryVoice[] = [
   { id: "Sarah", label: "Sarah", description: "heldere vrouwenstem" },
   { id: "Daniel", label: "Daniel", description: "rustige mannenstem" },
   { id: "George", label: "George", description: "warme mannenstem" },
+  // KINDERSTEMMEN.
+  //
+  // ElevenLabs heeft geen Nederlandse kinderstemmen: de stemmenbibliotheek geeft
+  // op "child" + nl alleen volwassenen die AAN kinderen voorlezen. Deze zes zijn
+  // kinderstemmen uit andere talen; eleven-v3 is meertalig, dus ze spreken gewoon
+  // Nederlands. Alle zes zijn gecontroleerd met Whisper op een Nederlandse zin —
+  // een zevende kandidaat maakte van "wonderwagen" een "wommenwagen" en viel af.
+  // Een licht accent kan blijven hangen; daarom staan ze er met previews bij,
+  // zodat je hoort wat je kiest voordat je een video maakt.
+  { id: "5krdMTA5HonvWAlY2vSx", label: "Tuur", description: "jongensstem, verwonderd", kind: true },
+  { id: "ihKwLOjVUMG4lgUI6meZ", label: "Finn", description: "jongensstem, nieuwsgierig", kind: true },
+  { id: "XjGYkUkzth8BPs29fmcV", label: "Boaz", description: "jongensstem, uitbundig", kind: true },
+  { id: "EeQEodFZVtBkjtgK3HBc", label: "Fien", description: "meisjesstem, expressief", kind: true },
+  { id: "hO2yZ8lxM3axUxL8OeKX", label: "Saar", description: "meisjesstem, hoog en vrolijk", kind: true },
+  { id: "0luPAj5RsdhmnkZaiYcb", label: "Noor", description: "meisjesstem, levendig", kind: true },
+
   // Vlaamse stemmen (ElevenLabs voice-id's uit de stemmenbibliotheek).
   { id: "02TPKkY2rZbgnKFIPrT9", label: "Katleen", description: "warme Vlaamse vrouwenstem", languages: ["Vlaams"] },
   { id: "Yv0oyZ3obP9foTH7emqG", label: "Jeroen", description: "warme Vlaamse mannenstem", languages: ["Vlaams"] },
@@ -48,7 +69,9 @@ export function voicesForLanguage(language?: string | null): StoryVoice[] {
   const taal = language || "Nederlands";
   const specifiek = STORY_VOICES.filter((v) => v.languages?.includes(taal));
   if (specifiek.length > 0) return specifiek;
-  return STORY_VOICES.filter((v) => !v.languages);
+  // Zonder de kinderstemmen: die horen bij de dialoogtool, en de storytelling-tool
+  // biedt ze nog niet aan.
+  return STORY_VOICES.filter((v) => !v.languages && !v.kind);
 }
 
 /** Past de gekozen stem bij deze taal? Zo niet, geef de standaard voor die taal. */
@@ -61,4 +84,23 @@ export function voiceForLanguage(voiceId: string | null | undefined, language?: 
 // Pad naar de ingebakken preview-mp3 voor een stem.
 export function voicePreviewUrl(voiceId: string): string {
   return `/voice-previews/${voiceId}.mp3`;
+}
+
+/**
+ * Kiest een vertellerstem die NIET door de cast gebruikt wordt.
+ *
+ * Een verteller die klinkt als een van de personages laat de kijker denken dat
+ * dat personage praat terwijl je iets anders in beeld ziet — precies de verwarring
+ * die we met de sprekercontrole hebben opgelost.
+ */
+export function kiesVertellerStem(bezet: string[], taal?: string | null): string {
+  const beschikbaar = STORY_VOICES.filter(
+    (v) => !v.languages || (taal ? v.languages.includes(taal) : false)
+  );
+  // Een verteller is nooit een kind: die leest het verhaal vóór. Zonder deze
+  // uitsluiting kon een kinderstem als verteller uit de bus komen zodra de
+  // volwassen stemmen door de cast bezet waren.
+  const kandidaten = (beschikbaar.length ? beschikbaar : STORY_VOICES)
+    .filter((v) => !v.kind && !bezet.includes(v.id));
+  return (kandidaten[0] ?? STORY_VOICES.find((v) => !v.kind) ?? STORY_VOICES[0]).id;
 }

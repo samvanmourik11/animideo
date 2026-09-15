@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { canUseStudio, isAdminAccount } from "@/lib/studio/access";
+import { canUseDialoog, canUseStudio, isAdminAccount } from "@/lib/studio/access";
 
 export default function NewProjectButton({ userId }: { userId: string }) {
   const router = useRouter();
@@ -15,13 +15,17 @@ export default function NewProjectButton({ userId }: { userId: string }) {
   // hem nog. Bewust isAdminAccount en niet canUseStudio: die laatste kan in één
   // klap voor iedereen open, en dan zou deze knop ongewild meeliften.
   const [adminAllowed, setAdminAllowed] = useState(false);
+  // De dialoogmodus heeft een eigen schakelaar (canUseDialoog): zet je hem voor
+  // iedereen open, dan verschijnt hij hier vanzelf voor iedereen.
+  const [dialoogAllowed, setDialoogAllowed] = useState(false);
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => {
       setStudioAllowed(canUseStudio(data.user?.email));
       setAdminAllowed(isAdminAccount(data.user?.email));
+      setDialoogAllowed(canUseDialoog(data.user?.email));
     });
   }, []);
-  const [loading, setLoading] = useState<"studio" | "story" | "infographics" | "explainer" | "free" | null>(null);
+  const [loading, setLoading] = useState<"studio" | "story" | "infographics" | "explainer" | "dialogue" | "free" | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   // Sluit dropdown bij klik buiten het component
@@ -58,6 +62,12 @@ export default function NewProjectButton({ userId }: { userId: string }) {
     setLoading("explainer");
     setOpen(false);
     router.push("/explainer/new");
+  }
+
+  function openDialogue() {
+    setLoading("dialogue");
+    setOpen(false);
+    router.push("/infographics/dialogue");
   }
 
   async function createFree() {
@@ -156,6 +166,21 @@ export default function NewProjectButton({ userId }: { userId: string }) {
                 <div>
                   <p className="text-sm font-medium text-white">Explainer-video</p>
                   <p className="text-xs text-slate-500 mt-0.5">Flat animated uitleg-video met voice-over, geen poppetjes</p>
+                </div>
+              </button>
+            </>
+          )}
+          {dialoogAllowed && (
+            <>
+              <div className="h-px bg-white/[0.06] mx-3" />
+              <button
+                onClick={openDialogue}
+                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-emerald-500/10 to-transparent"
+              >
+                <span className="text-lg leading-none mt-0.5">💬</span>
+                <div>
+                  <p className="text-sm font-medium text-white">Dialoogmodus <span className="text-[10px] text-emerald-400/80 align-middle">bèta</span></p>
+                  <p className="text-xs text-slate-500 mt-0.5">Pratende personages met lip-sync</p>
                 </div>
               </button>
             </>

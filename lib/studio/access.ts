@@ -36,3 +36,18 @@ export const ADMIN_ACCOUNTS = new Set<string>([
 export function isAdminAccount(email: string | null | undefined): boolean {
   return !!email && ADMIN_ACCOUNTS.has(email.toLowerCase());
 }
+
+/**
+ * De dialoogtool, met de voorwerpenbibliotheek die erbij hoort.
+ *
+ * Eerst live voor alleen Sam, om hem op productie te testen; klopt dat, dan zet je
+ * DIALOOG_OPEN_TO_ALL op true (en deploy). Een eigen schakelaar, zodat de tool los
+ * van Creator Studio en de interne tools opengaat. Geldt in het menu, op de pagina's
+ * én in de API-routes: wie het adres kent, komt er zonder toegang ook niet in.
+ */
+export const DIALOOG_OPEN_TO_ALL = false;
+
+export function canUseDialoog(email: string | null | undefined): boolean {
+  if (DIALOOG_OPEN_TO_ALL) return true;
+  return isAdminAccount(email);
+}
