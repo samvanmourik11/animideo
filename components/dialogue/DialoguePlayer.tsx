@@ -24,8 +24,11 @@ import { ZACHTE_LAS } from "@/lib/infographics/dialoog-montage";
 // meteen de volgende clip, en dan viel er bij elke zin een flits in plaats van een
 // overgang. Zie `vasthouden` en `beeldKlaar`.
 const OVERVLOEI_MS = Math.round(ZACHTE_LAS * 1000);
-/** Laadt het nieuwe beeld te traag, dan toch overvloeien in plaats van blijven hangen. */
-const BEELD_WACHT_MS = 600;
+/**
+ * Laadt het nieuwe beeld te traag, dan toch overvloeien in plaats van blijven hangen.
+ * Stond op 600: Sam zag het beeld "een halve seconde stoppen en dan de overgang".
+ */
+const BEELD_WACHT_MS = 250;
 const SPOEL_SEC = 5;
 
 // De export duckt de muziek met een sidechain-compressor: onder spraak zakt hij
@@ -144,13 +147,12 @@ export default function DialoguePlayer({
   if (vasthouden && vasthouden.laag === ander) bronnen[ander] = vasthouden.url;
   else if (naDeze) bronnen[ander] = naDeze.videoUrl;
 
-  /** Naar het volgende fragment, met het huidige beeld stilgezet om uit te vloeien. */
+  /** Naar het volgende fragment; het huidige beeld vloeit weg terwijl het doorloopt. */
   const naarVolgende = () => {
     const nu = fragmenten[idx];
     if (nu && fragmenten[idx + 1]) {
-      // Stilzetten zoals de download: daar blijft het laatste beeld staan, anders
-      // praat de mond nog door terwijl hij wegvloeit.
-      videoRefs.current[laag]?.pause();
+      // Bewust niet stilzetten: een beeld dat eerst stopt en dan pas wegvloeit, oogt als
+      // twee bewegingen. Zo loopt het in één keer over, net als in de download.
       setVasthouden({ laag, url: nu.videoUrl });
       setBeeldKlaar(false);
     }
@@ -186,7 +188,11 @@ export default function DialoguePlayer({
     const v = videoRefs.current[laag];
     if (v) {
       const start = () => {
-        try { v.currentTime = huidig.mouthStart + offset; } catch {}
+        const doel = huidig.mouthStart + offset;
+        // Alleen verzetten als hij er nog niet staat: het volgende fragment staat al op zijn
+        // eerste beeld. Die onnodige sprong liet het beeld even "niet klaar" zijn, en dan
+        // wachtte de overvloeier op een laad-event dat na een sprong nooit komt.
+        if (Math.abs(v.currentTime - doel) > 0.05) { try { v.currentTime = doel; } catch {} }
         void v.play().catch(() => {});
       };
       if (v.readyState >= 1) start();
@@ -246,9 +252,11 @@ export default function DialoguePlayer({
     const v = videoRefs.current[laag];
     const klaar = () => setBeeldKlaar(true);
     if (!v || v.readyState >= 2) { klaar(); return; }
-    v.addEventListener("loadeddata", klaar, { once: true });
+    // "loadeddata" komt maar één keer per bron; na een sprong komen alleen "seeked" en "canplay".
+    const signalen = ["loadeddata", "canplay", "seeked"];
+    signalen.forEach((s) => v.addEventListener(s, klaar, { once: true }));
     const t = setTimeout(klaar, BEELD_WACHT_MS);
-    return () => { v.removeEventListener("loadeddata", klaar); clearTimeout(t); };
+    return () => { signalen.forEach((s) => v.removeEventListener(s, klaar)); clearTimeout(t); };
   }, [beeldKlaar, laag]);
 
   // Het volgende fragment staat alvast op het beeld waarmee het begint (waar de mond

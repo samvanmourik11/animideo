@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
     // Binnen één scène een korte overvloeier van beeld tot beeld. Harde lassen gaven
     // geflikker sinds elke zin een eigen storyboardbeeld heeft (zie dialoog-montage.ts).
     // Het geluid gaat gewoon achter elkaar: de overvloeier ligt over het extra stuk
-    // stilstaand beeld van de vorige zin, dus beeld en stem blijven gelijk.
+    // beeld van de vorige zin (dat doorloopt), dus beeld en stem blijven gelijk.
     const groepen: { file: string; dur: number }[] = [];
     for (let i = 0; i < segmenten.length; ) {
       const scene = segmenten[i].scene;

@@ -77,8 +77,11 @@ describe("filters", () => {
     expect(segmentVideoFilter("scale=1920:1080", { spraak: 2, kop: SCENE_OVERGANG, staart: 0 }, false)).toContain("start_mode=clone");
   });
 
-  it("houdt bij een zachte las het laatste beeld extra lang vast", () => {
+  // "Hij stopt een halve seconde en dan komt de overgang": het beeld moet doorlopen.
+  it("laat bij een zachte las de clip doorlopen in plaats van eerst stil te staan", () => {
     const f = segmentVideoFilter("scale=1920:1080", { spraak: 3, kop: 0, staart: 0, las: ZACHTE_LAS }, true);
+    expect(f).toContain(`trim=duration=${(3 + ZACHTE_LAS).toFixed(3)}`);
+    // Alleen als de clip te kort is, houdt het laatste beeld de las vast.
     expect(f).toContain(`stop_mode=clone:stop_duration=${ZACHTE_LAS.toFixed(3)}`);
   });
 

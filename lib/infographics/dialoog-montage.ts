@@ -15,8 +15,9 @@
 //    lassen, uit de tijd dat een scène één beeld had en een dissolve bij elke zin
 //    alleen geknipper gaf. Sinds elke zin een eigen storyboardbeeld heeft, staan de
 //    personages per zin net anders, en dan zag een harde las eruit als geflikker
-//    (Sam). Het laatste beeld van de zin blijft staan en vloeit in het volgende over;
-//    de stem van de volgende zin begint gewoon op tijd, er praat niemand doorheen;
+//    (Sam). Het beeld van de zin loopt nog even door en vloeit in één beweging in het
+//    volgende over — eerst stond het stil voor de overvloeier, en dat zag Sam als een
+//    stop. De stem van de volgende zin begint gewoon op tijd, er praat niemand doorheen;
 //  - een korte fade vanuit zwart aan het begin en naar zwart aan het eind.
 //
 // Pure functies, zodat de tijdsberekening te testen is zonder ffmpeg.
@@ -39,8 +40,8 @@ export interface MontageSegment extends MontageRegel {
   /** Stil einde: het laatste beeld blijft staan tijdens de overvloeier of de uitfade. */
   staart: number;
   /**
-   * Alleen beeld: zo lang blijft het laatste beeld extra staan om in de volgende zin
-   * van dezelfde scène over te vloeien. Telt niet mee in `duur` — de overvloeier
+   * Alleen beeld: zo lang loopt het beeld extra door om in de volgende zin van dezelfde
+   * scène over te vloeien. Telt niet mee in `duur` — de overvloeier
    * overlapt het begin van de volgende zin, dus de tijdlijn en de stemmen schuiven niet.
    */
   las: number;
@@ -93,9 +94,12 @@ export function segmentVideoFilter(
   bevriesStaart: boolean,
 ): string {
   const delen = [schaal];
-  if (bevriesStaart) delen.push(`trim=duration=${s(seg.spraak)}`, "setpts=PTS-STARTPTS");
-  // De zachte las naar de volgende zin houdt het laatste beeld net zo vast als de staart.
-  const vast = seg.staart + (seg.las ?? 0);
+  const las = seg.las ?? 0;
+  // Tijdens de zachte las loopt de clip door; pas de stilte van een scènewissel of het
+  // eind bevriest. Een stilstaand beeld vóór de overvloeier las als een stop.
+  if (bevriesStaart) delen.push(`trim=duration=${s(seg.spraak + las)}`, "setpts=PTS-STARTPTS");
+  // Is de clip korter dan nodig, dan houdt het laatste beeld ook de las vast.
+  const vast = seg.staart + las;
   const pad = [
     seg.kop > 0 ? `start_mode=clone:start_duration=${s(seg.kop)}` : "",
     // Ook bij een actiebeeld: is de clip korter dan nodig, dan het laatste beeld vasthouden.
