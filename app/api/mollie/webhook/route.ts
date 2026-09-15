@@ -180,8 +180,32 @@ export async function POST(req: NextRequest) {
         .from("pending_checkouts")
         .update({ status: "paid", mollie_subscription_id: subscriptionId })
         .eq("id", guestCheckoutId);
+      return NextResponse.json({ received: true });
     }
-    return NextResponse.json({ received: true });
+
+    // Een betaalde maandverlenging van een abonnement dat als gast begon. Hier stond
+    // een kale `return` voor élke gastbetaling, ook voor de verlengingen: 72 betaalde
+    // maanden bij 41 klanten zonder één credit erbij (gevonden 15-09-2026). De
+    // metadata heeft geen userId, want het account bestond bij de aanmelding nog
+    // niet; het account vinden we via het e-mailadres van de checkout.
+    if (!(status === "paid" && sequenceType === "recurring")) {
+      return NextResponse.json({ received: true });
+    }
+    const { data: checkout } = await supabase
+      .from("pending_checkouts")
+      .select("email")
+      .eq("id", guestCheckoutId)
+      .maybeSingle();
+    if (checkout?.email) {
+      const { data: account } = await supabase
+        .from("profiles")
+        .select("id")
+        .ilike("email", checkout.email.replace(/[\\%_]/g, "\\$&"))
+        .maybeSingle();
+      userId = account?.id ?? userId;
+    }
+    // Geen account gevonden? Dan probeert de terugval via het Mollie-customer-id
+    // hieronder het nog; lukt ook dat niet, dan valt er niets bij te schrijven.
   }
 
   // Vervolgbetalingen dragen de metadata van de ABONNEMENTS-aanmaak, en bij een
@@ -292,21 +316,36 @@ export async function POST(req: NextRequest) {
 
   // ── Successful recurring payment: renew credits ───────────────────────────
   if (status === "paid" && sequenceType === "recurring") {
-    const bundel = PLAN_CREDITS[planId] ?? 100;
+    // Een teruggeboekte incasso wordt hierboven al afgehandeld; dubbel veilig.
+    if (Number(payment.amountChargedback?.value ?? 0) > 0) {
+      return NextResponse.json({ received: true });
+    }
 
-    // Doorrollen i.p.v. resetten: wie een maand weinig gebruikt, houdt zijn saldo.
-    // Gedekt tot maximaal twee maandbundels, zodat het niet eindeloos opstapelt.
-    // De verlenging mag een saldo NOOIT verlagen: handmatig ingeladen tegoeden
-    // (traject-klanten met 3000 credits) staan ver boven die grens en zouden
-    // anders bij de eerstvolgende incasso teruggezet worden naar 1000.
+    // Eén vernieuwing per betaling. Mollie kan dezelfde betaling meer dan eens melden;
+    // een vernieuwing die ná het betaalmoment al geboekt is, hoort bij déze betaling.
+    // Tien minuten speling voor klokverschil tussen Mollie en de database.
+    const betaaldOp = new Date(payment.paidAt ?? Date.now()).getTime();
+    const { data: alGeboekt } = await supabase
+      .from("credit_transactions")
+      .select("id")
+      .eq("user_id", userId)
+      .like("reason", "Credits vernieuwd%")
+      .gte("created_at", new Date(betaaldOp - 10 * 60 * 1000).toISOString())
+      .limit(1);
+    if (alGeboekt?.length) {
+      return NextResponse.json({ received: true });
+    }
+
+    // Bij elke betaalde maand de volledige maandbundel erbij, zonder plafond (Sam,
+    // 15-09-2026). Hier stond een grens van twee maandbundels; wie betaalt, krijgt
+    // de credits van die maand, ook als hij de maand ervoor weinig gebruikte.
+    const bundel = PLAN_CREDITS[planId] ?? 100;
     const { data: prof } = await supabase
       .from("profiles")
       .select("credits")
       .eq("id", userId)
       .maybeSingle();
-    const huidig = prof?.credits ?? 0;
-    const credits = Math.max(huidig, Math.min(huidig + bundel, bundel * 2));
-    const bijgeschreven = credits - huidig;
+    const credits = (prof?.credits ?? 0) + bundel;
 
     await supabase
       .from("profiles")
@@ -318,8 +357,8 @@ export async function POST(req: NextRequest) {
 
     await supabase.from("credit_transactions").insert({
       user_id: userId,
-      amount: bijgeschreven,
-      reason: `Credits vernieuwd: ${planId}${bijgeschreven < bundel ? " (gemaximeerd op 2 maandbundels)" : ""}`,
+      amount: bundel,
+      reason: `Credits vernieuwd: ${planId}`,
     });
 
     return NextResponse.json({ received: true });
