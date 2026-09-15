@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  beginEindFade, montagePlan, overgangOffsets, segmentAudioFilter, segmentVideoFilter,
-  EIND_UITFADE, SCENE_OVERGANG,
+  beginEindFade, montagePlan, overgangOffsets, segmentAudioFilter, segmentVideoFilter, zachteLassen,
+  EIND_UITFADE, SCENE_OVERGANG, ZACHTE_LAS,
 } from "./dialoog-montage";
 
 // Tussen scènes liep een overvloeier van een kwart seconde dwars over de stemmen
@@ -21,9 +21,22 @@ describe("montagePlan", () => {
     expect(plan[2].kop).toBe(SCENE_OVERGANG);
   });
 
-  it("zet binnen een scène niets extra's tussen de zinnen", () => {
+  it("zet binnen een scène geen stilte tussen de zinnen", () => {
     expect(plan[0]).toMatchObject({ kop: 0, staart: 0, duur: 3 });
     expect(plan[2].staart).toBe(0);
+  });
+
+  // Binnen een scène flikkerde het bij elke zin: een harde las tussen twee beelden
+  // waarin de personages net anders staan.
+  it("geeft binnen een scène een zachte las, maar niet voor een scènewissel of aan het eind", () => {
+    expect(plan[0].las).toBe(ZACHTE_LAS);
+    expect(plan[2].las).toBe(ZACHTE_LAS);
+    expect(plan[1].las).toBe(0);
+    expect(plan[3].las).toBe(0);
+  });
+
+  it("laat de zachte las de tijdlijn niet verlengen, zodat de stemmen niet schuiven", () => {
+    expect(plan[0].duur).toBe(3);
   });
 
   it("geeft de allerlaatste zin ruimte voor de uitfade, en de eerste geen kop", () => {
@@ -62,6 +75,21 @@ describe("filters", () => {
 
   it("zet een stilstaande kop voor het eerste beeld van een nieuwe scène", () => {
     expect(segmentVideoFilter("scale=1920:1080", { spraak: 2, kop: SCENE_OVERGANG, staart: 0 }, false)).toContain("start_mode=clone");
+  });
+
+  it("houdt bij een zachte las het laatste beeld extra lang vast", () => {
+    const f = segmentVideoFilter("scale=1920:1080", { spraak: 3, kop: 0, staart: 0, las: ZACHTE_LAS }, true);
+    expect(f).toContain(`stop_mode=clone:stop_duration=${ZACHTE_LAS.toFixed(3)}`);
+  });
+
+  it("zet de zinnen van een scène met overvloeiers aan elkaar, precies op het einde van elke zin", () => {
+    // Zinnen van 3, 4 en 2 seconden; de eerste twee houden hun laatste beeld de las lang vast.
+    const { filter, label } = zachteLassen([3 + ZACHTE_LAS, 4 + ZACHTE_LAS, 2]);
+    expect(filter).toContain(`[0:v][1:v]xfade=transition=fade:duration=${ZACHTE_LAS.toFixed(3)}:offset=3.000[lv1]`);
+    expect(filter).toContain(`[lv1][2:v]xfade=transition=fade:duration=${ZACHTE_LAS.toFixed(3)}:offset=7.000[lv2]`);
+    expect(label).toBe("lv2");
+    // Samen even lang als de zinnen: 3 + 4 + 2.
+    expect(overgangOffsets([3 + ZACHTE_LAS, 4 + ZACHTE_LAS, 2], ZACHTE_LAS).totaal).toBeCloseTo(9);
   });
 
   it("laat een segment zonder kop en staart gewoon zoals het was", () => {

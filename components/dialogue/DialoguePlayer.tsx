@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { DialogueSpec } from "@/lib/infographics/dialogue-schema";
+import { ZACHTE_LAS } from "@/lib/infographics/dialoog-montage";
 
 // Afspeler voor een video die nog niet bestaat.
 //
@@ -18,7 +19,13 @@ import type { DialogueSpec } from "@/lib/infographics/dialogue-schema";
 // verandert vuurt geen nieuw canplay af — het beeld bleef dan staan terwijl de
 // audio doorliep en de speler op hol sloeg.
 
-const OVERVLOEI_MS = 300;
+// Tussen élke twee fragmenten, net zo lang als de zachte las in de download. Het beeld
+// dat wegvloeit houdt zijn laag vast tot de overvloeier klaar is: eerst kreeg die laag
+// meteen de volgende clip, en dan viel er bij elke zin een flits in plaats van een
+// overgang. Zie `vasthouden` en `beeldKlaar`.
+const OVERVLOEI_MS = Math.round(ZACHTE_LAS * 1000);
+/** Laadt het nieuwe beeld te traag, dan toch overvloeien in plaats van blijven hangen. */
+const BEELD_WACHT_MS = 600;
 const SPOEL_SEC = 5;
 
 // De export duckt de muziek met een sidechain-compressor: onder spraak zakt hij
@@ -96,6 +103,10 @@ export default function DialoguePlayer({
   const [ronde, setRonde] = useState(0);
   const [inFragment, setInFragment] = useState(0);
   const [sleept, setSleept] = useState(false);
+  // Het fragment dat net wegvloeit, en op welke laag het staat.
+  const [vasthouden, setVasthouden] = useState<{ laag: 0 | 1; url: string } | null>(null);
+  // Pas overvloeien als het nieuwe beeld er echt is; anders vloeide het in zwart over.
+  const [beeldKlaar, setBeeldKlaar] = useState(true);
 
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([null, null]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -109,10 +120,10 @@ export default function DialoguePlayer({
 
   const huidig: Fragment | undefined = fragmenten[idx];
   const laag: 0 | 1 = (idx % 2) as 0 | 1;
-  // Overvloeien hoort bij een SCÈNEWISSEL. Binnen één scène komen alle beelden uit
-  // hetzelfde twee-shot — dezelfde mensen, dezelfde omgeving, alleen een andere
-  // mond — en dan leest een dissolve als geflikker. Dat gebeurde bij élke zin.
-  const nieuweScene = idx === 0 || fragmenten[idx]?.scene !== fragmenten[idx - 1]?.scene;
+  const ander: 0 | 1 = laag === 0 ? 1 : 0;
+  // Overvloeien alleen bij een scènewissel was bedacht toen een scène één beeld had en
+  // een dissolve bij elke zin knipperde. Nu heeft elke zin een eigen beeld; de harde
+  // wissel daartussen zag Sam als geflikker. Daarom nu tussen alle fragmenten.
   const basisVol = typeof musicVolume === "number" ? musicVolume : MUZIEK_VOL;
 
   // De virtuele tijdlijn: waar begint elk fragment, en hoe lang is het geheel?
@@ -128,7 +139,26 @@ export default function DialoguePlayer({
   const bronnen: [string | undefined, string | undefined] = [undefined, undefined];
   if (huidig) bronnen[laag] = huidig.videoUrl;
   const naDeze = fragmenten[idx + 1];
-  if (naDeze) bronnen[laag === 0 ? 1 : 0] = naDeze.videoUrl;
+  // Tijdens een overvloeier houdt de andere laag het vorige beeld; daarna laadt hij
+  // alvast het volgende fragment.
+  if (vasthouden && vasthouden.laag === ander) bronnen[ander] = vasthouden.url;
+  else if (naDeze) bronnen[ander] = naDeze.videoUrl;
+
+  /** Naar het volgende fragment, met het huidige beeld stilgezet om uit te vloeien. */
+  const naarVolgende = () => {
+    const nu = fragmenten[idx];
+    if (nu && fragmenten[idx + 1]) {
+      // Stilzetten zoals de download: daar blijft het laatste beeld staan, anders
+      // praat de mond nog door terwijl hij wegvloeit.
+      videoRefs.current[laag]?.pause();
+      setVasthouden({ laag, url: nu.videoUrl });
+      setBeeldKlaar(false);
+    }
+    setIdx(idx + 1);
+  };
+  // Het interval hieronder leeft langer dan één render; via de ref roept het altijd de actuele versie aan.
+  const naarVolgendeRef = useRef(naarVolgende);
+  naarVolgendeRef.current = naarVolgende;
 
   const naarVolume = useCallback((doel: number, ms: number) => {
     const a = muziekRef.current;
@@ -186,7 +216,7 @@ export default function DialoguePlayer({
         if (a && !a.paused) setInFragment(a.currentTime);
       } else {
         const verstreken = (performance.now() - stilStart.current) / 1000;
-        if (verstreken >= huidig.duur) setIdx((i) => i + 1);
+        if (verstreken >= huidig.duur) naarVolgendeRef.current();
         else setInFragment(verstreken);
       }
     }, 100);
@@ -201,10 +231,45 @@ export default function DialoguePlayer({
 
   useEffect(() => () => { if (duckTimer.current) clearInterval(duckTimer.current); }, []);
 
+  // Na de overvloeier mag de vrijgekomen laag het volgende fragment laden.
+  useEffect(() => {
+    if (!vasthouden) return;
+    const t = setTimeout(() => setVasthouden(null), OVERVLOEI_MS + BEELD_WACHT_MS);
+    return () => clearTimeout(t);
+  }, [vasthouden]);
+
+  // Overvloeien zodra het nieuwe beeld getekend kan worden. Eerst readyState: een laag
+  // waarvan de bron niet verandert vuurt geen nieuw laad-event af (zie bovenaan), en
+  // dan zou de speler blijven wachten. Met een grens, zodat hij nooit blijft hangen.
+  useEffect(() => {
+    if (beeldKlaar) return;
+    const v = videoRefs.current[laag];
+    const klaar = () => setBeeldKlaar(true);
+    if (!v || v.readyState >= 2) { klaar(); return; }
+    v.addEventListener("loadeddata", klaar, { once: true });
+    const t = setTimeout(klaar, BEELD_WACHT_MS);
+    return () => { v.removeEventListener("loadeddata", klaar); clearTimeout(t); };
+  }, [beeldKlaar, laag]);
+
+  // Het volgende fragment staat alvast op het beeld waarmee het begint (waar de mond
+  // opengaat), zodat de overvloeier niet eerst beeld nul laat zien en dan verspringt.
+  useEffect(() => {
+    if (!naDeze || vasthouden) return;
+    const v = videoRefs.current[ander];
+    if (!v) return;
+    const zet = () => { try { v.currentTime = naDeze.mouthStart; } catch {} };
+    if (v.readyState >= 1) zet();
+    else v.addEventListener("loadedmetadata", zet, { once: true });
+    return () => v.removeEventListener("loadedmetadata", zet);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [naDeze?.key, vasthouden, ander]);
+
   const alsStop = useCallback(() => {
     videoRefs.current.forEach((v) => v?.pause());
     audioRef.current?.pause();
     muziekRef.current?.pause();
+    setVasthouden(null);
+    setBeeldKlaar(true);
     setStatus("stop");
     setIdx(0);
     setInFragment(0);
@@ -231,7 +296,10 @@ export default function DialoguePlayer({
       if (f.audioUrl) { const a = audioRef.current; if (a) { try { a.currentTime = offset; } catch {} } }
       else stilStart.current = performance.now() - offset * 1000;
     } else {
+      // Een sprong is geen overgang: meteen het nieuwe beeld.
       zoekOffset.current = offset;
+      setVasthouden(null);
+      setBeeldKlaar(true);
       setIdx(i);
     }
   }, [fragmenten, starts, totaal, idx]);
@@ -247,6 +315,8 @@ export default function DialoguePlayer({
       naarVolume(basisVol, INFADE_MS);
     }
     zoekOffset.current = 0;
+    setVasthouden(null);
+    setBeeldKlaar(true);
     setIdx(0);
     setInFragment(0);
     setRonde((r) => r + 1);
@@ -305,8 +375,9 @@ export default function DialoguePlayer({
                 src={bronnen[n]}
                 className="absolute inset-0 w-full h-full object-contain"
                 style={{
-                  opacity: laag === n ? 1 : 0,
-                  transition: `opacity ${nieuweScene ? OVERVLOEI_MS : 0}ms ease-in-out`,
+                  // Het nieuwe beeld komt op zodra het klaar is; tot dan blijft het vorige staan.
+                  opacity: (n === laag ? beeldKlaar : !beeldKlaar && vasthouden?.laag === n) ? 1 : 0,
+                  transition: `opacity ${OVERVLOEI_MS}ms ease-in-out`,
                 }}
                 playsInline
                 muted
@@ -332,7 +403,7 @@ export default function DialoguePlayer({
                 key={`${huidig.key}-a`}
                 ref={audioRef}
                 src={huidig.audioUrl}
-                onEnded={() => setIdx((i) => i + 1)}
+                onEnded={naarVolgende}
               />
             )}
             {/* Doorlopend muziekbed, bewust niet gekoppeld aan een fragment. */}

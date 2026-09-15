@@ -11,12 +11,18 @@
 //    (de "staart") en het eerste beeld van de volgende scène begint stil (de "kop").
 //    De overvloeier valt precies op die stille stukken, dus er praat nooit iemand
 //    doorheen;
-//  - binnen een scène gewone lassen, zoals in een film;
+//  - binnen een scène een korte overvloeier van 0,3 seconde. Eerst waren dat harde
+//    lassen, uit de tijd dat een scène één beeld had en een dissolve bij elke zin
+//    alleen geknipper gaf. Sinds elke zin een eigen storyboardbeeld heeft, staan de
+//    personages per zin net anders, en dan zag een harde las eruit als geflikker
+//    (Sam). Het laatste beeld van de zin blijft staan en vloeit in het volgende over;
+//    de stem van de volgende zin begint gewoon op tijd, er praat niemand doorheen;
 //  - een korte fade vanuit zwart aan het begin en naar zwart aan het eind.
 //
 // Pure functies, zodat de tijdsberekening te testen is zonder ffmpeg.
 
 export const SCENE_OVERGANG = 0.8;
+export const ZACHTE_LAS = 0.3;
 export const BEGIN_INFADE = 0.4;
 export const EIND_UITFADE = 0.8;
 
@@ -32,18 +38,25 @@ export interface MontageSegment extends MontageRegel {
   kop: number;
   /** Stil einde: het laatste beeld blijft staan tijdens de overvloeier of de uitfade. */
   staart: number;
-  /** Totale lengte van het segment. */
+  /**
+   * Alleen beeld: zo lang blijft het laatste beeld extra staan om in de volgende zin
+   * van dezelfde scène over te vloeien. Telt niet mee in `duur` — de overvloeier
+   * overlapt het begin van de volgende zin, dus de tijdlijn en de stemmen schuiven niet.
+   */
+  las: number;
+  /** Totale lengte van het segment op de tijdlijn (en van het geluid). */
   duur: number;
 }
 
-/** Per segment de stille kop en staart rond een scènewissel en aan het eind. */
+/** Per segment de stille kop en staart rond een scènewissel en aan het eind, en de zachte las erbinnen. */
 export function montagePlan(regels: MontageRegel[]): MontageSegment[] {
   return regels.map((r, i) => {
     const vorige = regels[i - 1];
     const volgende = regels[i + 1];
     const kop = vorige && vorige.scene !== r.scene ? SCENE_OVERGANG : 0;
     const staart = !volgende ? EIND_UITFADE : volgende.scene !== r.scene ? SCENE_OVERGANG : 0;
-    return { ...r, kop, staart, duur: kop + r.spraak + staart };
+    const las = volgende && volgende.scene === r.scene ? ZACHTE_LAS : 0;
+    return { ...r, kop, staart, las, duur: kop + r.spraak + staart };
   });
 }
 
@@ -74,13 +87,19 @@ const s = (n: number) => n.toFixed(3);
  * laat de spreker de hele clip praten, dus met het echte vervolg van de clip bewoog
  * de mond nog door tijdens de stilte. Bij een actiebeeld mag de beweging doorlopen.
  */
-export function segmentVideoFilter(schaal: string, seg: Pick<MontageSegment, "spraak" | "kop" | "staart">, bevriesStaart: boolean): string {
+export function segmentVideoFilter(
+  schaal: string,
+  seg: Pick<MontageSegment, "spraak" | "kop" | "staart"> & { las?: number },
+  bevriesStaart: boolean,
+): string {
   const delen = [schaal];
   if (bevriesStaart) delen.push(`trim=duration=${s(seg.spraak)}`, "setpts=PTS-STARTPTS");
+  // De zachte las naar de volgende zin houdt het laatste beeld net zo vast als de staart.
+  const vast = seg.staart + (seg.las ?? 0);
   const pad = [
     seg.kop > 0 ? `start_mode=clone:start_duration=${s(seg.kop)}` : "",
     // Ook bij een actiebeeld: is de clip korter dan nodig, dan het laatste beeld vasthouden.
-    seg.staart > 0 ? `stop_mode=clone:stop_duration=${s(seg.staart)}` : "",
+    vast > 0 ? `stop_mode=clone:stop_duration=${s(vast)}` : "",
   ].filter(Boolean);
   if (pad.length) delen.push(`tpad=${pad.join(":")}`);
   return delen.join(",");
@@ -94,6 +113,24 @@ export function segmentAudioFilter(seg: Pick<MontageSegment, "kop">): string {
     seg.kop > 0 ? `adelay=${Math.round(seg.kop * 1000)}:all=1` : "",
     "apad",
   ].filter(Boolean).join(",");
+}
+
+/**
+ * Het beeld van één scène: de segmenten met korte overvloeiers aan elkaar. `beeldDuren`
+ * zijn de beeldlengtes (duur + las). Elke las overlapt precies zijn eigen extra stuk
+ * stilstaand beeld, dus het resultaat is even lang als de zinnen samen en blijft
+ * gelijk met het geluid, dat gewoon achter elkaar wordt geplakt. Voor twee of meer segmenten.
+ */
+export function zachteLassen(beeldDuren: number[], las = ZACHTE_LAS): { filter: string; label: string } {
+  const { offsets } = overgangOffsets(beeldDuren, las);
+  const delen: string[] = [];
+  let label = "0:v";
+  offsets.forEach((offset, i) => {
+    const uit = `lv${i + 1}`;
+    delen.push(`[${label}][${i + 1}:v]xfade=transition=fade:duration=${s(las)}:offset=${s(offset)}[${uit}]`);
+    label = uit;
+  });
+  return { filter: delen.join(";"), label };
 }
 
 /** Zachte fade vanuit zwart aan het begin en naar zwart aan het eind van de hele video. */

@@ -10,7 +10,7 @@ import { STORY_FPS } from "@/lib/infographics/story-layout";
 import type { DialogueSpec } from "@/lib/infographics/dialogue-schema";
 import { renderMusicBed } from "@/lib/music/bed";
 import {
-  beginEindFade, montagePlan, overgangOffsets, segmentAudioFilter, segmentVideoFilter, SCENE_OVERGANG,
+  beginEindFade, montagePlan, overgangOffsets, segmentAudioFilter, segmentVideoFilter, zachteLassen, SCENE_OVERGANG,
 } from "@/lib/infographics/dialoog-montage";
 
 export const runtime = "nodejs";
@@ -20,9 +20,9 @@ export const maxDuration = 300;
 // moment waarop de mond opengaat en precies zo lang als de zin duurt — zo begint
 // de stem op de mondbeweging en praat er niemand door nadat het geluid stopt.
 //
-// Hoe de clips in elkaar overlopen (gewone lassen binnen een scène, een zachte
-// overvloeier over een stil moment tussen scènes, een fade aan begin en eind) staat
-// in dialoog-montage.ts. Alles gaat door één filtergraph, dus geen stream-copy.
+// Hoe de clips in elkaar overlopen (een korte overvloeier binnen een scène, een
+// langere over een stil moment tussen scènes, een fade aan begin en eind) staat in
+// dialoog-montage.ts. Alles gaat door één filtergraph, dus geen stream-copy.
 
 function runFfmpeg(args: string[], limietMs = 280_000): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -122,35 +122,42 @@ export async function POST(req: NextRequest) {
     // ---------- 2. Per regel een segment op maat ----------
     const plan = montagePlan(kandidaten.map((k) => ({ scene: k.scene, spraak: k.spraak })));
     const schaal = `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${fps},setsar=1,format=yuv420p`;
-    const segmenten: { file: string; dur: number; scene: number }[] = [];
+    const segmenten: { file: string; dur: number; beeldDur: number; scene: number }[] = [];
     for (const [i, k] of kandidaten.entries()) {
       const p = plan[i];
       const seg = path.join(dir, `s${String(i).padStart(3, "0")}.mp4`);
+      // Het beeld is de zachte las langer dan het geluid: dat stuk overlapt straks de
+      // volgende zin van de scène. Daarom per spoor afkappen in plaats van met -t.
+      const beeldDur = p.duur + p.las;
+      const afBeeld = `trim=duration=${beeldDur.toFixed(3)},setpts=PTS-STARTPTS`;
+      const afGeluid = `atrim=duration=${p.duur.toFixed(3)}`;
       // Bij een gesproken regel blijft het laatste beeld staan in de stilte erna; bij
       // een actiebeeld loopt de beweging door. Zie segmentVideoFilter.
-      const beeldFilter = segmentVideoFilter(schaal, p, !k.isActie);
+      const beeldFilter = `${segmentVideoFilter(schaal, p, !k.isActie)},${afBeeld}`;
       if (!k.stem) {
         // Alle segmenten moeten dezelfde parameters hebben voordat ze aan elkaar
         // kunnen, dus ook een stil actiebeeld krijgt een (stil) audiospoor.
         await runFfmpeg([
           "-i", k.clip, "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-          "-filter_complex", `[0:v]${beeldFilter}[v]`,
-          "-map", "[v]", "-map", "1:a", "-t", p.duur.toFixed(3), ...ENC(fps), "-y", seg,
+          "-filter_complex", `[0:v]${beeldFilter}[v];[1:a]${afGeluid}[a]`,
+          "-map", "[v]", "-map", "[a]", ...ENC(fps), "-y", seg,
         ]);
       } else {
         await runFfmpeg([
           "-ss", k.start.toFixed(3), "-i", k.clip, "-i", k.stem,
-          "-filter_complex", `[0:v]${beeldFilter}[v];[1:a]${segmentAudioFilter(p)}[a]`,
-          "-map", "[v]", "-map", "[a]", "-t", p.duur.toFixed(3), ...ENC(fps), "-y", seg,
+          "-filter_complex", `[0:v]${beeldFilter}[v];[1:a]${segmentAudioFilter(p)},${afGeluid}[a]`,
+          "-map", "[v]", "-map", "[a]", ...ENC(fps), "-y", seg,
         ]);
       }
-      segmenten.push({ file: seg, dur: p.duur, scene: k.scene });
+      segmenten.push({ file: seg, dur: p.duur, beeldDur, scene: k.scene });
     }
 
     // ---------- 3. Per scène aan elkaar ----------
     //
-    // Binnen één scène harde lassen (concat): een dissolve bij elke gesproken regel
-    // zag eruit als geflikker, twintig keer in een video van twee minuten.
+    // Binnen één scène een korte overvloeier van beeld tot beeld. Harde lassen gaven
+    // geflikker sinds elke zin een eigen storyboardbeeld heeft (zie dialoog-montage.ts).
+    // Het geluid gaat gewoon achter elkaar: de overvloeier ligt over het extra stuk
+    // stilstaand beeld van de vorige zin, dus beeld en stem blijven gelijk.
     const groepen: { file: string; dur: number }[] = [];
     for (let i = 0; i < segmenten.length; ) {
       const scene = segmenten[i].scene;
@@ -164,13 +171,24 @@ export async function POST(req: NextRequest) {
       // Alle segmenten zijn met dezelfde ENC()-parameters gemaakt. Toch via de
       // concat-FILTER en niet de demuxer: die laatste struikelt over kleine
       // verschillen in tijdbasis.
-      const samengevoegd = path.join(dir, `g${String(groepen.length).padStart(3, "0")}.mp4`);
-      const labels = groep.map((_, j) => `[${j}:v][${j}:a]`).join("");
+      const nr = String(groepen.length).padStart(3, "0");
+      const samengevoegd = path.join(dir, `g${nr}.mp4`);
+      const alleenBeeld = path.join(dir, `g${nr}-beeld.mp4`);
+      const alleenGeluid = path.join(dir, `g${nr}-geluid.m4a`);
+      const invoerGroep = groep.flatMap((g) => ["-i", g.file]);
+      const lassen = zachteLassen(groep.map((g) => g.beeldDur));
+      // Beeld en geluid in aparte stappen. In één filtergraph met de concat van het
+      // geluid sloeg ffmpeg 6 de overvloeiers over: gemeten ging het beeld in 0,04 s van
+      // 16% naar 81% nieuw, een harde las. Los vloeide hetzelfde beeld netjes over.
       await runFfmpeg([
-        ...groep.flatMap((g) => ["-i", g.file]),
-        "-filter_complex", `${labels}concat=n=${groep.length}:v=1:a=1[v][a]`,
-        "-map", "[v]", "-map", "[a]", ...ENC(fps), "-y", samengevoegd,
+        ...invoerGroep, "-filter_complex", lassen.filter,
+        "-map", `[${lassen.label}]`, "-an", ...ENC(fps), "-y", alleenBeeld,
       ]);
+      await runFfmpeg([
+        ...invoerGroep, "-filter_complex", `${groep.map((_, j) => `[${j}:a]`).join("")}concat=n=${groep.length}:v=0:a=1[a]`,
+        "-map", "[a]", "-vn", ...ENC(fps), "-y", alleenGeluid,
+      ]);
+      await runFfmpeg(["-i", alleenBeeld, "-i", alleenGeluid, "-map", "0:v", "-map", "1:a", "-c", "copy", "-y", samengevoegd]);
       groepen.push({ file: samengevoegd, dur: groep.reduce((a, g) => a + g.dur, 0) });
     }
 
