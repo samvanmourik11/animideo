@@ -1,3 +1,4 @@
+import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import type { DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import { isKader, kaderPast } from "@/lib/infographics/verhaal-kaders";
@@ -1152,6 +1153,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!canUseDialoog(user.email)) return NextResponse.json({ error: "Deze tool is nog niet beschikbaar" }, { status: 403 });
 
     const body = (await req.json()) as Body;
     const berichten = (Array.isArray(body.messages) ? body.messages : [])

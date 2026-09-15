@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { canUseDialoog } from "@/lib/studio/access";
 import DialogueChat from "@/components/dialogue/DialogueChat";
 import DialogueBuddy from "@/components/dialogue/DialogueBuddy";
 import CastPicker from "@/components/dialogue/CastPicker";
@@ -49,6 +50,8 @@ export default function DialoguePage() {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectLaden, setProjectLaden] = useState(false);
   const [heeftPersonages, setHeeftPersonages] = useState<boolean | null>(null);
+  // De tool is nog niet voor iedereen open (zie access.ts). null = nog aan het kijken.
+  const [toegang, setToegang] = useState<boolean | null>(null);
   const [lengte, setLengte] = useState(VIDEO_STANDAARD_SEC);
   // De opzet: alle dimensies van de video, vastgesteld vóór er iets geschreven is.
   const [setup, setSetup] = useState<DialogueSetup | null>(null);
@@ -222,6 +225,12 @@ export default function DialoguePage() {
 
   // Of de gebruiker überhaupt personages heeft bepaalt of de assistent iets kan
   // kiezen; zonder cast heeft doorpraten geen zin.
+  useEffect(() => {
+    createClient().auth.getUser()
+      .then(({ data }) => setToegang(canUseDialoog(data.user?.email)))
+      .catch(() => setToegang(false));
+  }, []);
+
   useEffect(() => {
     fetch("/api/characters")
       .then((r) => r.json())
@@ -1157,6 +1166,19 @@ export default function DialoguePage() {
   const fragmenten = spec ? bouwFragmenten(spec) : [];
   const alleRegels = spec?.scenes.flatMap((s) => s.lines) ?? [];
   const klaarAantal = alleRegels.filter(regelKlaar).length;
+
+  // Wie het adres kent maar nog geen toegang heeft, ziet dit in plaats van de tool; de
+  // API-routes weigeren hem hoe dan ook.
+  if (toegang === false) {
+    return (
+      <div className="max-w-[980px] mx-auto p-6">
+        <h1 className="text-xl font-bold text-white mb-2">Dialoogmodus</h1>
+        <p className="text-sm text-slate-400">
+          Deze tool is nog niet beschikbaar. <Link href="/dashboard" className="underline hover:text-white">Terug naar je projecten</Link>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[980px] mx-auto p-6">

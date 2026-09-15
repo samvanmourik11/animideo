@@ -8,6 +8,7 @@
 //
 // Mislukt een opname, dan is dat geen ramp: die zinnen staan dan in "mislukt" en
 // spreken bij het maken van hun clip gewoon los in, zoals voorheen.
+import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import { spawn } from "node:child_process";
@@ -63,6 +64,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!canUseDialoog(user.email)) return NextResponse.json({ error: "Deze tool is nog niet beschikbaar" }, { status: 403 });
     const userId = user.id;
 
     const body = (await req.json()) as Body;

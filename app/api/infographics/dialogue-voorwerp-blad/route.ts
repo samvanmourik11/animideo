@@ -5,6 +5,7 @@
 // beeldmodel te veel ruimte: "a magical wagon" kan alles zijn. Eén keer tekenen en
 // dát beeld meesturen naar elke scène waarin hij voorkomt, legt vast hoe hij
 // eruitziet — dezelfde aanpak die de personages gelijk hield.
+import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
@@ -36,6 +37,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!canUseDialoog(user.email)) return NextResponse.json({ error: "Deze tool is nog niet beschikbaar" }, { status: 403 });
 
     const body = (await req.json()) as Body;
     const naam = (body.voorwerp?.naam ?? "").trim();

@@ -9,6 +9,7 @@
 //
 // Kost geen credits: het is één vraag aan het visie-model, in verhouding tot het
 // opnieuw maken zelf verwaarloosbaar.
+import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { writeFile, readFile, rm } from "node:fs/promises";
@@ -103,6 +104,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!canUseDialoog(user.email)) return NextResponse.json({ error: "Deze tool is nog niet beschikbaar" }, { status: 403 });
 
     const body = (await req.json()) as Body;
     const regel = body.regel;

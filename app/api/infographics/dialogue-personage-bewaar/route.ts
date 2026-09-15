@@ -4,6 +4,7 @@
 // niet in de bibliotheek. Wie zo'n personage goed vindt, bewaart het hier met één
 // klik, zodat het in een volgende video gewoon te kiezen is. Het portret bestaat al,
 // dus dit kost niets: het is alleen een rij in de bibliotheek.
+import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { Character } from "@/lib/types";
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!canUseDialoog(user.email)) return NextResponse.json({ error: "Deze tool is nog niet beschikbaar" }, { status: 403 });
 
     const body = (await req.json()) as Body;
     const naam = (body.naam ?? "").trim().slice(0, 80);

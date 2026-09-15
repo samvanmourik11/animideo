@@ -1,3 +1,4 @@
+import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -16,6 +17,7 @@ async function authGuard() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  if (!canUseDialoog(user.email)) return { error: NextResponse.json({ error: "Deze tool is nog niet beschikbaar" }, { status: 403 }) };
   return { supabase, user };
 }
 

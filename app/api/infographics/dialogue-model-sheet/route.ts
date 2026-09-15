@@ -10,6 +10,7 @@
 // Dit blad is wat animatiestudio's een model sheet noemen: één personage, meerdere
 // hoeken, egale achtergrond. Het wordt één keer per personage gemaakt en gaat
 // daarna als identiteitsreferentie mee naar elk shot waarin diegene voorkomt.
+import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
@@ -37,6 +38,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!canUseDialoog(user.email)) return NextResponse.json({ error: "Deze tool is nog niet beschikbaar" }, { status: 403 });
 
     const body = (await req.json()) as Body;
     const lid = body.lid;

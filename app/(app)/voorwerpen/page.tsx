@@ -1,3 +1,4 @@
+import { canUseDialoog } from "@/lib/studio/access";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -11,6 +12,8 @@ export default async function VoorwerpenPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
+  // Hoort bij de dialoogtool, die nog niet voor iedereen open is (zie access.ts).
+  if (!canUseDialoog(user.email)) redirect("/dashboard");
 
   const { data, error } = await supabase
     .from("voorwerpen")

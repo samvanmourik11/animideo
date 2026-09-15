@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { canUseStudio, isAdminAccount } from "@/lib/studio/access";
+import { canUseDialoog, canUseStudio, isAdminAccount } from "@/lib/studio/access";
 
 type Tool =
   | "studio" | "story" | "infographics" | "explainer"
@@ -16,12 +16,16 @@ export default function NewProjectButton({ userId }: { userId: string }) {
   // account(s). De server-pagina's blokkeren bovendien directe toegang.
   const [studioAllowed, setStudioAllowed] = useState(false);
   // De tools die uit het menu zijn gehaald (AI Wizard, foto's, upload, T2V,
-  // playground) plus de dialoogmodus staan alleen voor interne accounts aan.
+  // playground) staan alleen voor interne accounts aan.
   const [adminAllowed, setAdminAllowed] = useState(false);
+  // De dialoogmodus heeft een eigen schakelaar (canUseDialoog): zet je hem voor
+  // iedereen open, dan verschijnt hij hier vanzelf voor iedereen.
+  const [dialoogAllowed, setDialoogAllowed] = useState(false);
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => {
       setStudioAllowed(canUseStudio(data.user?.email));
       setAdminAllowed(isAdminAccount(data.user?.email));
+      setDialoogAllowed(canUseDialoog(data.user?.email));
     });
   }, []);
   const [loading, setLoading] = useState<Tool | null>(null);
@@ -175,15 +179,9 @@ export default function NewProjectButton({ userId }: { userId: string }) {
               </button>
             </>
           )}
-
-          {/* Alleen intern: de tools die uit het klantmenu zijn gehaald. */}
-          {adminAllowed && (
+          {dialoogAllowed && (
             <>
-              <div className="px-4 pt-3 pb-1.5 mt-1 border-t border-white/[0.09]">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
-                  Alleen voor jou
-                </p>
-              </div>
+              {scheiding}
               <button
                 onClick={openDialogue}
                 className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-emerald-500/10 to-transparent"
@@ -194,7 +192,17 @@ export default function NewProjectButton({ userId }: { userId: string }) {
                   <p className="text-xs text-slate-500 mt-0.5">Pratende personages met lip-sync</p>
                 </div>
               </button>
-              {scheiding}
+            </>
+          )}
+
+          {/* Alleen intern: de tools die uit het klantmenu zijn gehaald. */}
+          {adminAllowed && (
+            <>
+              <div className="px-4 pt-3 pb-1.5 mt-1 border-t border-white/[0.09]">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  Alleen voor jou
+                </p>
+              </div>
               <button
                 onClick={createPhoto}
                 className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"

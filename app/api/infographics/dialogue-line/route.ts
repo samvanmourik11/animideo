@@ -1,3 +1,4 @@
+import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import { spawn } from "node:child_process";
@@ -220,6 +221,7 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!canUseDialoog(user.email)) return NextResponse.json({ error: "Deze tool is nog niet beschikbaar" }, { status: 403 });
 
     const b = (await req.json()) as Body;
     const tekst = (b.text ?? "").trim();
