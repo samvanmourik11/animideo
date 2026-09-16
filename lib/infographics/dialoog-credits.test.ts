@@ -3,7 +3,8 @@ import { creditTekst, schatCredits, schatStoryboardCredits, DIALOOG_CREDITS } fr
 import type { DialogueScene } from "./dialogue-schema";
 
 // De video van Tyrell en Lilly: 81 seconden, 7 scènes, 21 zinnen. Die kostte 96 credits;
-// Sam wilde een kwart. Wat hier vastligt: dezelfde video kost nu 28 credits.
+// Sam wilde eerst een kwart (28), sinds 16-09-2026 ongeveer een derde. Wat hier vastligt:
+// dezelfde video kost nu 35 credits.
 
 const zin = (klaar: boolean) => ({
   characterId: "c1", text: "Kijk eens!", emotion: "blij",
@@ -18,9 +19,9 @@ const scene = (i: number, klaar: boolean): DialogueScene => ({
 const video = (klaar: boolean) => ({ scenes: Array.from({ length: 7 }, (_, i) => scene(i, klaar)) });
 
 describe("dialoog-credits", () => {
-  it("rekent voor de video van 81 seconden 28 credits: 7 scènes en 21 clips", () => {
-    expect(schatStoryboardCredits(video(false))).toBe(7);
-    expect(schatCredits(video(false))).toBe(28);
+  it("rekent voor de video van 81 seconden 35 credits: 7 scènes van 2 en 21 clips", () => {
+    expect(schatStoryboardCredits(video(false))).toBe(14);
+    expect(schatCredits(video(false))).toBe(35);
   });
 
   it("rekent na het storyboard alleen nog de clips", () => {

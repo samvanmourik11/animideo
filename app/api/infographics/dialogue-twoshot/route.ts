@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     const format = (body.format === "9:16" ? "9:16" : "16:9") as InfographicFormat;
     const styleId = body.styleId ?? "flat-vector";
 
-    // Het storyboard kost één credit per scène: dit plekbeeld plus de beelden van alle
+    // Het storyboard kost DIALOOG_CREDITS.SCENE per scène: dit plekbeeld plus de beelden van alle
     // zinnen, die daarna gratis meekomen. Zie dialoog-credits.ts.
     const credit = await deductCredits(user.id, DIALOOG_CREDITS.SCENE, "Dialoog: storyboard scène");
     if (!credit.success) {
