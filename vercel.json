@@ -33,7 +33,7 @@
       "memory": 3008
     },
     "app/api/infographics/dialogue-export/route.ts": {
-      "maxDuration": 300,
+      "maxDuration": 800,
       "memory": 3008
     },
     "app/api/infographics/dialogue-line/route.ts": {
