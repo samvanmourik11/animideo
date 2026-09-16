@@ -1,10 +1,4 @@
 {
-  "crons": [
-    {
-      "path": "/api/cron/chargebacks",
-      "schedule": "0 6 * * *"
-    }
-  ],
   "functions": {
     "app/api/export/route.ts": {
       "maxDuration": 300,
@@ -37,8 +31,6 @@
     "app/api/explainer/export/route.ts": {
       "maxDuration": 300,
       "memory": 3008
-<<<<<<< ours
-=======
     },
     "app/api/infographics/dialogue-export/route.ts": {
       "maxDuration": 800,
@@ -51,7 +43,6 @@
     "app/api/infographics/dialogue-stemmen/route.ts": {
       "maxDuration": 300,
       "memory": 3008
->>>>>>> theirs
     }
   }
 }
