@@ -64,7 +64,15 @@ export default function DialogueChat({
 }) {
   const [berichten, setBerichten] = useState<Bericht[]>([{ role: "assistant", content: OPENING }]);
   const [invoer, setInvoer] = useState("");
+  const [langBezig, setLangBezig] = useState(false);
   const [bezig, setBezig] = useState(false);
+
+  // Pas na een paar seconden de uitleg tonen: doorvragen is meestal binnen die tijd klaar.
+  useEffect(() => {
+    if (!bezig) { setLangBezig(false); return; }
+    const t = setTimeout(() => setLangBezig(true), 5000);
+    return () => clearTimeout(t);
+  }, [bezig]);
   const [fout, setFout] = useState<string | null>(null);
   const onderRef = useRef<HTMLDivElement | null>(null);
 
@@ -90,14 +98,20 @@ export default function DialogueChat({
           onOpzet
             // De opzet-route werkt niet met een gespreksverloop: hij krijgt de
             // beschrijving in één keer en levert een voorstel terug.
-            ? { text: nieuw.filter((m) => m.role === "user").map((m) => m.content).join("\n\n"), targetSeconds: lengte }
+            ? {
+                text: nieuw.filter((m) => m.role === "user").map((m) => m.content).join("\n\n"),
+                targetSeconds: lengte,
+                rondes: nieuw.filter((m) => m.role === "user").length,
+              }
             : { messages: nieuw.slice(1), targetSeconds: lengte }
         ),
       });
-      const d = await res.json();
+      // Loopt de server over zijn tijd, dan komt er een tekstpagina in plaats van JSON.
+      const d = await res.json().catch(() => null);
+      if (!d) throw new Error("Het uitwerken duurde te lang en is afgebroken. Probeer het nog een keer.");
       if (!res.ok) throw new Error(d.detail || d.error || "Er ging iets mis");
 
-      setBerichten([...nieuw, { role: "assistant", content: d.reply }]);
+      setBerichten(d.reply ? [...nieuw, { role: "assistant", content: d.reply }] : nieuw);
       if (d.setup && onOpzet) onOpzet(d.setup as DialogueSetup);
       else if (d.spec) onPlan(d.spec as DialogueSpec, d.targetSeconds ?? 60, d.tone ?? "zakelijk");
     } catch (e) {
@@ -165,6 +179,12 @@ export default function DialogueChat({
                 <span className="animate-pulse [animation-delay:150ms]">●</span>
                 <span className="animate-pulse [animation-delay:300ms]">●</span>
               </span>
+              {/* Een opzet uitwerken duurt een minuut of langer; alleen bolletjes leek op vastlopen. */}
+              {langBezig && onOpzet && (
+                <span className="ml-2">
+                  Ik werk je opzet uit: het verhaal, de personages en de tekenstijl. Dit duurt meestal één tot twee minuten.
+                </span>
+              )}
             </div>
           </div>
         )}
