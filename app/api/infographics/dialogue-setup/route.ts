@@ -47,7 +47,12 @@ import type { Character } from "@/lib/types";
 export const runtime = "nodejs";
 // Meerdere tekstcalls achter elkaar (voorstel, casting, redactie of aanvullen)
 // passen niet betrouwbaar in een minuut.
-export const maxDuration = 120;
+export const maxDuration = 300;
+
+// Een uitgewerkt verhaal uit ChatGPT, met de lijsten van personages, voorwerpen en
+// plekken erbij, is al gauw 10.000 tekens. Op 8000 vielen de laatste momenten er
+// ongemerkt af.
+const MAX_VERHAAL_TEKENS = 24000;
 
 interface Body {
   topic?: string;
@@ -536,7 +541,7 @@ Per moment: "titel" (twee tot vier woorden, bij voorkeur de plek), "wat" (wat er
         { role: "system", content: system },
         {
           role: "user",
-          content: `HET VERHAAL:\n"""\n${briefing.slice(0, 8000)}\n"""\n\nDE HUIDIGE VERHAALLIJN:\n${JSON.stringify(lijn.map(({ fase: _fase, ...d }) => d), null, 2)}`,
+          content: `HET VERHAAL:\n"""\n${briefing.slice(0, MAX_VERHAAL_TEKENS)}\n"""\n\nDE HUIDIGE VERHAALLIJN:\n${JSON.stringify(lijn.map(({ fase: _fase, ...d }) => d), null, 2)}`,
         },
       ],
       response_format: {
@@ -683,7 +688,7 @@ ${verhaalVelden}
 
     const userPrompt = `${volg ? "HET VERHAAL VAN DE GEBRUIKER — volg het precies" : "WAT DE GEBRUIKER WIL MAKEN"}:
 """
-${text.slice(0, 8000)}
+${text.slice(0, MAX_VERHAAL_TEKENS)}
 """
 
 ${body.topic?.trim() ? `OPGEGEVEN ONDERWERP: ${body.topic.trim()}\n` : ""}GEWENSTE LENGTE: ongeveer ${targetSeconds} seconden.
@@ -697,7 +702,7 @@ Geef nu de opzet als JSON.`;
       temperature: volg ? 0.3 : 0.8,
       // Een gevolgd verhaal kan twintig momenten hebben; met 3000 tokens werd de
       // lijst halverwege afgebroken.
-      max_tokens: volg ? 6000 : 3000,
+      max_tokens: volg ? 10000 : 3000,
       messages: [
         { role: "system", content: system },
         { role: "user", content: userPrompt },
@@ -811,12 +816,12 @@ Geef nu de opzet als JSON.`;
     if (verhaal.verhaallijn.length && cast.length) {
       if (volg) {
         // Een gevolgd verhaal wordt niet geredigeerd maar op VOLLEDIGHEID gecontroleerd.
-        const weg = ontbrekendeNamen(text, verhaal.verhaallijn);
+        const weg = ontbrekendeNamen(text, verhaal.verhaallijn, cast.map((c) => c.name));
         if (weg.length) {
           console.log(`[dialogue-setup] ontbreekt in de verhaallijn: ${weg.join(", ")}`);
           const aangevuld = await vulVerhaalAan(verhaal.verhaallijn, weg, cast, text, language);
           if (aangevuld) verhaal = { ...verhaal, verhaallijn: aangevuld };
-          const nogWeg = ontbrekendeNamen(text, verhaal.verhaallijn);
+          const nogWeg = ontbrekendeNamen(text, verhaal.verhaallijn, cast.map((c) => c.name));
           if (nogWeg.length) console.warn(`[dialogue-setup] na aanvullen nog weg: ${nogWeg.join(", ")}`);
         }
         console.log(`[dialogue-setup] gevolgd verhaal: ${verhaal.verhaallijn.length} momenten`);

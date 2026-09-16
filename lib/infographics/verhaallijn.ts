@@ -298,6 +298,13 @@ export function ontbrekendeRollen(
 // dezelfde plek, en een verhaallijn die gewoon "Waterkant" schrijft ook.
 const LIDWOORD = /^(de|het|een)\s+/i;
 
+/** Kopjes uit het vaste verhaalformaat (zie de ChatGPT-basisprompt); geen namen. */
+const FORMAATLABELS = new Set([
+  "titel", "lengte", "taal", "doelgroep", "personages", "voorwerpen", "plekken", "verhaal", "moment",
+  "plek", "licht", "beeld", "actiebeeld", "verteller", "uiterlijk", "kleding", "karakter", "stem", "nieuw",
+  "bibliotheek", "nederlands", "vlaams",
+]);
+
 /**
  * Eigennamen uit een tekst: plekken, gebouwen, landen, personen.
  *
@@ -307,7 +314,8 @@ const LIDWOORD = /^(de|het|een)\s+/i;
  * Palmentuin) vielen uit de eerste verhaallijn van de Wonderwagen.
  */
 export function namenUitTekst(invoer: string): string[] {
-  const schoon = invoer.replace(/[*_#>`]/g, " ");
+  // De titel- en lengteregel van het vaste formaat horen niet bij het verhaal zelf.
+  const schoon = invoer.replace(/^\s*(TITEL|LENGTE)\s*:.*$/gim, " ").replace(/[*_#>`]/g, " ");
   const namen = new Set<string>();
   const reeks = /(^|[^\p{L}\p{N}'-])(\p{Lu}[\p{L}'-]+(?:\s+\p{Lu}[\p{L}'-]+)*)/gu;
 
@@ -317,9 +325,17 @@ export function namenUitTekst(invoer: string): string[] {
     // Begin van een zin, een alinea of een citaat: dat eerste woord heeft zijn
     // hoofdletter om een andere reden. De woorden erna kunnen wél een naam zijn
     // ("Bij De Waterkant").
+    //
+    // Ook na een opsommingsstreepje of een scheidingsteken ("- Saar —", "· Licht: dag"):
+    // een verhaal uit ChatGPT in een vast formaat staat vol labels ("Moment 12 — Samen
+    // lukt het", "LENGTE: 120 seconden"). Die werden als ontbrekende namen gemeld, en
+    // elke melding kostte een extra aanvulronde die de opzet over zijn tijd duwde.
     const ervoor = schoon.slice(0, start);
-    if (/(^|[.!?:]|\n\s*\n|\n)[\s"“”„'‘’(]*$/u.test(ervoor)) woorden.shift();
-    const naam = woorden.join(" ").replace(LIDWOORD, "").trim();
+    if (/(^|[.!?:·•—–]|\n\s*\n|\n)[\s"“”„'‘’(\-]*$/u.test(ervoor)) woorden.shift();
+    const naam = woorden
+      .filter((w) => w.length < 2 || w !== w.toUpperCase())
+      .filter((w) => !FORMAATLABELS.has(w.toLowerCase()))
+      .join(" ").replace(LIDWOORD, "").trim();
     if (naam.length >= 4) namen.add(naam);
   }
   return [...namen];
@@ -331,9 +347,10 @@ export function namenUitTekst(invoer: string): string[] {
  * Losjes vergeleken: elk woord hoeft er alleen met zijn eerste letters in te staan,
  * zodat "Presidentieel Paleis" ook "het presidentiële paleis" vindt.
  */
-export function ontbrekendeNamen(bron: string, lijn: VerhaalDeel[] | null | undefined): string[] {
+export function ontbrekendeNamen(bron: string, lijn: VerhaalDeel[] | null | undefined, castNamen: string[] = []): string[] {
   if (!lijn?.length) return [];
-  const hooiberg = lijn.map((d) => `${d.titel} ${d.wat} ${d.plek} ${d.verteller}`).join(" ").toLowerCase();
+  // De namen van de cast tellen mee: wie in "wie" staat, staat daar als id, niet als naam.
+  const hooiberg = [...lijn.map((d) => `${d.titel} ${d.wat} ${d.plek} ${d.verteller}`), ...castNamen].join(" ").toLowerCase();
   return namenUitTekst(bron).filter((naam) =>
     !naam
       .toLowerCase()
