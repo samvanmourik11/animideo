@@ -208,7 +208,9 @@ export async function POST(req: NextRequest) {
             "-i", clipPaths[i],
             "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
             "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
-            "-vf", `setpts=${speedRatio.toFixed(4)}*PTS,tpad=stop_mode=clone:stop_duration=2,${scaleFilter},fps=${EXPORT_FPS}`,
+            // fps vóór tpad: in ffmpeg 7 (Vercel) doet tpad direct na setpts niets, dan
+            // ontbrak het vastgehouden laatste beeld. Zie dialoog-montage.ts.
+            "-vf", `setpts=${speedRatio.toFixed(4)}*PTS,fps=${EXPORT_FPS},tpad=stop_mode=clone:stop_duration=2,${scaleFilter},fps=${EXPORT_FPS}`,
             "-t", String(trimDur),
             "-an",
             "-y",

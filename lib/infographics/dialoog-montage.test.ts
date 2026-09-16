@@ -108,3 +108,11 @@ describe("filters", () => {
     expect(beginEindFade(20)).toContain(`st=${(20 - EIND_UITFADE).toFixed(3)}`);
   });
 });
+
+describe("segmentVideoFilter in ffmpeg 7", () => {
+  // Op Vercel draait ffmpeg 7: daar doet tpad direct na setpts niets. Met fps ertussen wel.
+  it("zet fps direct vóór tpad", () => {
+    const f = segmentVideoFilter("scale=1920:1080", { spraak: 1, kop: SCENE_OVERGANG, staart: SCENE_OVERGANG }, true, 24);
+    expect(f).toMatch(/setpts=PTS-STARTPTS,fps=24,tpad=/);
+  });
+});

@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
       const afGeluid = `atrim=duration=${p.duur.toFixed(3)}`;
       // Bij een gesproken regel blijft het laatste beeld staan in de stilte erna; bij
       // een actiebeeld loopt de beweging door. Zie segmentVideoFilter.
-      const beeldFilter = `${segmentVideoFilter(schaal, p, !k.isActie)},${afBeeld}`;
+      const beeldFilter = `${segmentVideoFilter(schaal, p, !k.isActie, fps)},${afBeeld}`;
       if (!k.stem) {
         // Alle segmenten moeten dezelfde parameters hebben voordat ze aan elkaar
         // kunnen, dus ook een stil actiebeeld krijgt een (stil) audiospoor.

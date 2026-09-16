@@ -92,6 +92,7 @@ export function segmentVideoFilter(
   schaal: string,
   seg: Pick<MontageSegment, "spraak" | "kop" | "staart"> & { las?: number },
   bevriesStaart: boolean,
+  fps = 24,
 ): string {
   const delen = [schaal];
   const las = seg.las ?? 0;
@@ -105,7 +106,12 @@ export function segmentVideoFilter(
     // Ook bij een actiebeeld: is de clip korter dan nodig, dan het laatste beeld vasthouden.
     vast > 0 ? `stop_mode=clone:stop_duration=${s(vast)}` : "",
   ].filter(Boolean);
-  if (pad.length) delen.push(`tpad=${pad.join(":")}`);
+  // fps vóór tpad: in ffmpeg 7 (de versie op Vercel) doet tpad direct na setpts niets,
+  // omdat setpts de frameduur wist. Het vastgehouden beeld verdween dan, elk segment met
+  // een kop of staart werd te kort, de overvloeiers liepen scheef en de export van
+  // "de drie gouden sleutels" had 20 seconden beeld onder bijna 3 minuten geluid.
+  // Lokaal (ffmpeg 6) was er niets van te zien.
+  if (pad.length) delen.push(`fps=${fps}`, `tpad=${pad.join(":")}`);
   return delen.join(",");
 }
 
