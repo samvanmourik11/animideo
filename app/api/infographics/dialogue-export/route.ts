@@ -1,7 +1,7 @@
 import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
-import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm, statfs } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import ffmpegPath from "ffmpeg-static";
@@ -64,14 +64,21 @@ const ENC = (fps: number) => [
   "-r", String(fps), "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "192k",
 ];
 
-// Tussenbestanden worden nog een keer opnieuw gecodeerd. Ultrafast met een lage crf is
-// ~2,5× sneller dan veryfast zonder zichtbaar kwaliteitsverlies in de eindvideo. Een
-// lange video liep met drie volle veryfast-rondes over de tijdslimiet van Vercel, en
-// dan kreeg de pagina een kale foutpagina in plaats van JSON.
+// Tussenbestanden worden nog een keer opnieuw gecodeerd. Een lange video liep met drie
+// volle veryfast-rondes in full-HD over de tijdslimiet van Vercel. Ultrafast was snel
+// maar maakte de bestanden zo groot dat /tmp (~500 MB) volliep. Superfast op de maat
+// van de clips (720p, zie TUSSENMAAT) is sneller én kleiner; pas de laatste ronde
+// schaalt naar de eindmaat, en de clips zelf zijn niet groter, dus er gaat niets verloren.
 const ENC_TUSSEN = (fps: number) => [
-  "-c:v", "libx264", "-preset", "ultrafast", "-crf", "17", "-pix_fmt", "yuv420p",
+  "-c:v", "libx264", "-preset", "superfast", "-crf", "18", "-pix_fmt", "yuv420p",
   "-r", String(fps), "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "192k",
 ];
+
+/** Tijd sinds de start en vrije ruimte in /tmp, voor het serverlog. */
+async function stand(begin: number, map: string): Promise<string> {
+  const vrij = await statfs(map).then((f) => `${Math.round((f.bavail * f.bsize) / 1048576)} MB vrij`).catch(() => "vrije ruimte onbekend");
+  return `na ${Math.round((Date.now() - begin) / 1000)}s, ${vrij}`;
+}
 
 /** Voert taken uit met hoogstens `max` tegelijk, in de volgorde van de lijst. */
 async function metMaximaal<T, R>(items: T[], max: number, taak: (item: T, i: number) => Promise<R>): Promise<R[]> {
@@ -143,7 +150,7 @@ export async function POST(req: NextRequest) {
       return { scene: si, clip, stem, spraak: stemDuur, start, isActie };
     });
     const kandidaten = gevonden.filter((k): k is Kandidaat => k !== null);
-    console.log(`[dialogue-export] ${kandidaten.length} fragmenten opgehaald na ${Math.round((Date.now() - begin) / 1000)}s`);
+    console.log(`[dialogue-export] ${kandidaten.length} fragmenten opgehaald ${await stand(begin, werkmap)}`);
 
     if (kandidaten.length === 0) {
       return NextResponse.json({ error: "Nog geen clips gegenereerd om te exporteren" }, { status: 400 });
@@ -151,7 +158,10 @@ export async function POST(req: NextRequest) {
 
     // ---------- 2. Per regel een segment op maat ----------
     const plan = montagePlan(kandidaten.map((k) => ({ scene: k.scene, spraak: k.spraak })));
-    const schaal = `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${fps},setsar=1,format=yuv420p`;
+    // De clips komen als 720p uit Seedance; groter rekenen tot aan de laatste stap kost
+    // alleen tijd en schijfruimte.
+    const TW = Math.round((W * 2) / 3 / 2) * 2, TH = Math.round((H * 2) / 3 / 2) * 2;
+    const schaal = `scale=${TW}:${TH}:force_original_aspect_ratio=increase,crop=${TW}:${TH},fps=${fps},setsar=1,format=yuv420p`;
     const segmenten = await metMaximaal(kandidaten, 2, async (k, i) => {
       const p = plan[i];
       const seg = path.join(werkmap, `s${String(i).padStart(3, "0")}.mp4`);
@@ -183,7 +193,7 @@ export async function POST(req: NextRequest) {
       if (k.stem) await rm(k.stem, { force: true });
       return { file: seg, dur: p.duur, beeldDur, scene: k.scene };
     });
-    console.log(`[dialogue-export] ${segmenten.length} segmenten klaar na ${Math.round((Date.now() - begin) / 1000)}s`);
+    console.log(`[dialogue-export] ${segmenten.length} segmenten klaar ${await stand(begin, werkmap)}`);
 
     // ---------- 3. Per scène aan elkaar ----------
     //
@@ -191,23 +201,24 @@ export async function POST(req: NextRequest) {
     // geflikker sinds elke zin een eigen storyboardbeeld heeft (zie dialoog-montage.ts).
     // Het geluid gaat gewoon achter elkaar: de overvloeier ligt over het extra stuk
     // beeld van de vorige zin (dat doorloopt), dus beeld en stem blijven gelijk.
-    const groepen: { file: string; dur: number }[] = [];
+    // Beeld en geluid per scène als losse bestanden: de laatste stap leest ze zo in, dus
+    // er hoeft niets tussendoor samengevoegd (en dubbel op schijf gezet) te worden.
+    const groepen: { beeld: string; geluid: string; dur: number }[] = [];
     for (let i = 0; i < segmenten.length; ) {
       const scene = segmenten[i].scene;
       const groep: typeof segmenten = [];
       while (i < segmenten.length && segmenten[i].scene === scene) groep.push(segmenten[i++]);
 
       if (groep.length === 1) {
-        groepen.push({ file: groep[0].file, dur: groep[0].dur });
+        groepen.push({ beeld: groep[0].file, geluid: groep[0].file, dur: groep[0].dur });
         continue;
       }
       // Alle segmenten zijn met dezelfde ENC()-parameters gemaakt. Toch via de
       // concat-FILTER en niet de demuxer: die laatste struikelt over kleine
       // verschillen in tijdbasis.
       const nr = String(groepen.length).padStart(3, "0");
-      const samengevoegd = path.join(dir, `g${nr}.mp4`);
-      const alleenBeeld = path.join(dir, `g${nr}-beeld.mp4`);
-      const alleenGeluid = path.join(dir, `g${nr}-geluid.m4a`);
+      const alleenBeeld = path.join(werkmap, `g${nr}-beeld.mp4`);
+      const alleenGeluid = path.join(werkmap, `g${nr}-geluid.m4a`);
       const invoerGroep = groep.flatMap((g) => ["-i", g.file]);
       const lassen = zachteLassen(groep.map((g) => g.beeldDur));
       // Beeld en geluid in aparte stappen. In één filtergraph met de concat van het
@@ -221,33 +232,35 @@ export async function POST(req: NextRequest) {
         ...invoerGroep, "-filter_complex", `${groep.map((_, j) => `[${j}:a]`).join("")}concat=n=${groep.length}:v=0:a=1[a]`,
         "-map", "[a]", "-vn", ...ENC(fps), "-y", alleenGeluid,
       ]);
-      await runFfmpeg(["-i", alleenBeeld, "-i", alleenGeluid, "-map", "0:v", "-map", "1:a", "-c", "copy", "-y", samengevoegd]);
-      await Promise.all([alleenBeeld, alleenGeluid, ...groep.map((g) => g.file)].map((f) => rm(f, { force: true })));
-      groepen.push({ file: samengevoegd, dur: groep.reduce((a, g) => a + g.dur, 0) });
+      await Promise.all(groep.map((g) => rm(g.file, { force: true })));
+      groepen.push({ beeld: alleenBeeld, geluid: alleenGeluid, dur: groep.reduce((a, g) => a + g.dur, 0) });
     }
 
-    console.log(`[dialogue-export] ${groepen.length} scènes klaar na ${Math.round((Date.now() - begin) / 1000)}s`);
+    console.log(`[dialogue-export] ${groepen.length} scènes klaar ${await stand(begin, werkmap)}`);
 
     // ---------- 4. Scènes in elkaar laten overvloeien ----------
     // Elke overvloeier valt op de stille staart van de ene scène en de stille kop van
     // de volgende; de stemmen raken elkaar dus nooit.
-    const samen = path.join(dir, "samen.mp4");
+    const samen = path.join(werkmap, "samen.mp4");
     const { offsets, totaal } = overgangOffsets(groepen.map((g) => g.dur));
-    const invoer = groepen.flatMap((g) => ["-i", g.file]);
+    // Eerst alle beeldbestanden, dan alle geluidsbestanden: geluid van scène i is invoer N+i.
+    const N = groepen.length;
+    const invoer = [...groepen.map((g) => g.beeld), ...groepen.map((g) => g.geluid)].flatMap((f) => ["-i", f]);
     const delen: string[] = [];
-    let vLabel = "0:v", aLabel = "0:a";
-    for (let i = 1; i < groepen.length; i++) {
+    let vLabel = "0:v", aLabel = `${N}:a`;
+    for (let i = 1; i < N; i++) {
       const vUit = `v${i}`, aUit = `a${i}`;
       delen.push(`[${vLabel}][${i}:v]xfade=transition=fade:duration=${SCENE_OVERGANG}:offset=${offsets[i - 1].toFixed(3)}[${vUit}]`);
-      delen.push(`[${aLabel}][${i}:a]acrossfade=d=${SCENE_OVERGANG}:c1=tri:c2=tri[${aUit}]`);
+      delen.push(`[${aLabel}][${N + i}:a]acrossfade=d=${SCENE_OVERGANG}:c1=tri:c2=tri[${aUit}]`);
       vLabel = vUit; aLabel = aUit;
     }
-    delen.push(`[${vLabel}]${beginEindFade(totaal)}[veind]`);
+    delen.push(`[${vLabel}]scale=${W}:${H}:flags=lanczos,setsar=1,${beginEindFade(totaal)}[veind]`);
     await runFfmpeg([
       ...invoer, "-filter_complex", delen.join(";"),
-      "-map", "[veind]", "-map", groepen.length > 1 ? `[${aLabel}]` : "0:a",
+      "-map", "[veind]", "-map", N > 1 ? `[${aLabel}]` : `${N}:a`,
       ...ENC(fps), "-movflags", "+faststart", "-y", samen,
     ]);
+    await Promise.all(groepen.flatMap((g) => [g.beeld, g.geluid]).map((f) => rm(f, { force: true })));
 
     // ---------- 5. Muziekbed met ducking ----------
     // Actiebeelden hebben geen stem. Met een muziekbed dat overal even zacht staat
@@ -292,7 +305,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log(`[dialogue-export] montage klaar na ${Math.round((Date.now() - begin) / 1000)}s`);
+    console.log(`[dialogue-export] montage klaar ${await stand(begin, werkmap)}`);
 
     // ---------- 6. Opslaan ----------
     const bytes = await readFile(eind);
