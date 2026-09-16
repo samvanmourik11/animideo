@@ -34,6 +34,20 @@ function projectHref(p: Project) {
   return `/project/${p.id}`;
 }
 
+// Dialoog- en verhaalprojecten bewaren hun beelden in story_spec, niet in scenes.
+function projectThumb(p: Project): string | null {
+  const scenesThumb = p.scenes?.find((s) => s.image_url)?.image_url;
+  if (scenesThumb) return scenesThumb;
+  const spec = p.story_spec as unknown as {
+    scenes?: { imageUrl?: string | null; twoShotUrl?: string | null; lines?: { shotImageUrl?: string | null }[] }[];
+  } | null;
+  for (const scene of spec?.scenes ?? []) {
+    const url = scene.twoShotUrl || scene.imageUrl || scene.lines?.find((l) => l.shotImageUrl)?.shotImageUrl;
+    if (url) return url;
+  }
+  return null;
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric" });
 }
@@ -167,7 +181,7 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
       {view === "grid" && filtered.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {filtered.map((project) => {
-            const thumb = project.scenes?.find((s) => s.image_url)?.image_url ?? null;
+            const thumb = projectThumb(project);
             return (
               <div
                 key={project.id}
