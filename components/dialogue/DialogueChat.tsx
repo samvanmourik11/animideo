@@ -115,7 +115,7 @@ export default function DialogueChat({
   void Link;
 
   const { regels, scenes } = planVoorLengte(lengte);
-  // Zie dialoog-credits.ts: een credit per scène voor het storyboard en een per clip.
+  // Zie dialoog-credits.ts: DIALOOG_CREDITS.SCENE per scène voor het storyboard en een per clip.
   const credits = regels * DIALOOG_CREDITS.CLIP + scenes * DIALOOG_CREDITS.SCENE;
   const minuten = Math.max(1, Math.round(((regels * SEC_PER_CLIP) / PARALLEL + scenes * 12) / 60));
 

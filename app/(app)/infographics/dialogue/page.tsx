@@ -1258,7 +1258,7 @@ export default function DialoguePage() {
                 Pas aan wat je wilt. Verander je een zin of de spreker, dan wordt die clip opnieuw gemaakt.
               </p>
             </div>
-            {/* Eerst het storyboard: voor een credit per scène zie je of de beelden
+            {/* Eerst het storyboard: voor een paar credits per scène zie je of de beelden
                 kloppen, vóór je per regel voor stem, beeld en beweging betaalt. */}
             <div className="flex flex-col items-end gap-1 shrink-0">
               {spec.scenes.every((s) => s.twoShotUrl) ? (

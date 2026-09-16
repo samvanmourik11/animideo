@@ -1,10 +1,14 @@
-// CREDITS IN DE DIALOOGTOOL — een kwart van wat het was.
+// CREDITS IN DE DIALOOGTOOL — ongeveer een derde van wat het was.
 //
 // Een video van 81 seconden (7 scènes, 21 zinnen) kostte 96 credits: 33 beelden, 21
 // stemmen en 21 clips van 2 credits, en daar kwamen de herkansingen nog bij. Sam wil
 // dat klanten voelen dat het creditverbruik meevalt (15-09-2026). Nu kost diezelfde
-// video 28 credits:
-//  - het storyboard 1 credit per scène: het plekbeeld plus alle beelden van de zinnen;
+// video 28 credits.
+//
+// Op 16-09-2026 wilde Sam het iets duurder: het origineel gedeeld door drie in plaats van
+// vier. Precies een derde (32) lukt niet met hele credits per scène en per clip; het
+// storyboard op 2 per scène komt het dichtst in de buurt en kost diezelfde video 35:
+//  - het storyboard 2 credits per scène: het plekbeeld plus alle beelden van de zinnen;
 //  - 1 credit per clip;
 //  - stemmen, castblad, model sheets, voorwerpplaatjes en nieuwe personages gratis —
 //    dat is voorbereiding voor het storyboard;
@@ -20,7 +24,7 @@ import { bruikbareRegel, regelKlaar, type DialogueSpec } from "./dialogue-schema
 
 export const DIALOOG_CREDITS = {
   /** Het storyboard van één scène: het plekbeeld en de beelden van alle zinnen. */
-  SCENE: 1,
+  SCENE: 2,
   /** Eén clip. */
   CLIP: 1,
   /** Eén beeld los opnieuw maken of aanpassen. */

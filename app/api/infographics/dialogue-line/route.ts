@@ -281,7 +281,7 @@ export async function POST(req: NextRequest) {
     if (alleenBeeld && !beeldNodig) {
       return NextResponse.json({ error: "Dit shot heeft al een beeld" }, { status: 400 });
     }
-    // Een kwart van wat het was: stemmen gratis, een clip 1 credit, en een beeld alleen
+    // Zie dialoog-credits.ts: stemmen gratis, een clip 1 credit, en een beeld alleen
     // als het los opnieuw gemaakt wordt. Zie dialoog-credits.ts.
     const beeldPrijs = b.doorSceneBetaald === true ? 0 : DIALOOG_CREDITS.LOS_BEELD;
     const kosten =
