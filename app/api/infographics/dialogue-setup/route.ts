@@ -17,6 +17,7 @@ import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { openai } from "@/lib/openai";
+import { vraagDoor } from "@/lib/infographics/doorvragen";
 import {
   bibliotheekVoorwerpTekst, koppelVoorwerpen, leesBibliotheekVoorwerp, tabelOntbreekt, type BibliotheekVoorwerp,
 } from "@/lib/infographics/voorwerp-bibliotheek";
@@ -64,7 +65,10 @@ interface Body {
   vasteCast?: VastCastLid[];
   /** Weglaten = zelf bepalen aan de hand van de tekst. */
   modus?: VerhaalModus;
+  /** Het hoeveelste bericht van de gebruiker dit is. Alleen bij het eerste kan de assistent doorvragen. */
+  rondes?: number;
 }
+
 
 type BibliotheekRij = Pick<Character, "id" | "name" | "description" | "gender" | "age_range" | "image_url">;
 
@@ -583,6 +587,13 @@ export async function POST(req: NextRequest) {
       ? body.modus
       : isUitgewerktVerhaal(text) ? "volgen" : "verzinnen";
     const volg = modus === "volgen";
+
+    // Alleen bij het eerste bericht van een nieuw idee: daarna (een antwoord, of "maak
+    // maar") gaat de opzet altijd door, zodat niemand in een vragenlus belandt.
+    if (!volg && !body.modus && (body.rondes ?? 1) <= 1 && vasteCast.length === 0) {
+      const vragen = await vraagDoor(text, language);
+      if (vragen) return NextResponse.json({ reply: vragen });
+    }
 
     // De bibliotheek meegeven zodat de assistent uit ÉCHTE personages kan kiezen.
     // Zonder deze lijst verzint hij namen die nergens een portret bij hebben, en
