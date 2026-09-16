@@ -114,7 +114,7 @@ FORMAAT: ${args.format} (${args.format === "9:16" ? "staand, social" : "liggend,
 
 BRONTEKST / DATA (haal hier het verhaal en de cijfers uit, verzin niets):
 """
-${args.rawText.slice(0, 8000)}
+${args.rawText.slice(0, 24000)}
 """
 
 Schrijf nu de dialoog als JSON volgens het schema.`;

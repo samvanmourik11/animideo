@@ -560,3 +560,32 @@ describe("voegGelijkePlekSamen", () => {
     expect(voegGelijkePlekSamen(scenes)).toHaveLength(1);
   });
 });
+
+describe("namenUitTekst bij het vaste ChatGPT-formaat", () => {
+  const CHATGPT = `TITEL: Prinses Isabella en het Rekenfeest
+
+LENGTE: 120 seconden · TAAL: Nederlands · DOELGROEP: kinderen van 4 tot 8 jaar
+
+PERSONAGES
+Uit de bibliotheek: Prinses Isabella, Vriendin 1
+- Saar — mens, 7 jaar. Kleding (top tot teen): lichtblauwe jurk.
+
+Moment 12 — Samen lukt het
+Plek: Kasteeltuin – onder de appelboom · Licht: dag
+In beeld: Prinses Isabella, Saar
+Saar (vrolijk): "En stap voor stap moet je tellen."`;
+
+  it("ziet kopjes en labels niet als namen, maar de plek wel", () => {
+    const namen = namenUitTekst(CHATGPT);
+    for (const label of ["LENGTE", "TAAL", "DOELGROEP", "Licht", "Moment", "Kleding", "Samen", "Rekenfeest LENGTE"]) {
+      expect(namen).not.toContain(label);
+    }
+    expect(namen).toContain("Isabella");
+  });
+
+  it("meldt de cast niet als ontbrekend als die in de verhaallijn als id staat", () => {
+    const lijn = [moment("Kasteeltuin", "Ze tellen appels in de kasteeltuin.")];
+    const weg = ontbrekendeNamen(CHATGPT, lijn, ["Prinses Isabella", "Vriendin 1", "Saar"]);
+    expect(weg).toEqual([]);
+  });
+});

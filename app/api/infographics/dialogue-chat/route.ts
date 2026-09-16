@@ -44,7 +44,7 @@ import {
 } from "@/lib/infographics/dialogue-schema";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 // De gespreksassistent van de dialoogmodus. De gebruiker beschrijft in eigen
 // woorden wat hij wil; de assistent vraagt door tot hij genoeg weet en levert dan
