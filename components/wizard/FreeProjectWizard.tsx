@@ -82,6 +82,7 @@ export default function FreeProjectWizard({
             onNext={goNext}
             onBack={goBack}
             plan={plan}
+            lipsync
           />
         )}
         {step === 2 && (

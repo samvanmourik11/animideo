@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Project, Scene } from "@/lib/types";
+import { Project, Scene, SceneLipsync } from "@/lib/types";
+import { STORY_VOICES } from "@/lib/infographics/story-voices";
+import { lipsyncCredits, LIPSYNC_MAX_SEC } from "@/lib/lipsync";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 import { createClient } from "@/lib/supabase/client";
 
@@ -24,9 +26,17 @@ interface Props {
   onNext: () => void;
   onBack: () => void;
   plan?: string;
+  /** Upload-tool: per scène ook een pratende (lipsync) clip kunnen maken en downloaden. */
+  lipsync?: boolean;
 }
 
-export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = "free" }: Props) {
+/** Downloadlink voor een clip uit Supabase-opslag (?download= zet de bestandsnaam). */
+function downloadLink(url: string, naam: string): string {
+  if (!url.includes("/storage/v1/object/public/")) return url;
+  return `${url.split("?")[0]}?download=${encodeURIComponent(naam)}`;
+}
+
+export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = "free", lipsync = false }: Props) {
   const router = useRouter();
   const [scenes, setScenes] = useState<Scene[]>(project.scenes ?? []);
   const [currentIndex, setCurrentIndex] = useState(() => {
@@ -41,6 +51,10 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
   const [cacheBust, setCacheBust] = useState<Record<string, number>>({});
   const [creditModal, setCreditModal] = useState<{ credits: number; required: number } | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Soort clip per scène: gewone beweging of lipsync. Een scène die al een lipsync
+  // heeft, opent in lipsync.
+  const [soort, setSoort] = useState<Record<string, "beweging" | "lipsync">>({});
+  const [uploadBezig, setUploadBezig] = useState(false);
 
   const scene = scenes[currentIndex];
   const totalScenes = scenes.length;
@@ -171,6 +185,113 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
       setStatusMsg("");
     }
   }
+
+  const soortVan = (s: Scene) => soort[s.id] ?? (s.lipsync ? "lipsync" : "beweging");
+
+  function zetLipsync(wijziging: Partial<SceneLipsync>) {
+    const id = scene.id;
+    setScenes((prev) => prev.map((s) => (s.id === id ? { ...s, lipsync: { ...(s.lipsync ?? {}), ...wijziging } } : s)));
+  }
+
+  async function uploadOpname(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setError("De opname is groter dan 5 MB. Gebruik een kortere of kleinere opname (bijv. mp3)."); return; }
+    setUploadBezig(true);
+    setError("");
+    try {
+      const sb = createClient();
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) throw new Error("Sessie verlopen — log opnieuw in");
+      const ext = (file.name.split(".").pop() ?? "mp3").toLowerCase();
+      const pad = `${user.id}/${project.id}/lipsync-${scene.id}-${Date.now()}.${ext}`;
+      const { error: upErr } = await sb.storage.from("audio").upload(pad, file, { upsert: true, contentType: file.type || undefined });
+      if (upErr) throw new Error(upErr.message);
+      const url = sb.storage.from("audio").getPublicUrl(pad).data.publicUrl;
+      zetLipsync({ eigenAudioUrl: url, eigenAudioNaam: file.name });
+    } catch (err) {
+      setError(`Opname uploaden mislukt: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setUploadBezig(false);
+    }
+  }
+
+  async function maakLipsync() {
+    const imageUrl = scene.image_url;
+    if (!imageUrl) { setError("Deze scène heeft nog geen afbeelding."); return; }
+    const ls = scene.lipsync ?? {};
+    if (!ls.eigenAudioUrl && !ls.tekst?.trim()) { setError("Vul in wat er gezegd wordt, of upload een opname."); return; }
+    const targetSceneId = scene.id;
+    setGenerating(true);
+    setError("");
+    setStatusMsg(ls.eigenAudioUrl ? "Opname klaarzetten…" : "Stem inspreken…");
+    try {
+      const res = await fetch("/api/generate-lipsync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          imageUrl,
+          tekst: ls.eigenAudioUrl ? undefined : ls.tekst,
+          stem: ls.stem,
+          taal: project.language,
+          audioUrl: ls.eigenAudioUrl ?? undefined,
+          aanwijzing: ls.aanwijzing,
+        }),
+      });
+      const data = await res.json().catch(() => ({ error: `Serverfout (HTTP ${res.status})` }));
+      if (res.status === 402) {
+        setCreditModal({ credits: data.credits, required: data.required });
+        setGenerating(false); setStatusMsg("");
+        return;
+      }
+      if (!res.ok) throw new Error(data.error ?? "Lipsync mislukt");
+      const { requestId, audioUrl } = data as { requestId: string; audioUrl: string; duur: number };
+      setStatusMsg(`Pratende clip maken (${Math.round(data.duur)} s geluid), dit duurt een paar minuten…`);
+
+      const start = Date.now();
+      pollIntervalRef.current = setInterval(async () => {
+        try {
+          if (Date.now() - start > 15 * 60 * 1000) throw new Error("De lipsync duurt te lang. Probeer het opnieuw.");
+          const st = await fetch(`/api/generate-lipsync/status?requestId=${encodeURIComponent(requestId)}`);
+          const sd = await st.json().catch(() => ({ status: "BEZIG" }));
+          if (sd.status === "BEZIG") return;
+          clearInterval(pollIntervalRef.current!);
+          pollIntervalRef.current = null;
+          if (sd.status !== "KLAAR") throw new Error(sd.error ?? "Lipsync mislukt");
+          let bijgewerkt: Scene[] = [];
+          setScenes((prev) => {
+            bijgewerkt = prev.map((s) => (s.id === targetSceneId
+              ? { ...s, video_url: sd.videoUrl, lipsync: { ...(s.lipsync ?? {}), audioUrl } }
+              : s));
+            return bijgewerkt;
+          });
+          setCacheBust((prev) => ({ ...prev, [targetSceneId]: Date.now() }));
+          onUpdate({ scenes: bijgewerkt });
+          fetch("/api/save-project", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ projectId: project.id, scenes: bijgewerkt }),
+          }).catch(() => {});
+          router.refresh();
+          setGenerating(false);
+          setStatusMsg("");
+        } catch (pollErr) {
+          if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+          setError(pollErr instanceof Error ? pollErr.message : String(pollErr));
+          setGenerating(false);
+          setStatusMsg("");
+        }
+      }, 5000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setGenerating(false);
+      setStatusMsg("");
+    }
+  }
+
+  const maakClip = () => (lipsync && soortVan(scene) === "lipsync" ? maakLipsync() : generateMotion(effectiveMotion()));
 
   async function deleteVideo() {
     const updatedScenes = scenes.map((s, i) =>
@@ -310,6 +431,92 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
           )}
         </div>
 
+        {lipsync && !scene.designed && (
+          <div className="space-y-3">
+            <div className="flex gap-1 p-1 rounded-xl bg-white/[0.04] border border-white/10 w-fit">
+              {(["beweging", "lipsync"] as const).map((k) => (
+                <button
+                  key={k}
+                  onClick={() => setSoort((prev) => ({ ...prev, [scene.id]: k }))}
+                  disabled={generating}
+                  className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${soortVan(scene) === k ? "bg-blue-500/20 text-blue-300" : "text-slate-400 hover:text-white"}`}
+                >
+                  {k === "beweging" ? "Beweging" : "Lipsync (pratend)"}
+                </button>
+              ))}
+            </div>
+
+            {soortVan(scene) === "lipsync" && (
+              <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4 space-y-3">
+                <p className="text-xs text-slate-400">
+                  Het personage in het beeld spreekt de tekst uit, met bewegende mond. Gebruik een beeld
+                  waarop het gezicht goed te zien is. Maximaal {LIPSYNC_MAX_SEC} seconden geluid.
+                </p>
+
+                {scene.lipsync?.eigenAudioUrl ? (
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-slate-300">Eigen opname: {scene.lipsync.eigenAudioNaam ?? "geüpload"}</span>
+                    <audio src={scene.lipsync.eigenAudioUrl} controls className="h-8" />
+                    <button
+                      onClick={() => zetLipsync({ eigenAudioUrl: null, eigenAudioNaam: null })}
+                      disabled={generating}
+                      className="text-xs text-slate-400 hover:text-white underline"
+                    >
+                      Toch tekst laten inspreken
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Wat zegt het personage?</label>
+                      <textarea
+                        className="input resize-none text-sm mt-2"
+                        rows={3}
+                        placeholder="Bijv. 'Welkom! Vandaag laat ik je zien hoe het werkt.'"
+                        value={scene.lipsync?.tekst ?? ""}
+                        onChange={(e) => zetLipsync({ tekst: e.target.value })}
+                        disabled={generating}
+                      />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Stem</label>
+                      <select
+                        className="input text-sm w-auto"
+                        value={scene.lipsync?.stem ?? "Charlotte"}
+                        onChange={(e) => zetLipsync({ stem: e.target.value })}
+                        disabled={generating}
+                      >
+                        {STORY_VOICES.map((v) => (
+                          <option key={v.id} value={v.id}>{v.label} — {v.description}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                <label className={`inline-block text-xs px-3 py-1.5 rounded-lg border border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 cursor-pointer ${generating || uploadBezig ? "opacity-40 pointer-events-none" : ""}`}>
+                  {uploadBezig ? "Uploaden…" : scene.lipsync?.eigenAudioUrl ? "Andere opname uploaden" : "Of upload een eigen opname (mp3, wav, m4a)"}
+                  <input type="file" accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/x-m4a,audio/mp4" className="hidden" onChange={uploadOpname} />
+                </label>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Aanwijzing (optioneel)</label>
+                  <input
+                    className="input text-sm mt-2"
+                    placeholder="Bijv. 'enthousiast, met handgebaren' — in het Engels werkt het het best"
+                    value={scene.lipsync?.aanwijzing ?? ""}
+                    onChange={(e) => zetLipsync({ aanwijzing: e.target.value })}
+                    disabled={generating}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Kost {lipsyncCredits(5)} credits per begonnen 5 seconden geluid.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Video area */}
         <div className="rounded-xl overflow-hidden bg-[#060d1f] border border-white/10 aspect-video flex items-center justify-center relative">
           {scene.video_url ? (
@@ -349,7 +556,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
             <p className="text-sm text-red-400">{error}</p>
             <button
-              onClick={() => generateMotion(effectiveMotion())}
+              onClick={maakClip}
               className="mt-2 btn-primary text-sm"
             >
               Opnieuw proberen
@@ -371,19 +578,27 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
           ) : (
           <>
           {!scene.video_url && !generating && (
-            <button onClick={() => generateMotion(effectiveMotion())} className="btn-primary">
-              Genereer videoclip
+            <button onClick={maakClip} className="btn-primary">
+              {lipsync && soortVan(scene) === "lipsync" ? "Maak lipsync-clip" : "Genereer videoclip"}
             </button>
           )}
           {scene.video_url && (
             <>
               <button
-                onClick={() => generateMotion(effectiveMotion())}
+                onClick={maakClip}
                 disabled={generating}
                 className="btn-secondary text-sm"
               >
                 {generating ? "Genereren…" : "Opnieuw genereren"}
               </button>
+              {lipsync && (
+                <a
+                  href={downloadLink(scene.video_url, `${(project.title || "clip").replace(/[^\w\-]+/g, "-")}-scene-${scene.number}${scene.lipsync?.audioUrl && soortVan(scene) === "lipsync" ? "-lipsync" : ""}.mp4`)}
+                  className="btn-secondary text-sm"
+                >
+                  Download clip
+                </a>
+              )}
               <button
                 onClick={deleteVideo}
                 disabled={generating}
