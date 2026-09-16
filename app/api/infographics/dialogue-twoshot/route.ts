@@ -11,7 +11,7 @@ import {
 import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld } from "@/lib/infographics/dialogue-verify";
-import { MAX_CAST, type DialogueCastMember, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
+import { MAX_CAST, geldigeVoorkant, type DialogueCastMember, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
 
@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     // drie keer, en drie sheets plus het castblad zijn twaalf getekende figuren voor
     // een beeld waar er drie in horen. Dat is precies waar de dubbele Lilly vandaan komt.
     const portretten = cast
-      .map((c) => (cast.length === 1 ? c.modelSheetUrl || c.portraitUrl : c.portraitUrl || c.modelSheetUrl))
+      .map((c) => geldigeVoorkant(c) || (cast.length === 1 ? c.modelSheetUrl || c.portraitUrl : c.portraitUrl || c.modelSheetUrl))
       .filter((u): u is string => !!u);
     // Eén personage is genoeg. Dit heette het "twee-shot" omdat elke scene twee
     // pratende mensen naast elkaar toonde, maar sinds de camerakaders bestaat een
@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
         extraContext: [
           illustratieContext(body.illustrationBrief),
           castbladInstructie,
-          cast.length === 1 && cast[0].modelSheetUrl ? MODELBLAD_UITLEG : "",
+          cast.length === 1 && cast[0].modelSheetUrl && !geldigeVoorkant(cast[0]) ? MODELBLAD_UITLEG : "",
           alleenDezeMensen,
           // Hetzelfde bos in elk beeld, en dezelfde look: zie wereldRegie en STIJL_VAST.
           wereldRegie(body.wereld),

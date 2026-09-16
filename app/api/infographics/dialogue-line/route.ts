@@ -27,6 +27,7 @@ import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht"
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld, beoordeelBeweging, type SprekerOordeel } from "@/lib/infographics/dialogue-verify";
 import {
+  geldigeVoorkant,
   sprekerHelft, ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC, VERTELLER_ID,
   type DialogueCastMember, type DialogueVoorwerp, type ShotSoort,
 } from "@/lib/infographics/dialogue-schema";
@@ -458,8 +459,11 @@ export async function POST(req: NextRequest) {
           // Identiteit: liefst de model sheet (voren, schuin, opzij), anders het
           // portret. Het portret toont maar één hoek; bij een shot van opzij moest
           // het model de rest van het hoofd zelf verzinnen en veranderde het haar.
+          // Het vooraanzicht gaat voor alles: één plaatje per personage dat met het castblad
+          // en de beschrijving overeenkomt. Portret en blad samen gaven twee verschillende
+          // koningen, en het beeldmodel koos per shot (zie voorkant.ts).
           characterUrls: cast
-            .map((c) => (metModelSheets() ? c.modelSheetUrl || c.portraitUrl : c.portraitUrl || c.modelSheetUrl))
+            .map((c) => geldigeVoorkant(c) || (metModelSheets() ? c.modelSheetUrl || c.portraitUrl : c.portraitUrl || c.modelSheetUrl))
             .filter(Boolean),
           extraContext: [
             illustratieContext(b.illustrationBrief),
@@ -477,7 +481,7 @@ export async function POST(req: NextRequest) {
                 "continuous scene, never a split screen, never side-by-side panels, never a row of portraits. " +
                 "Do not draw the sheet, or any framed portrait or card of these characters, as an object in the shot."
               : "",
-            metModelSheets() && cast.some((c) => c.modelSheetUrl) ? MODELBLAD_UITLEG : "",
+            metModelSheets() && cast.some((c) => !geldigeVoorkant(c) && c.modelSheetUrl) ? MODELBLAD_UITLEG : "",
             // De cast is de cast. Dit stond alleen in de bewegings-prompt, waardoor
             // verzonnen figuranten al in het bronbeeld zaten en de videostap ze
             // netjes intact liet.
