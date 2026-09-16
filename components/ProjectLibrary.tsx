@@ -27,6 +27,10 @@ function projectHref(p: Project) {
   if (p.mode === "free")   return `/project/${p.id}/free`;
   if (p.mode === "t2v")    return `/project/${p.id}/t2v`;
   if (p.mode === "studio") return `/studio/${p.id}`;
+  if (p.mode === "infographics") return `/infographics/${p.id}`;
+  if (p.mode === "explainer") return `/explainer/${p.id}`;
+  if (p.mode === "story") return `/infographics/story?project=${p.id}`;
+  if (p.mode === "dialogue") return `/infographics/dialogue?project=${p.id}`;
   return `/project/${p.id}`;
 }
 

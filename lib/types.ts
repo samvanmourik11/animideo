@@ -1,4 +1,4 @@
-export type ProjectMode = "wizard" | "free" | "photo" | "t2v" | "studio" | "playground" | "infographics" | "explainer" | "story";
+export type ProjectMode = "wizard" | "free" | "photo" | "t2v" | "studio" | "playground" | "infographics" | "explainer" | "story" | "dialogue";
 export type ImageModel = "flux-schnell" | "flux-pro" | "dall-e-3" | "controlnet" | "recraft" | "seedream";
 export type VideoModel = "kling-pro" | "kling-standard" | "seedance-pro" | "seedance-lite";
 

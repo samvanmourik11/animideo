@@ -43,6 +43,15 @@ export default async function ProjectPage({
     redirect(`/infographics/story?project=${id}`);
   }
 
+  // Dialoog-projecten horen in de dialoogtool (via query-param).
+  if (project.mode === "dialogue") {
+    redirect(`/infographics/dialogue?project=${id}`);
+  }
+
+  if (project.mode === "explainer") {
+    redirect(`/explainer/${id}`);
+  }
+
   // Free-mode projecten horen op de /free pagina
   if (project.mode === "free") {
     redirect(`/project/${id}/free`);
