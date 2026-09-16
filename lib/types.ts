@@ -132,6 +132,20 @@ export interface Scene {
   saved_motion_prompt?: string;
   saved_image_url?: string | null;
   saved_video_url?: string | null;
+  // Upload-tool: deze clip is een lipsync (pratend beeld) i.p.v. gewone beweging.
+  // Bewaard zodat de tekst, stem en opname bij opnieuw maken nog klaarstaan.
+  lipsync?: SceneLipsync | null;
+}
+
+export interface SceneLipsync {
+  tekst?: string;
+  stem?: string;
+  aanwijzing?: string;
+  /** Eigen opname (geüpload); afwezig = de tekst wordt ingesproken. */
+  eigenAudioUrl?: string | null;
+  eigenAudioNaam?: string | null;
+  /** Het geluid waarmee de huidige clip gemaakt is. */
+  audioUrl?: string | null;
 }
 
 export interface SceneRefsUsed {
