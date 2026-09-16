@@ -22,6 +22,7 @@ const VOICES = [
   { value: "George",    label: "George (Brits mannelijk)" },
   { value: "Liam",      label: "Liam (jong mannelijk)" },
   { value: "Will",      label: "Will (rustig mannelijk)" },
+  { value: "rbqBOMK4BPTMGvIB7N8w", label: "Hugo (enthousiast Nederlands mannelijk)" },
 ];
 
 export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Props) {

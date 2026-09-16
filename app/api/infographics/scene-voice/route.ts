@@ -22,6 +22,7 @@ const ALLOWED_VOICES = new Set([
   "02TPKkY2rZbgnKFIPrT9", // Katleen  — warme Vlaamse vrouwenstem
   "Yv0oyZ3obP9foTH7emqG", // Jeroen   — warme Vlaamse mannenstem
   "AgeYjqDIfXtkcA3mOcsH", // Gunther  — rustige Vlaamse verteller
+  "rbqBOMK4BPTMGvIB7N8w", // Hugo V   — enthousiaste Nederlandse mannenstem
 ]);
 
 function probeDuration(file: string): Promise<number> {
