@@ -1036,7 +1036,10 @@ export default function DialoguePage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ spec }),
       });
-      const d = await res.json();
+      // Loopt de server over zijn tijd of geheugen, dan stuurt Vercel een kale
+      // tekstpagina ("An error occurred…") in plaats van JSON.
+      const d = await res.json().catch(() => null);
+      if (!d) throw new Error("Het exporteren is onderweg afgebroken. Probeer het nog een keer; lukt het dan weer niet, laat het ons weten.");
       if (!res.ok) throw new Error(creditFout(d));
       setExportUrl(d.url as string);
     } catch (e) {

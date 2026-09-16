@@ -15,7 +15,7 @@ import {
 } from "@/lib/infographics/dialoog-montage";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+export const maxDuration = 800;
 
 // Elke clip bevat precies één gesproken regel. We knippen hem vanaf het gemeten
 // moment waarop de mond opengaat en precies zo lang als de zin duurt — zo begint
@@ -25,7 +25,7 @@ export const maxDuration = 300;
 // langere over een stil moment tussen scènes, een fade aan begin en eind) staat in
 // dialoog-montage.ts. Alles gaat door één filtergraph, dus geen stream-copy.
 
-function runFfmpeg(args: string[], limietMs = 280_000): Promise<void> {
+function runFfmpeg(args: string[], limietMs = 700_000): Promise<void> {
   return new Promise((resolve, reject) => {
     const bin = (ffmpegPath as unknown as string) || "ffmpeg";
     const proc = spawn(bin, ["-hide_banner", "-loglevel", "error", ...args]);
@@ -64,6 +64,28 @@ const ENC = (fps: number) => [
   "-r", String(fps), "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "192k",
 ];
 
+// Tussenbestanden worden nog een keer opnieuw gecodeerd. Ultrafast met een lage crf is
+// ~2,5× sneller dan veryfast zonder zichtbaar kwaliteitsverlies in de eindvideo. Een
+// lange video liep met drie volle veryfast-rondes over de tijdslimiet van Vercel, en
+// dan kreeg de pagina een kale foutpagina in plaats van JSON.
+const ENC_TUSSEN = (fps: number) => [
+  "-c:v", "libx264", "-preset", "ultrafast", "-crf", "17", "-pix_fmt", "yuv420p",
+  "-r", String(fps), "-c:a", "aac", "-ar", "44100", "-ac", "2", "-b:a", "192k",
+];
+
+/** Voert taken uit met hoogstens `max` tegelijk, in de volgorde van de lijst. */
+async function metMaximaal<T, R>(items: T[], max: number, taak: (item: T, i: number) => Promise<R>): Promise<R[]> {
+  const uit = new Array<R>(items.length);
+  let volgende = 0;
+  await Promise.all(Array.from({ length: Math.min(max, items.length) }, async () => {
+    while (volgende < items.length) {
+      const i = volgende++;
+      uit[i] = await taak(items[i], i);
+    }
+  }));
+  return uit;
+}
+
 export async function POST(req: NextRequest) {
   let dir: string | null = null;
   try {
@@ -77,45 +99,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Geen dialoog om te exporteren" }, { status: 400 });
     }
 
+    const begin = Date.now();
     const { width: W, height: H } = storyCanvasSize(spec.format);
     const fps = STORY_FPS;
-    dir = await mkdtemp(path.join(tmpdir(), "dialogue-"));
+    const werkmap = await mkdtemp(path.join(tmpdir(), "dialogue-"));
+    dir = werkmap;
 
     // ---------- 1. Welke regels er in de video komen ----------
     // Eerst de lijst, dan pas de segmenten: of een regel een stille kop of staart
     // krijgt, hangt af van de regel ervoor en erna (zie montagePlan).
-    const kandidaten: { scene: number; clip: string; stem: string | null; spraak: number; start: number; isActie: boolean }[] = [];
-    let n = 0;
+    type Kandidaat = { scene: number; clip: string; stem: string | null; spraak: number; start: number; isActie: boolean };
+    const regels: { si: number; regel: DialogueSpec["scenes"][number]["lines"][number]; n: number }[] = [];
     for (const [si, scene] of spec.scenes.entries()) {
       for (const regel of scene.lines) {
         if (!regel.videoUrl) continue;
-        const isActie = regel.kind === "actie";
-        const metStem = !!regel.audioUrl;
-        if (!isActie && !metStem) continue;
-
-        const clip = path.join(dir, `c${n}.mp4`);
-        const stem = path.join(dir, `a${n}.mp3`);
-        n++;
-        if (!(await download(regel.videoUrl, clip))) continue;
-        const clipDuur = await probeDuur(clip);
-
-        // Een actiebeeld ZONDER voice-over: de muziek draagt het.
-        if (!metStem) {
-          const duur = Math.max(1, Math.min(regel.seconden ?? 4, clipDuur || (regel.seconden ?? 4)));
-          kandidaten.push({ scene: si, clip, stem: null, spraak: duur, start: 0, isActie });
-          continue;
-        }
-
-        if (!(await download(regel.audioUrl as string, stem))) continue;
-        // De echte audiolengte meten in plaats van audioDuration uit de spec
-        // vertrouwen: die is een schatting en een te lage waarde kapt de zin af.
-        const stemDuur = (await probeDuur(stem)) || regel.audioDuration || 4;
-        // Nooit voorbij het einde van de clip beginnen.
-        // Bij een voice-over hoeft er niets op een mond te vallen: begin op nul.
-        const start = isActie ? 0 : Math.max(0, Math.min(regel.mouthStart ?? 0, Math.max(0, clipDuur - stemDuur)));
-        kandidaten.push({ scene: si, clip, stem, spraak: stemDuur, start, isActie });
+        if (regel.kind !== "actie" && !regel.audioUrl) continue;
+        regels.push({ si, regel, n: regels.length });
       }
     }
+    // Ophalen en meten tegelijk: één voor één kostte het bij een lange video al een
+    // flink deel van de tijdslimiet.
+    const gevonden = await metMaximaal(regels, 8, async ({ si, regel, n }): Promise<Kandidaat | null> => {
+      const isActie = regel.kind === "actie";
+      const metStem = !!regel.audioUrl;
+      const clip = path.join(werkmap, `c${n}.mp4`);
+      const stem = path.join(werkmap, `a${n}.mp3`);
+      if (!(await download(regel.videoUrl as string, clip))) return null;
+      const clipDuur = await probeDuur(clip);
+
+      // Een actiebeeld ZONDER voice-over: de muziek draagt het.
+      if (!metStem) {
+        const duur = Math.max(1, Math.min(regel.seconden ?? 4, clipDuur || (regel.seconden ?? 4)));
+        return { scene: si, clip, stem: null, spraak: duur, start: 0, isActie };
+      }
+
+      if (!(await download(regel.audioUrl as string, stem))) return null;
+      // De echte audiolengte meten in plaats van audioDuration uit de spec
+      // vertrouwen: die is een schatting en een te lage waarde kapt de zin af.
+      const stemDuur = (await probeDuur(stem)) || regel.audioDuration || 4;
+      // Nooit voorbij het einde van de clip beginnen.
+      // Bij een voice-over hoeft er niets op een mond te vallen: begin op nul.
+      const start = isActie ? 0 : Math.max(0, Math.min(regel.mouthStart ?? 0, Math.max(0, clipDuur - stemDuur)));
+      return { scene: si, clip, stem, spraak: stemDuur, start, isActie };
+    });
+    const kandidaten = gevonden.filter((k): k is Kandidaat => k !== null);
+    console.log(`[dialogue-export] ${kandidaten.length} fragmenten opgehaald na ${Math.round((Date.now() - begin) / 1000)}s`);
 
     if (kandidaten.length === 0) {
       return NextResponse.json({ error: "Nog geen clips gegenereerd om te exporteren" }, { status: 400 });
@@ -124,10 +152,9 @@ export async function POST(req: NextRequest) {
     // ---------- 2. Per regel een segment op maat ----------
     const plan = montagePlan(kandidaten.map((k) => ({ scene: k.scene, spraak: k.spraak })));
     const schaal = `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${fps},setsar=1,format=yuv420p`;
-    const segmenten: { file: string; dur: number; beeldDur: number; scene: number }[] = [];
-    for (const [i, k] of kandidaten.entries()) {
+    const segmenten = await metMaximaal(kandidaten, 2, async (k, i) => {
       const p = plan[i];
-      const seg = path.join(dir, `s${String(i).padStart(3, "0")}.mp4`);
+      const seg = path.join(werkmap, `s${String(i).padStart(3, "0")}.mp4`);
       // Het beeld is de zachte las langer dan het geluid: dat stuk overlapt straks de
       // volgende zin van de scène. Daarom per spoor afkappen in plaats van met -t.
       const beeldDur = p.duur + p.las;
@@ -142,17 +169,21 @@ export async function POST(req: NextRequest) {
         await runFfmpeg([
           "-i", k.clip, "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
           "-filter_complex", `[0:v]${beeldFilter}[v];[1:a]${afGeluid}[a]`,
-          "-map", "[v]", "-map", "[a]", ...ENC(fps), "-y", seg,
+          "-map", "[v]", "-map", "[a]", ...ENC_TUSSEN(fps), "-y", seg,
         ]);
       } else {
         await runFfmpeg([
           "-ss", k.start.toFixed(3), "-i", k.clip, "-i", k.stem,
           "-filter_complex", `[0:v]${beeldFilter}[v];[1:a]${segmentAudioFilter(p)},${afGeluid}[a]`,
-          "-map", "[v]", "-map", "[a]", ...ENC(fps), "-y", seg,
+          "-map", "[v]", "-map", "[a]", ...ENC_TUSSEN(fps), "-y", seg,
         ]);
       }
-      segmenten.push({ file: seg, dur: p.duur, beeldDur, scene: k.scene });
-    }
+      // De bronclip is niet meer nodig; /tmp op Vercel is maar ~500 MB.
+      await rm(k.clip, { force: true });
+      if (k.stem) await rm(k.stem, { force: true });
+      return { file: seg, dur: p.duur, beeldDur, scene: k.scene };
+    });
+    console.log(`[dialogue-export] ${segmenten.length} segmenten klaar na ${Math.round((Date.now() - begin) / 1000)}s`);
 
     // ---------- 3. Per scène aan elkaar ----------
     //
@@ -184,15 +215,18 @@ export async function POST(req: NextRequest) {
       // 16% naar 81% nieuw, een harde las. Los vloeide hetzelfde beeld netjes over.
       await runFfmpeg([
         ...invoerGroep, "-filter_complex", lassen.filter,
-        "-map", `[${lassen.label}]`, "-an", ...ENC(fps), "-y", alleenBeeld,
+        "-map", `[${lassen.label}]`, "-an", ...ENC_TUSSEN(fps), "-y", alleenBeeld,
       ]);
       await runFfmpeg([
         ...invoerGroep, "-filter_complex", `${groep.map((_, j) => `[${j}:a]`).join("")}concat=n=${groep.length}:v=0:a=1[a]`,
         "-map", "[a]", "-vn", ...ENC(fps), "-y", alleenGeluid,
       ]);
       await runFfmpeg(["-i", alleenBeeld, "-i", alleenGeluid, "-map", "0:v", "-map", "1:a", "-c", "copy", "-y", samengevoegd]);
+      await Promise.all([alleenBeeld, alleenGeluid, ...groep.map((g) => g.file)].map((f) => rm(f, { force: true })));
       groepen.push({ file: samengevoegd, dur: groep.reduce((a, g) => a + g.dur, 0) });
     }
+
+    console.log(`[dialogue-export] ${groepen.length} scènes klaar na ${Math.round((Date.now() - begin) / 1000)}s`);
 
     // ---------- 4. Scènes in elkaar laten overvloeien ----------
     // Elke overvloeier valt op de stille staart van de ene scène en de stille kop van
@@ -257,6 +291,8 @@ export async function POST(req: NextRequest) {
         eind = metMuziek;
       }
     }
+
+    console.log(`[dialogue-export] montage klaar na ${Math.round((Date.now() - begin) / 1000)}s`);
 
     // ---------- 6. Opslaan ----------
     const bytes = await readFile(eind);
