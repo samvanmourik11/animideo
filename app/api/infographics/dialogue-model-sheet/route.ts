@@ -69,7 +69,10 @@ export async function POST(req: NextRequest) {
       `the same clothing in the same colours in all three. Even spacing, nobody overlapping. ` +
       // Wat hier ontbreekt, verzint elk later beeld zelf: zonder schoenen op het blad
       // liep Lilly de hele video op blote voeten, ook buiten.
-      `Fully dressed from head to toe, including shoes on both feet. ` +
+      (lid.soort === "dier" || lid.soort === "fantasiewezen"
+        // Het draakje kreeg van deze zin een trui en laarzen die op zijn portret niet stonden.
+        ? `Exactly as in the reference: add no clothing, shoes or accessories it does not already wear there. `
+        : `Fully dressed from head to toe, including shoes on both feet. `) +
       `Only this ONE character appears — no other people. ` +
       `No text, no names, no labels, no numbers and no frames anywhere in the image.`;
 
@@ -81,9 +84,13 @@ export async function POST(req: NextRequest) {
       characterUrls: [lid.portraitUrl],
       extraContext: [
         illustratieContext(body.illustrationBrief),
-        "The reference image is a head-and-shoulders portrait of this character. Use it for the face, hair, " +
-          "skin tone and clothing colours; invent the rest of the body yourself, in proportion to their age. " +
-          "Do NOT copy the cropped portrait framing and do NOT repeat the portrait as one of the three views.",
+        // Stond op "head-and-shoulders portrait ... invent the rest": de portretten tonen het
+        // hele lichaam, en de koning kreeg op zijn blad een krullenpruik en snor die op zijn
+        // portret niet stonden.
+        "The reference image is a portrait of this character. Copy the character from it EXACTLY: the same face, " +
+          "hairstyle and hair length, facial hair (or none), body shape, proportions and clothing (or lack of it) — " +
+          "change nothing and add nothing. If the portrait does not show the whole body, keep what is not shown " +
+          "simple and consistent with what is. Do NOT repeat the portrait image itself as one of the three views.",
       ].filter(Boolean).join(" ").trim() || undefined,
     });
 

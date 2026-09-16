@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { zonderHerhaling, sceneCast, voorwerpenInScene, MAX_PER_SCENE, VERTELLER_ID } from "./dialogue-schema";
+import { zonderHerhaling, sceneCast, voorwerpenInScene, geldigeVoorkant, MAX_PER_SCENE, VERTELLER_ID } from "./dialogue-schema";
 import type { DialogueScene, DialogueCastMember, DialogueLine } from "./dialogue-schema";
 
 // Lilly zegt "kijk eens!", en pas de beeldregie schrijft op dat ze naar de
@@ -149,5 +149,14 @@ describe("sceneCast", () => {
 
   it("zet er nooit meer dan drie in één beeld", () => {
     expect(sceneCast(scene(["char-1", "char-2", "char-3", "char-4"]), cast)).toHaveLength(MAX_PER_SCENE);
+  });
+});
+
+describe("geldigeVoorkant", () => {
+  it("geeft het vooraanzicht alleen als het bij het huidige blad hoort", () => {
+    expect(geldigeVoorkant({ voorkantUrl: "v.png", voorkantVanBlad: "blad1", modelSheetUrl: "blad1" })).toBe("v.png");
+    // Blad opnieuw gemaakt: het oude vooraanzicht is van een andere tekening.
+    expect(geldigeVoorkant({ voorkantUrl: "v.png", voorkantVanBlad: "blad1", modelSheetUrl: "blad2" })).toBeNull();
+    expect(geldigeVoorkant({ voorkantUrl: null, voorkantVanBlad: null, modelSheetUrl: "blad1" })).toBeNull();
   });
 });

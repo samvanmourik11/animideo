@@ -17,7 +17,7 @@ import SetupPanel from "@/components/dialogue/SetupPanel";
 import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
-import { regelKlaar, heeftStem, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
+import { regelKlaar, heeftStem, geldigeVoorkant, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
 import { leesRegie, pasRegieToe, regieNodig } from "@/lib/infographics/beeldregie";
 import { MAX_VOORWERPEN, voegVoorwerpenSamen, voorwerpenVoorStijl, type BibliotheekVoorwerp } from "@/lib/infographics/voorwerp-bibliotheek";
 import { tekenVoorwerp, voorwerpSleutel, type TekenContext } from "@/lib/infographics/voorwerp-tekenen";
@@ -567,6 +567,36 @@ export default function DialoguePage() {
         setVoortgang(`Personages vastleggen (${klaar}/${zonderBlad.length})…`);
         setSpec(structuredClone(werk));
       }
+    }
+
+    // Dan per personage het VOORAANZICHT uit zijn blad, met een beschrijving van precies
+    // dat plaatje. Dat ene plaatje gaat daarna naar het castblad en elk beeld. Portret en
+    // blad verschilden bij "de drie gouden sleutels" zo dat de koning per shot een andere
+    // man was (zie voorkant.ts). Ook voor bestaande projecten: die hebben alleen een blad.
+    const zonderVoorkant = werk.cast.filter((c) => c.modelSheetUrl && !geldigeVoorkant(c));
+    if (zonderVoorkant.length && !gestopt) {
+      setVoortgang("Personages vastleggen…");
+      await Promise.all(zonderVoorkant.map(async (lid) => {
+        try {
+          const r = await fetch("/api/infographics/dialogue-voorkant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lid }),
+          });
+          const d = await r.json().catch(() => null);
+          if (!r.ok || !d?.voorkantUrl) return; // zonder vooraanzicht gewoon het blad, zoals voorheen
+          const i = werk.cast.findIndex((c) => c.id === lid.id);
+          if (i < 0) return;
+          werk.cast[i] = {
+            ...werk.cast[i],
+            voorkantUrl: d.voorkantUrl,
+            voorkantVanBlad: d.voorkantVanBlad,
+            ...(d.appearance ? { appearance: d.appearance } : {}),
+            ...(d.kleding !== undefined ? { kleding: d.kleding } : {}),
+          };
+        } catch { /* zie hierboven */ }
+      }));
+      setSpec(structuredClone(werk));
     }
 
     // DAARNA het castblad: iedereen ten voeten uit naast elkaar. Dat is de

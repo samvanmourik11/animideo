@@ -156,6 +156,13 @@ export interface DialogueCastMember {
    * Wordt één keer per personage gemaakt (zie /api/infographics/dialogue-model-sheet).
    */
   modelSheetUrl?: string | null;
+  /**
+   * Het vooraanzicht uit de model sheet, en van welk blad het komt. Het ENIGE plaatje van
+   * dit personage dat naar de beelden gaat (zie referentieVan en voorkant.ts). Hoort bij
+   * `voorkantVanBlad`: wordt het blad opnieuw gemaakt, dan is dit vooraanzicht verlopen.
+   */
+  voorkantUrl?: string | null;
+  voorkantVanBlad?: string | null;
   // Plek in het kader. Bepaalt hoe we spreker/luisteraar benoemen in de prompts.
   position: CastPosition;
   // Kort ENGELS uiterlijk (haar, kleding, leeftijd). Bewust apart van het portret:
@@ -461,6 +468,11 @@ export function uiterlijkVan(lid: { name: string; appearance?: string | null; kl
   const kleding = (lid.kleding ?? "").trim();
   if (!kleding) return basis;
   return `${basis}${basis ? " " : ""}Outfit: ${kleding.replace(/\.?$/, ".")}`;
+}
+
+/** Het vooraanzicht van dit personage, als het bij zijn huidige model sheet hoort. */
+export function geldigeVoorkant(lid: Pick<DialogueCastMember, "voorkantUrl" | "voorkantVanBlad" | "modelSheetUrl">): string | null {
+  return lid.voorkantUrl && lid.modelSheetUrl && lid.voorkantVanBlad === lid.modelSheetUrl ? lid.voorkantUrl : null;
 }
 
 /** Meer voorwerpbladen per beeld verdringen het castblad uit de referenties. */

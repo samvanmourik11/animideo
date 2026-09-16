@@ -9,7 +9,7 @@ import { illustratieContext } from "@/lib/infographics/dialogue-staging";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { deductCredits } from "@/lib/credits";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
-import { uiterlijkVan, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
+import { geldigeVoorkant, uiterlijkVan, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
 
 // HET CASTBLAD — één beeld waarop de hele cast naast elkaar staat.
 //
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       seed: typeof body.seed === "number" ? body.seed : undefined,
       // Model sheet gaat vóór het portret: het castblad tekent iedereen ten voeten
       // uit, en dan helpt het als de rest van het lichaam al ergens vastligt.
-      characterUrls: cast.map((c) => c.modelSheetUrl || c.portraitUrl),
+      characterUrls: cast.map((c) => geldigeVoorkant(c) || c.modelSheetUrl || c.portraitUrl),
       extraContext: [
         illustratieContext(body.illustrationBrief),
         "The character reference images are head-and-shoulders portraits. Use them ONLY for each person's " +
