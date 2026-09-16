@@ -30,6 +30,7 @@ const ALLOWED_VOICES = new Set([
   "EeQEodFZVtBkjtgK3HBc", // Fien — meisjesstem, expressief
   "hO2yZ8lxM3axUxL8OeKX", // Saar — meisjesstem, hoog en vrolijk
   "0luPAj5RsdhmnkZaiYcb", // Noor — meisjesstem, levendig
+  "rbqBOMK4BPTMGvIB7N8w", // Hugo V   — enthousiaste Nederlandse mannenstem
 ]);
 
 function probeDuration(file: string): Promise<number> {

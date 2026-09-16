@@ -31,6 +31,9 @@ export const STORY_VOICES: StoryVoice[] = [
   { id: "Sarah", label: "Sarah", description: "heldere vrouwenstem" },
   { id: "Daniel", label: "Daniel", description: "rustige mannenstem" },
   { id: "George", label: "George", description: "warme mannenstem" },
+  // Hugo V uit de ElevenLabs-stemmenbibliotheek (op voice-id, zoals de Vlaamse stemmen).
+  // Een echte Nederlandse stem: enthousiast en verkopend, op verzoek van Sam in alle tools.
+  { id: "rbqBOMK4BPTMGvIB7N8w", label: "Hugo", description: "enthousiaste Nederlandse mannenstem" },
   // KINDERSTEMMEN.
   //
   // ElevenLabs heeft geen Nederlandse kinderstemmen: de stemmenbibliotheek geeft

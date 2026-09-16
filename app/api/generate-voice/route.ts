@@ -14,6 +14,8 @@ type FalAudioResult = { audio?: { url: string } };
 const ALLOWED_VOICES = new Set([
   "Aria","Roger","Sarah","Laura","Charlie","George","Callum","River","Liam","Charlotte",
   "Alice","Matilda","Will","Jessica","Eric","Chris","Brian","Daniel","Lily","Bill","Rachel",
+  // Hugo V uit de ElevenLabs-stemmenbibliotheek; fal accepteert naast namen ook voice-id's.
+  "rbqBOMK4BPTMGvIB7N8w",
 ]);
 
 const LANGUAGE_TO_CODE: Record<string, string> = {
