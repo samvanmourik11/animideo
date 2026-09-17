@@ -6,7 +6,6 @@ import type { Character } from "@/lib/types";
 import { STORY_VOICES, voicePreviewUrl } from "@/lib/infographics/story-voices";
 import {
   MAX_CAST,
-  geldigeVoorkant,
   type DialogueCastMember,
   type CastPosition,
 } from "@/lib/infographics/dialogue-schema";
@@ -118,7 +117,7 @@ export default function CastPicker({
             <div key={c.id} className="w-64 rounded-lg border border-white/10 bg-slate-900/60 p-3">
               <div className="flex gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={geldigeVoorkant(c) || c.portraitUrl} alt={c.name} className="w-16 h-16 rounded-md object-cover border border-white/10 shrink-0" />
+                <img src={c.portraitUrl} alt={c.name} className="w-16 h-16 rounded-md object-cover border border-white/10 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <input
                     value={c.name}

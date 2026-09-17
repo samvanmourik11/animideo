@@ -132,14 +132,16 @@ export async function POST(req: NextRequest) {
             return null;
           })
         : null;
-      const castblad = (spec.castSheetUrl ?? "").trim();
+      // Alleen een castblad van de echte karakters (zie DialogueSpec.castSheetVan).
+      const castblad = spec.castSheetVan === "portret" ? (spec.castSheetUrl ?? "").trim() : "";
       const nieuwUrl = geschetst ?? (await bewerkBeeld({
         bronUrl: doel,
         instructie,
-        referentieUrls: [castblad],
-        referentieUitleg:
-          "The second image is the character line-up sheet: it shows exactly how the characters look. Use it only for " +
-          "their appearance; do not copy its layout, background or poses.",
+        referentieUrls: [castblad].filter(Boolean),
+        referentieUitleg: castblad
+          ? "The second image is the character line-up sheet: it shows exactly how the characters look. Use it only for " +
+            "their appearance; do not copy its layout, background or poses."
+          : undefined,
         format: spec.format,
       })).imageUrl;
       const shotImageUrl = await persistFalAssetSoft(supabase, user.id, nieuwUrl, "image");

@@ -17,7 +17,7 @@ import SetupPanel from "@/components/dialogue/SetupPanel";
 import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
-import { regelKlaar, heeftStem, geldigeVoorkant, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
+import { regelKlaar, heeftStem, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
 import { leesRegie, pasRegieToe, regieNodig } from "@/lib/infographics/beeldregie";
 import { MAX_VOORWERPEN, voegVoorwerpenSamen, voorwerpenVoorStijl, type BibliotheekVoorwerp } from "@/lib/infographics/voorwerp-bibliotheek";
 import { tekenVoorwerp, voorwerpSleutel, type TekenContext } from "@/lib/infographics/voorwerp-tekenen";
@@ -84,7 +84,7 @@ export default function DialoguePage() {
   function tekenContext(werk: DialogueSpec): TekenContext {
     return {
       styleId: werk.styleId, language: werk.language, illustrationBrief: werk.illustrationBrief,
-      seed: werk.seed, castSheetUrl: werk.castSheetUrl, cast: werk.cast,
+      seed: werk.seed, castSheetUrl: werk.castSheetVan === "portret" ? werk.castSheetUrl : null, cast: werk.cast,
     };
   }
 
@@ -449,7 +449,7 @@ export default function DialoguePage() {
       // meer dan drie personages beelden vol mensen die er niets te zoeken
       // hadden — en het beeldmodel moest ze dan ook nog uit elkaar houden.
       setting: s.setting, cast: sceneCast(s, werk.cast, werk.verhaallijn), styleId: werk.styleId,
-      castSheetUrl: werk.castSheetUrl ?? null,
+      castSheetUrl: werk.castSheetVan === "portret" ? werk.castSheetUrl ?? null : null, castSheetVan: werk.castSheetVan ?? null,
       format: werk.format, language: werk.language, seed: werk.seed,
       illustrationBrief: werk.illustrationBrief ?? "",
       sceneIndex: si,
@@ -487,7 +487,7 @@ export default function DialoguePage() {
     const scene = werk.scenes[si];
     const regel = scene.lines[li];
     return {
-      twoShotUrl: scene.twoShotUrl, castSheetUrl: werk.castSheetUrl ?? null,
+      twoShotUrl: scene.twoShotUrl, castSheetUrl: werk.castSheetVan === "portret" ? werk.castSheetUrl ?? null : null, castSheetVan: werk.castSheetVan ?? null,
       // Alleen de spelers van deze scene; het castblad houdt de rest bij. Hier ging
       // eerst bij opnieuw maken de hele cast mee, waardoor een opnieuw gemaakte
       // regel ineens iemand anders in beeld had.
@@ -532,78 +532,18 @@ export default function DialoguePage() {
   async function maakBasisbeelden(werk: DialogueSpec, mislukt: string[]): Promise<string | null> {
     let gestopt: string | null = null;
 
-    // ALLEREERST een model sheet per personage: datzelfde personage van voren,
-    // schuin en opzij. Het castblad dat hierna komt legt de onderlinge lengte
-    // vast, maar toont iedereen maar van één kant. Zodra een shot van opzij of van
-    // onderaf gevraagd wordt, moest het beeldmodel de rest van dat hoofd zelf
-    // verzinnen — en verzon het meteen ander haar. Eén blad per personage, één
-    // keer per project.
-    const zonderBlad = werk.cast.filter((c) => c.portraitUrl && !c.modelSheetUrl);
-    if (zonderBlad.length) {
-      let klaar = 0;
-      setVoortgang(`Personages vastleggen (0/${zonderBlad.length})…`);
-      for (const lid of zonderBlad) {
-        try {
-          const r = await fetch("/api/infographics/dialogue-model-sheet", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              lid, styleId: werk.styleId, language: werk.language,
-              illustrationBrief: werk.illustrationBrief ?? "", seed: werk.seed,
-            }),
-          });
-          const d = await r.json();
-          if (!r.ok) {
-            if (d.error === "insufficient_credits") { gestopt = creditFout(d); break; }
-            // Zonder blad valt dit personage terug op zijn portret: minder sterk,
-            // maar geen reden om de hele video te stoppen.
-            mislukt.push(`personage ${lid.name}`);
-          } else if (d.modelSheetUrl) {
-            const i = werk.cast.findIndex((c) => c.id === lid.id);
-            if (i >= 0) werk.cast[i] = { ...werk.cast[i], modelSheetUrl: d.modelSheetUrl };
-          }
-        } catch { mislukt.push(`personage ${lid.name}`); }
-        klaar++;
-        setVoortgang(`Personages vastleggen (${klaar}/${zonderBlad.length})…`);
-        setSpec(structuredClone(werk));
-      }
-    }
-
-    // Dan per personage het VOORAANZICHT uit zijn blad, met een beschrijving van precies
-    // dat plaatje. Dat ene plaatje gaat daarna naar het castblad en elk beeld. Portret en
-    // blad verschilden bij "de drie gouden sleutels" zo dat de koning per shot een andere
-    // man was (zie voorkant.ts). Ook voor bestaande projecten: die hebben alleen een blad.
-    const zonderVoorkant = werk.cast.filter((c) => c.modelSheetUrl && !geldigeVoorkant(c));
-    if (zonderVoorkant.length && !gestopt) {
-      setVoortgang("Personages vastleggen…");
-      await Promise.all(zonderVoorkant.map(async (lid) => {
-        try {
-          const r = await fetch("/api/infographics/dialogue-voorkant", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lid }),
-          });
-          const d = await r.json().catch(() => null);
-          if (!r.ok || !d?.voorkantUrl) return; // zonder vooraanzicht gewoon het blad, zoals voorheen
-          const i = werk.cast.findIndex((c) => c.id === lid.id);
-          if (i < 0) return;
-          werk.cast[i] = {
-            ...werk.cast[i],
-            voorkantUrl: d.voorkantUrl,
-            voorkantVanBlad: d.voorkantVanBlad,
-            ...(d.appearance ? { appearance: d.appearance } : {}),
-            ...(d.kleding !== undefined ? { kleding: d.kleding } : {}),
-          };
-        } catch { /* zie hierboven */ }
-      }));
-      setSpec(structuredClone(werk));
-    }
+    // GEEN model sheets meer. Die tekende de tool zelf van het portret, en ze weken af:
+    // het draakje kreeg er een trui en laarzen op, de koning een krullenpruik. Met portret,
+    // blad en castblad door elkaar koos het beeldmodel per shot een ander personage. Het
+    // karakter zoals het in Mijn karakters staat is het personage (17-09-2026, Sam).
 
     // DAARNA het castblad: iedereen ten voeten uit naast elkaar. Dat is de
     // identiteits- én maatreferentie voor élk beeld dat hierna komt. Zonder dat
     // blad verzint het beeldmodel per scène opnieuw hoe groot iemand is — de
     // reden dat de ene keer Tyrell boven Lily uitstak en de volgende keer andersom.
-    if (!werk.castSheetUrl) {
+    // Een castblad van vóór 17-09-2026 is getekend van de model sheets (het draakje met
+    // trui): dat wordt opnieuw gemaakt, van de echte karakters. Gratis voorbereiding.
+    if (!werk.castSheetUrl || werk.castSheetVan !== "portret") {
       setVoortgang("Personages op maat zetten…");
       try {
         const r = await fetch("/api/infographics/dialogue-cast-sheet", {
@@ -622,6 +562,7 @@ export default function DialoguePage() {
           else mislukt.push("castblad");
         } else {
           werk.castSheetUrl = d.castSheetUrl;
+          werk.castSheetVan = "portret";
           setSpec(structuredClone(werk));
         }
       } catch { mislukt.push("castblad"); }
