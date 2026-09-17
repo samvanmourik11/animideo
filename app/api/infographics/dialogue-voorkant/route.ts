@@ -1,17 +1,15 @@
 import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { maakVoorkant } from "@/lib/infographics/voorkant";
-import { uiterlijkUitBlad } from "@/lib/infographics/uiterlijk-uit-blad";
+import { zorgVoorVoorkant } from "@/lib/infographics/voorkant";
 import type { DialogueCastMember } from "@/lib/infographics/dialogue-schema";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// Legt per personage vast hoe het ECHT getekend is: het vooraanzicht uit zijn model sheet,
-// en een beschrijving van precies dat plaatje. Beide gaan daarna mee naar elk beeld, zodat
-// plaatje en tekst hetzelfde zeggen (zie voorkant.ts en uiterlijk-uit-blad.ts).
-// Voorbereiding voor het storyboard, dus gratis; alleen een kleine kijkvraag.
+// Legt per personage vast hoe het ECHT getekend is (vooraanzicht + beschrijving), zodat de
+// pagina het in het project bewaart. De beeldroutes doen hetzelfde zelf als het ontbreekt;
+// zie voorkant.ts. Voorbereiding, dus gratis.
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient();
@@ -22,15 +20,13 @@ export async function POST(req: NextRequest) {
     const { lid } = (await req.json()) as { lid?: DialogueCastMember };
     if (!lid?.modelSheetUrl) return NextResponse.json({ error: "Personage zonder model sheet" }, { status: 400 });
 
-    const voorkantUrl = await maakVoorkant(supabase, user.id, lid.modelSheetUrl);
-    // Lukt de beschrijving niet, dan blijft de oude tekst staan: het vooraanzicht alleen
-    // haalt de tegenstrijdige plaatjes al weg.
-    const uiterlijk = await uiterlijkUitBlad(lid, voorkantUrl);
+    const klaar = await zorgVoorVoorkant(supabase, user.id, lid);
+    if (!klaar.voorkantUrl) return NextResponse.json({ error: "Vooraanzicht maken mislukt" }, { status: 500 });
     return NextResponse.json({
-      voorkantUrl,
-      voorkantVanBlad: lid.modelSheetUrl,
-      appearance: uiterlijk?.appearance ?? null,
-      kleding: uiterlijk ? uiterlijk.kleding : undefined,
+      voorkantUrl: klaar.voorkantUrl,
+      voorkantVanBlad: klaar.voorkantVanBlad,
+      appearance: klaar.appearance !== lid.appearance ? klaar.appearance : null,
+      kleding: klaar.kleding !== lid.kleding ? klaar.kleding : undefined,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);

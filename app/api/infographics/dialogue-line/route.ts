@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
+import { referentieVan, zorgVoorVoorkant } from "@/lib/infographics/voorkant";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { kiesStem, TAALCODE } from "@/lib/infographics/dialogue-stem";
@@ -226,7 +227,8 @@ export async function POST(req: NextRequest) {
 
     const b = (await req.json()) as Body;
     const tekst = (b.text ?? "").trim();
-    const cast = Array.isArray(b.cast) ? b.cast : [];
+    // Vooraanzicht en beschrijving per personage, ook als de pagina ze (nog) niet had.
+    const cast = await Promise.all((Array.isArray(b.cast) ? b.cast : []).map((c) => zorgVoorVoorkant(supabase, user!.id, c)));
     // Een VERTELLER hoort bij geen personage: eigen stem, en niemand in beeld
     // hoeft zijn mond te bewegen. Alleen geldig boven een actiebeeld.
     const isVerteller = b.speakerId === VERTELLER_ID;
@@ -463,7 +465,7 @@ export async function POST(req: NextRequest) {
           // en de beschrijving overeenkomt. Portret en blad samen gaven twee verschillende
           // koningen, en het beeldmodel koos per shot (zie voorkant.ts).
           characterUrls: cast
-            .map((c) => geldigeVoorkant(c) || (metModelSheets() ? c.modelSheetUrl || c.portraitUrl : c.portraitUrl || c.modelSheetUrl))
+            .map((c) => referentieVan(c))
             .filter(Boolean),
           extraContext: [
             illustratieContext(b.illustrationBrief),
@@ -481,7 +483,7 @@ export async function POST(req: NextRequest) {
                 "continuous scene, never a split screen, never side-by-side panels, never a row of portraits. " +
                 "Do not draw the sheet, or any framed portrait or card of these characters, as an object in the shot."
               : "",
-            metModelSheets() && cast.some((c) => !geldigeVoorkant(c) && c.modelSheetUrl) ? MODELBLAD_UITLEG : "",
+            cast.some((c) => !geldigeVoorkant(c) && c.modelSheetUrl) ? MODELBLAD_UITLEG : "",
             // De cast is de cast. Dit stond alleen in de bewegings-prompt, waardoor
             // verzonnen figuranten al in het bronbeeld zaten en de videostap ze
             // netjes intact liet.
