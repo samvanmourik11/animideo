@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   bladUitAndereStijl, bladVoorStijl, koppelVoorwerpen, leesBibliotheekVoorwerp, naarDialoogVoorwerp, tabelOntbreekt,
-  voegVoorwerpenSamen, voorwerpenVoorStijl, voorwerpenZoekPrompt,
+  voegVoorwerpenSamen, voorwerpenVoorStijl, voorwerpenZoekPrompt, zonderPersonagesEnPlekken,
   MAX_VOORWERPEN, type BibliotheekVoorwerp,
 } from "./voorwerp-bibliotheek";
 
@@ -186,5 +186,28 @@ describe("tabelOntbreekt", () => {
     expect(tabelOntbreekt({ code: "PGRST205", message: "Could not find the table 'public.voorwerpen'" })).toBe(true);
     expect(tabelOntbreekt({ code: "23505", message: "duplicate key" })).toBe(false);
     expect(tabelOntbreekt(null)).toBe(false);
+  });
+});
+
+describe("zonderPersonagesEnPlekken", () => {
+  // "Prinses Isabella en het kleine draakje": het draakje werd een speelgoedje in haar hand,
+  // de kasteeltuin een kasteel op een plateau voor een witte achtergrond.
+  const ctx = {
+    castNamen: ["Prinses Isabella", "Draakje", "Koning"],
+    plekken: ["Kasteeltuin - Verdwaald Draakje", "de kasteeltuin", "Fort Zeelandia"],
+  };
+  const vw = (naam: string) => ({ naam, zoekwoorden: [] as string[] });
+
+  it("haalt personages eruit, ook als verkleinwoord of met een bijvoeglijk naamwoord", () => {
+    expect(zonderPersonagesEnPlekken([vw("klein draakje"), vw("de draak"), vw("kroon van de koning")], ctx).map((v) => v.naam)).toEqual([]);
+  });
+
+  it("haalt plekken eruit", () => {
+    expect(zonderPersonagesEnPlekken([vw("kasteeltuin"), vw("Fort Zeelandia"), vw("castle garden"), vw("sprookjesbos")], ctx)).toEqual([]);
+  });
+
+  it("laat echte voorwerpen staan", () => {
+    const echt = [vw("Wonderwagen"), vw("gouden sleutel"), vw("grote eik"), vw("mushroom"), vw("klaproos")];
+    expect(zonderPersonagesEnPlekken(echt, ctx)).toEqual(echt);
   });
 });
