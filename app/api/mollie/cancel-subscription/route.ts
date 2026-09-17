@@ -38,7 +38,8 @@ export async function GET(req: NextRequest) {
     .from("profiles")
     .update({
       plan: "free",
-      credits: 100,
+      // Credits blijven staan: die zijn al betaald. Opzeggen stopt alleen
+      // nieuwe maandbundels, het bestaande saldo blijft bruikbaar.
       subscription_status: "canceled",
       mollie_subscription_id: null,
     })
