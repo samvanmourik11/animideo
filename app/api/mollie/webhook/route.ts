@@ -296,7 +296,8 @@ export async function POST(req: NextRequest) {
       .from("profiles")
       .update({
         plan: "free",
-        credits: 100,
+        // Credits blijven staan: die zijn al betaald. Opzeggen stopt alleen
+        // nieuwe maandbundels, het bestaande saldo blijft bruikbaar.
         subscription_status: "canceled",
         mollie_subscription_id: null,
         credits_reset_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
