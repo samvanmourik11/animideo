@@ -157,12 +157,10 @@ export interface DialogueCastMember {
    */
   modelSheetUrl?: string | null;
   /**
-   * Het vooraanzicht uit de model sheet, en van welk blad het komt. Het ENIGE plaatje van
-   * dit personage dat naar de beelden gaat (zie referentieVan en voorkant.ts). Hoort bij
-   * `voorkantVanBlad`: wordt het blad opnieuw gemaakt, dan is dit vooraanzicht verlopen.
+   * Van welk portret `appearance` en `kleding` beschreven zijn (zie portret-beschrijving.ts).
+   * Anders dan dit portret: de beschrijving is verlopen en wordt opnieuw gemaakt.
    */
-  voorkantUrl?: string | null;
-  voorkantVanBlad?: string | null;
+  beschrevenVan?: string | null;
   // Plek in het kader. Bepaalt hoe we spreker/luisteraar benoemen in de prompts.
   position: CastPosition;
   // Kort ENGELS uiterlijk (haar, kleding, leeftijd). Bewust apart van het portret:
@@ -422,6 +420,11 @@ export interface DialogueSpec {
    * lengte wisselden. Hier staat het één keer vast.
    */
   castSheetUrl?: string | null;
+  /**
+   * "portret" = het castblad is van de echte karakters getekend. Castbladen van daarvoor
+   * kwamen van de model sheets (het draakje met trui) en gaan niet meer naar de beelden.
+   */
+  castSheetVan?: "portret" | null;
   /** Voorwerpen die in het verhaal terugkomen en er in elk beeld hetzelfde uit moeten zien. */
   voorwerpen?: DialogueVoorwerp[] | null;
   /**
@@ -468,11 +471,6 @@ export function uiterlijkVan(lid: { name: string; appearance?: string | null; kl
   const kleding = (lid.kleding ?? "").trim();
   if (!kleding) return basis;
   return `${basis}${basis ? " " : ""}Outfit: ${kleding.replace(/\.?$/, ".")}`;
-}
-
-/** Het vooraanzicht van dit personage, als het bij zijn huidige model sheet hoort. */
-export function geldigeVoorkant(lid: Pick<DialogueCastMember, "voorkantUrl" | "voorkantVanBlad" | "modelSheetUrl">): string | null {
-  return lid.voorkantUrl && lid.modelSheetUrl && lid.voorkantVanBlad === lid.modelSheetUrl ? lid.voorkantUrl : null;
 }
 
 /** Meer voorwerpbladen per beeld verdringen het castblad uit de referenties. */

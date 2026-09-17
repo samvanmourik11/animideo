@@ -1,18 +1,18 @@
 import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { referentieVan, zorgVoorVoorkant } from "@/lib/infographics/voorkant";
+import { zorgVoorBeschrijving } from "@/lib/infographics/portret-beschrijving";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
 import {
-  buildTwoShotBrief, illustratieContext, iederEenKeer, voorwerpRegie, wereldRegie, MODELBLAD_UITLEG, STIJL_VAST,
+  buildTwoShotBrief, illustratieContext, iederEenKeer, voorwerpRegie, wereldRegie, STIJL_VAST,
 } from "@/lib/infographics/dialogue-staging";
 import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld } from "@/lib/infographics/dialogue-verify";
-import { MAX_CAST, geldigeVoorkant, type DialogueCastMember, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
+import { MAX_CAST, type DialogueCastMember, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
 
@@ -35,6 +35,8 @@ interface Body {
   // Vrije regieaanwijzing van de gebruiker, geldt voor elk beeld in de video.
   illustrationBrief?: string;
   castSheetUrl?: string;
+  /** "portret" als het castblad van de echte karakters getekend is. Zie DialogueSpec.castSheetVan. */
+  castSheetVan?: string | null;
   /**
    * Wat de gebruiker in het storyboard over dit beeld zei. Zie
    * DialogueScene.beeldAanwijzing.
@@ -77,7 +79,7 @@ export async function POST(req: NextRequest) {
     if (!setting) return NextResponse.json({ error: "Geen omgeving opgegeven" }, { status: 400 });
 
     const cast = await Promise.all(
-      (Array.isArray(body.cast) ? body.cast : []).slice(0, MAX_CAST).map((c) => zorgVoorVoorkant(supabase, user.id, c)),
+      (Array.isArray(body.cast) ? body.cast : []).slice(0, MAX_CAST).map((c) => zorgVoorBeschrijving(supabase, user.id, c)),
     );
     // Model sheet gaat vóór het portret: die toont het personage van meerdere
     // kanten, wat een scenebeeld met een eigen camerastandpunt nodig heeft.
@@ -85,7 +87,7 @@ export async function POST(req: NextRequest) {
     // drie keer, en drie sheets plus het castblad zijn twaalf getekende figuren voor
     // een beeld waar er drie in horen. Dat is precies waar de dubbele Lilly vandaan komt.
     const portretten = cast
-      .map((c) => referentieVan(c))
+      .map((c) => c.portraitUrl)
       .filter((u): u is string => !!u);
     // Eén personage is genoeg. Dit heette het "twee-shot" omdat elke scene twee
     // pratende mensen naast elkaar toonde, maar sinds de camerakaders bestaat een
@@ -132,7 +134,8 @@ export async function POST(req: NextRequest) {
       .filter((v) => typeof v?.naam === "string" && typeof v?.uiterlijk === "string")
       .slice(0, 2);
     const voorwerpBladen = voorwerpen.map((v) => (v.bladUrl ?? "").trim()).filter(Boolean);
-    const castblad = (body.castSheetUrl ?? "").trim();
+    // Alleen een castblad van de echte karakters; een ouder blad kwam van de model sheets.
+    const castblad = body.castSheetVan === "portret" ? (body.castSheetUrl ?? "").trim() : "";
     // Het castblad gaat als "merk-referentie" mee: dat is de enige categorie die
     // vooraan in de rij staat en het zwaarst weegt. Precies wat we willen — de
     // personages moeten hier exact van overgenomen worden, ook hun onderlinge
@@ -198,7 +201,6 @@ export async function POST(req: NextRequest) {
         extraContext: [
           illustratieContext(body.illustrationBrief),
           castbladInstructie,
-          cast.some((c) => c.modelSheetUrl && !geldigeVoorkant(c)) ? MODELBLAD_UITLEG : "",
           alleenDezeMensen,
           // Hetzelfde bos in elk beeld, en dezelfde look: zie wereldRegie en STIJL_VAST.
           wereldRegie(body.wereld),

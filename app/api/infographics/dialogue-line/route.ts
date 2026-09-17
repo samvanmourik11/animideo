@@ -8,13 +8,13 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
-import { referentieVan, zorgVoorVoorkant } from "@/lib/infographics/voorkant";
+import { zorgVoorBeschrijving } from "@/lib/infographics/portret-beschrijving";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { kiesStem, TAALCODE } from "@/lib/infographics/dialogue-stem";
 import {
   buildDialogueMotionPrompt, buildActionMotionPrompt, illustratieContext, buildShotPrompt,
-  iederEenKeer, iedereenZichtbaar, voorwerpRegie, wereldRegie, ZITTEN_REGEL, MODELBLAD_UITLEG, STIJL_VAST,
+  iederEenKeer, iedereenZichtbaar, voorwerpRegie, wereldRegie, ZITTEN_REGEL, STIJL_VAST,
 } from "@/lib/infographics/dialogue-staging";
 import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
 import {
@@ -28,7 +28,6 @@ import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht"
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld, beoordeelBeweging, type SprekerOordeel } from "@/lib/infographics/dialogue-verify";
 import {
-  geldigeVoorkant,
   sprekerHelft, ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC, VERTELLER_ID,
   type DialogueCastMember, type DialogueVoorwerp, type ShotSoort,
 } from "@/lib/infographics/dialogue-schema";
@@ -118,6 +117,8 @@ interface Body {
   seconden?: number;
   twoShotUrl?: string;
   castSheetUrl?: string;
+  /** "portret" als het castblad van de echte karakters getekend is. Zie DialogueSpec.castSheetVan. */
+  castSheetVan?: string | null;
   cast?: DialogueCastMember[];
   speakerId?: string;
   text?: string;
@@ -227,8 +228,10 @@ export async function POST(req: NextRequest) {
 
     const b = (await req.json()) as Body;
     const tekst = (b.text ?? "").trim();
-    // Vooraanzicht en beschrijving per personage, ook als de pagina ze (nog) niet had.
-    const cast = await Promise.all((Array.isArray(b.cast) ? b.cast : []).map((c) => zorgVoorVoorkant(supabase, user!.id, c)));
+    // Beschrijving van het echte karakter per personage, ook als de pagina die (nog) niet had.
+    const cast = await Promise.all((Array.isArray(b.cast) ? b.cast : []).map((c) => zorgVoorBeschrijving(supabase, user!.id, c)));
+    // Alleen een castblad van de echte karakters; een ouder blad kwam van de model sheets.
+    if (b.castSheetVan !== "portret") b.castSheetUrl = undefined;
     // Een VERTELLER hoort bij geen personage: eigen stem, en niemand in beeld
     // hoeft zijn mond te bewegen. Alleen geldig boven een actiebeeld.
     const isVerteller = b.speakerId === VERTELLER_ID;
@@ -393,7 +396,6 @@ export async function POST(req: NextRequest) {
     // drie sheets plus het castblad plus het scènebeeld al snel vijftien getekende
     // figuren voor drie personages.
     const personenInShot = isActieBeeld ? cast.length : 1 + luisteraars.length;
-    const metModelSheets = () => personenInShot === 1 || kaderNu === "close" || kaderNu === "extreme-close";
     const voorwerpen = (Array.isArray(b.voorwerpen) ? b.voorwerpen : [])
       .filter((v) => typeof v?.naam === "string" && typeof v?.uiterlijk === "string")
       .slice(0, 2);
@@ -465,7 +467,7 @@ export async function POST(req: NextRequest) {
           // en de beschrijving overeenkomt. Portret en blad samen gaven twee verschillende
           // koningen, en het beeldmodel koos per shot (zie voorkant.ts).
           characterUrls: cast
-            .map((c) => referentieVan(c))
+            .map((c) => c.portraitUrl)
             .filter(Boolean),
           extraContext: [
             illustratieContext(b.illustrationBrief),
@@ -483,7 +485,6 @@ export async function POST(req: NextRequest) {
                 "continuous scene, never a split screen, never side-by-side panels, never a row of portraits. " +
                 "Do not draw the sheet, or any framed portrait or card of these characters, as an object in the shot."
               : "",
-            cast.some((c) => !geldigeVoorkant(c) && c.modelSheetUrl) ? MODELBLAD_UITLEG : "",
             // De cast is de cast. Dit stond alleen in de bewegings-prompt, waardoor
             // verzonnen figuranten al in het bronbeeld zaten en de videostap ze
             // netjes intact liet.

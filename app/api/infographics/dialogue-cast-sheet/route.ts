@@ -1,7 +1,7 @@
 import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { referentieVan, zorgVoorVoorkant } from "@/lib/infographics/voorkant";
+import { zorgVoorBeschrijving } from "@/lib/infographics/portret-beschrijving";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
@@ -10,7 +10,7 @@ import { illustratieContext } from "@/lib/infographics/dialogue-staging";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { deductCredits } from "@/lib/credits";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
-import { geldigeVoorkant, uiterlijkVan, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
+import { uiterlijkVan, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
 
 // HET CASTBLAD — één beeld waarop de hele cast naast elkaar staat.
 //
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     if (!canUseDialoog(user.email)) return NextResponse.json({ error: "Deze tool is nog niet beschikbaar" }, { status: 403 });
 
     const body = (await req.json()) as Body;
-    const cast = await Promise.all((body.cast ?? []).filter((c) => c.portraitUrl).map((c) => zorgVoorVoorkant(supabase, user.id, c)));
+    const cast = await Promise.all((body.cast ?? []).filter((c) => c.portraitUrl).map((c) => zorgVoorBeschrijving(supabase, user.id, c)));
     if (cast.length < 2) {
       return NextResponse.json({ error: "Minstens twee personages met een afbeelding nodig" }, { status: 400 });
     }
@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
       seed: typeof body.seed === "number" ? body.seed : undefined,
       // Model sheet gaat vóór het portret: het castblad tekent iedereen ten voeten
       // uit, en dan helpt het als de rest van het lichaam al ergens vastligt.
-      characterUrls: cast.map((c) => referentieVan(c)),
+      characterUrls: cast.map((c) => c.portraitUrl),
       extraContext: [
         illustratieContext(body.illustrationBrief),
         "The character reference images are head-and-shoulders portraits. Use them ONLY for each person's " +
