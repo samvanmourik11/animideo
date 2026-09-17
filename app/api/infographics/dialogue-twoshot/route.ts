@@ -1,6 +1,7 @@
 import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { referentieVan, zorgVoorVoorkant } from "@/lib/infographics/voorkant";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
@@ -75,14 +76,16 @@ export async function POST(req: NextRequest) {
     const setting = (body.setting ?? "").trim();
     if (!setting) return NextResponse.json({ error: "Geen omgeving opgegeven" }, { status: 400 });
 
-    const cast = (Array.isArray(body.cast) ? body.cast : []).slice(0, MAX_CAST);
+    const cast = await Promise.all(
+      (Array.isArray(body.cast) ? body.cast : []).slice(0, MAX_CAST).map((c) => zorgVoorVoorkant(supabase, user.id, c)),
+    );
     // Model sheet gaat vóór het portret: die toont het personage van meerdere
     // kanten, wat een scenebeeld met een eigen camerastandpunt nodig heeft.
     // Met meer personages in beeld liever het portret: een model sheet toont iemand
     // drie keer, en drie sheets plus het castblad zijn twaalf getekende figuren voor
     // een beeld waar er drie in horen. Dat is precies waar de dubbele Lilly vandaan komt.
     const portretten = cast
-      .map((c) => geldigeVoorkant(c) || (cast.length === 1 ? c.modelSheetUrl || c.portraitUrl : c.portraitUrl || c.modelSheetUrl))
+      .map((c) => referentieVan(c))
       .filter((u): u is string => !!u);
     // Eén personage is genoeg. Dit heette het "twee-shot" omdat elke scene twee
     // pratende mensen naast elkaar toonde, maar sinds de camerakaders bestaat een
@@ -195,7 +198,7 @@ export async function POST(req: NextRequest) {
         extraContext: [
           illustratieContext(body.illustrationBrief),
           castbladInstructie,
-          cast.length === 1 && cast[0].modelSheetUrl && !geldigeVoorkant(cast[0]) ? MODELBLAD_UITLEG : "",
+          cast.some((c) => c.modelSheetUrl && !geldigeVoorkant(c)) ? MODELBLAD_UITLEG : "",
           alleenDezeMensen,
           // Hetzelfde bos in elk beeld, en dezelfde look: zie wereldRegie en STIJL_VAST.
           wereldRegie(body.wereld),
