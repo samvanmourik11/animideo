@@ -21,6 +21,7 @@ import { illustratieContext } from "@/lib/infographics/dialogue-staging";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 import { uiterlijkVan, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
+import { uiterlijkUitBlad } from "@/lib/infographics/uiterlijk-uit-blad";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -55,7 +56,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const uiterlijk = uiterlijkVan(lid);
+    // De tekst van het portret, niet die van de opzet: de koning had "gray hair" in zijn
+    // tekst en kort donker haar op zijn portret, en kreeg op zijn blad een bos krullen.
+    const vanPortret = await uiterlijkUitBlad(lid, lid.portraitUrl);
+    const uiterlijk = uiterlijkVan(vanPortret ? { name: lid.name, ...vanPortret } : lid);
     const leeftijd = (lid.leeftijd ?? "").trim();
 
     const brief =
@@ -76,22 +80,32 @@ export async function POST(req: NextRequest) {
       `Only this ONE character appears — no other people. ` +
       `No text, no names, no labels, no numbers and no frames anywhere in the image.`;
 
-    const result = await generateImageWithStyle({
+    const teken = (kaal: boolean) => generateImageWithStyle({
       prompt: buildIllustrationPrompt(brief, body.styleId ?? "flat-vector", body.language ?? null),
       format: "16:9",
       visualStyle: null,
-      seed: typeof body.seed === "number" ? body.seed : undefined,
+      seed: typeof body.seed === "number" ? body.seed + (kaal ? 7919 : 0) : undefined,
       characterUrls: [lid.portraitUrl],
       extraContext: [
-        illustratieContext(body.illustrationBrief),
+        kaal ? "" : illustratieContext(body.illustrationBrief),
         // Stond op "head-and-shoulders portrait ... invent the rest": de portretten tonen het
         // hele lichaam, en de koning kreeg op zijn blad een krullenpruik en snor die op zijn
         // portret niet stonden.
+        // Geen "body shape" of "clothing (or lack of it)" bij mensen: bij Isabella (een meisje)
+        // weigerde de inhoudscontrole van fal daarop de hele opdracht.
         "The reference image is a portrait of this character. Copy the character from it EXACTLY: the same face, " +
-          "hairstyle and hair length, facial hair (or none), body shape, proportions and clothing (or lack of it) — " +
-          "change nothing and add nothing. If the portrait does not show the whole body, keep what is not shown " +
-          "simple and consistent with what is. Do NOT repeat the portrait image itself as one of the three views.",
+          "hairstyle and hair length, facial hair if any, and the same outfit" +
+          (lid.soort === "dier" || lid.soort === "fantasiewezen" ? ", markings and accessories" : "") +
+          " — change nothing and add nothing. Do NOT repeat the portrait image itself as one of the three views.",
       ].filter(Boolean).join(" ").trim() || undefined,
+    });
+    // De inhoudscontrole van fal weigerde het blad van prinses Isabella, met de oude én de
+    // nieuwe opdracht, terwijl een andere variant zonder regiezin wél doorkwam: grillig,
+    // niet iets in de tekst dat we kunnen weghalen. Eén keer kaler opnieuw proberen.
+    const result = await teken(false).catch((e: unknown) => {
+      if (!/content_policy_violation|flagged by a content checker/i.test(JSON.stringify((e as { body?: unknown }).body ?? ""))) throw e;
+      console.warn(`[dialogue-model-sheet] inhoudscontrole weigerde ${lid.name}; opnieuw zonder regie`);
+      return teken(true);
     });
 
     try {
@@ -105,7 +119,9 @@ export async function POST(req: NextRequest) {
       throw e;
     }
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
+    // fal-fouten hebben een lege message; de reden staat in body.detail.
+    const body = (err as { body?: { detail?: unknown } }).body;
+    const msg = (err instanceof Error && err.message) || (body?.detail ? JSON.stringify(body.detail).slice(0, 500) : String(err));
     console.error("dialogue-model-sheet failed:", msg);
     return NextResponse.json({ error: "Model sheet maken mislukt", detail: msg }, { status: 500 });
   }

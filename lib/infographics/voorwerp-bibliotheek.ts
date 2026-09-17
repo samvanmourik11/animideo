@@ -260,3 +260,43 @@ export function tabelOntbreekt(fout: { code?: string; message?: string } | null 
   if (!fout) return false;
   return fout.code === "42P01" || fout.code === "PGRST205" || /does not exist|could not find the table/i.test(fout.message ?? "");
 }
+
+const woordenVan = (t: string) =>
+  t.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3);
+/** "draakje" → "draak", "boompje" → "boom": het verkleinwoord hoort bij hetzelfde ding. */
+const stam = (w: string) => w.replace(/(etje|pje|tje|je)$/, "") || w;
+
+/** Achtervoegsels van een plek: een "kasteeltuin" of "sprookjesbos" is geen voorwerp. */
+const PLEK_EINDE = /(tuin|bos|woud|kamer|keuken|zaal|straat|stad|dorp|park|strand|weide|plein|school|klas)$/;
+/** Engels plakt geen woorden aan elkaar: daar alleen een los laatste woord ("castle garden", niet "mushroom"). */
+const PLEK_WOORD = new Set(["garden", "forest", "woods", "room", "kitchen", "hall", "street", "city", "town", "village", "park", "beach", "meadow", "square"]);
+
+/**
+ * Haalt personages en plekken uit een lijst voorwerpen.
+ *
+ * Het zoekmodel kreeg de regel "personages en de hele plek tellen niet", en noemde bij
+ * "Prinses Isabella en het kleine draakje" toch "klein draakje" en "kasteeltuin". Elk
+ * voorwerp krijgt een blad op een lege achtergrond dat mee gaat naar de beelden: het
+ * draakje zat daarna als speelgoedje in Isabella's hand, en de kasteeltuin werd een
+ * kasteel op een rond plateau voor een witte achtergrond. Dus ook hard filteren, op
+ * castnamen en op de plekken uit de verhaallijn en de scènes.
+ */
+export function zonderPersonagesEnPlekken<T extends { naam: string; zoekwoorden?: string[] | null }>(
+  voorwerpen: T[],
+  ctx: { castNamen: string[]; plekken: string[] },
+): T[] {
+  const castStammen = new Set(ctx.castNamen.flatMap(woordenVan).map(stam).filter((w) => w.length >= 3));
+  // Een plek telt als naam als hij als los stuk voorkomt: "Kasteeltuin - De koning helpt".
+  const plekNamen = new Set(
+    ctx.plekken.flatMap((p) => p.split(/\s[-–—:]\s|[,(;)]/)).map((p) => woordenVan(p).join(" ")).filter(Boolean),
+  );
+  return voorwerpen.filter((v) => {
+    const naamWoorden = woordenVan(v.naam);
+    if (!naamWoorden.length) return true;
+    if (naamWoorden.some((w) => castStammen.has(stam(w)))) return false;
+    if (plekNamen.has(naamWoorden.join(" "))) return false;
+    const laatste = naamWoorden[naamWoorden.length - 1];
+    if (PLEK_EINDE.test(laatste) || PLEK_WOORD.has(laatste)) return false;
+    return true;
+  });
+}

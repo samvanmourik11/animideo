@@ -19,7 +19,7 @@ import { randomUUID } from "node:crypto";
 import { openai } from "@/lib/openai";
 import { vraagDoor } from "@/lib/infographics/doorvragen";
 import {
-  bibliotheekVoorwerpTekst, koppelVoorwerpen, leesBibliotheekVoorwerp, tabelOntbreekt, type BibliotheekVoorwerp,
+  bibliotheekVoorwerpTekst, koppelVoorwerpen, leesBibliotheekVoorwerp, tabelOntbreekt, zonderPersonagesEnPlekken, type BibliotheekVoorwerp,
 } from "@/lib/infographics/voorwerp-bibliotheek";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
@@ -858,10 +858,14 @@ Geef nu de opzet als JSON.`;
     // scènes waarin het genoemd wordt. Zichtbaar in de opzet, dus aan te passen.
     // Een voorwerp uit de voorwerpenbibliotheek komt precies zo in de video, met zijn
     // blad in deze stijl; zie koppelVoorwerpen.
-    const voorwerpen = koppelVoorwerpen(
-      (Array.isArray(ruw.voorwerpen) ? ruw.voorwerpen : []) as { naam?: unknown; uiterlijk?: unknown; bibliotheekId?: unknown }[],
-      voorwerpBibliotheek,
-      styleId,
+    // Zonder personages en plekken: zie zonderPersonagesEnPlekken (het draakje in de hand).
+    const voorwerpen = zonderPersonagesEnPlekken(
+      koppelVoorwerpen(
+        (Array.isArray(ruw.voorwerpen) ? ruw.voorwerpen : []) as { naam?: unknown; uiterlijk?: unknown; bibliotheekId?: unknown }[],
+        voorwerpBibliotheek,
+        styleId,
+      ),
+      { castNamen: cast.map((c) => c.name), plekken: verhaal.verhaallijn.flatMap((d) => [d.titel, d.plek]) },
     );
 
     const setup: DialogueSetup = {

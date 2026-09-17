@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { openai } from "@/lib/openai";
 import {
-  koppelVoorwerpen, leesBibliotheekVoorwerp, tabelOntbreekt, voorwerpenZoekPrompt, VOORWERPEN_ZOEKEN_SCHEMA,
+  koppelVoorwerpen, leesBibliotheekVoorwerp, tabelOntbreekt, voorwerpenZoekPrompt, zonderPersonagesEnPlekken, VOORWERPEN_ZOEKEN_SCHEMA,
   type BibliotheekVoorwerp,
 } from "@/lib/infographics/voorwerp-bibliotheek";
 import type { DialogueSpec } from "@/lib/infographics/dialogue-schema";
@@ -69,10 +69,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Ongeldig antwoord van het model" }, { status: 500 });
     }
 
-    const voorwerpen = koppelVoorwerpen(
-      (Array.isArray(ruw.voorwerpen) ? ruw.voorwerpen : []) as { naam?: unknown; uiterlijk?: unknown; bibliotheekId?: unknown }[],
-      bibliotheek,
-      spec.styleId,
+    const voorwerpen = zonderPersonagesEnPlekken(
+      koppelVoorwerpen(
+        (Array.isArray(ruw.voorwerpen) ? ruw.voorwerpen : []) as { naam?: unknown; uiterlijk?: unknown; bibliotheekId?: unknown }[],
+        bibliotheek,
+        spec.styleId,
+      ),
+      {
+        castNamen: spec.cast.map((c) => c.name),
+        plekken: [
+          ...(spec.verhaallijn ?? []).flatMap((d) => [d.titel, d.plek]),
+          ...spec.scenes.map((s) => s.gebied ?? ""),
+        ].filter(Boolean),
+      },
     );
     console.log(
       `[dialogue-voorwerpen] ${voorwerpen.length} gevonden: ` +
