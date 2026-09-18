@@ -64,6 +64,9 @@ export default function DialoguePage() {
   const [renderBezig, setRenderBezig] = useState(false);
   const [renderFout, setRenderFout] = useState<string | null>(null);
   const [voortgang, setVoortgang] = useState("");
+  // Hoever het maken is, voor de balk in het storyboard. Sam, 19-09-2026: je hoort niet
+  // beeld voor beeld te zien verschijnen, je hoort te zien hoe ver het is.
+  const [vordering, setVordering] = useState<{ af: number; totaal: number } | null>(null);
   const [exportBezig, setExportBezig] = useState(false);
   const [exportFout, setExportFout] = useState<string | null>(null);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
@@ -693,6 +696,7 @@ export default function DialoguePage() {
     if (!gestopt) gestopt = await maakShotbeelden(werk, mislukt);
     if (gestopt) setRenderFout(gestopt);
     else if (mislukt.length) setRenderFout(`${mislukt.length} onderdeel/onderdelen mislukt: ${mislukt.join(", ")}. Klik nogmaals — alleen die worden opnieuw geprobeerd.`);
+    setVordering(null);
     setVoortgang(gestopt || mislukt.length ? "Deels klaar" : "Storyboard staat klaar");
     setRenderBezig(false);
     void bewaar(werk, projectId);
@@ -717,7 +721,8 @@ export default function DialoguePage() {
     let gestopt: string | null = null;
     let af = 0;
     let volgende = 0;
-    setVoortgang(`Beelden per zin (0/${taken.length})…`);
+    setVoortgang("Storyboard wordt gemaakt…");
+    setVordering({ af: 0, totaal: taken.length });
     const werkers = Array.from({ length: Math.min(PARALLEL, taken.length) }, async () => {
       while (volgende < taken.length && !gestopt) {
         const { si, li } = taken[volgende++];
@@ -746,7 +751,7 @@ export default function DialoguePage() {
           mislukt.push(`beeld ${li + 1} van scène ${si + 1}`);
         }
         af++;
-        setVoortgang(`Beelden per zin (${af}/${taken.length})…`);
+        setVordering({ af, totaal: taken.length });
         setSpec(structuredClone(werk));
       }
     });
@@ -764,7 +769,9 @@ export default function DialoguePage() {
    * opnieuw gemaakt worden vallen onder de credit per scène.
    */
   async function keurBordNa(werk: DialogueSpec, mislukt: string[]) {
-    for (let ronde = 1; ronde <= 2; ronde++) {
+    // Drie ronden: in de meting van 19-09-2026 was één bord na twee ronden nog niet
+    // helemaal schoon (4 gezakt → 2 → 1).
+    for (let ronde = 1; ronde <= 3; ronde++) {
       setVoortgang("Storyboard nakijken…");
       let gezakt: { si: number; li: number }[] = [];
       try {
@@ -780,7 +787,8 @@ export default function DialoguePage() {
       if (gezakt.length === 0) return;
 
       let af = 0;
-      setVoortgang(`Beelden verbeteren (0/${gezakt.length})…`);
+      setVoortgang("Beelden verbeteren…");
+      setVordering({ af: 0, totaal: gezakt.length });
       for (const { si, li } of gezakt) {
         const regel = werk.scenes[si]?.lines[li];
         if (!regel) continue;
@@ -801,15 +809,15 @@ export default function DialoguePage() {
               sprekerZeker: d.sprekerZeker ?? null,
               beeldWaarschuwingen: d.beeldWaarschuwingen ?? null,
             });
-          } else if (ronde === 2) {
+          } else if (ronde === 3) {
             mislukt.push(`beeld ${li + 1} van scène ${si + 1}`);
           }
         } catch { /* volgende ronde of melding hieronder */ }
         af++;
-        setVoortgang(`Beelden verbeteren (${af}/${gezakt.length})…`);
+        setVordering({ af, totaal: gezakt.length });
         setSpec(structuredClone(werk));
       }
-      if (ronde === 2) {
+      if (ronde === 3) {
         // Na twee ronden nog gezakt: dat meldt de pagina, zodat je zelf kunt bijsturen.
         for (const { si, li } of gezakt) mislukt.push(`beeld ${li + 1} van scène ${si + 1}`);
       }
@@ -1544,20 +1552,37 @@ export default function DialoguePage() {
               </button>
             </div>
           )}
-          {(voortgang || renderFout) && (
-            <p className={`text-xs ${renderFout ? "text-red-400" : "text-slate-400"}`}>{renderFout || voortgang}</p>
+          {renderFout && <p className="text-xs text-red-400">{renderFout}</p>}
+          {renderBezig ? (
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-5 space-y-2">
+              <p className="text-sm text-white">{voortgang || "Storyboard wordt gemaakt…"}</p>
+              <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-orange-500 transition-all duration-500"
+                  style={{ width: `${vordering && vordering.totaal > 0 ? Math.round((vordering.af / vordering.totaal) * 100) : 8}%` }}
+                />
+              </div>
+              <p className="text-[11px] text-slate-500">
+                {vordering && vordering.totaal > 0
+                  ? `${vordering.af} van de ${vordering.totaal} beelden klaar. `
+                  : ""}
+                Het bord verschijnt in één keer als alles klaar is, inclusief de controle achteraf.
+              </p>
+            </div>
+          ) : (
+            voortgang && <p className="text-xs text-slate-400">{voortgang}</p>
           )}
           <button onClick={() => setStap(3)} className="text-xs text-orange-300 hover:text-orange-200 underline">
             ← Terug naar het draaiboek
           </button>
-          <Storyboard
+          {!renderBezig && <Storyboard
             spec={spec}
             onOpnieuw={hertekenScene}
             onRegelOpnieuw={(si, li, aanwijzing) => void hertekenRegel(si, li, aanwijzing)}
             bezigMet={hertekenBezig}
             regelsBezig={regelsBezig}
             disabled={renderBezig}
-          />
+          />}
         </div>
       )}
 
