@@ -751,7 +751,69 @@ export default function DialoguePage() {
       }
     });
     await Promise.all(werkers);
+    if (!gestopt) await keurBordNa(werk, mislukt);
     return gestopt;
+  }
+
+  /**
+   * Het afgemaakte bord nakijken en de gezakte beelden opnieuw maken.
+   *
+   * De controle tijdens het maken is niet stabiel: dezelfde beelden kwamen er de ene keer
+   * doorheen en werden de andere keer afgekeurd — 5 van de 20 in de meting van 19-09-2026.
+   * Een tweede ronde over het hele bord vangt die. Nakijken is gratis; de beelden die
+   * opnieuw gemaakt worden vallen onder de credit per scène.
+   */
+  async function keurBordNa(werk: DialogueSpec, mislukt: string[]) {
+    for (let ronde = 1; ronde <= 2; ronde++) {
+      setVoortgang("Storyboard nakijken…");
+      let gezakt: { si: number; li: number }[] = [];
+      try {
+        const r = await fetch("/api/infographics/dialogue-keur", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ spec: werk }),
+        });
+        const d = await r.json().catch(() => null);
+        if (!r.ok || !Array.isArray(d?.gezakt)) return;
+        gezakt = d.gezakt as { si: number; li: number }[];
+      } catch { return; }
+      if (gezakt.length === 0) return;
+
+      let af = 0;
+      setVoortgang(`Beelden verbeteren (0/${gezakt.length})…`);
+      for (const { si, li } of gezakt) {
+        const regel = werk.scenes[si]?.lines[li];
+        if (!regel) continue;
+        try {
+          const r = await fetch("/api/infographics/dialogue-line", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(regelVerzoek(werk, si, li, {
+              alleenBeeld: true,
+              beeldInstructie: regel.beeldAanwijzing,
+              doorSceneBetaald: true,
+            })),
+          });
+          const d = await r.json().catch(() => null);
+          if (r.ok && d?.shotImageUrl) {
+            Object.assign(regel, {
+              shotImageUrl: d.shotImageUrl,
+              sprekerZeker: d.sprekerZeker ?? null,
+              beeldWaarschuwingen: d.beeldWaarschuwingen ?? null,
+            });
+          } else if (ronde === 2) {
+            mislukt.push(`beeld ${li + 1} van scène ${si + 1}`);
+          }
+        } catch { /* volgende ronde of melding hieronder */ }
+        af++;
+        setVoortgang(`Beelden verbeteren (${af}/${gezakt.length})…`);
+        setSpec(structuredClone(werk));
+      }
+      if (ronde === 2) {
+        // Na twee ronden nog gezakt: dat meldt de pagina, zodat je zelf kunt bijsturen.
+        for (const { si, li } of gezakt) mislukt.push(`beeld ${li + 1} van scène ${si + 1}`);
+      }
+    }
   }
 
   /**

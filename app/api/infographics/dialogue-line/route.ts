@@ -537,6 +537,26 @@ export async function POST(req: NextRequest) {
         const ernst = (mensenFout(beeldFouten) ? 10 : 0) + (beeldOordeel === "verkeerd" ? 5 : 0) + beeldFouten.length;
         if (!beste || ernst < beste.ernst) beste = { url: kandidaat, fouten: beeldFouten, oordeel: beeldOordeel, ernst };
 
+        // De controle is niet altijd stabiel: hetzelfde beeld kwam er de ene keer goed
+        // doorheen en de andere keer niet (19-09-2026). Een schoon beeld daarom één keer
+        // laten bevestigen; ziet de tweede blik iemand ontbreken, dan telt dat.
+        if (ernst === 0) {
+          const tweede = await beoordeelBeeld(
+            kandidaat,
+            isActieBeeld ? null : spreker!,
+            isActieBeeld ? cast : luisteraars,
+            { iedereenZichtbaar: iedereenZichtbaar(kaderNu) },
+          );
+          if (mensenFout(tweede.fouten)) {
+            beeldFouten = tweede.fouten;
+            beeldOordeel = tweede.spreker;
+            const ernst2 = 10 + tweede.fouten.length;
+            if (!beste || ernst2 < beste.ernst) beste = { url: kandidaat, fouten: beeldFouten, oordeel: beeldOordeel, ernst: ernst2 };
+            console.warn(`[dialogue-line] tweede blik op poging ${poging}: ${tweede.fouten.join("; ")}`);
+            continue;
+          }
+        }
+
         if (ernst === 0) {
           // In de dialoogmodus hoort er geen tekst in beeld; wat het model er toch
           // bij tekent (kalenders, blaadjes, labels) is altijd verhaspeld.

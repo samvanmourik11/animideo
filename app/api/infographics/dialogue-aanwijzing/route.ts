@@ -6,7 +6,7 @@ import { bewerkBeeld } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { beeldAlsDataUrl } from "@/lib/infographics/beeld-inline";
 import {
-  aanwijzingContext, aanwijzingVraag, leesOpDeGrond, AANWIJZING_SCHEMA, AANWIJZING_SYSTEEM,
+  aanwijzingContext, aanwijzingVraag, isIndelingsAanwijzing, leesOpDeGrond, AANWIJZING_SCHEMA, AANWIJZING_SYSTEEM,
 } from "@/lib/infographics/beeld-aanwijzing";
 import { zetOpDeGrond } from "@/lib/infographics/schets-bewerking";
 import { deductCredits, addCredits } from "@/lib/credits";
@@ -107,10 +107,13 @@ export async function POST(req: NextRequest) {
     const opDeGrond = leesOpDeGrond(uitleg.opDeGrond);
     // Een zwevend voorwerp rechtzetten is een ingreep op één plek in het beeld: het
     // goedgekeurde shot blijft staan, ook als het model het als grote wijziging zag.
-    const klein = uitleg.klein === true || !!opDeGrond;
+    // Verplaatsen, groter maken, iemand erbij: dat lukt een bewerking niet (zie
+    // isIndelingsAanwijzing). Dan het beeld opnieuw tekenen met de aanwijzing erin.
+    const indeling = isIndelingsAanwijzing(aanwijzing, instructie);
+    const klein = (uitleg.klein === true && !indeling) || !!opDeGrond;
     console.log(
       `[dialogue-aanwijzing] scène ${si + 1} shot ${li + 1}: "${aanwijzing}" → ` +
-        `${opDeGrond ? `schets (${opDeGrond} op de grond)` : klein ? "bewerken" : "opnieuw tekenen"}: ${instructie}`,
+        `${opDeGrond ? `schets (${opDeGrond} op de grond)` : klein ? "bewerken" : `opnieuw tekenen${indeling ? " (indeling)" : ""}`}: ${instructie}`,
     );
 
     if (!klein) return NextResponse.json({ klein: false, begrepen, instructie });

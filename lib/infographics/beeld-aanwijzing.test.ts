@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { aanwijzingContext, aanwijzingVraag, leesOpDeGrond, AANWIJZING_SCHEMA } from "./beeld-aanwijzing";
+import { aanwijzingContext, aanwijzingVraag, leesOpDeGrond, AANWIJZING_SCHEMA, isIndelingsAanwijzing } from "./beeld-aanwijzing";
 import type { DialogueScene, DialogueSpec } from "./dialogue-schema";
 
 // "Het kapsel van het rechter poppetje moet hetzelfde zijn als de andere foto's van
@@ -75,5 +75,30 @@ describe("aanwijzingVraag", () => {
     expect(vraag).toContain("scène 2, shot 2");
     expect(vraag).toContain("rechter poppetje");
     expect(vraag).toContain("Lilly: a big curly afro");
+  });
+});
+
+describe("isIndelingsAanwijzing", () => {
+  // Gemeten 19-09-2026: een bewerking verplaatst niets en zet niemand bij zonder de ander
+  // te verdubbelen. Zulke aanwijzingen horen naar het opnieuw tekenen.
+  it("herkent verplaatsen, groter maken en iemand erbij", () => {
+    for (const t of [
+      "het doel moet links staan in plaats van rechts",
+      "zet Coco erbij, rechts naast Leo",
+      "de bal moet groter zijn",
+      "haal de tweede schildpad weg",
+      "Move the soccer goal to the left side of the image.",
+      "Add the green turtle next to the lion.",
+    ]) expect(isIndelingsAanwijzing(t)).toBe(true);
+  });
+
+  it("laat gewone uiterlijk-aanwijzingen met rust", () => {
+    for (const t of [
+      "Coco moet zijn rode pet op hebben",
+      "Leo moet blij kijken",
+      "maak de lucht bewolkt",
+      "zijn trui moet groen zijn",
+      "Give the turtle a red cap.",
+    ]) expect(isIndelingsAanwijzing(t)).toBe(false);
   });
 });

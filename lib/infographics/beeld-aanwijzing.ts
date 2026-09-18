@@ -83,7 +83,7 @@ export const AANWIJZING_SYSTEEM = `Je helpt iemand één beeld uit het storyboar
 Antwoord met JSON:
 - "begrepen": één korte Nederlandse zin over wat er verandert, met de naam van het personage of het ding als dat kan.
 - "instructie": in het ENGELS, voor een tekenaar die ALLEEN het doelbeeld ziet. Zeg wat er verandert en beschrijf precies hoe het er daarna uitziet: vorm, grootte, kleur, textuur, plek in het beeld. Verwijs nooit naar "the other images", "the reference" of "shot 1": beschrijf wat daar te zien is.
-- "klein": true als alleen iets binnen het beeld verandert en de rest precies zo moet blijven (een kapsel, een kleur, een voorwerp erbij of eraf, een gezichtsuitdrukking). false als het beeld grotendeels anders moet (een ander camerastandpunt, een andere plek, andere houdingen van iedereen).
+- "klein": true ALLEEN als er iets verandert aan hoe iets of iemand ERUITZIET, op dezelfde plek in het beeld: een kleur, een kledingstuk, een pet, een kapsel, een gezichtsuitdrukking, de lucht, licht. false zodra er iets VERPLAATST, GROTER of KLEINER moet, of als er iemand of iets bij moet komen of weg moet. Een bewerking kan dat namelijk niet: gevraagd om het doel naar links bleef het doel staan, en gevraagd om er een schildpad bij te zetten kwam er een tweede schildpad naast de eerste (gemeten 19-09-2026).
 - "opDeGrond": vraagt de gebruiker dat een voorwerp op de grond of vloer komt te staan of doorloopt tot de grond (een deur die halverwege de muur zweeft, een lantaarnpaal die in de lucht hangt)? Geef dan in het Engels kort welk ding, zoals het in het beeld te zien is: "the wooden door". Anders een lege tekst.
 
 DOE PRECIES WAT DE GEBRUIKER VRAAGT, NIETS ANDERS. Wat het shot hoort te laten zien en wat er gezegd wordt is alleen achtergrond: haal daar nooit zelf een wijziging uit. "Lily en Tyrell moeten eruitzien zoals in de rest van scène 4" werd eerst "Lilly moet aandachtig naar de klaproos kijken", omdat dat bij het shot stond. Vraagt de gebruiker dat iemand of iets eruitziet "zoals op de andere beelden", kijk dan op die beelden en beschrijf in de instructie precies hoe die personen of dingen er dáár uitzien — gezicht en ogen, haar, lichaamsbouw en verhoudingen, kleding, schoenen — en wat er in het doelbeeld anders is. Gaat de aanwijzing over personages, beschrijf dan de personages en niet de omgeving.`;
@@ -106,4 +106,29 @@ export function aanwijzingVraag(
     (regel?.beeld ? `WAT DIT SHOT HOORT TE LATEN ZIEN: ${regel.beeld}\n` : "") +
     (zin ? `WAT ER GEZEGD WORDT: "${zin}"\n` : "")
   );
+}
+
+/**
+ * Gaat deze aanwijzing over de INDELING van het beeld?
+ *
+ * Verplaatsen, groter of kleiner maken, iemand erbij of eraf: dat kan een bewerking van
+ * een bestaand plaatje niet. Gemeten op 19-09-2026: "het doel moet links staan" liet het
+ * doel staan waar het stond, en "zet Coco erbij" leverde een tweede schildpad op naast de
+ * schildpad die er al stond. Zulke aanwijzingen gaan naar het opnieuw tekenen, ook als het
+ * model ze klein noemt.
+ */
+const INDELING = [
+  // Nederlands
+  /\b(verplaats|verschuif|schuif|zet .*\b(links|rechts|achter|voor|naast|midden)\b|naar (links|rechts|voren|achteren)|links|rechts|midden|verder weg|dichterbij|inzoom|uitzoom)\b/i,
+  /\b(groter|kleiner|vergroot|verklein|hoger|lager|langer|korter)\b/i,
+  /\b((erbij|bij)\s*(zetten|tekenen)?|toevoegen|weghalen|verwijder|eruit|zonder)\b|\bhaal\b[^.]*\bweg\b|\b(mag|moet)\s+weg\b/i,
+  // Engels (de instructie die het model teruggeeft)
+  /\b(move|shift|reposition|swap|place .* (left|right|behind|next to)|to the (left|right)|closer|further|zoom)\b/i,
+  /\b(bigger|larger|smaller|taller|shorter|resize|scale)\b/i,
+  /\b(add|insert|remove|delete|erase|without)\b/i,
+];
+
+export function isIndelingsAanwijzing(...teksten: (string | null | undefined)[]): boolean {
+  const tekst = teksten.filter(Boolean).join(" ");
+  return INDELING.some((p) => p.test(tekst));
 }
