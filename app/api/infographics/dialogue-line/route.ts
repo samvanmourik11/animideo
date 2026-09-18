@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
-import { zorgVoorBeschrijving } from "@/lib/infographics/portret-beschrijving";
+import { zorgVoorBeschrijving } from "@/lib/infographics/personage-blad";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { kiesStem, TAALCODE } from "@/lib/infographics/dialogue-stem";
@@ -28,7 +28,7 @@ import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht"
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld, beoordeelBeweging, type SprekerOordeel } from "@/lib/infographics/dialogue-verify";
 import {
-  sprekerHelft, ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC, VERTELLER_ID,
+  castbladSoort, referentieVan, sprekerHelft, ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC, VERTELLER_ID,
   type DialogueCastMember, type DialogueVoorwerp, type ShotSoort,
 } from "@/lib/infographics/dialogue-schema";
 import { storyCanvasSize } from "@/lib/infographics/canvas-size";
@@ -230,8 +230,9 @@ export async function POST(req: NextRequest) {
     const tekst = (b.text ?? "").trim();
     // Beschrijving van het echte karakter per personage, ook als de pagina die (nog) niet had.
     const cast = await Promise.all((Array.isArray(b.cast) ? b.cast : []).map((c) => zorgVoorBeschrijving(supabase, user!.id, c)));
-    // Alleen een castblad van de echte karakters; een ouder blad kwam van de model sheets.
-    if (b.castSheetVan !== "portret") b.castSheetUrl = undefined;
+    // Het castblad moet uit dezelfde ronde komen als de personagetekeningen; anders staan
+    // er twee versies van hetzelfde personage in de referenties.
+    if (b.castSheetVan !== castbladSoort(cast)) b.castSheetUrl = undefined;
     // Een VERTELLER hoort bij geen personage: eigen stem, en niemand in beeld
     // hoeft zijn mond te bewegen. Alleen geldig boven een actiebeeld.
     const isVerteller = b.speakerId === VERTELLER_ID;
@@ -420,6 +421,9 @@ export async function POST(req: NextRequest) {
     // herkansing werd afgeschreven. Nu houden we het minst foute beeld apart bij.
     const alHerbruikbaar = shotImageUrl !== null;
     let beste: { url: string; fouten: string[]; oordeel: SprekerOordeel; ernst: number } | null = null;
+    // Teruggevallen op het scènebeeld: de pagina laat dat zien, zodat je weet waarom twee
+    // beelden op elkaar lijken.
+    let uitScenebeeld = false;
     for (let poging = 1; !alHerbruikbaar && poging <= MAX_BEELD_POGINGEN; poging++) {
       if (poging === MAX_BEELD_POGINGEN && !mensenFout(beeldFouten)) break;
       // De herkansingen zijn niet vooraf afgerekend; pas afschrijven als ze echt gebeuren.
@@ -467,7 +471,7 @@ export async function POST(req: NextRequest) {
           // en de beschrijving overeenkomt. Portret en blad samen gaven twee verschillende
           // koningen, en het beeldmodel koos per shot (zie voorkant.ts).
           characterUrls: cast
-            .map((c) => c.portraitUrl)
+            .map((c) => referentieVan(c))
             .filter(Boolean),
           extraContext: [
             illustratieContext(b.illustrationBrief),
@@ -567,6 +571,16 @@ export async function POST(req: NextRequest) {
       shotImageUrl = beste.url;
       beeldFouten = beste.fouten;
       beeldOordeel = beste.oordeel;
+      // Maar een beeld waarin iemand ONTBREEKT of er iemand te veel staat, hoort niet in
+      // het storyboard: dat gaf lege velden en vreemde figuren (Sam, 18-09-2026). Dan
+      // liever het scènebeeld: daar staan de juiste personages, alleen minder gevarieerd.
+      if (mensenFout(beeldFouten) && (b.twoShotUrl ?? "").trim()) {
+        console.warn(`[dialogue-line] na ${beeldPogingen} pogingen nog ${beeldFouten.join("; ")}; scènebeeld gebruikt`);
+        shotImageUrl = (b.twoShotUrl ?? "").trim();
+        beeldFouten = [];
+        beeldOordeel = "onduidelijk";
+        uitScenebeeld = true;
+      }
     }
 
     if (!shotImageUrl) {
@@ -580,6 +594,7 @@ export async function POST(req: NextRequest) {
       await terugstorten();
       return NextResponse.json({
         shotImageUrl,
+        uitScenebeeld,
         sprekerZeker: beeldOordeel !== "verkeerd",
         beeldOordeel,
         beeldPogingen,

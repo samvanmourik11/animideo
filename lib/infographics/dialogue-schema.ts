@@ -157,8 +157,8 @@ export interface DialogueCastMember {
    */
   modelSheetUrl?: string | null;
   /**
-   * Van welk portret `appearance` en `kleding` beschreven zijn (zie portret-beschrijving.ts).
-   * Anders dan dit portret: de beschrijving is verlopen en wordt opnieuw gemaakt.
+   * Van welke tekening `appearance` en `kleding` beschreven zijn (zie personage-blad.ts).
+   * Anders dan de tekening die naar de beelden gaat: de beschrijving is verlopen.
    */
   beschrevenVan?: string | null;
   // Plek in het kader. Bepaalt hoe we spreker/luisteraar benoemen in de prompts.
@@ -421,10 +421,11 @@ export interface DialogueSpec {
    */
   castSheetUrl?: string | null;
   /**
-   * "portret" = het castblad is van de echte karakters getekend. Castbladen van daarvoor
-   * kwamen van de model sheets (het draakje met trui) en gaan niet meer naar de beelden.
+   * Waarvan het castblad getekend is: "blad" = van de houdingenbladen, "portret" = van de
+   * karakters uit de bibliotheek. Een castblad uit een andere ronde gaat niet naar de
+   * beelden: dan zie je twee verschillende versies van hetzelfde personage door elkaar.
    */
-  castSheetVan?: "portret" | null;
+  castSheetVan?: "blad" | "portret" | null;
   /** Voorwerpen die in het verhaal terugkomen en er in elk beeld hetzelfde uit moeten zien. */
   voorwerpen?: DialogueVoorwerp[] | null;
   /**
@@ -471,6 +472,27 @@ export function uiterlijkVan(lid: { name: string; appearance?: string | null; kl
   const kleding = (lid.kleding ?? "").trim();
   if (!kleding) return basis;
   return `${basis}${basis ? " " : ""}Outfit: ${kleding.replace(/\.?$/, ".")}`;
+}
+
+/**
+ * De tekening van dit personage die naar ELK beeld gaat.
+ *
+ * Het houdingenblad (van voren, schuin, opzij) als het er is, anders het karakter uit de
+ * bibliotheek. Gemeten op 19-09-2026 met zes shots uit het voetbalverhaal: met het blad
+ * had Coco in 5 van de 5 beelden zijn pet, hesje én fluit; met het bibliotheekkarakter
+ * klopte 3 van de 15 kenmerken niet. Sam: consistent is belangrijker dan perfect gelijk
+ * aan de bibliotheek. Nooit allebei door elkaar — dan kiest het beeldmodel per shot (zie
+ * het draakje dat in de ene scène een trui droeg en in de volgende niet).
+ */
+export function referentieVan(lid: Pick<DialogueCastMember, "modelSheetUrl" | "portraitUrl">): string {
+  return (lid.modelSheetUrl ?? "").trim() || lid.portraitUrl;
+}
+/**
+ * Waarvan een castblad getekend hoort te zijn bij deze cast: van de houdingenbladen zodra
+ * iedereen er een heeft, anders van de karakters uit de bibliotheek.
+ */
+export function castbladSoort(cast: Pick<DialogueCastMember, "modelSheetUrl">[]): "blad" | "portret" {
+  return cast.length > 0 && cast.every((c) => (c.modelSheetUrl ?? "").trim()) ? "blad" : "portret";
 }
 
 /** Meer voorwerpbladen per beeld verdringen het castblad uit de referenties. */

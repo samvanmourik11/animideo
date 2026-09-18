@@ -17,7 +17,7 @@ import SetupPanel from "@/components/dialogue/SetupPanel";
 import { type DialogueSetup } from "@/lib/infographics/dialogue-setup";
 import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
-import { regelKlaar, heeftStem, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
+import { regelKlaar, heeftStem, castbladSoort, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
 import { leesRegie, pasRegieToe, regieNodig } from "@/lib/infographics/beeldregie";
 import { MAX_VOORWERPEN, voegVoorwerpenSamen, voorwerpenVoorStijl, type BibliotheekVoorwerp } from "@/lib/infographics/voorwerp-bibliotheek";
 import { tekenVoorwerp, voorwerpSleutel, type TekenContext } from "@/lib/infographics/voorwerp-tekenen";
@@ -76,6 +76,7 @@ export default function DialoguePage() {
   const [regelsBezig, setRegelsBezig] = useState<string[]>([]);
   // Voorwerpen uit het draaiboek halen (zie zoekVoorwerpen).
   const [voorwerpenBezig, setVoorwerpenBezig] = useState(false);
+  const [bladBezig, setBladBezig] = useState<string | null>(null);
   const [voorwerpenMelding, setVoorwerpenMelding] = useState<string | null>(null);
   // Welke voorwerpen nu getekend worden (voorwerpSleutel), in de opzet of het draaiboek.
   const [voorwerpTekenBezig, setVoorwerpTekenBezig] = useState<string[]>([]);
@@ -84,7 +85,7 @@ export default function DialoguePage() {
   function tekenContext(werk: DialogueSpec): TekenContext {
     return {
       styleId: werk.styleId, language: werk.language, illustrationBrief: werk.illustrationBrief,
-      seed: werk.seed, castSheetUrl: werk.castSheetVan === "portret" ? werk.castSheetUrl : null, cast: werk.cast,
+      seed: werk.seed, castSheetUrl: werk.castSheetUrl, cast: werk.cast,
     };
   }
 
@@ -449,7 +450,7 @@ export default function DialoguePage() {
       // meer dan drie personages beelden vol mensen die er niets te zoeken
       // hadden — en het beeldmodel moest ze dan ook nog uit elkaar houden.
       setting: s.setting, cast: sceneCast(s, werk.cast, werk.verhaallijn), styleId: werk.styleId,
-      castSheetUrl: werk.castSheetVan === "portret" ? werk.castSheetUrl ?? null : null, castSheetVan: werk.castSheetVan ?? null,
+      castSheetUrl: werk.castSheetUrl ?? null, castSheetVan: werk.castSheetVan ?? null,
       format: werk.format, language: werk.language, seed: werk.seed,
       illustrationBrief: werk.illustrationBrief ?? "",
       sceneIndex: si,
@@ -487,7 +488,7 @@ export default function DialoguePage() {
     const scene = werk.scenes[si];
     const regel = scene.lines[li];
     return {
-      twoShotUrl: scene.twoShotUrl, castSheetUrl: werk.castSheetVan === "portret" ? werk.castSheetUrl ?? null : null, castSheetVan: werk.castSheetVan ?? null,
+      twoShotUrl: scene.twoShotUrl, castSheetUrl: werk.castSheetUrl ?? null, castSheetVan: werk.castSheetVan ?? null,
       // Alleen de spelers van deze scene; het castblad houdt de rest bij. Hier ging
       // eerst bij opnieuw maken de hele cast mee, waardoor een opnieuw gemaakte
       // regel ineens iemand anders in beeld had.
@@ -532,18 +533,48 @@ export default function DialoguePage() {
   async function maakBasisbeelden(werk: DialogueSpec, mislukt: string[]): Promise<string | null> {
     let gestopt: string | null = null;
 
-    // GEEN model sheets meer. Die tekende de tool zelf van het portret, en ze weken af:
-    // het draakje kreeg er een trui en laarzen op, de koning een krullenpruik. Met portret,
-    // blad en castblad door elkaar koos het beeldmodel per shot een ander personage. Het
-    // karakter zoals het in Mijn karakters staat is het personage (17-09-2026, Sam).
+    // ALLEREERST een houdingenblad per personage: hetzelfde personage van voren, schuin en
+    // opzij. Dat blad is DE tekening die naar elk beeld gaat. Gemeten op 19-09-2026: met het
+    // blad klopte Coco's uitrusting in 5 van de 5 beelden, met het karakter uit de
+    // bibliotheek in 2 van de 5. Het blad kan zijn eigen fouten hebben (Leo's rugnummer
+    // verdween), daarom kun je het in het storyboard bekijken en opnieuw laten maken.
+    const zonderBlad = werk.cast.filter((c) => c.portraitUrl && !c.modelSheetUrl);
+    if (zonderBlad.length) {
+      let klaar = 0;
+      setVoortgang(`Personages vastleggen (0/${zonderBlad.length})…`);
+      for (const lid of zonderBlad) {
+        try {
+          const r = await fetch("/api/infographics/dialogue-model-sheet", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              lid, styleId: werk.styleId, language: werk.language,
+              illustrationBrief: werk.illustrationBrief ?? "", seed: werk.seed,
+            }),
+          });
+          const d = await r.json();
+          if (!r.ok) {
+            if (d.error === "insufficient_credits") { gestopt = creditFout(d); break; }
+            // Zonder blad valt dit personage terug op zijn karakter uit de bibliotheek.
+            mislukt.push(`personage ${lid.name}`);
+          } else if (d.modelSheetUrl) {
+            const i = werk.cast.findIndex((c) => c.id === lid.id);
+            if (i >= 0) werk.cast[i] = { ...werk.cast[i], modelSheetUrl: d.modelSheetUrl };
+          }
+        } catch { mislukt.push(`personage ${lid.name}`); }
+        klaar++;
+        setVoortgang(`Personages vastleggen (${klaar}/${zonderBlad.length})…`);
+        setSpec(structuredClone(werk));
+      }
+    }
 
     // DAARNA het castblad: iedereen ten voeten uit naast elkaar. Dat is de
     // identiteits- én maatreferentie voor élk beeld dat hierna komt. Zonder dat
     // blad verzint het beeldmodel per scène opnieuw hoe groot iemand is — de
     // reden dat de ene keer Tyrell boven Lily uitstak en de volgende keer andersom.
-    // Een castblad van vóór 17-09-2026 is getekend van de model sheets (het draakje met
-    // trui): dat wordt opnieuw gemaakt, van de echte karakters. Gratis voorbereiding.
-    if (!werk.castSheetUrl || werk.castSheetVan !== "portret") {
+    // Het castblad hoort uit dezelfde ronde te komen als de personagetekeningen: anders
+    // staan er twee versies van hetzelfde personage in de referenties. Gratis voorbereiding.
+    if (!werk.castSheetUrl || werk.castSheetVan !== castbladSoort(werk.cast)) {
       setVoortgang("Personages op maat zetten…");
       try {
         const r = await fetch("/api/infographics/dialogue-cast-sheet", {
@@ -562,7 +593,7 @@ export default function DialoguePage() {
           else mislukt.push("castblad");
         } else {
           werk.castSheetUrl = d.castSheetUrl;
-          werk.castSheetVan = "portret";
+          werk.castSheetVan = castbladSoort(werk.cast);
           setSpec(structuredClone(werk));
         }
       } catch { mislukt.push("castblad"); }
@@ -729,6 +760,43 @@ export default function DialoguePage() {
    * Alleen die scène wordt bijgewerkt (niet de hele spec vervangen): het maken duurt
    * een halve minuut, en wat je intussen elders aanpaste mag niet verdwijnen.
    */
+  /**
+   * Het houdingenblad van één personage opnieuw tekenen.
+   *
+   * Dat blad is de tekening die naar elk beeld gaat, dus een fout erin (Leo's rugnummer
+   * dat verdween) zit in de hele video. Gratis; het castblad hoort er daarna bij.
+   */
+  async function bladOpnieuw(id: string) {
+    if (!spec) return;
+    const lid = spec.cast.find((c) => c.id === id);
+    if (!lid) return;
+    setBladBezig(id);
+    setFout(null);
+    try {
+      const r = await fetch("/api/infographics/dialogue-model-sheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lid: { ...lid, modelSheetUrl: null }, styleId: spec.styleId, language: spec.language,
+          illustrationBrief: spec.illustrationBrief ?? "", seed: Math.floor(Math.random() * 1_000_000),
+        }),
+      });
+      const d = await r.json().catch(() => null);
+      if (!r.ok || !d?.modelSheetUrl) throw new Error(d?.detail || d?.error || "Blad maken mislukt");
+      setSpec((prev) => prev && {
+        ...prev,
+        cast: prev.cast.map((c) => (c.id === id ? { ...c, modelSheetUrl: d.modelSheetUrl } : c)),
+        // Het castblad komt van de bladen: met een nieuw blad hoort er een nieuw castblad.
+        castSheetUrl: null,
+        castSheetVan: null,
+      });
+    } catch (e) {
+      setFout(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBladBezig(null);
+    }
+  }
+
   async function hertekenScene(si: number, wijziging: HertekenWijziging) {
     if (!spec || hertekenBezig !== null || renderBezig) return;
     const scene = spec.scenes[si];
@@ -1372,6 +1440,35 @@ export default function DialoguePage() {
               </button>
             </div>
           </div>
+          {/* De tekening die naar elk beeld gaat. Zie je hier iets fouts (een ontbrekend
+              rugnummer, een verkeerde pet), maak hem dan opnieuw: dan is hij in het hele
+              storyboard goed. */}
+          {spec.cast.some((c) => c.modelSheetUrl) && (
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
+              <p className="text-[11px] text-slate-400 mb-2">
+                Zo staan je personages in elk beeld. Klopt er iets niet? Maak het blad opnieuw (gratis); daarna maak je de beelden opnieuw.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                {spec.cast.filter((c) => c.modelSheetUrl).map((c) => (
+                  <div key={c.id} className="w-64">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={c.modelSheetUrl ?? ""} alt={c.name} className="w-full rounded border border-white/10 bg-slate-900/60" />
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      <span className="text-[11px] text-slate-300 truncate">{c.name}</span>
+                      <button
+                        onClick={() => void bladOpnieuw(c.id)}
+                        disabled={bladBezig !== null || renderBezig || regelsBezig.length > 0}
+                        className="text-[11px] text-slate-400 hover:text-white underline disabled:opacity-40"
+                      >
+                        {bladBezig === c.id ? "Bezig…" : "↻ Opnieuw"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Een storyboard van vóór de beeldregie: alle scènes op dezelfde plek en
               geen beeld per zin. Aanvullen zou de oude plekken laten staan. */}
           {spec.scenes.some((s) => s.twoShotUrl && !s.geregisseerd) && (

@@ -67,6 +67,9 @@ export async function POST(req: NextRequest) {
       `plain neutral background — from the FRONT, from a THREE-QUARTER angle, and from the SIDE in profile. ` +
       `The character is ${lid.name}${leeftijd ? `, ${leeftijd}` : ""}${uiterlijk ? `: ${uiterlijk}` : ""}. ` +
       // De hele reden van dit blad: het HAAR moet van alle kanten kloppen.
+      // Het blad is voortaan DE tekening die naar elk beeld gaat; wat er hier afvalt, mist
+      // straks in de hele video. Bij Leo verdween het rugnummer 10 van zijn shirt.
+      `Copy every marking exactly as in the reference: shirt numbers, prints, logos, badges, patterns and colours. ` +
       `Their hair is the most important thing to get right: exactly the same colour, the same volume and the ` +
       `same curl or texture in all three views, so that the back and side of the head are unmistakable. ` +
       `Head to feet in each view, standing upright on the same ground line, arms relaxed, neutral expression, ` +
