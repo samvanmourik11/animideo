@@ -80,6 +80,8 @@ export default function DialoguePage() {
   // Voorwerpen uit het draaiboek halen (zie zoekVoorwerpen).
   const [voorwerpenBezig, setVoorwerpenBezig] = useState(false);
   const [bladBezig, setBladBezig] = useState<string | null>(null);
+  // Wat er volgens de controle mis is met een houdingenblad, per personage.
+  const [bladOordeel, setBladOordeel] = useState<Record<string, { ogenDicht: boolean; ontbreekt: string[] }>>({});
   const [voorwerpenMelding, setVoorwerpenMelding] = useState<string | null>(null);
   // Welke voorwerpen nu getekend worden (voorwerpSleutel), in de opzet of het draaiboek.
   const [voorwerpTekenBezig, setVoorwerpTekenBezig] = useState<string[]>([]);
@@ -241,6 +243,33 @@ export default function DialoguePage() {
       .then((d) => setHeeftPersonages(((d.characters ?? []) as { image_url?: string }[]).some((c) => c.image_url)))
       .catch(() => setHeeftPersonages(true));
   }, []);
+
+  // Zodra je de personages te zien krijgt, kijkt de tool ze na: ogen open, niets kwijt.
+  // Zo weet je meteen waarom een blad opnieuw moet, in plaats van het zelf te moeten zien.
+  const bladenTeZien = !!spec && !spec.bladenAkkoord && spec.cast.some((c) => c.modelSheetUrl);
+  const bladenSleutel = spec?.cast.map((c) => c.modelSheetUrl ?? "").join("|") ?? "";
+  useEffect(() => {
+    if (!bladenTeZien || !spec) return;
+    let afgebroken = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/infographics/dialogue-blad-keur", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cast: spec.cast.filter((c) => c.modelSheetUrl) }),
+        });
+        const d = await r.json().catch(() => null);
+        if (afgebroken || !d?.uitslag) return;
+        const uit: Record<string, { ogenDicht: boolean; ontbreekt: string[] }> = {};
+        for (const u of d.uitslag as { id: string; ok: boolean; ogenDicht: boolean; ontbreekt: string[] }[]) {
+          if (!u.ok) uit[u.id] = { ogenDicht: u.ogenDicht, ontbreekt: u.ontbreekt };
+        }
+        setBladOordeel(uit);
+      } catch { /* zonder oordeel zie je de bladen gewoon zonder opmerking */ }
+    })();
+    return () => { afgebroken = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bladenTeZien, bladenSleutel]);
 
   // ---------- Bewaren ----------
   // Slot: voorkomt dat twee gelijktijdige autosaves elk een eigen project aanmaken.
@@ -575,6 +604,42 @@ export default function DialoguePage() {
     // identiteits- én maatreferentie voor élk beeld dat hierna komt. Zonder dat
     // blad verzint het beeldmodel per scène opnieuw hoe groot iemand is — de
     // reden dat de ene keer Tyrell boven Lily uitstak en de volgende keer andersom.
+    // Bladen die al in het project zaten zijn nooit nagekeken: in het voetbalverhaal
+    // stonden Leo's ogen dicht op het blad van de dag ervoor, en dat zat daarna in het
+    // halve storyboard. Eén keer nakijken, en wat niet klopt opnieuw tekenen (gratis).
+    if (!gestopt && werk.cast.some((c) => c.modelSheetUrl && !c.bladGekeurd)) {
+      setVoortgang("Personages nakijken…");
+      try {
+        const r = await fetch("/api/infographics/dialogue-blad-keur", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cast: werk.cast.filter((c) => c.modelSheetUrl && !c.bladGekeurd) }),
+        });
+        const d = await r.json().catch(() => null);
+        for (const uit of (d?.uitslag ?? []) as { id: string; ok: boolean; ogenDicht: boolean; ontbreekt: string[] }[]) {
+          const i = werk.cast.findIndex((c) => c.id === uit.id);
+          if (i < 0) continue;
+          if (uit.ok) { werk.cast[i] = { ...werk.cast[i], bladGekeurd: true }; continue; }
+          try {
+            const nieuw = await fetch("/api/infographics/dialogue-model-sheet", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                lid: { ...werk.cast[i], modelSheetUrl: null }, styleId: werk.styleId, language: werk.language,
+                illustrationBrief: werk.illustrationBrief ?? "", seed: werk.seed,
+              }),
+            });
+            const dd = await nieuw.json().catch(() => null);
+            if (nieuw.ok && dd?.modelSheetUrl) {
+              werk.cast[i] = { ...werk.cast[i], modelSheetUrl: dd.modelSheetUrl, bladGekeurd: true };
+              werk.castSheetUrl = null; werk.castSheetVan = null;
+            }
+          } catch { /* dan blijft het oude blad staan; je ziet hem straks en kunt hem zelf opnieuw maken */ }
+        }
+        setSpec(structuredClone(werk));
+      } catch { /* nakijken is een extraatje, geen reden om te stoppen */ }
+    }
+
     // Het castblad hoort uit dezelfde ronde te komen als de personagetekeningen: anders
     // staan er twee versies van hetzelfde personage in de referenties. Gratis voorbereiding.
     if (!werk.castSheetUrl || werk.castSheetVan !== castbladSoort(werk.cast)) {
@@ -692,6 +757,16 @@ export default function DialoguePage() {
     const werk: DialogueSpec = structuredClone(bron);
     const mislukt: string[] = [];
     let gestopt = await maakBasisbeelden(werk, mislukt);
+    // STOP hier als de personages nog niet gezien zijn. Anders staan er twintig beelden
+    // met een personage dat vanaf het begin fout was, en kon je pas daarna wisselen.
+    if (!gestopt && !werk.bladenAkkoord && werk.cast.some((c) => c.modelSheetUrl)) {
+      setVordering(null);
+      setVoortgang("");
+      setRenderBezig(false);
+      setSpec(structuredClone(werk));
+      void bewaar(werk, projectId);
+      return;
+    }
     // Daarna het beeld per regel: pas dan laat het storyboard zien wat er in de video komt.
     if (!gestopt) gestopt = await maakShotbeelden(werk, mislukt);
     if (gestopt) setRenderFout(gestopt);
@@ -855,7 +930,7 @@ export default function DialoguePage() {
       if (!r.ok || !d?.modelSheetUrl) throw new Error(d?.detail || d?.error || "Blad maken mislukt");
       setSpec((prev) => prev && {
         ...prev,
-        cast: prev.cast.map((c) => (c.id === id ? { ...c, modelSheetUrl: d.modelSheetUrl } : c)),
+        cast: prev.cast.map((c) => (c.id === id ? { ...c, modelSheetUrl: d.modelSheetUrl, bladGekeurd: true } : c)),
         // Het castblad komt van de bladen: met een nieuw blad hoort er een nieuw castblad.
         castSheetUrl: null,
         castSheetVan: null,
@@ -1510,10 +1585,62 @@ export default function DialoguePage() {
               </button>
             </div>
           </div>
+          {/* Eerst akkoord op de personages: die tekening gaat naar élk beeld. Klopt hij
+              niet, dan maak je hem hier opnieuw in plaats van straks twintig beelden. */}
+          {!renderBezig && spec.cast.some((c) => c.modelSheetUrl) && !spec.bladenAkkoord && (
+            <div className="rounded-xl border border-orange-400/40 bg-orange-500/[0.07] px-4 py-4 space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Kloppen je personages?</h3>
+                <p className="text-[11px] text-slate-300 mt-0.5">
+                  Zo gaan ze in élk beeld van je video. Let op de ogen, de kleding en dingen als een rugnummer of een pet.
+                  Klopt er iets niet, maak dat personage dan nu opnieuw (gratis). Pas daarna maken we de beelden.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {spec.cast.filter((c) => c.modelSheetUrl).map((c) => (
+                  <div key={c.id} className="w-72">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={c.modelSheetUrl ?? ""} alt={c.name} className="w-full rounded border border-white/10 bg-slate-900/60" />
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      <span className="text-[11px] text-slate-200 truncate">{c.name}</span>
+                      <button
+                        onClick={() => void bladOpnieuw(c.id)}
+                        disabled={bladBezig !== null}
+                        className="text-[11px] text-orange-300 hover:text-orange-200 underline disabled:opacity-40"
+                      >
+                        {bladBezig === c.id ? "Bezig…" : "↻ Opnieuw"}
+                      </button>
+                    </div>
+                    {bladOordeel[c.id] && (
+                      <p className="text-[11px] text-amber-300 mt-0.5">
+                        {[
+                          bladOordeel[c.id].ogenDicht ? "ogen dicht" : "",
+                          bladOordeel[c.id].ontbreekt.length ? `ontbreekt: ${bladOordeel[c.id].ontbreekt.join(", ")}` : "",
+                        ].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button
+                onClick={() => {
+                  const werk = structuredClone(spec);
+                  werk.bladenAkkoord = true;
+                  setSpec(werk);
+                  void maakStoryboard(werk);
+                }}
+                disabled={bladBezig !== null}
+                className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition"
+              >
+                Deze personages kloppen — maak het storyboard
+              </button>
+            </div>
+          )}
+
           {/* De tekening die naar elk beeld gaat. Zie je hier iets fouts (een ontbrekend
               rugnummer, een verkeerde pet), maak hem dan opnieuw: dan is hij in het hele
               storyboard goed. */}
-          {spec.cast.some((c) => c.modelSheetUrl) && (
+          {spec.bladenAkkoord && spec.cast.some((c) => c.modelSheetUrl) && (
             <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
               <p className="text-[11px] text-slate-400 mb-2">
                 Zo staan je personages in elk beeld. Klopt er iets niet? Maak het blad opnieuw (gratis); daarna maak je de beelden opnieuw.

@@ -161,6 +161,8 @@ export interface DialogueCastMember {
    * Anders dan de tekening die naar de beelden gaat: de beschrijving is verlopen.
    */
   beschrevenVan?: string | null;
+  /** Is dit houdingenblad nagekeken (ogen open, niets kwijt)? Zie dialogue-blad-keur. */
+  bladGekeurd?: boolean | null;
   // Plek in het kader. Bepaalt hoe we spreker/luisteraar benoemen in de prompts.
   position: CastPosition;
   // Kort ENGELS uiterlijk (haar, kleding, leeftijd). Bewust apart van het portret:
@@ -426,6 +428,12 @@ export interface DialogueSpec {
    * beelden: dan zie je twee verschillende versies van hetzelfde personage door elkaar.
    */
   castSheetVan?: "blad" | "portret" | null;
+  /**
+   * Heeft de gebruiker de personages gezien en goedgekeurd? Zonder dat stopt het maken van
+   * het storyboard na de personages: stond je personage vanaf het begin verkeerd, dan moet
+   * je hem kunnen wijzigen vóór er twintig beelden mee gemaakt zijn (Sam, 19-09-2026).
+   */
+  bladenAkkoord?: boolean | null;
   /** Voorwerpen die in het verhaal terugkomen en er in elk beeld hetzelfde uit moeten zien. */
   voorwerpen?: DialogueVoorwerp[] | null;
   /**
