@@ -85,8 +85,18 @@ function ShotTegel({
       </p>
 
       {regel.beeldAanwijzingUitleg && (
-        <p className="text-[10px] leading-snug text-emerald-300/80" title={regel.beeldAanwijzing ?? undefined}>
+        <p
+          className={`text-[10px] leading-snug ${regel.beeldAanwijzingGelukt === false ? "text-amber-300/90" : "text-emerald-300/80"}`}
+          title={regel.beeldAanwijzing ?? undefined}
+        >
           Begrepen: {regel.beeldAanwijzingUitleg}
+        </p>
+      )}
+      {/* Eerlijk zijn als het niet gelukt is. "Aangepast" melden bij een beeld waarin
+          niets veranderd was, kostte deze knop zijn vertrouwen (Sam, 19-09-2026). */}
+      {regel.beeldAanwijzingGelukt === false && (
+        <p className="text-[10px] leading-snug text-amber-400">
+          Dit is twee keer geprobeerd en staat er nog niet. Zeg het anders — noem het ding en waar het moet komen.
         </p>
       )}
 

@@ -19,6 +19,8 @@ import type { VerhaalModus } from "@/lib/infographics/verhaallijn";
 import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
 import { regelKlaar, heeftStem, castbladSoort, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
 import { leesRegie, pasRegieToe, regieNodig } from "@/lib/infographics/beeldregie";
+import { scherpereInstructie } from "@/lib/infographics/beeld-aanwijzing";
+import { isKader, type Kader } from "@/lib/infographics/verhaal-kaders";
 import { MAX_VOORWERPEN, voegVoorwerpenSamen, voorwerpenVoorStijl, type BibliotheekVoorwerp } from "@/lib/infographics/voorwerp-bibliotheek";
 import { tekenVoorwerp, voorwerpSleutel, type TekenContext } from "@/lib/infographics/voorwerp-tekenen";
 import { zitHouding, zegtIetsOverHouding } from "@/lib/infographics/dialogue-staging";
@@ -1013,6 +1015,11 @@ export default function DialoguePage() {
       // opnieuw getekend, met de precieze instructie in plaats van de losse tekst.
       let uitleg: string | null = null;
       let instructie = tekst;
+      // De kijkvraag waaraan je ziet of de aanwijzing is uitgevoerd, en het
+      // camerastandpunt als de gebruiker om dichterbij of verder weg vroeg.
+      let controle: string | null = null;
+      let nieuwKader: Kader | null = null;
+      let gelukt: boolean | null = null;
       let nieuw: { shotImageUrl: string; sprekerZeker?: boolean | null; beeldWaarschuwingen?: string[] | null } | null = null;
       if (tekst && heeftBeeld) {
         const r = await fetch("/api/infographics/dialogue-aanwijzing", {
@@ -1024,20 +1031,47 @@ export default function DialoguePage() {
         if (!r.ok) { setRenderFout(creditFout(d)); return; }
         uitleg = d.begrepen ?? null;
         instructie = d.instructie || tekst;
-        if (d.shotImageUrl) nieuw = { shotImageUrl: d.shotImageUrl };
+        controle = typeof d.controle === "string" && d.controle ? d.controle : null;
+        nieuwKader = isKader(d.kader) ? d.kader : null;
+        if (d.shotImageUrl) {
+          nieuw = { shotImageUrl: d.shotImageUrl };
+          gelukt = typeof d.gelukt === "boolean" ? d.gelukt : null;
+        }
       }
       if (!nieuw) {
-        const r = await fetch("/api/infographics/dialogue-line", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(regelVerzoek(werk, si, li, { alleenBeeld: true, beeldInstructie: instructie })),
-        });
-        const d = await r.json();
-        if (!r.ok) { setRenderFout(creditFout(d)); return; }
-        if (!d.shotImageUrl) { setRenderFout("Er kwam geen beeld terug. Probeer het nog eens."); return; }
-        nieuw = { shotImageUrl: d.shotImageUrl, sprekerZeker: d.sprekerZeker ?? null, beeldWaarschuwingen: d.beeldWaarschuwingen ?? null };
+        // "Leo moet groter in beeld" bleef een nauwelijks grotere Leo zolang het kader
+        // van het shot op medium stond: dat kader won van de losse zin. Vraagt de
+        // gebruiker om een ander standpunt, dan verandert het kader mee — ook voor de
+        // clip die er straks van gemaakt wordt.
+        if (nieuwKader) werk.scenes[si].lines[li].kader = nieuwKader;
+        let opdracht = instructie;
+        // Twee pogingen: opnieuw tekenen, kijken of het er nu staat, en zo niet nog
+        // één keer mét wat er misging. Zonder die controle meldde de app "aangepast"
+        // bij een beeld waarin niets veranderd was.
+        for (let poging = 1; poging <= 2; poging++) {
+          const r = await fetch("/api/infographics/dialogue-line", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(regelVerzoek(werk, si, li, { alleenBeeld: true, beeldInstructie: opdracht })),
+          });
+          const d = await r.json();
+          if (!r.ok) { setRenderFout(creditFout(d)); return; }
+          if (!d.shotImageUrl) { setRenderFout("Er kwam geen beeld terug. Probeer het nog eens."); return; }
+          nieuw = { shotImageUrl: d.shotImageUrl, sprekerZeker: d.sprekerZeker ?? null, beeldWaarschuwingen: d.beeldWaarschuwingen ?? null };
+          if (!controle) break;
+          const c = await fetch("/api/infographics/beeld-controle", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ imageUrl: d.shotImageUrl, vraag: controle }),
+          });
+          const cd = await c.json().catch(() => ({}));
+          gelukt = typeof cd.ja === "boolean" ? cd.ja : null;
+          if (gelukt !== false || poging === 2) break;
+          opdracht = scherpereInstructie(instructie ?? "", controle, typeof cd.waarom === "string" ? cd.waarom : "");
+        }
       }
       const beeld = nieuw;
+      if (!beeld) { setRenderFout("Er kwam geen beeld terug. Probeer het nog eens."); return; }
       // Alleen deze regel bijwerken: intussen kan elders al een ander beeld klaar zijn.
       setSpec((prev) => prev && {
         ...prev,
@@ -1047,6 +1081,8 @@ export default function DialoguePage() {
             ...l,
             beeldAanwijzing: tekst,
             beeldAanwijzingUitleg: uitleg,
+            beeldAanwijzingGelukt: tekst ? gelukt : null,
+            kader: nieuwKader ?? l.kader,
             shotImageUrl: beeld.shotImageUrl,
             sprekerZeker: beeld.sprekerZeker ?? l.sprekerZeker ?? null,
             beeldWaarschuwingen: beeld.beeldWaarschuwingen ?? null,

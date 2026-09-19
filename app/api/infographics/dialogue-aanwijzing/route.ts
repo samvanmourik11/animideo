@@ -6,15 +6,17 @@ import { bewerkBeeld } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { beeldAlsDataUrl } from "@/lib/infographics/beeld-inline";
 import {
-  aanwijzingContext, aanwijzingVraag, isIndelingsAanwijzing, leesOpDeGrond, AANWIJZING_SCHEMA, AANWIJZING_SYSTEEM,
+  aanwijzingContext, aanwijzingVraag, isIndelingsAanwijzing, leesOpDeGrond, leesControle, leesKader,
+  scherpereInstructie, AANWIJZING_SCHEMA, AANWIJZING_SYSTEEM,
 } from "@/lib/infographics/beeld-aanwijzing";
+import { controleerAanwijzing } from "@/lib/infographics/aanwijzing-controle";
 import { zetOpDeGrond } from "@/lib/infographics/schets-bewerking";
 import { deductCredits, addCredits } from "@/lib/credits";
 import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import type { DialogueSpec } from "@/lib/infographics/dialogue-schema";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 240;
 
 interface Body {
   spec?: DialogueSpec;
@@ -96,7 +98,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    let uitleg: { begrepen?: unknown; instructie?: unknown; klein?: unknown; opDeGrond?: unknown };
+    let uitleg: {
+      begrepen?: unknown; instructie?: unknown; klein?: unknown; opDeGrond?: unknown; controle?: unknown; kader?: unknown;
+    };
     try {
       uitleg = JSON.parse(antwoord.choices[0]?.message?.content ?? "{}");
     } catch {
@@ -105,18 +109,22 @@ export async function POST(req: NextRequest) {
     const begrepen = typeof uitleg.begrepen === "string" && uitleg.begrepen.trim() ? uitleg.begrepen.trim() : null;
     const instructie = typeof uitleg.instructie === "string" && uitleg.instructie.trim() ? uitleg.instructie.trim() : aanwijzing;
     const opDeGrond = leesOpDeGrond(uitleg.opDeGrond);
+    const controle = leesControle(uitleg.controle);
+    // Een kader hoort bij een ander camerastandpunt, en dat kan een bewerking niet:
+    // dat is altijd opnieuw tekenen (zie leesKader).
+    const kader = leesKader(uitleg.kader);
     // Een zwevend voorwerp rechtzetten is een ingreep op één plek in het beeld: het
     // goedgekeurde shot blijft staan, ook als het model het als grote wijziging zag.
     // Verplaatsen, groter maken, iemand erbij: dat lukt een bewerking niet (zie
     // isIndelingsAanwijzing). Dan het beeld opnieuw tekenen met de aanwijzing erin.
-    const indeling = isIndelingsAanwijzing(aanwijzing, instructie);
+    const indeling = isIndelingsAanwijzing(aanwijzing, instructie) || !!kader;
     const klein = (uitleg.klein === true && !indeling) || !!opDeGrond;
     console.log(
       `[dialogue-aanwijzing] scène ${si + 1} shot ${li + 1}: "${aanwijzing}" → ` +
         `${opDeGrond ? `schets (${opDeGrond} op de grond)` : klein ? "bewerken" : `opnieuw tekenen${indeling ? " (indeling)" : ""}`}: ${instructie}`,
     );
 
-    if (!klein) return NextResponse.json({ klein: false, begrepen, instructie });
+    if (!klein) return NextResponse.json({ klein: false, begrepen, instructie, controle, kader });
 
     const credit = await deductCredits(user.id, DIALOOG_CREDITS.LOS_BEELD, "Storyboardbeeld aanpassen");
     if (!credit.success) {
@@ -137,18 +145,48 @@ export async function POST(req: NextRequest) {
         : null;
       // Alleen een castblad van de echte karakters (zie DialogueSpec.castSheetVan).
       const castblad = spec.castSheetVan === "portret" ? (spec.castSheetUrl ?? "").trim() : "";
-      const nieuwUrl = geschetst ?? (await bewerkBeeld({
-        bronUrl: doel,
-        instructie,
-        referentieUrls: [castblad].filter(Boolean),
-        referentieUitleg: castblad
-          ? "The second image is the character line-up sheet: it shows exactly how the characters look. Use it only for " +
-            "their appearance; do not copy its layout, background or poses."
-          : undefined,
-        format: spec.format,
-      })).imageUrl;
+      const bewerk = async (opdracht: string) =>
+        (await bewerkBeeld({
+          bronUrl: doel,
+          instructie: opdracht,
+          referentieUrls: [castblad].filter(Boolean),
+          referentieUitleg: castblad
+            ? "The second image is the character line-up sheet: it shows exactly how the characters look. Use it only for " +
+              "their appearance; do not copy its layout, background or poses."
+            : undefined,
+          format: spec.format,
+        })).imageUrl;
+
+      let nieuwUrl = geschetst ?? (await bewerk(instructie));
+      // Klaar zijn is niet hetzelfde als gelukt. Zonder deze controle meldde de app
+      // "aangepast" bij een beeld waarin niets veranderd was — precies het punt waar de
+      // knop zijn vertrouwen verloor. Eén herkansing met de fout erbij, en lukt het dan
+      // nog niet, dan gaat het shot naar het opnieuw tekenen in plaats van dat we een
+      // onveranderd beeld als klaar verkopen.
+      let uitslag = controle ? await controleerAanwijzing(nieuwUrl, controle) : { ja: null, waarom: "" };
+      if (controle && uitslag.ja === false) {
+        console.warn(`[dialogue-aanwijzing] bewerking deed het niet: ${uitslag.waarom || "geen verschil te zien"}; herkansing`);
+        const tweede = await bewerk(scherpereInstructie(instructie, controle, uitslag.waarom)).catch((e) => {
+          console.error("[dialogue-aanwijzing] herkansing mislukt:", e);
+          return null;
+        });
+        if (tweede) {
+          const tweedeUitslag = await controleerAanwijzing(tweede, controle);
+          if (tweedeUitslag.ja !== false) {
+            nieuwUrl = tweede;
+            uitslag = tweedeUitslag;
+          }
+        }
+      }
+      if (controle && uitslag.ja === false) {
+        // Niets opgeleverd, dus ook niets in rekening brengen; de pagina tekent het
+        // shot nu opnieuw met dezelfde instructie en controlevraag.
+        await addCredits(user.id, DIALOOG_CREDITS.LOS_BEELD, "Refund: bewerking deed de aanpassing niet").catch(() => {});
+        console.warn(`[dialogue-aanwijzing] bewerken lukte twee keer niet; shot gaat naar opnieuw tekenen`);
+        return NextResponse.json({ klein: false, begrepen, instructie, controle, kader, bewerkingMislukt: true });
+      }
       const shotImageUrl = await persistFalAssetSoft(supabase, user.id, nieuwUrl, "image");
-      return NextResponse.json({ klein: true, begrepen, instructie, shotImageUrl });
+      return NextResponse.json({ klein: true, begrepen, instructie, controle, kader, shotImageUrl, gelukt: uitslag.ja ?? null });
     } catch (e) {
       await addCredits(user.id, DIALOOG_CREDITS.LOS_BEELD, "Refund: storyboardbeeld aanpassen").catch(() => {});
       throw e;

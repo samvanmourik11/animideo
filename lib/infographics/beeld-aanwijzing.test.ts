@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { aanwijzingContext, aanwijzingVraag, leesOpDeGrond, AANWIJZING_SCHEMA, isIndelingsAanwijzing } from "./beeld-aanwijzing";
+import {
+  aanwijzingContext, aanwijzingVraag, leesOpDeGrond, leesControle, leesKader, scherpereInstructie,
+  AANWIJZING_SCHEMA, isIndelingsAanwijzing,
+} from "./beeld-aanwijzing";
 import type { DialogueScene, DialogueSpec } from "./dialogue-schema";
 
 // "Het kapsel van het rechter poppetje moet hetzelfde zijn als de andere foto's van
@@ -100,5 +103,54 @@ describe("isIndelingsAanwijzing", () => {
       "zijn trui moet groen zijn",
       "Give the turtle a red cap.",
     ]) expect(isIndelingsAanwijzing(t)).toBe(false);
+  });
+});
+
+// Het model schrijft de aanwijzing om naar het Engels, en gebruikt "add" voor het
+// kleinste detail. Die omschrijving mocht niet meer beslissen dat het beeld opnieuw
+// getekend wordt: "maak de lucht bewolkt" kwam zo terug met een ander kader en een
+// andere achtergrond (gemeten 19-09-2026).
+describe("isIndelingsAanwijzing met de Engelse omschrijving erbij", () => {
+  it("laat 'add' in de omschrijving het beeld niet hertekenen", () => {
+    expect(isIndelingsAanwijzing("maak de lucht bewolkt", "Add several fluffy white clouds across the sky.")).toBe(false);
+    expect(isIndelingsAanwijzing("Coco moet zijn fluit vasthouden", "Add the whistle to the turtle's right hand.")).toBe(false);
+  });
+
+  it("blijft verplaatsen wél herkennen, ook alleen in de omschrijving", () => {
+    expect(isIndelingsAanwijzing("het doel hoort aan de andere kant", "Move the goal to the left side.")).toBe(true);
+    expect(isIndelingsAanwijzing("zet Coco erbij", "Draw the turtle beside the lion.")).toBe(true);
+  });
+});
+
+describe("leesControle", () => {
+  it("neemt een bruikbare kijkvraag over", () => {
+    expect(leesControle("  Are the lion's eyes  open? ")).toBe("Are the lion's eyes open?");
+  });
+
+  it("weigert wat te kort of te lang is om een vraag te zijn", () => {
+    expect(leesControle("ja?")).toBeNull();
+    expect(leesControle("a".repeat(301))).toBeNull();
+    expect(leesControle(null)).toBeNull();
+  });
+
+  it("staat in het verplichte antwoord", () => {
+    expect(AANWIJZING_SCHEMA.required).toContain("controle");
+  });
+});
+
+describe("leesKader", () => {
+  it("neemt alleen bestaande camerastandpunten over", () => {
+    expect(leesKader("close")).toBe("close");
+    expect(leesKader("")).toBeNull();
+    expect(leesKader("heel dichtbij")).toBeNull();
+  });
+});
+
+describe("scherpereInstructie", () => {
+  it("zet erbij wat er misging en wat er te zien moet zijn", () => {
+    const t = scherpereInstructie("Open the lion's eyes.", "Are the lion's eyes open?", "The lion's eyes are closed.");
+    expect(t).toContain("Open the lion's eyes.");
+    expect(t).toContain("The lion's eyes are closed.");
+    expect(t).toContain("Are the lion's eyes open?");
   });
 });

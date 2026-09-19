@@ -9,7 +9,7 @@ import { randomUUID } from "node:crypto";
 import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
 import { zorgVoorBeschrijving } from "@/lib/infographics/personage-blad";
-import { generateImageWithStyle } from "@/lib/image-gen";
+import { generateImageWithStyle, bewerkBeeld } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { kiesStem, TAALCODE } from "@/lib/infographics/dialogue-stem";
 import {
@@ -27,6 +27,7 @@ import {
 import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld, beoordeelBeweging, type SprekerOordeel } from "@/lib/infographics/dialogue-verify";
+import { ontbrekendeKleding } from "@/lib/infographics/aanwijzing-controle";
 import {
   castbladSoort, referentieVan, sprekerHelft, ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC, VERTELLER_ID,
   type DialogueCastMember, type DialogueVoorwerp, type ShotSoort,
@@ -606,6 +607,34 @@ export async function POST(req: NextRequest) {
     if (!shotImageUrl) {
       await terugstorten();
       return NextResponse.json({ error: "Bronbeeld voor deze regel mislukt" }, { status: 500 });
+    }
+
+    // Een correctie mag je personage niet kosten. "Zet de bal tussen ze in" leverde een
+    // prima beeld op, maar Coco was zijn pet kwijt: het shot wordt voor zo'n aanwijzing
+    // helemaal opnieuw getekend en dan valt er weleens iets af (gemeten 19-09-2026). Wat
+    // ontbreekt tekenen we er met een kleine bewerking weer bij — precies het soort
+    // detailcorrectie dat wél lukt. Alleen bij een correctie: een heel storyboard zou
+    // hier twintig extra kijkvragen aan kwijt zijn.
+    if (beeldInstructie && shotImageUrl && !uitScenebeeld) {
+      const kwijt = await ontbrekendeKleding(shotImageUrl, cast);
+      if (kwijt.length) {
+        console.warn(`[dialogue-line] na de correctie ontbreekt: ${kwijt.join("; ")}; bijtekenen`);
+        try {
+          const hersteld = await bewerkBeeld({
+            bronUrl: shotImageUrl,
+            instructie:
+              `Add back to this picture: ${kwijt.join(", ")}. ` +
+              "Keep everything else exactly as it is: same characters, same poses, same framing, same background, same colours.",
+            format,
+          });
+          const gecontroleerd = await persistFalAssetSoft(supabase, user.id, hersteld.imageUrl, "image");
+          const nogKwijt = await ontbrekendeKleding(gecontroleerd, cast);
+          // Alleen houden als het bijtekenen echt hielp; anders het beeld van de correctie zelf.
+          if (nogKwijt.length < kwijt.length) shotImageUrl = gecontroleerd;
+        } catch (e) {
+          console.error("[dialogue-line] bijtekenen mislukt:", e);
+        }
+      }
     }
 
     // Voor het storyboard zijn we hier klaar: het beeld is gemaakt en gecontroleerd.

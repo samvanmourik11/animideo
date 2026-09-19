@@ -275,6 +275,13 @@ export interface DialogueLine {
    * afro"). Staat bij het beeld, zodat je ziet of "het rechter poppetje" goed begrepen is.
    */
   beeldAanwijzingUitleg?: string | null;
+  /**
+   * Is die aanwijzing ook echt uitgevoerd? false = de app heeft het geprobeerd en het
+   * staat er nog steeds niet. Dat hoort de gebruiker te zien: "aangepast" zeggen bij een
+   * onveranderd beeld was het grootste ergernispunt van deze knop (Sam, 19-09-2026).
+   * null = niet gecontroleerd (oudere projecten, of het kijken lukte niet).
+   */
+  beeldAanwijzingGelukt?: boolean | null;
   // Bronbeeld van DEZE regel: het twee-shot van de scène, bijgewerkt zodat dit
   // personage praat en de ander in luisterhouding staat.
   shotImageUrl?: string | null;
