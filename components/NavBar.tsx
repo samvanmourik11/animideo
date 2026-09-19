@@ -74,10 +74,15 @@ export default function NavBar({ email, credits, plan, creditsResetDate, hideLer
           <Link href="/characters" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
             Personages
           </Link>
-          {/* De voorwerpenbibliotheek hoort bij de dialoogtool en gaat met die tool open. */}
+          {/* Voorwerpen en omgevingen horen bij de dialoogtool en gaan met die tool open. */}
           {canUseDialoog(email) && (
             <Link href="/voorwerpen" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
               Voorwerpen
+            </Link>
+          )}
+          {canUseDialoog(email) && (
+            <Link href="/omgevingen" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">
+              Omgevingen
             </Link>
           )}
           <Link href="/brand" className="text-sm text-slate-500 hover:text-slate-200 transition-colors">

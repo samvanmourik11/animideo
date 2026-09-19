@@ -13,6 +13,7 @@ import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht"
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld } from "@/lib/infographics/dialogue-verify";
 import { MAX_CAST, castbladSoort, referentieVan, type DialogueCastMember, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
+import { omgevingRegie, variantVoorKader, type Omgeving } from "@/lib/infographics/omgeving";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
 
@@ -46,6 +47,8 @@ interface Body {
   voorwerpen?: DialogueVoorwerp[];
   /** Zitten ze bij het begin van de scène? Zie zitHouding. */
   zit?: boolean;
+  /** De plek uit de omgevingenbibliotheek, met de getekende varianten. Zie omgeving.ts. */
+  omgeving?: Omgeving | null;
 }
 
 // Het beeld van de plek van één scène: de cast op die plek. In het storyboard is
@@ -134,6 +137,10 @@ export async function POST(req: NextRequest) {
       .filter((v) => typeof v?.naam === "string" && typeof v?.uiterlijk === "string")
       .slice(0, 2);
     const voorwerpBladen = voorwerpen.map((v) => (v.bladUrl ?? "").trim()).filter(Boolean);
+    // De plek van deze scène: het beeld dat het meeste van de omgeving laat zien,
+    // want een plekbeeld is een wijd shot.
+    const plekBeeld = body.omgeving ? variantVoorKader(body.omgeving, "totaal")?.url ?? "" : "";
+
     // Alleen een castblad van de echte karakters; een ouder blad kwam van de model sheets.
     const castblad = body.castSheetVan === castbladSoort(cast) ? (body.castSheetUrl ?? "").trim() : "";
     // Het castblad gaat als "merk-referentie" mee: dat is de enige categorie die
@@ -197,9 +204,13 @@ export async function POST(req: NextRequest) {
         characterUrls: portretten,
         // De voorwerpbladen staan bij het castblad: dezelfde soort referentie, iets
         // wat exact overgenomen moet worden.
-        brandUrls: [castblad, ...voorwerpBladen].filter(Boolean),
+        // Het beeld van de plek gaat als eerste mee: dit is DE achtergrond van deze
+        // scène. Zonder plaatje verzon elk beeld zijn eigen veld (andere bomen, doel
+        // aan de andere kant) — zie omgeving.ts.
+        brandUrls: [plekBeeld, castblad, ...voorwerpBladen].filter(Boolean),
         extraContext: [
           illustratieContext(body.illustrationBrief),
+          plekBeeld ? omgevingRegie(body.omgeving!) : "",
           castbladInstructie,
           alleenDezeMensen,
           // Hetzelfde bos in elk beeld, en dezelfde look: zie wereldRegie en STIJL_VAST.

@@ -28,6 +28,7 @@ import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht"
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld, beoordeelBeweging, type SprekerOordeel } from "@/lib/infographics/dialogue-verify";
 import { ontbrekendeKleding } from "@/lib/infographics/aanwijzing-controle";
+import { omgevingRegie, variantVoorKader, type Omgeving } from "@/lib/infographics/omgeving";
 import {
   castbladSoort, referentieVan, sprekerHelft, ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC, VERTELLER_ID,
   type DialogueCastMember, type DialogueVoorwerp, type ShotSoort,
@@ -184,6 +185,8 @@ interface Body {
    * zin. De clip gebruikt dat beeld later via hergebruikShotImageUrl.
    */
   alleenBeeld?: boolean;
+  /** De plek uit de omgevingenbibliotheek, met de getekende varianten. Zie omgeving.ts. */
+  omgeving?: Omgeving | null;
 }
 
 // Eén gesproken regel = één clip waarin precies dit personage praat en de anderen
@@ -420,6 +423,12 @@ export async function POST(req: NextRequest) {
     // Elke afkeuring bleef zo een waarschuwing zonder herkansing — twee Tyrells of
     // een vreemd meisje gingen gewoon de clip in — terwijl er wél een credit voor de
     // herkansing werd afgeschreven. Nu houden we het minst foute beeld apart bij.
+    // Welk beeld van de plek er meegaat, hangt af van het camerastandpunt van deze
+    // poging: bij een close-up is het wijde totaalbeeld een slechte referentie (dan komt
+    // de hele horizon achter een gezicht terecht).
+    const plekBeeld = (kader: Kader | null) =>
+      b.omgeving ? variantVoorKader(b.omgeving, kader)?.url ?? "" : "";
+
     const alHerbruikbaar = shotImageUrl !== null;
     let beste: { url: string; fouten: string[]; oordeel: SprekerOordeel; ernst: number } | null = null;
     // Teruggevallen op het scènebeeld: de pagina laat dat zien, zodat je weet waarom twee
@@ -464,7 +473,10 @@ export async function POST(req: NextRequest) {
           // Het castblad weegt het zwaarst: het legt de identiteit én de
           // onderlinge lengte vast. Zonder blad (oudere projecten) doen de
           // portretten dat werk, maar die zeggen niets over lichaamsbouw.
-          brandUrls: [(b.castSheetUrl ?? "").trim(), ...voorwerpBladen].filter(Boolean),
+          // De plek van deze scène gaat als eerste mee: het beeld dat bij dít
+          // camerastandpunt hoort (een close-up krijgt het detailbeeld, een totaal het
+          // wijde beeld). Zonder plaatje verzon elk shot zijn eigen veld — zie omgeving.ts.
+          brandUrls: [plekBeeld(kaderNu), (b.castSheetUrl ?? "").trim(), ...voorwerpBladen].filter(Boolean),
           // Identiteit: liefst de model sheet (voren, schuin, opzij), anders het
           // portret. Het portret toont maar één hoek; bij een shot van opzij moest
           // het model de rest van het hoofd zelf verzinnen en veranderde het haar.
@@ -476,6 +488,7 @@ export async function POST(req: NextRequest) {
             .filter(Boolean),
           extraContext: [
             illustratieContext(b.illustrationBrief),
+            plekBeeld(kaderNu) && b.omgeving ? omgevingRegie(b.omgeving) : "",
             (b.castSheetUrl ?? "").trim()
               ? "One reference image is a CHARACTER LINE-UP SHEET of everyone in this video, full body. " +
                 "The people in this shot must match that sheet exactly — same faces, hair, clothing, build, " +

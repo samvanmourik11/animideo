@@ -20,6 +20,8 @@ import { DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/sto
 import { regelKlaar, heeftStem, castbladSoort, sceneCast, voorwerpenInScene, bruikbareRegel, VIDEO_STANDAARD_SEC, type DialogueSpec, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
 import { leesRegie, pasRegieToe, regieNodig } from "@/lib/infographics/beeldregie";
 import { scherpereInstructie } from "@/lib/infographics/beeld-aanwijzing";
+import type { Omgeving } from "@/lib/infographics/omgeving";
+import { tekenOmgeving } from "@/lib/infographics/omgeving-tekenen";
 import { isKader, type Kader } from "@/lib/infographics/verhaal-kaders";
 import { MAX_VOORWERPEN, voegVoorwerpenSamen, voorwerpenVoorStijl, type BibliotheekVoorwerp } from "@/lib/infographics/voorwerp-bibliotheek";
 import { tekenVoorwerp, voorwerpSleutel, type TekenContext } from "@/lib/infographics/voorwerp-tekenen";
@@ -79,6 +81,8 @@ export default function DialoguePage() {
   // Van welke regels ("si-li") het storyboard nu los een nieuw beeld maakt. Een
   // lijst, want je wilt niet op het ene beeld wachten voor je het volgende aanpast.
   const [regelsBezig, setRegelsBezig] = useState<string[]>([]);
+  // Scènes waarvan nu de plek getekend wordt (zie legOmgevingVast).
+  const [omgevingenBezig, setOmgevingenBezig] = useState<number[]>([]);
   // Voorwerpen uit het draaiboek halen (zie zoekVoorwerpen).
   const [voorwerpenBezig, setVoorwerpenBezig] = useState(false);
   const [bladBezig, setBladBezig] = useState<string | null>(null);
@@ -476,9 +480,10 @@ export default function DialoguePage() {
    */
   function twoShotVerzoek(werk: DialogueSpec, si: number) {
     const s = werk.scenes[si];
-    // Hier gingen eerdere plekbeelden mee als voorbeeld (anker, zelfde plek, licht).
-    // Dat leverde kopieën met een harde, overbelichte afwerking op; zie
-    // dialogue-twoshot. Elke plek wordt nu vanaf de omschrijving getekend.
+    // Hier gingen eerdere SCÈNEBEELDEN mee als voorbeeld (anker, zelfde plek, licht).
+    // Dat leverde kopieën met een harde, overbelichte afwerking op; zie dialogue-twoshot.
+    // Wat er nu wél meegaat is het beeld van de PLEK uit de bibliotheek: een lege
+    // omgeving zonder personages erin, waar niets van af te kijken valt dan de plek zelf.
     return {
       // Alleen wie er in DEZE scene speelt. De hele cast meesturen gaf bij
       // meer dan drie personages beelden vol mensen die er niets te zoeken
@@ -490,6 +495,9 @@ export default function DialoguePage() {
       sceneIndex: si,
       wereld: s.wereld ?? null,
       licht: s.licht ?? null,
+      // De plek met haar getekende varianten (zie omgeving.ts): het beeld van de plek
+      // gaat mee als referentie, zodat elke scène op dezelfde plek speelt.
+      omgeving: s.omgeving ?? null,
       aanwijzing: s.beeldAanwijzing ?? undefined,
       voorwerpen: voorwerpenInScene(werk.voorwerpen, s, 0),
       // Het scènebeeld volgt de houding van het openingsbeeld: zitten ze aan tafel,
@@ -538,6 +546,8 @@ export default function DialoguePage() {
       illustrationBrief: werk.illustrationBrief ?? "",
       setting: scene.setting,
       wereld: scene.wereld ?? undefined,
+      // De plek met haar getekende varianten: die houdt de achtergrond gelijk.
+      omgeving: scene.omgeving ?? null,
       beeld: regel.beeld ?? undefined,
       // Het kader van dit shot, plus dat van het vorige zodat er geen twee dezelfde
       // achter elkaar komen. Het vorige shot kan in een eerdere scene liggen.
@@ -995,6 +1005,55 @@ export default function DialoguePage() {
    * Eén beeld per regel opnieuw maken vanuit het storyboard, met de aanwijzing van
    * de gebruiker. De stem blijft staan; een clip die bij het oude beeld hoorde niet.
    */
+  /**
+   * Een plek aan een scène hangen — en aan elke andere scène in hetzelfde gebied.
+   *
+   * Scènes die op dezelfde plek spelen hoorden er al uit te zien als dezelfde plek
+   * (zie DialogueScene.gebied), maar dat stond alleen in woorden. Nu delen ze ook het
+   * BEELD van die plek, dus je legt hem één keer vast voor het hele gebied.
+   */
+  function zetOmgeving(si: number, omgeving: Omgeving | null) {
+    setSpec((prev) => {
+      if (!prev) return prev;
+      const gebied = (prev.scenes[si]?.gebied ?? "").trim().toLowerCase();
+      return {
+        ...prev,
+        scenes: prev.scenes.map((s, i) => {
+          const zelfdeGebied = !!gebied && (s.gebied ?? "").trim().toLowerCase() === gebied;
+          return i === si || zelfdeGebied ? { ...s, omgeving } : s;
+        }),
+      };
+    });
+  }
+
+  /** De plek van deze scène tekenen (drie varianten) en in je bibliotheek zetten. */
+  async function legOmgevingVast(si: number, naam: string) {
+    if (!spec || omgevingenBezig.includes(si)) return;
+    const scene = spec.scenes[si];
+    if (!scene) return;
+    // De wereldtekst van het gebied beschrijft de plek het volledigst; zonder die is
+    // de setting van deze scène het enige wat we hebben.
+    const beschrijving = [scene.wereld ?? "", scene.setting ?? ""].map((t) => t.trim()).filter(Boolean).join(" ");
+    if (!beschrijving) { setRenderFout("Deze scène heeft nog geen omschrijving van de plek."); return; }
+
+    setOmgevingenBezig((b) => [...b, si]);
+    setRenderFout(null);
+    try {
+      const uit = await tekenOmgeving(naam || scene.setting.slice(0, 60), beschrijving, {
+        styleId: spec.styleId,
+        format: spec.format,
+        language: spec.language,
+        illustrationBrief: spec.illustrationBrief ?? "",
+        seed: spec.seed,
+        bibliotheekId: scene.omgeving?.id || null,
+      });
+      if ("fout" in uit) { setRenderFout(uit.fout); return; }
+      zetOmgeving(si, uit.omgeving);
+    } finally {
+      setOmgevingenBezig((b) => b.filter((x) => x !== si));
+    }
+  }
+
   async function hertekenRegel(si: number, li: number, aanwijzing: string) {
     if (!spec || renderBezig || hertekenBezig !== null) return;
     const sleutel = `${si}-${li}`;
@@ -1742,6 +1801,9 @@ export default function DialoguePage() {
             spec={spec}
             onOpnieuw={hertekenScene}
             onRegelOpnieuw={(si, li, aanwijzing) => void hertekenRegel(si, li, aanwijzing)}
+            onOmgeving={zetOmgeving}
+            onOmgevingVastleggen={(si, naam) => void legOmgevingVast(si, naam)}
+            omgevingenBezig={omgevingenBezig}
             bezigMet={hertekenBezig}
             regelsBezig={regelsBezig}
             disabled={renderBezig}

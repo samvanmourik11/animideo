@@ -18,6 +18,8 @@
 // Strict-mode (OpenAI json_schema): elk object heeft ALLE properties in
 // `required` en `additionalProperties:false`; optionele velden zijn nullable.
 
+import type { Omgeving } from "./omgeving";
+
 /**
  * Gereserveerd id voor de VERTELLER: een stem die bij geen enkel personage hoort.
  * Een verteller kan alleen over een actiebeeld praten — in een twee-shot zou je
@@ -352,6 +354,17 @@ export interface DialogueScene {
    * Null = de beeldregie heeft dit nog niet ingevuld; leeg = hij gaf er geen.
    */
   wereld?: string | null;
+  /**
+   * De plek uit de omgevingenbibliotheek waar deze scène speelt, met de getekende
+   * varianten erbij (zie omgeving.ts).
+   *
+   * Dit is de enige plek die ook een PLAATJE heeft. `setting` en `wereld` zijn tekst,
+   * en tekst laat het beeldmodel elke keer een ander veld verzinnen: in "Leo de Leeuw
+   * leert voetballen" stonden in het ene shot platte lollybomen zonder doel en in het
+   * volgende een dicht bos mét doel. Een kopie in de scène, net als bij de voorwerpen,
+   * zodat een oude video niet verandert als de bibliotheek later wordt aangepast.
+   */
+  omgeving?: Omgeving | null;
   /** Is de beeldregie over deze scène gegaan (eigen plek, beeld per regel)? */
   geregisseerd?: boolean | null;
 }
