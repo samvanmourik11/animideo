@@ -22,6 +22,7 @@ import { leesRegie, pasRegieToe, regieNodig } from "@/lib/infographics/beeldregi
 import { scherpereInstructie } from "@/lib/infographics/beeld-aanwijzing";
 import type { Omgeving } from "@/lib/infographics/omgeving";
 import { tekenOmgeving } from "@/lib/infographics/omgeving-tekenen";
+import OmgevingKiezer from "@/components/dialogue/OmgevingKiezer";
 import { isKader, type Kader } from "@/lib/infographics/verhaal-kaders";
 import { MAX_VOORWERPEN, voegVoorwerpenSamen, voorwerpenVoorStijl, type BibliotheekVoorwerp } from "@/lib/infographics/voorwerp-bibliotheek";
 import { tekenVoorwerp, voorwerpSleutel, type TekenContext } from "@/lib/infographics/voorwerp-tekenen";
@@ -728,6 +729,14 @@ export default function DialoguePage() {
       } catch { mislukt.push("de beeldregie (plekken en beelden per zin)"); }
     }
 
+    // STOP hier als de plekken nog niet vastgelegd zijn. Je wilt de omgeving eerst
+    // bepalen en dan pas tekenen; anders staat er een storyboard vol beelden van een
+    // plek die je nog moest kiezen (Sam, 21-09-2026). De beeldregie is nu geweest, dus
+    // elke scène weet in welk gebied hij speelt — precies wat een plek beschrijft.
+    if (!gestopt && !werk.omgevingenAkkoord && werk.scenes.some((s) => !s.twoShotUrl)) {
+      return PAUZE_PLEKKEN;
+    }
+
     // Daarna per scène het twee-shot: elke regel is straks een bewerking daarvan.
     // BEWUST één voor één en niet parallel: het eerste twee-shot is het anker voor
     // alle volgende, zodat de personages tussen scènes niet veranderen.
@@ -759,6 +768,25 @@ export default function DialoguePage() {
   }
 
   /**
+   * De plekken van dit verhaal: scènes met hetzelfde gebied horen op dezelfde plek en
+   * delen één omgeving. Zonder gebied (oudere projecten) is elke scène zijn eigen plek.
+   */
+  function plekGroepen(werk: DialogueSpec): { sleutel: string; naam: string; si: number; scenes: number[] }[] {
+    const groepen = new Map<string, { sleutel: string; naam: string; si: number; scenes: number[] }>();
+    werk.scenes.forEach((s, si) => {
+      const gebied = (s.gebied ?? "").trim();
+      const sleutel = gebied ? gebied.toLowerCase() : `scene-${si}`;
+      const bestaand = groepen.get(sleutel);
+      if (bestaand) bestaand.scenes.push(si);
+      else groepen.set(sleutel, { sleutel, naam: gebied || `Scène ${si + 1}`, si, scenes: [si] });
+    });
+    return [...groepen.values()];
+  }
+
+  // Geen foutmelding maar een pauze: het storyboard wacht tot de plekken gekozen zijn.
+  const PAUZE_PLEKKEN = "__plekken__";
+
+  /**
    * Alleen de basisbeelden maken, zodat je het storyboard kunt bekijken en
    * bijsturen vóór er één clip betaald is.
    */
@@ -769,6 +797,15 @@ export default function DialoguePage() {
     const werk: DialogueSpec = structuredClone(bron);
     const mislukt: string[] = [];
     let gestopt = await maakBasisbeelden(werk, mislukt);
+    // De plekken moeten eerst gekozen worden; de pagina laat ze nu zien.
+    if (gestopt === PAUZE_PLEKKEN) {
+      setVordering(null);
+      setVoortgang("");
+      setRenderBezig(false);
+      setSpec(structuredClone(werk));
+      void bewaar(werk, projectId);
+      return;
+    }
     // STOP hier als de personages nog niet gezien zijn. Anders staan er twintig beelden
     // met een personage dat vanaf het begin fout was, en kon je pas daarna wisselen.
     if (!gestopt && !werk.bladenAkkoord && werk.cast.some((c) => c.modelSheetUrl)) {
@@ -1235,6 +1272,8 @@ export default function DialoguePage() {
 
     const werk: DialogueSpec = structuredClone(spec);
     const mislukt: string[] = [];
+    // Hier is het storyboard al gezien, dus niet meer pauzeren voor de plekken.
+    werk.omgevingenAkkoord = true;
     // Wat het storyboard nog niet had, wordt hier alsnog gemaakt.
     let gestopt = await maakBasisbeelden(werk, mislukt);
     if (!gestopt) gestopt = await maakStemmen(werk);
@@ -1682,6 +1721,63 @@ export default function DialoguePage() {
           </div>
           {/* Eerst akkoord op de personages: die tekening gaat naar élk beeld. Klopt hij
               niet, dan maak je hem hier opnieuw in plaats van straks twintig beelden. */}
+          {/* EERST DE PLEKKEN, DAN PAS TEKENEN. Stond eerst alleen in het storyboard, dus
+              je koos een omgeving nadat alle beelden er al waren — precies andersom als
+              het hoort (Sam, 21-09-2026). */}
+          {!renderBezig && spec.bladenAkkoord !== false && !spec.omgevingenAkkoord
+            && spec.scenes.some((sc) => !sc.twoShotUrl)
+            && !(spec.cast.some((c) => c.modelSheetUrl) && !spec.bladenAkkoord) && (
+            <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/[0.06] px-4 py-4 space-y-3">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Waar speelt het?</h3>
+                <p className="text-[11px] text-slate-300 mt-0.5">
+                  Leg de plekken vast vóórdat de beelden gemaakt worden. Een vastgelegde plek wordt drie keer getekend
+                  (veraf, halverwege, dichtbij) en gaat als voorbeeld mee naar élk beeld van die scène — zo staan
+                  overal dezelfde bomen, muren en meubels. Kost niets, en je houdt de plek voor je volgende video.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {plekGroepen(spec).map((g) => (
+                  <div key={g.sleutel} className="rounded-lg border border-white/10 bg-slate-900/40 p-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+                      {g.naam}
+                      {g.scenes.length > 1 && <span className="normal-case tracking-normal"> · {g.scenes.length} scènes</span>}
+                    </p>
+                    <OmgevingKiezer
+                      omgeving={spec.scenes[g.si].omgeving ?? null}
+                      setting={spec.scenes[g.si].setting ?? ""}
+                      styleId={spec.styleId}
+                      onKies={(o) => zetOmgeving(g.si, o)}
+                      onVastleggen={(naam) => void legOmgevingVast(g.si, naam)}
+                      bezig={omgevingenBezig.includes(g.si)}
+                      disabled={renderBezig}
+                    />
+                  </div>
+                ))}
+              </div>
+              {renderFout && <p className="text-xs text-red-400">{renderFout}</p>}
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => {
+                    const werk = structuredClone(spec);
+                    werk.omgevingenAkkoord = true;
+                    setSpec(werk);
+                    void maakStoryboard(werk);
+                  }}
+                  disabled={omgevingenBezig.length > 0}
+                  className="bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition"
+                >
+                  {spec.scenes.some((sc) => sc.omgeving)
+                    ? "Deze plekken kloppen — maak het storyboard"
+                    : "Zonder vaste plek verder — maak het storyboard"}
+                </button>
+                <span className="text-[11px] text-slate-400">
+                  Je kunt een plek later nog wisselen, maar dan moeten de beelden opnieuw.
+                </span>
+              </div>
+            </div>
+          )}
+
           {!renderBezig && spec.cast.some((c) => c.modelSheetUrl) && !spec.bladenAkkoord && (
             <div className="rounded-xl border border-orange-400/40 bg-orange-500/[0.07] px-4 py-4 space-y-3">
               <div>

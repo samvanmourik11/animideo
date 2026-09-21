@@ -454,6 +454,14 @@ export interface DialogueSpec {
    * je hem kunnen wijzigen vóór er twintig beelden mee gemaakt zijn (Sam, 19-09-2026).
    */
   bladenAkkoord?: boolean | null;
+  /**
+   * Heeft de gebruiker de plekken gezien voordat het storyboard getekend werd?
+   *
+   * Net als bij de personages: een plek die vanaf het begin fout is, zit anders in
+   * twintig beelden voordat je hem kunt aanpassen. Je stelt de omgeving dus eerst vast
+   * en pas daarna wordt er getekend (Sam, 21-09-2026).
+   */
+  omgevingenAkkoord?: boolean | null;
   /** Voorwerpen die in het verhaal terugkomen en er in elk beeld hetzelfde uit moeten zien. */
   voorwerpen?: DialogueVoorwerp[] | null;
   /**
