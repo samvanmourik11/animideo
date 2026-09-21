@@ -8,7 +8,7 @@ import { randomUUID } from "node:crypto";
 import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
 import { deductCredits, addCredits } from "@/lib/credits";
-import { isAdminAccount } from "@/lib/studio/access";
+import { isTeamAccount } from "@/lib/studio/access";
 import { kiesStem } from "@/lib/infographics/dialogue-stem";
 import { lipsyncCredits, LIPSYNC_MAX_SEC, LIPSYNC_MODEL } from "@/lib/lipsync";
 
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
   // De upload-tool staat alleen in het menu van interne accounts; deze route dus ook.
-  if (!isAdminAccount(user.email)) return NextResponse.json({ error: "Deze functie is niet beschikbaar" }, { status: 403 });
+  if (!isTeamAccount(user.email)) return NextResponse.json({ error: "Deze functie is niet beschikbaar" }, { status: 403 });
 
   const b = (await req.json()) as Body;
   const imageUrl = b.imageUrl?.trim();

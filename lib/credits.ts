@@ -27,6 +27,11 @@ const UNLIMITED_ACCOUNTS = new Set([
   "sam@jouwanimatievideo.nl",
   "alyssa@jouwanimatievideo.nl",
   "nohaila@jouwanimatievideo.nl",
+  // Onze redacteuren (21-09-2026): zij maken video's voor klanten, dus hun werk hoort
+  // niet van een creditsaldo af te gaan. Zie TEAM_ACCOUNTS in lib/studio/access.ts.
+  "isa@jouwanimatievideo.nl",
+  "jay@jouwanimatievideo.nl",
+  "casper@jouwanimatievideo.nl",
 ]);
 
 // Credit-tarieven, bewust GEHALVEERD t.o.v. de oude prijzen (2026-06-18) zodat een

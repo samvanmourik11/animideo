@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { canUseDialoog, canUseStudio, isAdminAccount } from "@/lib/studio/access";
+import { canUseDialoog, canUseStudio, isTeamAccount } from "@/lib/studio/access";
 
 export default function NewProjectButton({ userId }: { userId: string }) {
   const router = useRouter();
@@ -12,7 +12,7 @@ export default function NewProjectButton({ userId }: { userId: string }) {
   // account(s). De server-pagina's blokkeren bovendien directe toegang.
   const [studioAllowed, setStudioAllowed] = useState(false);
   // De upload-tool is uit het klantmenu gehaald; alleen interne accounts zien
-  // hem nog. Bewust isAdminAccount en niet canUseStudio: die laatste kan in één
+  // hem nog. Bewust isTeamAccount en niet canUseStudio: die laatste kan in één
   // klap voor iedereen open, en dan zou deze knop ongewild meeliften.
   const [adminAllowed, setAdminAllowed] = useState(false);
   // De dialoogmodus heeft een eigen schakelaar (canUseDialoog): zet je hem voor
@@ -21,7 +21,7 @@ export default function NewProjectButton({ userId }: { userId: string }) {
   useEffect(() => {
     createClient().auth.getUser().then(({ data }) => {
       setStudioAllowed(canUseStudio(data.user?.email));
-      setAdminAllowed(isAdminAccount(data.user?.email));
+      setAdminAllowed(isTeamAccount(data.user?.email));
       setDialoogAllowed(canUseDialoog(data.user?.email));
     });
   }, []);

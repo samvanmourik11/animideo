@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import { createClient } from "@/lib/supabase/server";
-import { isAdminAccount } from "@/lib/studio/access";
+import { isTeamAccount } from "@/lib/studio/access";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { LIPSYNC_MODEL } from "@/lib/lipsync";
 
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
-  if (!isAdminAccount(user.email)) return NextResponse.json({ error: "Deze functie is niet beschikbaar" }, { status: 403 });
+  if (!isTeamAccount(user.email)) return NextResponse.json({ error: "Deze functie is niet beschikbaar" }, { status: 403 });
 
   const requestId = req.nextUrl.searchParams.get("requestId");
   if (!requestId) return NextResponse.json({ error: "requestId ontbreekt" }, { status: 400 });
