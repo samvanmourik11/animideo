@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import { createClient } from "@/lib/supabase/server";
-import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
+import { deductCredits, addCredits } from "@/lib/credits";
+import { videoModel as kiesModel, isVideoModel, STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
-// Sinds de model-consolidatie draait video-generatie altijd op Seedance Lite.
-// De Kling- en Seedance-Pro constants zijn weg; runway-status accepteert
-// "seedance-lite" en mapt nog naar dezelfde fal-slug.
-// Beeldbeweging draait ALTIJD op Seedance Lite (720p, 5s). Bewust geen Pro/
-// eindframe: dat gaf een storende inzoom + overgang naar de volgende scène.
-const SEEDANCE_LITE = "fal-ai/bytedance/seedance/v1/lite/image-to-video";
+// Welk model het beeld laat bewegen, staat in video-modellen.ts. Seedance Lite is de
+// standaard; wie daar niet uitkomt kan een ander model proberen (elk model beweegt
+// anders). Elk model heeft zijn eigen prijs in credits.
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -26,15 +24,17 @@ export async function POST(req: NextRequest) {
   }
   if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
 
-  const credit = await deductCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Video beweging genereren");
+  const { imageUrl, motionPrompt, videoModel: gevraagd } = await req.json();
+  const model = kiesModel(isVideoModel(gevraagd) ? gevraagd : STANDAARD_VIDEO_MODEL);
+
+  const credit = await deductCredits(user.id, model.credits, `Video beweging genereren (${model.naam})`);
   if (!credit.success) {
     return NextResponse.json(
-      { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.VIDEO_GENERATION },
+      { error: "insufficient_credits", credits: credit.credits, required: model.credits },
       { status: 402 }
     );
   }
 
-  const { imageUrl, motionPrompt } = await req.json();
   const safePrompt = (motionPrompt || "Smooth cinematic camera movement").slice(0, 950);
 
   // Signed URL zodat externe services de afbeelding kunnen ophalen
@@ -47,20 +47,13 @@ export async function POST(req: NextRequest) {
     if (signed?.signedUrl) promptImage = signed.signedUrl;
   }
 
-  const videoModel = "seedance-lite";
-
   try {
-    const { request_id } = await fal.queue.submit(SEEDANCE_LITE, {
-      input: {
-        image_url:  promptImage,
-        prompt:     safePrompt.slice(0, 2500),
-        duration:   "5",
-        resolution: "720p",
-      },
+    const { request_id } = await fal.queue.submit(model.slug, {
+      input: model.invoer({ image_url: promptImage, prompt: safePrompt.slice(0, 2500) }),
     });
-    return NextResponse.json({ taskId: request_id, videoModel });
+    return NextResponse.json({ taskId: request_id, videoModel: model.id });
   } catch (err: unknown) {
-    try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: video submit mislukt"); } catch {}
+    try { await addCredits(user.id, model.credits, "Refund: video submit mislukt"); } catch {}
     const message = err instanceof Error ? err.message : String(err);
     console.error("[generate-motion] Fout:", message);
     return NextResponse.json({ error: message }, { status: 500 });

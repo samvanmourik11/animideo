@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { fal } from "@fal-ai/client";
 import { createClient } from "@/lib/supabase/server";
 import { addCredits, CREDIT_COSTS } from "@/lib/credits";
+import { videoModel as kiesModel, isVideoModel } from "@/lib/video-modellen";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -36,11 +37,16 @@ export async function GET(req: NextRequest) {
 
   if (!taskId) return NextResponse.json({ error: "Missing taskId" }, { status: 400 });
 
+  // Wat er bij een mislukking terug moet: elk beweegmodel heeft zijn eigen prijs.
+  const terugstorting = isVideoModel(videoModel) ? kiesModel(videoModel).credits : CREDIT_COSTS.VIDEO_GENERATION;
+
   try {
     let videoUrl: string | undefined;
 
     // ── Video polling (Kling + Seedance varianten) ───────────
-    const klingModel =
+    // De beweegmodellen van de upload-tool staan in video-modellen.ts; de oudere
+    // namen hieronder blijven werken voor clips die al in de wachtrij staan.
+    const klingModel = isVideoModel(videoModel) ? kiesModel(videoModel).slug :
       videoModel === "kling-standard"     ? KLING_STANDARD :
       videoModel === "kling-standard-t2v" ? KLING_STANDARD_T2V :
       videoModel === "kling-pro-t2v"      ? KLING_PRO_T2V :
@@ -59,14 +65,14 @@ export async function GET(req: NextRequest) {
     }
     if (statusResult.status !== "COMPLETED") {
       // Refund: video generatie is definitief mislukt
-      try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: video generatie mislukt"); } catch {}
+      try { await addCredits(user.id, terugstorting, "Refund: video generatie mislukt"); } catch {}
       return NextResponse.json({ status: "FAILED", error: `Kling status: ${statusResult.status}` });
     }
 
     const result = await fal.queue.result(klingModel, { requestId: taskId });
     videoUrl = (result.data as { video?: { url: string } }).video?.url;
     if (!videoUrl) {
-      try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: geen video URL"); } catch {}
+      try { await addCredits(user.id, terugstorting, "Refund: geen video URL"); } catch {}
       return NextResponse.json({ status: "FAILED", error: "Geen video URL van Kling" });
     }
 
@@ -93,7 +99,7 @@ export async function GET(req: NextRequest) {
   } catch (err: unknown) {
     // Onbekende fal/Kling fout. Refund + return FAILED zodat de client niet
     // eeuwig blijft pollen en credits niet verloren gaan.
-    try { await addCredits(user.id, CREDIT_COSTS.VIDEO_GENERATION, "Refund: video status fout"); } catch {}
+    try { await addCredits(user.id, terugstorting, "Refund: video status fout"); } catch {}
     const message = err instanceof Error ? err.message : String(err);
     console.error("[runway-status] Fout:", message);
     return NextResponse.json({ status: "FAILED", error: message });
