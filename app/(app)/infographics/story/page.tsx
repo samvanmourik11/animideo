@@ -13,7 +13,7 @@ import { DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
 import StylePicker from "@/components/style/StylePicker";
 import BibliotheekKiezer from "@/components/characters/BibliotheekKiezer";
 import { createClient } from "@/lib/supabase/client";
-import { isAdminAccount } from "@/lib/studio/access";
+import { isTeamAccount } from "@/lib/studio/access";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 import { DEFAULT_VOICE, voicePreviewUrl, voicesForLanguage, voiceForLanguage } from "@/lib/infographics/story-voices";
 import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
@@ -297,7 +297,7 @@ export default function StoryPage() {
   useEffect(() => {
     createClient()
       .auth.getUser()
-      .then(({ data }) => setIntern(isAdminAccount(data.user?.email)))
+      .then(({ data }) => setIntern(isTeamAccount(data.user?.email)))
       .catch(() => setIntern(false));
   }, []);
 

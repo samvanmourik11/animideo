@@ -8,6 +8,11 @@ const EDITOR_ALLOWLIST = new Set([
   "sam@jouwanimatievideo.nl",
   "alyssa@jouwanimatievideo.nl",
   "nohaila@jouwanimatievideo.nl",
+  // Onze redacteuren (21-09-2026): ze mogen alles wat Sam mag, dus ook de editor die
+  // nog in aanbouw is. Zie TEAM_ACCOUNTS in lib/studio/access.ts.
+  "isa@jouwanimatievideo.nl",
+  "jay@jouwanimatievideo.nl",
+  "casper@jouwanimatievideo.nl",
 ]);
 
 /** Mag dit e-mailadres de nieuwe editor zien? */

@@ -17,7 +17,7 @@ export const STUDIO_ALLOWED = new Set<string>([
 
 export function canUseStudio(email: string | null | undefined): boolean {
   if (STUDIO_OPEN_TO_ALL) return true;
-  return !!email && STUDIO_ALLOWED.has(email.toLowerCase());
+  return !!email && (STUDIO_ALLOWED.has(email.toLowerCase()) || isTeamAccount(email));
 }
 
 /**
@@ -38,6 +38,24 @@ export function isAdminAccount(email: string | null | undefined): boolean {
 }
 
 /**
+ * De redacteuren: onze eigen mensen die met alle tools werken, maar géén beheerders zijn.
+ *
+ * Bewust een eigen lijst naast ADMIN_ACCOUNTS. Ze mogen alles wat Sam in de tools mag —
+ * ook wat nog niet voor klanten open staat — maar het beheerdashboard met de abonnementen
+ * hangt aan het is_admin-vinkje in de database, en dat staat bij hen uit.
+ */
+export const TEAM_ACCOUNTS = new Set<string>([
+  "isa@jouwanimatievideo.nl",
+  "jay@jouwanimatievideo.nl",
+  "casper@jouwanimatievideo.nl",
+]);
+
+/** Iemand van ons: een beheerder of een redacteur. Hiermee staan de tools open. */
+export function isTeamAccount(email: string | null | undefined): boolean {
+  return !!email && (ADMIN_ACCOUNTS.has(email.toLowerCase()) || TEAM_ACCOUNTS.has(email.toLowerCase()));
+}
+
+/**
  * De dialoogtool, met de voorwerpenbibliotheek die erbij hoort.
  *
  * Eerst live voor alleen Sam, om hem op productie te testen. Sams test klopte
@@ -49,5 +67,5 @@ export const DIALOOG_OPEN_TO_ALL = true;
 
 export function canUseDialoog(email: string | null | undefined): boolean {
   if (DIALOOG_OPEN_TO_ALL) return true;
-  return isAdminAccount(email);
+  return isTeamAccount(email);
 }
