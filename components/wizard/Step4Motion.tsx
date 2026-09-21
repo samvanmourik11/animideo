@@ -5,13 +5,13 @@ import { useRouter } from "next/navigation";
 import { Project, Scene, SceneLipsync } from "@/lib/types";
 import { STORY_VOICES } from "@/lib/infographics/story-voices";
 import { lipsyncCredits, LIPSYNC_MAX_SEC } from "@/lib/lipsync";
+import { VIDEO_MODELLEN, STANDAARD_VIDEO_MODEL, videoModel as kiesVideoModel } from "@/lib/video-modellen";
 import InsufficientCreditsModal from "@/components/InsufficientCreditsModal";
 import { createClient } from "@/lib/supabase/client";
 
-// Video-model is sinds de refactor altijd Seedance Lite (i2v). De picker
-// is uit de UI verwijderd; we sturen de waarde nog mee zodat de bestaande
-// generate-motion route gewoon blijft werken.
-const FORCED_VIDEO_MODEL = "seedance-lite";
+// Het beweegmodel is te kiezen (zie video-modellen.ts). Eén model voor alles werkte
+// niet: komt een beeld er niet goed uit, dan is hetzelfde model nóg een keer proberen
+// zelden de oplossing en een ander model wél (Sam over zijn redacteuren, 21-09-2026).
 
 // Standaard-bewegingsinstructie: het beeld komt logisch/subtiel tot leven op
 // basis van wat er te zien is. De per-scène motion-prompt is hiermee verborgen;
@@ -28,6 +28,12 @@ interface Props {
   plan?: string;
   /** Upload-tool: per scène ook een pratende (lipsync) clip kunnen maken en downloaden. */
   lipsync?: boolean;
+  /**
+   * Zelf het beweegmodel kiezen. Staat aan in de upload-tool, waar onze eigen mensen
+   * werken: lukt een clip niet, dan is een ander model vaak de oplossing. Voor klanten
+   * blijft het bij het standaardmodel, zodat ze niet hoeven te kiezen tussen prijzen.
+   */
+  modelKeuze?: boolean;
 }
 
 /** Downloadlink voor een clip uit Supabase-opslag (?download= zet de bestandsnaam). */
@@ -36,14 +42,14 @@ function downloadLink(url: string, naam: string): string {
   return `${url.split("?")[0]}?download=${encodeURIComponent(naam)}`;
 }
 
-export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = "free", lipsync = false }: Props) {
+export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = "free", lipsync = false, modelKeuze = false }: Props) {
   const router = useRouter();
   const [scenes, setScenes] = useState<Scene[]>(project.scenes ?? []);
   const [currentIndex, setCurrentIndex] = useState(() => {
     const firstPending = (project.scenes ?? []).findIndex((s) => !s.video_url);
     return firstPending === -1 ? 0 : firstPending;
   });
-  const videoModel = FORCED_VIDEO_MODEL;
+  const [videoModel, setVideoModel] = useState<string>(STANDAARD_VIDEO_MODEL);
   const [generating, setGenerating] = useState(false);
   const [globalInstruction, setGlobalInstruction] = useState("");
   const [error, setError] = useState("");
@@ -354,6 +360,41 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
         </p>
       </div>
 
+      {modelKeuze && (<>
+      {/* Welk model het beeld laat bewegen. Elk model beweegt anders: lukt een clip
+          niet, dan helpt een ander model meestal meer dan dezelfde nog een keer. */}
+      <div className="card mb-6">
+        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          Beweegmodel
+        </label>
+        <div className="grid gap-2 sm:grid-cols-2 mt-2">
+          {VIDEO_MODELLEN.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setVideoModel(m.id)}
+              disabled={generating}
+              className={`text-left rounded-lg border p-2.5 transition disabled:opacity-40 ${
+                videoModel === m.id
+                  ? "border-blue-400/70 bg-blue-500/10"
+                  : "border-white/10 bg-white/[0.02] hover:border-white/25"
+              }`}
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-white">{m.naam}</span>
+                <span className="text-[11px] text-slate-400">{m.credits} credits</span>
+              </span>
+              <span className="block text-[11px] leading-snug text-slate-500 mt-0.5">{m.waarvoor}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] text-slate-600 mt-2">
+          Komt een clip er niet goed uit? Probeer dan hetzelfde beeld met een ander model — dat helpt vaker dan
+          opnieuw proberen met hetzelfde.
+        </p>
+      </div>
+      </>)}
+
       {/* Optionele globale bewegingsinstructie — geldt voor alle scènes. Vul dit
           in vóór je genereert, zodat je geen credits verspilt aan opnieuw doen. */}
       <div className="card mb-6">
@@ -579,7 +620,11 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
           <>
           {!scene.video_url && !generating && (
             <button onClick={maakClip} className="btn-primary">
-              {lipsync && soortVan(scene) === "lipsync" ? "Maak lipsync-clip" : "Genereer videoclip"}
+              {lipsync && soortVan(scene) === "lipsync"
+                ? "Maak lipsync-clip"
+                : modelKeuze
+                  ? `Genereer videoclip (${kiesVideoModel(videoModel).naam}, ${kiesVideoModel(videoModel).credits} credits)`
+                  : "Genereer videoclip"}
             </button>
           )}
           {scene.video_url && (

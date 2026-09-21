@@ -77,6 +77,7 @@ export default function FreeProjectWizard({
         )}
         {step === 1 && (
           <Step4Motion
+            modelKeuze
             project={project}
             onUpdate={updateProject}
             onNext={goNext}
