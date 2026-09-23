@@ -181,6 +181,28 @@ export const STORY_STYLE_PRESETS: StoryStylePreset[] = [
   },
 ];
 
+/**
+ * Korte Engelse naam van de stijl, voor prompts die een bestaand beeld bewerken
+ * ("houd de stijl hetzelfde").
+ *
+ * Waarom dit bestaat: de opschoonronde en de bewerker schreven allebei letterlijk
+ * "the flat vector illustration style" voor, ongeacht wat de klant koos. Een
+ * papercut-verhaal kreeg daardoor bij elke opschoonronde een zetje richting
+ * vlakke vector, en binnen één video stonden zo meerdere stijlen door elkaar.
+ * Voor de realistische stijl is het nog schadelijker: die wordt dan een tekening.
+ */
+const STIJL_OMSCHRIJVING: Record<string, string> = {
+  "flat-vector": "the flat vector illustration style",
+  "marker-sketch": "the loose hand-drawn ink-and-marker illustration style",
+  papercut: "the layered paper-cut collage style",
+  "soft-3d": "the soft rounded 3D illustration style",
+  realistisch: "the photorealistic live-action photographic look",
+};
+
+export function stijlOmschrijving(styleId: string | null | undefined): string {
+  return STIJL_OMSCHRIJVING[styleId ?? ""] ?? STIJL_OMSCHRIJVING["flat-vector"];
+}
+
 /** De stijlen die dit account mag kiezen: de vrije stijlen plus waar het recht op heeft. */
 export function stijlenVoor(magRealistisch: boolean): StoryStylePreset[] {
   return STORY_STYLE_PRESETS.filter((s) => !s.beperkt || magRealistisch);

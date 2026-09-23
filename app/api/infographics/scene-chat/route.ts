@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle, editIllustration, cleanupSceneIllustration, cleanupFlatGraphic } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
+import { beeldAlsDataUrl } from "@/lib/infographics/beeld-inline";
+import { isIndelingsAanwijzing, scherpereInstructie } from "@/lib/infographics/beeld-aanwijzing";
+import { controleerAanwijzing } from "@/lib/infographics/aanwijzing-controle";
 import { visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE } from "@/lib/infographics/story-style";
 import { castRefsVanSpec, MAX_CAST_REFS, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
 import { planSceneChat, planLayoutChat } from "@/lib/infographics/scene-chat";
@@ -54,6 +57,9 @@ interface Body {
   cast?: StoryCastMember[] | null;
   castNames?: string[] | null;
   castSheetUrl?: string | null;
+  // Beelden van de scenes eromheen, zodat "zoals in het vorige beeld" te volgen
+  // is. De pagina stuurt er hooguit een paar mee.
+  contextImages?: { label?: string; url?: string }[] | null;
   // De zelf gekozen personages van dit verhaal (portret + rol). Alleen de mensen
   // die in DEZE scene staan gaan mee; de pagina filtert daar al op.
   castRefs?: StoryCastRef[] | null;
@@ -97,7 +103,28 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Het castblad houdt vast wie wie is; nodig in beide paden.
+    const castSheet = body.castSheetUrl?.trim() || null;
+
+    // De beelden zelf ophalen en verkleind meesturen: met alleen links moet OpenAI
+    // ze zelf downloaden, en één trage download liet in de dialoogtool de hele
+    // aanwijzing mislukken.
+    const contextLijst = (body.contextImages ?? [])
+      .map((c) => ({ label: (c?.label ?? "").trim(), url: (c?.url ?? "").trim() }))
+      .filter((c) => c.url && c.url !== source)
+      .slice(0, 4);
+    if (castSheet) contextLijst.push({ label: "het castblad: zo horen de personages eruit te zien", url: castSheet });
+    const [doelBeeld, ...contextIngeladen] = await Promise.all([
+      source ? beeldAlsDataUrl(source, { maxZijde: 1024 }) : Promise.resolve(null),
+      ...contextLijst.map((c) => beeldAlsDataUrl(c.url, { maxZijde: 512 })),
+    ]);
+    const contextBeelden = contextLijst
+      .map((c, i) => ({ label: c.label || "een ander beeld uit deze video", beeld: contextIngeladen[i] }))
+      .filter((c): c is { label: string; beeld: string } => !!c.beeld);
+
     const plan = await planSceneChat({
+      doelBeeld,
+      contextBeelden,
       message,
       brief: body.illustration ?? "",
       hasImage: !!source,
@@ -109,6 +136,15 @@ export async function POST(req: NextRequest) {
         .map((m) => ({ role: m.role === "assistant" ? ("assistant" as const) : ("user" as const), text: (m.text ?? "").trim() }))
         .filter((m) => m.text.length > 0),
     });
+
+    // Verplaatsen, groter/kleiner, iemand erbij of weg: dat kan een bewerking van
+    // een bestaand plaatje niet (gemeten in de dialoogtool op 19-09-2026, commit
+    // 63f88bc). Zulke wensen gaan naar het opnieuw tekenen, ook als de planner ze
+    // klein noemt.
+    if (plan.action === "edit" && isIndelingsAanwijzing(message, plan.instruction)) {
+      plan.action = "regenerate";
+      if (!plan.illustration) plan.illustration = [body.illustration ?? "", plan.instruction].filter(Boolean).join(" ");
+    }
 
     // Geen beeldhandeling: alleen antwoorden, geen credits.
     if (plan.action === "none") {
@@ -135,15 +171,49 @@ export async function POST(req: NextRequest) {
           source,
           kennis ? `${plan.instruction} ${kennis}` : plan.instruction,
           format,
-          referencePhoto ? [referencePhoto] : null
+          // Het castblad erbij: zonder een referentie van wie wie is, verandert een
+          // bewerking geregeld een gezicht of een kledingstuk (zelfde reden als in
+          // de dialoogtool, zie dialogue-aanwijzing).
+          [referencePhoto, castSheet].filter((u): u is string => !!u),
+          body.styleId,
+          body.language
         );
         rawUrl = result.imageUrl;
+
+        // Is de wens ook echt uitgevoerd? Zonder deze controle kreeg de gebruiker
+        // altijd een vinkje, ook als er niets veranderde — en betaalde hij er een
+        // credit voor. Eén herkansing met de fout erbij, net als in de dialoogtool.
+        if (plan.controle) {
+          const uitslag = await controleerAanwijzing(rawUrl, plan.controle).catch(() => null);
+          if (uitslag && uitslag.ja === false) {
+            const tweede = await editIllustration(
+              source,
+              scherpereInstructie(plan.instruction, plan.controle, uitslag.waarom ?? ""),
+              format,
+              [referencePhoto, castSheet].filter((u): u is string => !!u),
+              body.styleId,
+              body.language
+            ).catch(() => null);
+            const naTweede = tweede ? await controleerAanwijzing(tweede.imageUrl, plan.controle).catch(() => null) : null;
+            if (tweede && naTweede?.ja !== false) {
+              rawUrl = tweede.imageUrl;
+            } else {
+              // Twee keer niet gelukt: credit terug en eerlijk zijn. Het oude beeld
+              // blijft staan; een half gelukte bewerking is erger dan geen.
+              await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: aanpassing lukte niet").catch(() => {});
+              return NextResponse.json({
+                action: "none",
+                gelukt: false,
+                reply: `Dit is twee keer geprobeerd, maar het staat er nog niet${uitslag.waarom ? ` (te zien was: ${uitslag.waarom})` : ""}. Probeer het anders te zeggen, of vraag om het beeld opnieuw te tekenen. Je credit is teruggestort.`,
+              });
+            }
+          }
+        }
       } else {
         // Nieuw beeld vanaf de (herschreven) briefing, met dezelfde seed, anker,
         // personage en huisstijl als de rest van het verhaal.
         const anchor = body.anchorImageUrl?.trim() || null;
         const paletteHint = brandPaletteHint(body.brandColors?.primary, body.brandColors?.accent);
-        const castSheet = body.castSheetUrl?.trim() || null;
         // De zelf gekozen personages, met de oude enkel-personage-velden als
         // terugval zodat een bestaand verhaal zijn mascotte houdt.
         const castRefs = castRefsVanSpec({
@@ -180,7 +250,7 @@ export async function POST(req: NextRequest) {
         try {
           rawUrl = body.mode === "overheid"
             ? (await cleanupFlatGraphic(rawUrl, format, plan.labels)).imageUrl
-            : (await cleanupSceneIllustration(rawUrl, format, plan.labels)).imageUrl;
+            : (await cleanupSceneIllustration(rawUrl, format, plan.labels, body.styleId)).imageUrl;
         } catch (e) {
           console.error("[scene-chat] cleanup mislukt, ruw beeld behouden:", e);
         }
@@ -191,13 +261,14 @@ export async function POST(req: NextRequest) {
       try {
         // Stuurde de gebruiker een logo of product mee, dan hoort dat merk in beeld
         // en mag de controle het niet weghalen.
-        rawUrl = (await borgBeeldtekst(rawUrl, plan.labels, format, body.language, !!referencePhoto)).imageUrl;
+        rawUrl = (await borgBeeldtekst(rawUrl, plan.labels, format, body.language, !!referencePhoto, body.styleId)).imageUrl;
       } catch (e) {
         console.error("[scene-chat] tekstcontrole mislukt:", e);
       }
       const imageUrl = await persistFalAssetSoft(supabase, user.id, rawUrl, "image");
       return NextResponse.json({
         action: plan.action,
+        gelukt: true,
         reply: plan.reply,
         imageUrl,
         // Bij een regeneratie is de briefing herschreven; die moet de client

@@ -151,7 +151,9 @@ export async function borgBeeldtekst(
   format?: string,
   language = "Nederlands",
   /** Waar als de gebruiker zelf een logo/product meestuurde; dat merk mag blijven. */
-  merkToegestaan = false
+  merkToegestaan = false,
+  /** De gekozen tekenstijl, zodat een tekstcorrectie het beeld niet van stijl verandert. */
+  styleId?: string | null
 ): Promise<{ imageUrl: string; hersteld: boolean; tekstVerwijderd: boolean }> {
   const bedoeld = labels.map((l) => l.trim()).filter(Boolean);
   const oordeel = await controleerBeeldtekst(imageUrl, bedoeld, merkToegestaan);
@@ -162,7 +164,7 @@ export async function borgBeeldtekst(
   // meegestuurd, dan laten we dat met rust.
   const merkRegel = merkToegestaan
     ? ""
-    : ", and remove every logo, brand mark, badge, emblem, watermark or signature, in every corner and on every object";
+    : ", and remove every logo, brand mark, badge or emblem, in every corner and on every object";
   try {
     const correctie = bedoeld.length
       ? `Fix the text in this image. The only words that may appear are ${woorden}, each spelled exactly like that, ` +
@@ -171,7 +173,7 @@ export async function borgBeeldtekst(
         `flat colour. Keep the composition, all shapes, objects, figures, colours and the illustration style exactly the same.`
       : `Remove every letter, word, number, label and caption from this image${merkRegel}. Fill the freed area with the ` +
         `surrounding flat colour. Keep the composition, all shapes, objects, figures, colours and the illustration style exactly the same.`;
-    const hersteld = await editIllustration(imageUrl, correctie, format);
+    const hersteld = await editIllustration(imageUrl, correctie, format, null, styleId, language);
 
     // Eén hercontrole. Nog steeds fout? Dan liever helemaal geen tekst.
     const naOordeel = await controleerBeeldtekst(hersteld.imageUrl, bedoeld, merkToegestaan);
@@ -182,7 +184,10 @@ export async function borgBeeldtekst(
       `Remove every letter, word, number, label and caption from this image${merkRegel}, and ` +
         `fill the freed area with the surrounding flat colour. Keep the composition, all shapes, objects, figures, ` +
         `colours and the illustration style exactly the same.`,
-      format
+      format,
+      null,
+      styleId,
+      language
     );
     return { imageUrl: kaal.imageUrl, hersteld: true, tekstVerwijderd: true };
   } catch (e) {

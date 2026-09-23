@@ -11,6 +11,7 @@ import { artDirectScenes, regisseerOverheidScenes } from "@/lib/infographics/art
 import { ICOON_SLEUTELS, icoonKeuzelijst } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
 import { nlBeeldkennis } from "@/lib/infographics/nl-beeldkennis";
+import { keurStoryBeeld, herkansingRegels, minstFout, type StoryFout } from "@/lib/infographics/story-keuring";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import { isTeamAccount, magRealistischeStijl } from "@/lib/studio/access";
 import type { InfographicFormat } from "@/lib/types";
@@ -362,27 +363,41 @@ export async function POST(req: NextRequest) {
         // dus in verschillende slots: als ingredient trok het portret de stijl
         // van de foto mee het beeld in.
         const ingredientUrls = [anchorUrl].filter((u): u is string => !!u);
-        const result = await generateImageWithStyle({
-          prompt: buildIllustrationPrompt(scene.illustration, styleId, language, kader, scene.labels),
-          format,
-          visualStyle,
-          seed,
-          // Het castblad krijgt de merk-slots: die staan vooraan in de rij
-          // referenties en wegen het zwaarst — en identiteit is hier het doel.
-          brandUrls: castSheetUrl ? [castSheetUrl] : undefined,
-          characterUrls: refsInScene.length ? refsInScene.map((r) => r.url) : undefined,
-          ingredientUrls: ingredientUrls.length ? ingredientUrls : undefined,
-          extraContext,
-        });
-        // Tweede pass: zwevende rommel en verzonnen tekst wegvegen, met behoud van
-        // de omgeving. Lukt dat niet, dan val terug op het ruwe beeld.
-        let cleanUrl = result.imageUrl;
-        try {
-          cleanUrl = mode === "overheid"
-            ? (await cleanupFlatGraphic(result.imageUrl, format, scene.labels)).imageUrl
-            : (await cleanupSceneIllustration(result.imageUrl, format, scene.labels)).imageUrl;
-        } catch (e) {
-          console.error(`[generate-story] cleanup scene ${i} mislukt, ruw beeld behouden:`, e);
+        // Twee pogingen: valt het beeld door de keuring, dan krijgt de tekenaar te
+        // horen wát er mis was en probeert hij het nog één keer. Het minst foute
+        // beeld wint — precies zoals de dialoogtool het doet. De herkansing kost de
+        // klant niets extra.
+        const pogingen: { url: string; fouten: StoryFout[] }[] = [];
+        let extraRegels = "";
+        for (let poging = 1; poging <= 2; poging++) {
+          const result = await generateImageWithStyle({
+            prompt: [buildIllustrationPrompt(scene.illustration, styleId, language, kader, scene.labels), extraRegels].filter(Boolean).join(" "),
+            format,
+            visualStyle,
+            seed,
+            // Het castblad krijgt de merk-slots: die staan vooraan in de rij
+            // referenties en wegen het zwaarst — en identiteit is hier het doel.
+            brandUrls: castSheetUrl ? [castSheetUrl] : undefined,
+            characterUrls: refsInScene.length ? refsInScene.map((r) => r.url) : undefined,
+            ingredientUrls: ingredientUrls.length ? ingredientUrls : undefined,
+            extraContext,
+          });
+          // Tweede pass: zwevende rommel en verzonnen tekst wegvegen, met behoud van
+          // de omgeving. Lukt dat niet, dan val terug op het ruwe beeld.
+          let cleanUrl = result.imageUrl;
+          try {
+            cleanUrl = mode === "overheid"
+              ? (await cleanupFlatGraphic(result.imageUrl, format, scene.labels)).imageUrl
+              : (await cleanupSceneIllustration(result.imageUrl, format, scene.labels, styleId)).imageUrl;
+          } catch (e) {
+            // De reden erbij: fal geeft bij een afgekeurde aanroep een detail-lijst
+            // terug, en zonder die uit te pakken staat er alleen "ValidationError"
+            // in het log en weet je nog niets.
+            const reden = (e as { body?: { detail?: unknown } })?.body?.detail;
+            console.error(
+              `[generate-story] cleanup scene ${i} mislukt, ruw beeld behouden:`,
+              reden ? JSON.stringify(reden) : e
+            );
         }
         // Controleren wat er écht in beeld staat. Dit liep eerst alleen als de
         // regie labels had opgegeven — en juist in Verhaal en Rapport zijn die er
@@ -390,13 +405,22 @@ export async function POST(req: NextRequest) {
         // "ENERGISVERSUIK" en een verzonnen logo het tot in de video. Geen
         // bedoelde tekst betekent niet "niet controleren", maar "alles eruit".
         try {
-          cleanUrl = (await borgBeeldtekst(cleanUrl, scene.labels ?? [], format, language)).imageUrl;
+          cleanUrl = (await borgBeeldtekst(cleanUrl, scene.labels ?? [], format, language, false, styleId)).imageUrl;
         } catch (e) {
           console.error(`[generate-story] tekstcontrole scene ${i} mislukt:`, e);
         }
+        // Nakijken: staat er iemand dubbel in, is er tekst of een logo bijgetekend,
+        // is het beeld gesplitst? De keuring is een kijkvraag en kost geen credits.
+        const keuring = await keurStoryBeeld(cleanUrl);
+        pogingen.push({ url: cleanUrl, fouten: keuring.fouten });
+        if (!keuring.fouten.length || poging === 2) break;
+        extraRegels = herkansingRegels(keuring, scene.castNames ?? []);
+        console.warn(`[generate-story] scene ${i} afgekeurd (${keuring.fouten.join(", ")}), tweede poging`);
+        }
+
         // Tijdelijke fal-URL meteen naar onze eigen bucket kopieren, zodat het
         // verhaal zijn beelden houdt nadat de fal-link verloopt.
-        const imageUrl = await persistFalAssetSoft(supabase, user.id, cleanUrl, "image");
+        const imageUrl = await persistFalAssetSoft(supabase, user.id, minstFout(pogingen.map((p) => ({ beeld: p.url, fouten: p.fouten }))), "image");
         return { ...scene, id: scene.id || `scene-${i}`, imageUrl };
       } catch (e) {
         console.error(`[generate-story] illustratie scene ${i} mislukt:`, e);

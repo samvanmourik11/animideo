@@ -28,18 +28,26 @@ export interface SceneChatPlan {
   labels: string[];
   /** Kort antwoord aan de gebruiker, in het Nederlands. */
   reply: string;
+  /**
+   * De kijkvraag waarmee achteraf te zien is of de wens is uitgevoerd, in het
+   * Engels en met "yes" als het goed is ("Is the roof blue?"). Leeg = niet te
+   * controleren. Overgenomen uit de dialoogtool, waar het bijsturen hiermee van
+   * twee op zes van de zes ging (commit bc73269).
+   */
+  controle: string;
 }
 
 const PLAN_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["action", "instruction", "illustration", "labels", "reply"],
+  required: ["action", "instruction", "illustration", "labels", "reply", "controle"],
   properties: {
     action: { type: "string", enum: ["edit", "regenerate", "none"] },
     instruction: { type: "string" },
     illustration: { type: "string" },
     labels: { type: "array", items: { type: "string" } },
     reply: { type: "string" },
+    controle: { type: "string" },
   },
 } as const;
 
@@ -59,6 +67,12 @@ WAT JE INVULT:
 VASTE CAST: krijg je een cast mee, dan komen die personen in meerdere scenes van dezelfde video voor en moeten ze overal hetzelfde blijven. Noem ze in je instructie of briefing bij naam met hun uiterlijk erbij ("JOHAN (the appraiser, mid-40s, short blond hair, grey blazer over a green shirt)"), en verzin nooit een ander uiterlijk voor ze. Vraagt de gebruiker juist om iemand te veranderen, voer dat dan uit voor deze scene en zeg er in je antwoord bij dat het personage in de andere scenes nog het oude uiterlijk heeft.
 
 TEKST IN BEELD: korte labels mogen en maken de uitleg vaak duidelijker, maar alleen als exact opgegeven woorden — een beeldmodel verzint anders onleesbare letterbrij. Na afloop wordt gecontroleerd of ze goed gespeld in beeld staan.
+
+JE ZIET HET BEELD. Krijg je het huidige beeld en de beelden van de scenes eromheen mee, kijk er dan echt naar. De gebruiker wijst vaak naar iets in beeld ("het rechter poppetje", "die pet", "zoals in het vorige beeld"). Bepaal aan de hand van de beelden wat en wie hij bedoelt, en schrijf je instructie zo dat iemand die de beelden niet ziet hem kan uitvoeren.
+
+WAT EEN BEWERKING NIET KAN: iets verplaatsen, groter of kleiner maken, iemand erbij zetten of weghalen, of een ander camerastandpunt. Kies daarvoor "regenerate", ook als het een klein verzoek lijkt. Een bewerker laat het voorwerp staan waar het stond, of zet er een tweede naast.
+
+"controle": één korte kijkvraag in het ENGELS waarmee achteraf te zien is of de wens is uitgevoerd, geformuleerd zodat "yes" betekent dat het goed is ("Is the roof of the house blue?"). Vraag alleen naar wat de gebruiker vroeg, niet naar de rest van het beeld, en niet naar iets dat je op een plaatje niet zeker kunt zien (geen merknamen, geen precieze maten). Kun je het niet zichtbaar controleren, laat dan leeg ("").
 
 REFERENTIEFOTO: is er een foto meegestuurd, dan toont die een ECHT product, logo of object dat in het beeld moet kloppen. Verwerk dat expliciet in je instructie ("replace the logo on the car door with the logo from the provided reference photo, keeping the same size and position") en kies vrijwel altijd "edit".`;
 
@@ -202,12 +216,16 @@ export async function planSceneChat(input: {
   labels?: string[];
   /** Eerdere beurten (oudste eerst), voor context als "en nu iets groter". */
   history?: { role: "user" | "assistant"; text: string }[];
+  /** Het huidige beeld van deze scene, al ingeladen als data-URL. */
+  doelBeeld?: string | null;
+  /** Beelden van de scenes eromheen en het castblad, met uitleg wat het is. */
+  contextBeelden?: { label: string; beeld: string }[];
 }): Promise<SceneChatPlan> {
   const message = input.message.trim();
   // Zonder beeld valt er niets te bewerken: dan is elk verzoek een nieuw beeld.
   const fallback: SceneChatPlan = input.hasImage
-    ? { action: "edit", instruction: message, illustration: "", labels: input.labels ?? [], reply: "Ik pas het beeld aan." }
-    : { action: "regenerate", instruction: "", illustration: input.brief || message, labels: input.labels ?? [], reply: "Ik maak het beeld." };
+    ? { action: "edit", instruction: message, illustration: "", labels: input.labels ?? [], reply: "Ik pas het beeld aan.", controle: "" }
+    : { action: "regenerate", instruction: "", illustration: input.brief || message, labels: input.labels ?? [], reply: "Ik maak het beeld.", controle: "" };
   if (!message) return { ...fallback, action: "none", reply: "Typ wat er aan het beeld moet veranderen." };
 
   try {
@@ -226,15 +244,15 @@ export async function planSceneChat(input: {
       .map((m) => `${m.role === "user" ? "Gebruiker" : "Jij"}: ${m.text}`)
       .join("\n");
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      temperature: 0.2,
-      max_tokens: 700,
-      messages: [
-        { role: "system", content: SYSTEM },
-        {
-          role: "user",
-          content: `${modusRegel}${castRegel}HUIDIGE ILLUSTRATIE-BRIEFING (Engels):
+    // Mét beeld een visiemodel: de wens gaat bijna altijd over iets dat te zíen
+    // is ("het rechter poppetje", "zoals hiervoor"), en gpt-4o-mini kreeg alleen
+    // tekst. Zonder beeld blijft het kleine model, dat is dan genoeg en goedkoper.
+    const metBeeld = !!input.doelBeeld;
+    const vergelijking = (input.contextBeelden ?? []).flatMap((c) => [
+      { type: "text" as const, text: `Ter vergelijking, ${c.label}:` },
+      { type: "image_url" as const, image_url: { url: c.beeld, detail: "low" as const } },
+    ]);
+    const tekst = `${modusRegel}${castRegel}HUIDIGE ILLUSTRATIE-BRIEFING (Engels):
 """
 ${input.brief || "(nog geen briefing — deze scene heeft nog geen beeld)"}
 """
@@ -246,7 +264,23 @@ ${verloop ? `\nEERDER IN DIT GESPREK:\n${verloop}\n` : ""}
 NIEUW BERICHT VAN DE GEBRUIKER:
 """
 ${message.slice(0, 2000)}
-"""`,
+"""`;
+
+    const completion = await openai.chat.completions.create({
+      model: metBeeld ? "gpt-4o" : "gpt-4o-mini",
+      temperature: 0.2,
+      max_tokens: 700,
+      messages: [
+        { role: "system", content: SYSTEM },
+        {
+          role: "user",
+          content: metBeeld
+            ? [
+                { type: "text" as const, text: `${tekst}\n\nHIER HET HUIDIGE BEELD VAN DEZE SCENE:` },
+                { type: "image_url" as const, image_url: { url: input.doelBeeld as string, detail: "high" as const } },
+                ...vergelijking,
+              ]
+            : tekst,
         },
       ],
       response_format: {
@@ -267,6 +301,7 @@ ${message.slice(0, 2000)}
         .filter((l) => l.length > 0 && l.length <= 24)
         .slice(0, 3),
       reply: (parsed.reply ?? "").trim() || fallback.reply,
+      controle: (parsed.controle ?? "").trim().slice(0, 300),
     };
 
     // Vangnetten. Een bewerking zonder bronbeeld kan niet, en een lege instructie

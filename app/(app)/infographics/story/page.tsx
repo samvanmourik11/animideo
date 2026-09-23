@@ -710,6 +710,14 @@ export default function StoryPage() {
           cast: spec.cast ?? null,
           castNames: s.castNames ?? null,
           castSheetUrl: spec.castSheetUrl ?? null,
+          // De beelden van de scenes ernaast, zodat "zoals in het vorige beeld"
+          // te volgen is. Meer dan een paar maakt de vraag duurder, niet beter.
+          contextImages: spec.scenes
+            .map((andere, j) => ({ scene: andere, afstand: Math.abs(j - i), nummer: j + 1 }))
+            .filter((x) => x.afstand > 0 && x.afstand <= 2 && !!x.scene.imageUrl)
+            .sort((a, b) => a.afstand - b.afstand)
+            .slice(0, 3)
+            .map((x) => ({ label: `scene ${x.nummer}`, url: x.scene.imageUrl as string })),
         }),
       });
       const d = await res.json();

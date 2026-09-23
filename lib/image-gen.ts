@@ -1,4 +1,5 @@
 import { fal } from "@fal-ai/client";
+import { stijlOmschrijving } from "@/lib/infographics/story-style";
 import {
   styleRefUrls,
   stylePromptHint,
@@ -156,7 +157,11 @@ export async function generateImageWithStyle(input: NanoBananaInput): Promise<Na
   if (input.extraContext && input.extraContext.trim().length > 0) {
     promptParts.push(input.extraContext.trim());
   }
-  promptParts.push("No text overlays, no watermarks, no logos.");
+  // Let op het woordgebruik: fal weigert een aanroep met "watermark" of
+  // "signature" erin met een content_policy_violation. Dat gebeurde in stilte bij
+  // élke opschoonronde en tekstcorrectie (gemeten 23-09-2026), waardoor verzonnen
+  // logo's en letterbrij gewoon in de video belandden. "brand mark" mag wel.
+  promptParts.push("No text overlays, no brand marks, no logos.");
 
   // Hier stond een afkapgrens van 4000 tekens, nog uit de tijd van Flux en DALL-E.
   // Nano Banana neemt er 50.000. In de dialoogmodus is een beeldopdracht 6000 tot 7500
@@ -230,7 +235,7 @@ export async function cleanupIllustration(sourceImageUrl: string, format?: strin
     "Change ONLY the background and remove clutter: make the background one single flat, solid off-white color, completely plain and empty.",
     "Remove every decorative element that is not part of the main subject: remove all smoke, steam, vapor, mist, fog, clouds, sky, plants, leaves, branches, foliage, flowers, bubbles, sparkles, dots and floating shapes.",
     "The corners and all empty areas must be completely bare and empty.",
-    "Any text, label or word that remains in the image MUST be in correct, natural Dutch: translate every English or other-language word into Dutch, and fix any garbled or misspelled text. Remove meaningless decorative text, watermarks and logos.",
+    "Any text, label or word that remains in the image MUST be in correct, natural Dutch: translate every English or other-language word into Dutch, and fix any garbled or misspelled text. Remove meaningless decorative text, brand marks and logos.",
   ].join(" ").slice(0, 4000);
 
   const result = await fal.subscribe(EDIT_MODEL, {
@@ -254,12 +259,16 @@ export async function cleanupIllustration(sourceImageUrl: string, format?: strin
 // hierboven schildert de achtergrond egaal off-white en sloopt daarmee precies wat
 // hier het verhaal draagt. Deze variant laat de plek staan en haalt alleen de
 // zwevende rommel en de verzonnen/verkeerdtalige tekst weg.
-export async function cleanupSceneIllustration(sourceImageUrl: string, format?: string, keepLabels?: string[] | null): Promise<NanoBananaResult> {
+export async function cleanupSceneIllustration(sourceImageUrl: string, format?: string, keepLabels?: string[] | null, styleId?: string | null): Promise<NanoBananaResult> {
   const aspect = aspectFor(format);
   const labels = (keepLabels ?? []).map((l) => l.trim()).filter(Boolean).slice(0, 3);
+  // De stijl van het verhaal, niet "vlak vector": deze pass draait over élk beeld,
+  // dus een vaste stijlnaam trok papercut- en 3D-verhalen scheef (en maakte van
+  // een realistisch beeld een tekening).
+  const stijl = stijlOmschrijving(styleId);
   const fullPrompt = [
     "Edit the reference image.",
-    "Keep the main subject, people, objects, their poses, the composition, the colors, the background environment and the flat vector illustration style exactly the same.",
+    `Keep the main subject, people, objects, their poses, the composition, the colors, the background environment and ${stijl} exactly the same.`,
     "The location and its background MUST stay fully intact and keep filling the whole frame — never replace it with a white, off-white or plain flat background, and never cut the subject out of its surroundings.",
     "Remove ONLY the floating clutter that does not belong to the place itself: sparkles, glitter, bubbles, floating icons, symbols, speech bubbles, stray dots and decorative shapes hanging in the air.",
     labels.length
@@ -267,7 +276,7 @@ export async function cleanupSceneIllustration(sourceImageUrl: string, format?: 
       : "Any text, label or word that remains in the image MUST be in correct, natural Dutch: translate every English or other-language word into Dutch, and fix any garbled or misspelled text. Remove meaningless decorative text.",
     // Altijd, ook als er labels blijven staan: het échte logo komt er als aparte
     // laag overheen, dus elk merkteken dat het model zelf tekent is er één te veel.
-    "Remove every logo, brand mark, badge, emblem, watermark and signature, in every corner and on every object.",
+    "Remove every logo, brand mark, badge and emblem, in every corner and on every object.",
   ].filter(Boolean).join(" ").slice(0, 4000);
 
   const result = await fal.subscribe(EDIT_MODEL, {
@@ -299,8 +308,8 @@ export async function cleanupFlatGraphic(sourceImageUrl: string, format?: string
     "Edit the reference image (a flat vector motion-graphics diagram).",
     "Keep the composition, every object, icon, panel and figure, their positions, sizes and colours, the plain light grey background and the completely flat vector style exactly the same.",
     labels.length
-      ? `Keep these words exactly as they are, in the same place and spelled exactly like this: ${labels.map((l) => `"${l}"`).join(", ")}. Remove every OTHER piece of text: any other word, letter, number, caption, watermark or logo, including garbled or meaningless lettering on documents, screens, signs and packaging.`
-      : "Remove ONLY text: every letter, word, number, label, caption, watermark and logo, including garbled or meaningless lettering on documents, screens, signs and packaging.",
+      ? `Keep these words exactly as they are, in the same place and spelled exactly like this: ${labels.map((l) => `"${l}"`).join(", ")}. Remove every OTHER piece of text: any other word, letter, number, caption, brand mark or logo, including garbled or meaningless lettering on documents, screens, signs and packaging.`
+      : "Remove ONLY text: every letter, word, number, label, caption, brand mark and logo, including garbled or meaningless lettering on documents, screens, signs and packaging.",
     "Where text is removed, fill the area with the surrounding flat colour so the shape stays clean.",
     "Do not add anything, do not add outlines, shadows, gradients or texture, and do not turn any part of it into a realistic scene or a location.",
   ].filter(Boolean).join(" ").slice(0, 4000);
@@ -336,18 +345,24 @@ export async function editIllustration(
    * moet kloppen ("ik heb het juiste logo voor op de auto geüpload"). Gaan als
    * volgende ingredienten mee naar het model, ná het bronbeeld.
    */
-  refUrls?: (string | null | undefined)[] | null
+  refUrls?: (string | null | undefined)[] | null,
+  /** De gekozen tekenstijl; zonder dit dwong deze prompt altijd vlakke vector af. */
+  styleId?: string | null,
+  /** Taal van de video; tekst in beeld hoort in die taal te staan. */
+  language?: string | null
 ): Promise<NanoBananaResult> {
   const aspect = aspectFor(format);
   const refs = (refUrls ?? []).filter((u): u is string => !!u && u.trim().length > 0);
+  const stijl = stijlOmschrijving(styleId);
+  const taal = (language ?? "Nederlands").trim() || "Nederlands";
   const prompt = [
-    "Edit the reference image (a flat vector infographic illustration).",
+    `Edit the reference image (${stijl}).`,
     `Apply exactly this change: ${instruction.trim()}.`,
-    "Keep everything else identical: the flat vector illustration style, the overall composition, all other objects, people and their identity, the colour palette, line weight and the background environment. Change ONLY what is asked.",
+    `Keep everything else identical: ${stijl}, the overall composition, all other objects, people and their identity, the colour palette, line weight and the background environment. Change ONLY what is asked.`,
     refs.length
-      ? "The image(s) after the first one are reference photos of a real product, logo or object: match that item accurately — its real shape, proportions, colours and distinctive details — but redraw it in the flat illustration style of the scene (never paste the photo, never make it photo-realistic) and keep it at the size and position the scene requires."
+      ? `The image(s) after the first one are reference photos of a real product, logo or object: match that item accurately — its real shape, proportions, colours and distinctive details — but render it in ${stijl} of the scene (never paste the photo flat on top) and keep it at the size and position the scene requires.`
       : "",
-    "Any text in the image MUST be in correct, natural Dutch — translate any English or other-language words into Dutch and fix garbled text. Add no new decorative clutter, no watermarks and no logos.",
+    `Any text in the image MUST be in correct, natural ${taal} — translate any word in another language into ${taal} and fix garbled text. Add no new decorative clutter and no brand marks.`,
   ].filter(Boolean).join(" ").slice(0, 4000);
 
   const imageUrls = [sourceImageUrl, ...refs];
@@ -390,7 +405,7 @@ export async function bewerkBeeld(input: {
     input.instructie.trim().replace(/\.?$/, "."),
     "Change ONLY that. Keep everything else exactly as it is: the composition and framing, the poses and faces, the " +
       "other characters, the background, and the lighting, colours, softness and level of detail of the image. Do not " +
-      "sharpen it, do not add contrast or saturation. No text, no watermarks, no logos.",
+      "sharpen it, do not add contrast or saturation. No text and no brand marks.",
     refs.length
       ? input.referentieUitleg ?? "The other images are references for appearance only; do not copy their layout, background or poses."
       : "",
@@ -435,7 +450,7 @@ export async function maakSchetsAf(input: {
       "materials, colours and level of detail as the rest of the picture.",
     input.instructie?.trim() ? `What was asked: ${input.instructie.trim()}` : "",
     "Nothing brown may remain. Everything that is not brown stays exactly as it is: the people in front, their poses, " +
-      "faces and clothes, the surroundings, the lighting and the rendering style. No text, no watermarks, no logos.",
+      "faces and clothes, the surroundings, the lighting and the rendering style. No text and no brand marks.",
   ].filter(Boolean).join(" ").slice(0, MAX_PROMPT_TEKENS);
 
   const result = await fal.subscribe(EDIT_MODEL, {
@@ -463,7 +478,7 @@ export async function editImage(input: EditImageInput): Promise<NanoBananaResult
   const prompt = [
     input.instruction.trim() + ".",
     "Change ONLY what is asked. Keep the composition, framing, all people and their identity, the background, lighting, colour palette and the visual/illustration style identical to the source.",
-    "Any text in the image MUST be in correct, natural Dutch — translate any English or other-language words into Dutch and fix garbled text. No watermarks or logos.",
+    "Any text in the image MUST be in correct, natural Dutch — translate any English or other-language words into Dutch and fix garbled text. No brand marks or logos.",
   ].join(" ").slice(0, 4000);
 
   const result = await fal.subscribe(FLUX_KONTEXT, {
