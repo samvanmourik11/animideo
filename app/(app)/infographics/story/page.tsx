@@ -931,10 +931,16 @@ export default function StoryPage() {
 
   // Maakt alle scenes met een beeld bewegend. Seedance Lite kost ~40s per scene,
   // dus sequentieel duurt een verhaal van 11 scenes al snel 7 minuten. We draaien
-  // daarom meerdere tegelijk (begrensd, zodat we de fal-wachtrij niet overbelasten):
-  // de totale tijd zakt zo van de som naar ongeveer de langste golf. Per scene
-  // geldt nog steeds de eigen bijsturing.
-  const MOTION_CONCURRENCY = 4;
+  // daarom meerdere tegelijk: de totale tijd zakt van de som naar ongeveer de
+  // langste golf. Per scene geldt nog steeds de eigen bijsturing.
+  //
+  // Waarom niet álles tegelijk: elke scene is een eigen serverfunctie die op fal
+  // staat te wachten, en fal zet wat er niet meteen past in de wachtrij. Bij een
+  // te grote golf staan clips zó lang in die rij dat de functie zijn tijd opmaakt
+  // — dan is er niets gewonnen en soms een poging verspeeld. Acht tegelijk is de
+  // bovengrens die comfortabel past; browsers openen er lokaal toch maar zes
+  // tegelijk. Een verhaal van 16 scenes is daarmee twee golven in plaats van vier.
+  const MOTION_CONCURRENCY = 8;
   async function animateAll() {
     if (!spec) return;
     setAnimatingAll(true);

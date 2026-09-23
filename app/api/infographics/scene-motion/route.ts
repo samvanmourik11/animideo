@@ -30,7 +30,16 @@ const MAX_ATTEMPTS = 3;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// De hele aanroep moet binnen de limiet van de Vercel-functie blijven (300s).
+// Drie pogingen van anderhalve minuut plus de kijkvragen passen daar niet in, en
+// een afgekapte functie kost de klant zijn credit zonder clip. Daarom een budget:
+// een nieuwe poging start alleen als er nog genoeg tijd over is.
+const FUNCTIE_BUDGET_MS = 265_000;
+const MIN_TIJD_VOOR_POGING_MS = 95_000;
+
 export async function POST(req: NextRequest) {
+  const gestart = Date.now();
+  const resterend = () => FUNCTIE_BUDGET_MS - (Date.now() - gestart);
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -68,12 +77,23 @@ export async function POST(req: NextRequest) {
       const { request_id } = await fal.queue.submit(SEEDANCE_LITE, {
         input: { image_url: imageUrl, prompt: safePrompt, duration: "5", resolution: "720p", camera_fixed: true } as never,
       });
-      const deadline = Date.now() + 90_000;
+      // Wachten zolang het budget het toelaat, met 150s als plafond. Vast op 90s
+      // liep juist mis zodra er meer scenes tegelijk animeren: dan staat de klus
+      // langer in de fal-wachtrij en was de clip nét niet klaar.
+      const wachtMs = Math.max(20_000, Math.min(150_000, resterend() - 30_000));
+      const deadline = Date.now() + wachtMs;
+      let klaar = false;
       while (Date.now() < deadline) {
         const st = (await fal.queue.status(SEEDANCE_LITE, { requestId: request_id, logs: false })) as { status: string };
-        if (st.status === "COMPLETED") break;
+        if (st.status === "COMPLETED") { klaar = true; break; }
         if (st.status !== "IN_QUEUE" && st.status !== "IN_PROGRESS") return null;
         await sleep(1500);
+      }
+      // Niet klaar binnen de tijd: het resultaat opvragen zou hier alleen een
+      // fout opleveren. Liever netjes teruggeven dat deze poging niets werd.
+      if (!klaar) {
+        console.warn(`[scene-motion] clip niet klaar binnen ${Math.round(wachtMs / 1000)}s, poging afgebroken`);
+        return null;
       }
       const result = await fal.queue.result(SEEDANCE_LITE, { requestId: request_id });
       return (result.data as { video?: { url: string } }).video?.url ?? null;
@@ -96,6 +116,12 @@ export async function POST(req: NextRequest) {
     let sawAddedElements = false;
 
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
+      // Geen nieuwe poging meer als er niet genoeg tijd over is: dan liever de
+      // beste poging tot nu toe dan een functie die halverwege wordt afgekapt.
+      if (i > 0 && resterend() < MIN_TIJD_VOOR_POGING_MS) {
+        console.warn(`[scene-motion] tijd op na ${attempts} poging(en), beste resultaat aangehouden`);
+        break;
+      }
       attempts = i + 1;
       // Slotpoging na eerdere hallucinaties: forceer de micro-beweging. Die is zo
       // klein dat het model niets kan bijverzinnen — zo houdt de scène tóch
