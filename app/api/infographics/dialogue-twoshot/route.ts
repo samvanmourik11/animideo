@@ -1,7 +1,7 @@
 import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { zorgVoorBeschrijving } from "@/lib/infographics/portret-beschrijving";
+import { zorgVoorBeschrijving } from "@/lib/infographics/personage-blad";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
@@ -12,7 +12,8 @@ import {
 import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld } from "@/lib/infographics/dialogue-verify";
-import { MAX_CAST, type DialogueCastMember, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
+import { MAX_CAST, castbladSoort, referentieVan, type DialogueCastMember, type DialogueVoorwerp } from "@/lib/infographics/dialogue-schema";
+import { omgevingRegie, variantVoorKader, type Omgeving } from "@/lib/infographics/omgeving";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
 
@@ -46,6 +47,8 @@ interface Body {
   voorwerpen?: DialogueVoorwerp[];
   /** Zitten ze bij het begin van de scène? Zie zitHouding. */
   zit?: boolean;
+  /** De plek uit de omgevingenbibliotheek, met de getekende varianten. Zie omgeving.ts. */
+  omgeving?: Omgeving | null;
 }
 
 // Het beeld van de plek van één scène: de cast op die plek. In het storyboard is
@@ -87,7 +90,7 @@ export async function POST(req: NextRequest) {
     // drie keer, en drie sheets plus het castblad zijn twaalf getekende figuren voor
     // een beeld waar er drie in horen. Dat is precies waar de dubbele Lilly vandaan komt.
     const portretten = cast
-      .map((c) => c.portraitUrl)
+      .map((c) => referentieVan(c))
       .filter((u): u is string => !!u);
     // Eén personage is genoeg. Dit heette het "twee-shot" omdat elke scene twee
     // pratende mensen naast elkaar toonde, maar sinds de camerakaders bestaat een
@@ -134,8 +137,12 @@ export async function POST(req: NextRequest) {
       .filter((v) => typeof v?.naam === "string" && typeof v?.uiterlijk === "string")
       .slice(0, 2);
     const voorwerpBladen = voorwerpen.map((v) => (v.bladUrl ?? "").trim()).filter(Boolean);
+    // De plek van deze scène: het beeld dat het meeste van de omgeving laat zien,
+    // want een plekbeeld is een wijd shot.
+    const plekBeeld = body.omgeving ? variantVoorKader(body.omgeving, "totaal")?.url ?? "" : "";
+
     // Alleen een castblad van de echte karakters; een ouder blad kwam van de model sheets.
-    const castblad = body.castSheetVan === "portret" ? (body.castSheetUrl ?? "").trim() : "";
+    const castblad = body.castSheetVan === castbladSoort(cast) ? (body.castSheetUrl ?? "").trim() : "";
     // Het castblad gaat als "merk-referentie" mee: dat is de enige categorie die
     // vooraan in de rij staat en het zwaarst weegt. Precies wat we willen — de
     // personages moeten hier exact van overgenomen worden, ook hun onderlinge
@@ -197,9 +204,13 @@ export async function POST(req: NextRequest) {
         characterUrls: portretten,
         // De voorwerpbladen staan bij het castblad: dezelfde soort referentie, iets
         // wat exact overgenomen moet worden.
-        brandUrls: [castblad, ...voorwerpBladen].filter(Boolean),
+        // Het beeld van de plek gaat als eerste mee: dit is DE achtergrond van deze
+        // scène. Zonder plaatje verzon elk beeld zijn eigen veld (andere bomen, doel
+        // aan de andere kant) — zie omgeving.ts.
+        brandUrls: [plekBeeld, castblad, ...voorwerpBladen].filter(Boolean),
         extraContext: [
           illustratieContext(body.illustrationBrief),
+          plekBeeld ? omgevingRegie(body.omgeving!) : "",
           castbladInstructie,
           alleenDezeMensen,
           // Hetzelfde bos in elk beeld, en dezelfde look: zie wereldRegie en STIJL_VAST.

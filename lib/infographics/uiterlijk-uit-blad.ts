@@ -58,3 +58,51 @@ Answer as JSON: {"appearance": "one or two English sentences, no clothing and no
     return null;
   }
 }
+
+/**
+ * Klopt het houdingenblad met het karakter waar het van getekend is?
+ *
+ * Het blad is de tekening die naar élk beeld gaat, dus wat hier misgaat, gaat overal mis.
+ * Gemeten 19-09-2026 op het voetbalverhaal: op Leo's blad stonden zijn ogen dicht en
+ * ontbrak het nummer 10 op zijn shirt — in de video had hij daardoor in 12 van de 20
+ * beelden zijn ogen dicht en in 6 geen rugnummer. Vragen naar losse kenmerken ("draagt
+ * hij een pet?") gaat een kijkmodel goed af; vergelijken van twee beelden niet.
+ */
+export async function bladKlopt(
+  bladUrl: string,
+  verwacht: { appearance?: string | null; kleding?: string | null },
+): Promise<{ ogenDicht: boolean; ontbreekt: string[] } | null> {
+  try {
+    const beeld = await beeldVoorKijkvraag(bladUrl, 1024);
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o",
+      temperature: 0,
+      max_tokens: 300,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `You check a character model sheet (the same character drawn three times: front, angle, side) against how the character should look. Answer only about what you SEE.
+JSON: {"ogen_dicht": true/false, "ontbreekt": ["..."]}.
+"ogen_dicht" = in the FRONT view the character's eyes are shut or squeezed closed (no pupils visible). A character sheet needs open eyes.
+"ontbreekt" = every item from the description below that you do NOT see on the sheet: a garment, a cap, a whistle, a shirt number, a print, a badge, a colour. Use short English labels. Empty list if everything is there.`,
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: `The character should look like this: ${[verwacht.appearance, verwacht.kleding].filter(Boolean).join(" Outfit: ")}` },
+            { type: "image_url", image_url: { url: beeld } },
+          ],
+        },
+      ],
+    });
+    const uit = JSON.parse(res.choices[0]?.message?.content ?? "{}") as { ogen_dicht?: boolean; ontbreekt?: unknown };
+    return {
+      ogenDicht: uit.ogen_dicht === true,
+      ontbreekt: Array.isArray(uit.ontbreekt) ? uit.ontbreekt.map(String).filter(Boolean).slice(0, 6) : [],
+    };
+  } catch (e) {
+    console.warn("[blad-controle] mislukt:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}

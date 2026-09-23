@@ -34,3 +34,6 @@ Thumbs.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Een worktree heeft node_modules als symlink of als eigen map; beide horen er niet in.
+node_modules

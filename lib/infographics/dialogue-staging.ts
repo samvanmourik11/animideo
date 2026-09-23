@@ -114,6 +114,10 @@ export const NATUURWETTEN =
   // Bij het paleis wapperde een rood-wit-blauwe vlag met een ster: geen enkel land.
   "Draw a flag only when its exact design is described in this prompt; otherwise leave the flagpole bare. " +
   // Lilly liep buiten op blote voeten en zat binnen bovenop de salontafel.
+  // Sam, 19-09-2026: "de leeuw heeft de hele tijd zijn ogen dicht". Een blij personage
+  // kreeg standaard dichtgeknepen lachogen; over een hele video kijkt niemand je meer aan.
+  "Every character looks at the world with OPEN eyes and visible pupils — never eyes squeezed shut or " +
+  "closed to slits — unless this prompt says they sleep, wink or blink. " +
   "Every human character wears their complete outfit including shoes on both feet — no person is barefoot, " +
   "indoors or outdoors, unless this prompt says so. Animals, dragons and other creatures wear nothing unless described. People sit on chairs, benches, sofas, the floor or the ground — " +
   "never on top of a table.";

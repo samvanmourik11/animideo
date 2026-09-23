@@ -9,6 +9,8 @@ import { LICHTSOORTEN, STANDAARD_LICHT, lichtLabel, type Lichtsoort } from "@/li
 import { kaderLabel } from "@/lib/infographics/verhaal-kaders";
 import { deelLabel } from "@/lib/infographics/verhaallijn";
 import { DIALOOG_CREDITS, creditTekst } from "@/lib/infographics/dialoog-credits";
+import OmgevingKiezer from "./OmgevingKiezer";
+import type { Omgeving } from "@/lib/infographics/omgeving";
 
 // HET STORYBOARD — per scène het beeld van de plek, en daaronder één beeld per
 // regel. Allemaal vóór er één clip gemaakt wordt.
@@ -85,8 +87,18 @@ function ShotTegel({
       </p>
 
       {regel.beeldAanwijzingUitleg && (
-        <p className="text-[10px] leading-snug text-emerald-300/80" title={regel.beeldAanwijzing ?? undefined}>
+        <p
+          className={`text-[10px] leading-snug ${regel.beeldAanwijzingGelukt === false ? "text-amber-300/90" : "text-emerald-300/80"}`}
+          title={regel.beeldAanwijzing ?? undefined}
+        >
           Begrepen: {regel.beeldAanwijzingUitleg}
+        </p>
+      )}
+      {/* Eerlijk zijn als het niet gelukt is. "Aangepast" melden bij een beeld waarin
+          niets veranderd was, kostte deze knop zijn vertrouwen (Sam, 19-09-2026). */}
+      {regel.beeldAanwijzingGelukt === false && (
+        <p className="text-[10px] leading-snug text-amber-400">
+          Dit is twee keer geprobeerd en staat er nog niet. Zeg het anders — noem het ding en waar het moet komen.
         </p>
       )}
 
@@ -146,6 +158,9 @@ function SceneKaart({
   regelsBezig,
   onOpnieuw,
   onRegelOpnieuw,
+  onOmgeving,
+  onOmgevingVastleggen,
+  omgevingBezig,
 }: {
   spec: DialogueSpec;
   scene: DialogueScene;
@@ -155,6 +170,9 @@ function SceneKaart({
   regelsBezig: string[];
   onOpnieuw: (si: number, wijziging: HertekenWijziging) => void;
   onRegelOpnieuw: (si: number, li: number, aanwijzing: string) => void;
+  onOmgeving: (si: number, omgeving: Omgeving | null) => void;
+  onOmgevingVastleggen: (si: number, naam: string) => void;
+  omgevingBezig: boolean;
 }) {
   // Concept per kaart: pas bij "opnieuw maken" gaat het naar de spec. Anders zou
   // elke toetsaanslag in de omgeving het bestaande beeld ongeldig maken.
@@ -215,6 +233,18 @@ function SceneKaart({
             </select>
           </div>
 
+          {/* De vaste plek uit de bibliotheek: die houdt de achtergrond in elk beeld
+              gelijk. Zonder plek tekent elk shot zijn eigen omgeving. */}
+          <OmgevingKiezer
+            omgeving={scene.omgeving ?? null}
+            setting={setting}
+            styleId={spec.styleId}
+            onKies={(o) => onOmgeving(si, o)}
+            onVastleggen={(naam) => onOmgevingVastleggen(si, naam)}
+            bezig={omgevingBezig}
+            disabled={geblokkeerd}
+          />
+
           <textarea
             value={aanwijzing}
             onChange={(e) => setAanwijzing(e.target.value)}
@@ -269,11 +299,20 @@ export default function Storyboard({
   onRegelOpnieuw,
   bezigMet,
   regelsBezig,
+  onOmgeving,
+  onOmgevingVastleggen,
+  omgevingenBezig,
   disabled = false,
 }: {
   spec: DialogueSpec;
   onOpnieuw: (si: number, wijziging: HertekenWijziging) => void;
   onRegelOpnieuw: (si: number, li: number, aanwijzing: string) => void;
+  /** Een plek uit de bibliotheek aan deze scène hangen (of losmaken). */
+  onOmgeving: (si: number, omgeving: Omgeving | null) => void;
+  /** De plek van deze scène tekenen en in de bibliotheek zetten. */
+  onOmgevingVastleggen: (si: number, naam: string) => void;
+  /** Scènes waarvan nu de plek getekend wordt. */
+  omgevingenBezig: number[];
   /** Index van de scène waarvan nu een nieuw plekbeeld gemaakt wordt. */
   bezigMet: number | null;
   /** Regels ("scène-regel") waarvan nu een beeld gemaakt wordt. */
@@ -306,6 +345,9 @@ export default function Storyboard({
               regelsBezig={regelsBezig}
               onOpnieuw={onOpnieuw}
               onRegelOpnieuw={onRegelOpnieuw}
+              onOmgeving={onOmgeving}
+              onOmgevingVastleggen={onOmgevingVastleggen}
+              omgevingBezig={omgevingenBezig.includes(si)}
             />
           </Fragment>
         );

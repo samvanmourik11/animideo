@@ -1,7 +1,8 @@
 import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { zorgVoorBeschrijving } from "@/lib/infographics/portret-beschrijving";
+import { zorgVoorBeschrijving } from "@/lib/infographics/personage-blad";
+import { beoordeelBeeld } from "@/lib/infographics/dialogue-verify";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
@@ -10,7 +11,7 @@ import { illustratieContext } from "@/lib/infographics/dialogue-staging";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { deductCredits } from "@/lib/credits";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
-import { uiterlijkVan, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
+import { referentieVan, uiterlijkVan, type DialogueCastMember } from "@/lib/infographics/dialogue-schema";
 
 // HET CASTBLAD — één beeld waarop de hele cast naast elkaar staat.
 //
@@ -88,21 +89,34 @@ export async function POST(req: NextRequest) {
       // tussen de cadeaus onder de boom.
       `No text, no names, no labels, no numbers and no frames anywhere in the image.`;
 
-    const result = await generateImageWithStyle({
+    const teken = (poging: number) => generateImageWithStyle({
       prompt: buildIllustrationPrompt(brief, body.styleId ?? "flat-vector", body.language ?? null),
       format: "16:9",
       visualStyle: null,
-      seed: typeof body.seed === "number" ? body.seed : undefined,
+      seed: typeof body.seed === "number" ? body.seed + (poging - 1) * 7919 : undefined,
       // Model sheet gaat vóór het portret: het castblad tekent iedereen ten voeten
       // uit, en dan helpt het als de rest van het lichaam al ergens vastligt.
-      characterUrls: cast.map((c) => c.portraitUrl),
+      characterUrls: cast.map((c) => referentieVan(c)),
       extraContext: [
         illustratieContext(body.illustrationBrief),
-        "The character reference images are head-and-shoulders portraits. Use them ONLY for each person's " +
-          "face, hair, skin tone and clothing colours; invent the rest of their body yourself, in proportion " +
-          "to their age. Do NOT copy the cropped portrait framing.",
+        // De referenties zijn de houdingenbladen: daar staat het hele personage al op.
+        // Wat hier afvalt (Coco's pet en fluit) valt daarna in elk beeld af, want dit blad
+        // weegt het zwaarst van alle voorbeelden.
+        "The character reference images show exactly how each character looks, head to toe. Copy each one " +
+          "EXACTLY: the same face, hair, body, clothing and every accessory — caps, whistles, badges, numbers, " +
+          "bags. Add nothing and leave nothing out. Do NOT copy their framing or background.",
       ].filter(Boolean).join(" ").trim() || undefined,
     });
+
+    // Controle: draagt iedereen op het blad nog wat hij op zijn eigen tekening draagt?
+    // Bij Coco verdwenen pet en fluit, en daarmee in de halve video (19-09-2026).
+    let result = await teken(1);
+    for (let poging = 2; poging <= 3; poging++) {
+      const oordeel = await beoordeelBeeld(result.imageUrl, null, cast, { iedereenZichtbaar: true });
+      if (oordeel.fouten.length === 0) break;
+      console.warn(`[dialogue-cast-sheet] poging ${poging - 1}: ${oordeel.fouten.join("; ")}`);
+      result = await teken(poging);
+    }
 
     // Het blad is de zwaarst wegende referentie van de hele video: tekst die hier
     // blijft staan, komt in elke scene terug.

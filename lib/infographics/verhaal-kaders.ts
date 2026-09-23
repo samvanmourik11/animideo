@@ -51,9 +51,13 @@ const DEF: Record<Kader, KaderDef> = {
     label: "Totaalbeeld",
     uitleg: "De hele plek in beeld; de personages zijn klein. Voor het openen van een scène.",
     regie:
-      "WIDE ESTABLISHING SHOT: the location fills the frame and the character(s) are small within it, " +
-      "seen from a distance. The viewer should understand WHERE we are before anything else. " +
-      "Plenty of sky, landscape or room around them.",
+      "WIDE ESTABLISHING SHOT: the location fills the frame and the character(s) stand at a distance, " +
+      "seen full body. The viewer should understand WHERE we are before anything else; keep sky, landscape " +
+      // In de proeven van 19-09-2026 mislukten bijna alle fouten in juist dit kader: bij
+      // postzegelgrote figuren tekent het model geen ogen meer, laat het iemand weg of maakt
+      // het er iemand anders van. Ze mogen klein zijn, maar niet piepklein.
+      "or room around them. Even so, each character is clearly recognisable: at least a third of the frame " +
+      "height, with their face readable. Never tiny specks in the distance.",
     maxPersonen: 3,
     geschiktVoorSpreken: false,
   },

@@ -8,8 +8,8 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
-import { zorgVoorBeschrijving } from "@/lib/infographics/portret-beschrijving";
-import { generateImageWithStyle } from "@/lib/image-gen";
+import { zorgVoorBeschrijving } from "@/lib/infographics/personage-blad";
+import { generateImageWithStyle, bewerkBeeld } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { kiesStem, TAALCODE } from "@/lib/infographics/dialogue-stem";
 import {
@@ -27,8 +27,10 @@ import {
 import { isLichtsoort, type Lichtsoort } from "@/lib/infographics/verhaal-licht";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { beoordeelBeeld, beoordeelBeweging, type SprekerOordeel } from "@/lib/infographics/dialogue-verify";
+import { ontbrekendeKleding } from "@/lib/infographics/aanwijzing-controle";
+import { omgevingRegie, variantVoorKader, type Omgeving } from "@/lib/infographics/omgeving";
 import {
-  sprekerHelft, ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC, VERTELLER_ID,
+  castbladSoort, referentieVan, sprekerHelft, ACTIE_MIN_SEC, ACTIE_MAX_SEC, ACTIE_STANDAARD_SEC, VERTELLER_ID,
   type DialogueCastMember, type DialogueVoorwerp, type ShotSoort,
 } from "@/lib/infographics/dialogue-schema";
 import { storyCanvasSize } from "@/lib/infographics/canvas-size";
@@ -183,6 +185,8 @@ interface Body {
    * zin. De clip gebruikt dat beeld later via hergebruikShotImageUrl.
    */
   alleenBeeld?: boolean;
+  /** De plek uit de omgevingenbibliotheek, met de getekende varianten. Zie omgeving.ts. */
+  omgeving?: Omgeving | null;
 }
 
 // Eén gesproken regel = één clip waarin precies dit personage praat en de anderen
@@ -230,8 +234,9 @@ export async function POST(req: NextRequest) {
     const tekst = (b.text ?? "").trim();
     // Beschrijving van het echte karakter per personage, ook als de pagina die (nog) niet had.
     const cast = await Promise.all((Array.isArray(b.cast) ? b.cast : []).map((c) => zorgVoorBeschrijving(supabase, user!.id, c)));
-    // Alleen een castblad van de echte karakters; een ouder blad kwam van de model sheets.
-    if (b.castSheetVan !== "portret") b.castSheetUrl = undefined;
+    // Het castblad moet uit dezelfde ronde komen als de personagetekeningen; anders staan
+    // er twee versies van hetzelfde personage in de referenties.
+    if (b.castSheetVan !== castbladSoort(cast)) b.castSheetUrl = undefined;
     // Een VERTELLER hoort bij geen personage: eigen stem, en niemand in beeld
     // hoeft zijn mond te bewegen. Alleen geldig boven een actiebeeld.
     const isVerteller = b.speakerId === VERTELLER_ID;
@@ -418,8 +423,17 @@ export async function POST(req: NextRequest) {
     // Elke afkeuring bleef zo een waarschuwing zonder herkansing — twee Tyrells of
     // een vreemd meisje gingen gewoon de clip in — terwijl er wél een credit voor de
     // herkansing werd afgeschreven. Nu houden we het minst foute beeld apart bij.
+    // Welk beeld van de plek er meegaat, hangt af van het camerastandpunt van deze
+    // poging: bij een close-up is het wijde totaalbeeld een slechte referentie (dan komt
+    // de hele horizon achter een gezicht terecht).
+    const plekBeeld = (kader: Kader | null) =>
+      b.omgeving ? variantVoorKader(b.omgeving, kader)?.url ?? "" : "";
+
     const alHerbruikbaar = shotImageUrl !== null;
     let beste: { url: string; fouten: string[]; oordeel: SprekerOordeel; ernst: number } | null = null;
+    // Teruggevallen op het scènebeeld: de pagina laat dat zien, zodat je weet waarom twee
+    // beelden op elkaar lijken.
+    let uitScenebeeld = false;
     for (let poging = 1; !alHerbruikbaar && poging <= MAX_BEELD_POGINGEN; poging++) {
       if (poging === MAX_BEELD_POGINGEN && !mensenFout(beeldFouten)) break;
       // De herkansingen zijn niet vooraf afgerekend; pas afschrijven als ze echt gebeuren.
@@ -459,7 +473,10 @@ export async function POST(req: NextRequest) {
           // Het castblad weegt het zwaarst: het legt de identiteit én de
           // onderlinge lengte vast. Zonder blad (oudere projecten) doen de
           // portretten dat werk, maar die zeggen niets over lichaamsbouw.
-          brandUrls: [(b.castSheetUrl ?? "").trim(), ...voorwerpBladen].filter(Boolean),
+          // De plek van deze scène gaat als eerste mee: het beeld dat bij dít
+          // camerastandpunt hoort (een close-up krijgt het detailbeeld, een totaal het
+          // wijde beeld). Zonder plaatje verzon elk shot zijn eigen veld — zie omgeving.ts.
+          brandUrls: [plekBeeld(kaderNu), (b.castSheetUrl ?? "").trim(), ...voorwerpBladen].filter(Boolean),
           // Identiteit: liefst de model sheet (voren, schuin, opzij), anders het
           // portret. Het portret toont maar één hoek; bij een shot van opzij moest
           // het model de rest van het hoofd zelf verzinnen en veranderde het haar.
@@ -467,10 +484,11 @@ export async function POST(req: NextRequest) {
           // en de beschrijving overeenkomt. Portret en blad samen gaven twee verschillende
           // koningen, en het beeldmodel koos per shot (zie voorkant.ts).
           characterUrls: cast
-            .map((c) => c.portraitUrl)
+            .map((c) => referentieVan(c))
             .filter(Boolean),
           extraContext: [
             illustratieContext(b.illustrationBrief),
+            plekBeeld(kaderNu) && b.omgeving ? omgevingRegie(b.omgeving) : "",
             (b.castSheetUrl ?? "").trim()
               ? "One reference image is a CHARACTER LINE-UP SHEET of everyone in this video, full body. " +
                 "The people in this shot must match that sheet exactly — same faces, hair, clothing, build, " +
@@ -533,6 +551,26 @@ export async function POST(req: NextRequest) {
         const ernst = (mensenFout(beeldFouten) ? 10 : 0) + (beeldOordeel === "verkeerd" ? 5 : 0) + beeldFouten.length;
         if (!beste || ernst < beste.ernst) beste = { url: kandidaat, fouten: beeldFouten, oordeel: beeldOordeel, ernst };
 
+        // De controle is niet altijd stabiel: hetzelfde beeld kwam er de ene keer goed
+        // doorheen en de andere keer niet (19-09-2026). Een schoon beeld daarom één keer
+        // laten bevestigen; ziet de tweede blik iemand ontbreken, dan telt dat.
+        if (ernst === 0) {
+          const tweede = await beoordeelBeeld(
+            kandidaat,
+            isActieBeeld ? null : spreker!,
+            isActieBeeld ? cast : luisteraars,
+            { iedereenZichtbaar: iedereenZichtbaar(kaderNu) },
+          );
+          if (mensenFout(tweede.fouten)) {
+            beeldFouten = tweede.fouten;
+            beeldOordeel = tweede.spreker;
+            const ernst2 = 10 + tweede.fouten.length;
+            if (!beste || ernst2 < beste.ernst) beste = { url: kandidaat, fouten: beeldFouten, oordeel: beeldOordeel, ernst: ernst2 };
+            console.warn(`[dialogue-line] tweede blik op poging ${poging}: ${tweede.fouten.join("; ")}`);
+            continue;
+          }
+        }
+
         if (ernst === 0) {
           // In de dialoogmodus hoort er geen tekst in beeld; wat het model er toch
           // bij tekent (kalenders, blaadjes, labels) is altijd verhaspeld.
@@ -567,11 +605,49 @@ export async function POST(req: NextRequest) {
       shotImageUrl = beste.url;
       beeldFouten = beste.fouten;
       beeldOordeel = beste.oordeel;
+      // Maar een beeld waarin iemand ONTBREEKT of er iemand te veel staat, hoort niet in
+      // het storyboard: dat gaf lege velden en vreemde figuren (Sam, 18-09-2026). Dan
+      // liever het scènebeeld: daar staan de juiste personages, alleen minder gevarieerd.
+      if (mensenFout(beeldFouten) && (b.twoShotUrl ?? "").trim()) {
+        console.warn(`[dialogue-line] na ${beeldPogingen} pogingen nog ${beeldFouten.join("; ")}; scènebeeld gebruikt`);
+        shotImageUrl = (b.twoShotUrl ?? "").trim();
+        beeldFouten = [];
+        beeldOordeel = "onduidelijk";
+        uitScenebeeld = true;
+      }
     }
 
     if (!shotImageUrl) {
       await terugstorten();
       return NextResponse.json({ error: "Bronbeeld voor deze regel mislukt" }, { status: 500 });
+    }
+
+    // Een correctie mag je personage niet kosten. "Zet de bal tussen ze in" leverde een
+    // prima beeld op, maar Coco was zijn pet kwijt: het shot wordt voor zo'n aanwijzing
+    // helemaal opnieuw getekend en dan valt er weleens iets af (gemeten 19-09-2026). Wat
+    // ontbreekt tekenen we er met een kleine bewerking weer bij — precies het soort
+    // detailcorrectie dat wél lukt. Alleen bij een correctie: een heel storyboard zou
+    // hier twintig extra kijkvragen aan kwijt zijn.
+    if (beeldInstructie && shotImageUrl && !uitScenebeeld) {
+      const kwijt = await ontbrekendeKleding(shotImageUrl, cast);
+      if (kwijt.length) {
+        console.warn(`[dialogue-line] na de correctie ontbreekt: ${kwijt.join("; ")}; bijtekenen`);
+        try {
+          const hersteld = await bewerkBeeld({
+            bronUrl: shotImageUrl,
+            instructie:
+              `Add back to this picture: ${kwijt.join(", ")}. ` +
+              "Keep everything else exactly as it is: same characters, same poses, same framing, same background, same colours.",
+            format,
+          });
+          const gecontroleerd = await persistFalAssetSoft(supabase, user.id, hersteld.imageUrl, "image");
+          const nogKwijt = await ontbrekendeKleding(gecontroleerd, cast);
+          // Alleen houden als het bijtekenen echt hielp; anders het beeld van de correctie zelf.
+          if (nogKwijt.length < kwijt.length) shotImageUrl = gecontroleerd;
+        } catch (e) {
+          console.error("[dialogue-line] bijtekenen mislukt:", e);
+        }
+      }
     }
 
     // Voor het storyboard zijn we hier klaar: het beeld is gemaakt en gecontroleerd.
@@ -580,6 +656,7 @@ export async function POST(req: NextRequest) {
       await terugstorten();
       return NextResponse.json({
         shotImageUrl,
+        uitScenebeeld,
         sprekerZeker: beeldOordeel !== "verkeerd",
         beeldOordeel,
         beeldPogingen,

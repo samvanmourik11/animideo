@@ -81,8 +81,8 @@ describe("filters", () => {
   it("laat bij een zachte las de clip doorlopen in plaats van eerst stil te staan", () => {
     const f = segmentVideoFilter("scale=1920:1080", { spraak: 3, kop: 0, staart: 0, las: ZACHTE_LAS }, true);
     expect(f).toContain(`trim=duration=${(3 + ZACHTE_LAS).toFixed(3)}`);
-    // Alleen als de clip te kort is, houdt het laatste beeld de las vast.
-    expect(f).toContain(`stop_mode=clone:stop_duration=${ZACHTE_LAS.toFixed(3)}`);
+    // Het laatste beeld wordt ruim vastgehouden; de aanroeper kapt daarna exact af.
+    expect(f).toContain(`stop_mode=clone:stop_duration=${(3 + ZACHTE_LAS).toFixed(3)}`);
   });
 
   it("zet de zinnen van een scène met overvloeiers aan elkaar, precies op het einde van elke zin", () => {
@@ -95,8 +95,16 @@ describe("filters", () => {
     expect(overgangOffsets([3 + ZACHTE_LAS, 4 + ZACHTE_LAS, 2], ZACHTE_LAS).totaal).toBeCloseTo(9);
   });
 
-  it("laat een segment zonder kop en staart gewoon zoals het was", () => {
-    expect(segmentVideoFilter("scale=1920:1080", { spraak: 2, kop: 0, staart: 0 }, false)).toBe("scale=1920:1080");
+  // Het geluid werd met apad + atrim altijd exact op maat gemaakt, het beeld niet: was de
+  // ingesproken zin langer dan de clip (een zin die opnieuw is ingesproken), dan kwam er
+  // beeld tekort. Per zin een beetje, en na tien zinnen was het beeld op terwijl het
+  // geluid doorliep — de helft van "Leo de Leeuw leert voetballen" was zwart.
+  it("houdt het laatste beeld altijd lang genoeg vast om de hele zin te dekken", () => {
+    const f = segmentVideoFilter("scale=1920:1080", { spraak: 6.4, kop: 0, staart: 0.5, las: 0.35 }, true);
+    const m = f.match(/stop_duration=([\d.]+)/);
+    expect(m).not.toBeNull();
+    // Ook als de clip meteen op is, levert de padding nog de hele segmentlengte op.
+    expect(parseFloat(m![1])).toBeGreaterThanOrEqual(6.4 + 0.5 + 0.35);
   });
 
   it("schuift de stem op met de kop, zodat de zin pas na de overvloeier begint", () => {

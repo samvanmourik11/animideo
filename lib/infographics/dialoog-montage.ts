@@ -99,11 +99,17 @@ export function segmentVideoFilter(
   // Tijdens de zachte las loopt de clip door; pas de stilte van een scènewissel of het
   // eind bevriest. Een stilstaand beeld vóór de overvloeier las als een stop.
   if (bevriesStaart) delen.push(`trim=duration=${s(seg.spraak + las)}`, "setpts=PTS-STARTPTS");
-  // Is de clip korter dan nodig, dan houdt het laatste beeld ook de las vast.
-  const vast = seg.staart + las;
+  // Het laatste beeld ruim vasthouden en daarna exact afkappen (de aanroeper zet er
+  // `trim=duration` achter). Dit stond eerst op precies de geplande stilte, en dat gaat
+  // mis zodra de INGESPROKEN ZIN LANGER IS DAN DE CLIP — bijvoorbeeld als een zin
+  // opnieuw is ingesproken nadat de clip al gemaakt was. Het geluid wordt wél op maat
+  // gemaakt (apad + atrim), het beeld niet: gemeten 19-09-2026 kwam een segment van
+  // 7,25 s terug als 5,83 s beeld met 6,9 s geluid. Die achterstand loopt per zin op,
+  // en in "Leo de Leeuw leert voetballen" was het beeld na 45 seconden op terwijl het
+  // geluid nog 35 seconden doorging: een half zwart filmpje.
+  const vast = seg.kop + seg.spraak + seg.staart + las;
   const pad = [
     seg.kop > 0 ? `start_mode=clone:start_duration=${s(seg.kop)}` : "",
-    // Ook bij een actiebeeld: is de clip korter dan nodig, dan het laatste beeld vasthouden.
     vast > 0 ? `stop_mode=clone:stop_duration=${s(vast)}` : "",
   ].filter(Boolean);
   // fps vóór tpad: in ffmpeg 7 (de versie op Vercel) doet tpad direct na setpts niets,

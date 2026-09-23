@@ -1,7 +1,7 @@
 import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
-import { mkdtemp, writeFile, readFile, rm, statfs } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm, rename, statfs } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import ffmpegPath from "ffmpeg-static";
@@ -45,6 +45,28 @@ function probeDuur(file: string): Promise<number> {
     proc.on("close", () => {
       const m = s.match(/Duration:\s*(\d+):(\d+):([\d.]+)/);
       resolve(m ? (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]) : 0);
+    });
+    proc.on("error", () => resolve(0));
+  });
+}
+
+/**
+ * De lengte van één spoor apart ("v" of "a").
+ *
+ * De containerlengte is de langste van de twee en verbergt juist het probleem dat we
+ * willen zien: geluid dat doorloopt terwijl het beeld al op is.
+ */
+function spoorDuur(file: string, spoor: "v" | "a"): Promise<number> {
+  return new Promise((resolve) => {
+    const proc = spawn((ffmpegPath as unknown as string) || "ffmpeg", [
+      "-hide_banner", "-i", file, "-map", `0:${spoor}`, "-f", "null", "-",
+    ]);
+    let s = "";
+    proc.stderr.on("data", (c) => { s += c.toString(); });
+    proc.on("close", () => {
+      const treffers = [...s.matchAll(/time=(\d+):(\d+):([\d.]+)/g)];
+      const laatste = treffers[treffers.length - 1];
+      resolve(laatste ? (+laatste[1]) * 3600 + (+laatste[2]) * 60 + parseFloat(laatste[3]) : 0);
     });
     proc.on("error", () => resolve(0));
   });
@@ -261,6 +283,28 @@ export async function POST(req: NextRequest) {
       ...ENC(fps), "-movflags", "+faststart", "-y", samen,
     ]);
     await Promise.all(groepen.flatMap((g) => [g.beeld, g.geluid]).map((f) => rm(f, { force: true })));
+
+    // Vangnet: nooit een klant met zwart beeld onder doorlopend geluid.
+    //
+    // Dat is precies wat er gebeurde bij "Leo de Leeuw leert voetballen": vanaf 45,7 s
+    // zwart terwijl de stemmen nog 35 seconden doorgingen. De oorzaak is weg (het beeld
+    // per zin wordt nu net als het geluid op maat gemaakt, zie segmentVideoFilter), maar
+    // een montage die scheef loopt mag nooit stilletjes de deur uit.
+    const vDuur = await spoorDuur(samen, "v");
+    const aDuur = await spoorDuur(samen, "a");
+    // Een halve seconde verschil is normaal: de aac-encoder zet nog wat stilte achter
+    // het geluid. Pas daarboven klopt er iets niet.
+    if (aDuur - vDuur > 1) {
+      console.error(`[dialogue-export] beeld ${vDuur.toFixed(2)}s onder geluid ${aDuur.toFixed(2)}s; laatste beeld vasthouden`);
+      const rechtgezet = path.join(werkmap, "rechtgezet.mp4");
+      await runFfmpeg([
+        "-i", samen,
+        "-filter_complex", `[0:v]fps=${fps},tpad=stop_mode=clone:stop_duration=${(aDuur - vDuur + 1).toFixed(3)},trim=duration=${aDuur.toFixed(3)},setpts=PTS-STARTPTS[v]`,
+        "-map", "[v]", "-map", "0:a", ...ENC(fps), "-c:a", "copy", "-movflags", "+faststart", "-y", rechtgezet,
+      ]);
+      await rm(samen, { force: true });
+      await rename(rechtgezet, samen);
+    }
 
     // ---------- 5. Muziekbed met ducking ----------
     // Actiebeelden hebben geen stem. Met een muziekbed dat overal even zacht staat

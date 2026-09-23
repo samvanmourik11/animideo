@@ -18,6 +18,8 @@
 // Strict-mode (OpenAI json_schema): elk object heeft ALLE properties in
 // `required` en `additionalProperties:false`; optionele velden zijn nullable.
 
+import type { Omgeving } from "./omgeving";
+
 /**
  * Gereserveerd id voor de VERTELLER: een stem die bij geen enkel personage hoort.
  * Een verteller kan alleen over een actiebeeld praten — in een twee-shot zou je
@@ -157,10 +159,12 @@ export interface DialogueCastMember {
    */
   modelSheetUrl?: string | null;
   /**
-   * Van welk portret `appearance` en `kleding` beschreven zijn (zie portret-beschrijving.ts).
-   * Anders dan dit portret: de beschrijving is verlopen en wordt opnieuw gemaakt.
+   * Van welke tekening `appearance` en `kleding` beschreven zijn (zie personage-blad.ts).
+   * Anders dan de tekening die naar de beelden gaat: de beschrijving is verlopen.
    */
   beschrevenVan?: string | null;
+  /** Is dit houdingenblad nagekeken (ogen open, niets kwijt)? Zie dialogue-blad-keur. */
+  bladGekeurd?: boolean | null;
   // Plek in het kader. Bepaalt hoe we spreker/luisteraar benoemen in de prompts.
   position: CastPosition;
   // Kort ENGELS uiterlijk (haar, kleding, leeftijd). Bewust apart van het portret:
@@ -273,6 +277,13 @@ export interface DialogueLine {
    * afro"). Staat bij het beeld, zodat je ziet of "het rechter poppetje" goed begrepen is.
    */
   beeldAanwijzingUitleg?: string | null;
+  /**
+   * Is die aanwijzing ook echt uitgevoerd? false = de app heeft het geprobeerd en het
+   * staat er nog steeds niet. Dat hoort de gebruiker te zien: "aangepast" zeggen bij een
+   * onveranderd beeld was het grootste ergernispunt van deze knop (Sam, 19-09-2026).
+   * null = niet gecontroleerd (oudere projecten, of het kijken lukte niet).
+   */
+  beeldAanwijzingGelukt?: boolean | null;
   // Bronbeeld van DEZE regel: het twee-shot van de scène, bijgewerkt zodat dit
   // personage praat en de ander in luisterhouding staat.
   shotImageUrl?: string | null;
@@ -343,6 +354,17 @@ export interface DialogueScene {
    * Null = de beeldregie heeft dit nog niet ingevuld; leeg = hij gaf er geen.
    */
   wereld?: string | null;
+  /**
+   * De plek uit de omgevingenbibliotheek waar deze scène speelt, met de getekende
+   * varianten erbij (zie omgeving.ts).
+   *
+   * Dit is de enige plek die ook een PLAATJE heeft. `setting` en `wereld` zijn tekst,
+   * en tekst laat het beeldmodel elke keer een ander veld verzinnen: in "Leo de Leeuw
+   * leert voetballen" stonden in het ene shot platte lollybomen zonder doel en in het
+   * volgende een dicht bos mét doel. Een kopie in de scène, net als bij de voorwerpen,
+   * zodat een oude video niet verandert als de bibliotheek later wordt aangepast.
+   */
+  omgeving?: Omgeving | null;
   /** Is de beeldregie over deze scène gegaan (eigen plek, beeld per regel)? */
   geregisseerd?: boolean | null;
 }
@@ -421,10 +443,25 @@ export interface DialogueSpec {
    */
   castSheetUrl?: string | null;
   /**
-   * "portret" = het castblad is van de echte karakters getekend. Castbladen van daarvoor
-   * kwamen van de model sheets (het draakje met trui) en gaan niet meer naar de beelden.
+   * Waarvan het castblad getekend is: "blad" = van de houdingenbladen, "portret" = van de
+   * karakters uit de bibliotheek. Een castblad uit een andere ronde gaat niet naar de
+   * beelden: dan zie je twee verschillende versies van hetzelfde personage door elkaar.
    */
-  castSheetVan?: "portret" | null;
+  castSheetVan?: "blad" | "portret" | null;
+  /**
+   * Heeft de gebruiker de personages gezien en goedgekeurd? Zonder dat stopt het maken van
+   * het storyboard na de personages: stond je personage vanaf het begin verkeerd, dan moet
+   * je hem kunnen wijzigen vóór er twintig beelden mee gemaakt zijn (Sam, 19-09-2026).
+   */
+  bladenAkkoord?: boolean | null;
+  /**
+   * Heeft de gebruiker de plekken gezien voordat het storyboard getekend werd?
+   *
+   * Net als bij de personages: een plek die vanaf het begin fout is, zit anders in
+   * twintig beelden voordat je hem kunt aanpassen. Je stelt de omgeving dus eerst vast
+   * en pas daarna wordt er getekend (Sam, 21-09-2026).
+   */
+  omgevingenAkkoord?: boolean | null;
   /** Voorwerpen die in het verhaal terugkomen en er in elk beeld hetzelfde uit moeten zien. */
   voorwerpen?: DialogueVoorwerp[] | null;
   /**
@@ -471,6 +508,27 @@ export function uiterlijkVan(lid: { name: string; appearance?: string | null; kl
   const kleding = (lid.kleding ?? "").trim();
   if (!kleding) return basis;
   return `${basis}${basis ? " " : ""}Outfit: ${kleding.replace(/\.?$/, ".")}`;
+}
+
+/**
+ * De tekening van dit personage die naar ELK beeld gaat.
+ *
+ * Het houdingenblad (van voren, schuin, opzij) als het er is, anders het karakter uit de
+ * bibliotheek. Gemeten op 19-09-2026 met zes shots uit het voetbalverhaal: met het blad
+ * had Coco in 5 van de 5 beelden zijn pet, hesje én fluit; met het bibliotheekkarakter
+ * klopte 3 van de 15 kenmerken niet. Sam: consistent is belangrijker dan perfect gelijk
+ * aan de bibliotheek. Nooit allebei door elkaar — dan kiest het beeldmodel per shot (zie
+ * het draakje dat in de ene scène een trui droeg en in de volgende niet).
+ */
+export function referentieVan(lid: Pick<DialogueCastMember, "modelSheetUrl" | "portraitUrl">): string {
+  return (lid.modelSheetUrl ?? "").trim() || lid.portraitUrl;
+}
+/**
+ * Waarvan een castblad getekend hoort te zijn bij deze cast: van de houdingenbladen zodra
+ * iedereen er een heeft, anders van de karakters uit de bibliotheek.
+ */
+export function castbladSoort(cast: Pick<DialogueCastMember, "modelSheetUrl">[]): "blad" | "portret" {
+  return cast.length > 0 && cast.every((c) => (c.modelSheetUrl ?? "").trim()) ? "blad" : "portret";
 }
 
 /** Meer voorwerpbladen per beeld verdringen het castblad uit de referenties. */
