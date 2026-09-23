@@ -493,6 +493,20 @@ export const CAST_SHEET_GUIDANCE =
   "line-up pose or its plain background — this scene has its own location and action.";
 
 /**
+ * De regel voor een scene waar de vaste cast NIET in hoort.
+ *
+ * Het castblad ging naar élke scene mee, ook naar scenes waar de regie niemand
+ * had ingedeeld. In een verhaal over Pompeii stonden de Romeinse personages
+ * daardoor ook in de scenes over het heden. Nu krijgt zo'n scene het blad niet
+ * meer, en deze zin erbij — anders vult het model de leegte alsnog met de mensen
+ * die het uit de andere beelden kent.
+ */
+export const GEEN_CAST_IN_SCENE =
+  " The recurring characters of this video do NOT appear in this scene. Draw only the people that this scene's own " +
+  "description asks for — different people, in clothing that fits this moment and this era — or no people at all if the " +
+  "description mentions none. Never bring back a character from another scene here.";
+
+/**
  * Briefing voor het castblad zelf: iedereen ten voeten uit, naast elkaar.
  * Bewust op een egaal vlak (kader "vlak"), want dit blad is een referentie en
  * geen scène uit de video.

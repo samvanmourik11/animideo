@@ -6,7 +6,7 @@ import { knipScriptInScenes, isLetterlijk } from "@/lib/infographics/story-scrip
 import { storySpecSchema, castRefsVanSpec, mergeVasteCast, castRefsVoorScene, MAX_CAST_REFS, type StorySpec, type StoryScene, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
 import { generateImageWithStyle, cleanupSceneIllustration, cleanupFlatGraphic } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { isBeperkteStijl, visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, buildCastSheetBrief, castSheetRefLine } from "@/lib/infographics/story-style";
+import { isBeperkteStijl, visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, buildCastSheetBrief, castSheetRefLine } from "@/lib/infographics/story-style";
 import { artDirectScenes, regisseerOverheidScenes } from "@/lib/infographics/art-direct";
 import { ICOON_SLEUTELS, icoonKeuzelijst } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
@@ -349,14 +349,27 @@ export async function POST(req: NextRequest) {
         // erin staat (geen castNames), dan liever iedereen dan niemand: een
         // ontbrekend portret betekent een nieuw verzonnen gezicht.
         const refsInScene = castRefsVoorScene(castRefsMetNaam, scene.castNames);
+        // HOORT DE CAST IN DEZE SCENE? Het castblad ging naar élk beeld, ook naar
+        // scenes waarin de regie niemand had ingedeeld. In een verhaal over Pompeii
+        // stonden de Romeinse personages daardoor óók in de scenes over het heden:
+        // het blad zit in de zwaarst wegende referentieslots, dus het beeldmodel
+        // tekent die mensen er gewoon bij. Heeft de regie deze scene leeg gelaten,
+        // dan gaat het blad niet mee en zegt de prompt het er expliciet bij.
+        //
+        // Alleen als de regie helemaal niets heeft ingedeeld (art-direction
+        // mislukt) valt alles terug op het oude gedrag: dan is "iedereen" beter
+        // dan een verhaal waarin de hoofdpersoon nergens meer op lijkt.
+        const regieDeeldeCastIn = spec.scenes.some((sc) => (sc.castNames ?? []).length > 0);
+        const castInDezeScene = !regieDeeldeCastIn || (scene.castNames ?? []).length > 0;
+        const bladVoorScene = castInDezeScene ? castSheetUrl : null;
         const extraContext = [
           // Het uiterlijk van Nederlandse dingen ligt vast; laat het beeldmodel er
           // geen Amerikaanse versie van maken.
           nlBeeldkennis(language, scene.illustration, scene.voiceover, (scene.labels ?? []).join(" ")),
           paletteHint,
-          castGuidance(cast, scene.castNames),
-          castSheetUrl ? CAST_SHEET_GUIDANCE : "",
-          castRefGuidance(refsInScene),
+          castInDezeScene ? castGuidance(cast, scene.castNames) : GEEN_CAST_IN_SCENE,
+          bladVoorScene ? CAST_SHEET_GUIDANCE : "",
+          castInDezeScene ? castRefGuidance(refsInScene) : "",
           anchorUrl ? STYLE_MATCH_ANCHOR : "",
         ].filter(Boolean).join(" ").trim() || undefined;
         // Het anker levert de tekenstijl, de portretten de identiteit. Ze horen
@@ -377,8 +390,8 @@ export async function POST(req: NextRequest) {
             seed,
             // Het castblad krijgt de merk-slots: die staan vooraan in de rij
             // referenties en wegen het zwaarst — en identiteit is hier het doel.
-            brandUrls: castSheetUrl ? [castSheetUrl] : undefined,
-            characterUrls: refsInScene.length ? refsInScene.map((r) => r.url) : undefined,
+            brandUrls: bladVoorScene ? [bladVoorScene] : undefined,
+            characterUrls: castInDezeScene && refsInScene.length ? refsInScene.map((r) => r.url) : undefined,
             ingredientUrls: ingredientUrls.length ? ingredientUrls : undefined,
             extraContext,
           });
