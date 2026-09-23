@@ -69,3 +69,24 @@ export function canUseDialoog(email: string | null | undefined): boolean {
   if (DIALOOG_OPEN_TO_ALL) return true;
   return isTeamAccount(email);
 }
+
+/**
+ * De realistische stijl in de storytelling-tool: levensechte mensen en
+ * omgevingen in plaats van een tekening. De stijl bestaat al langer als
+ * referentiepack ("Realistic Animation", zie lib/style-packs.ts), maar staat
+ * niet in het stijlmenu van de storytelling-tool.
+ *
+ * Bewust per account: dit is beeld dat op echte beelden lijkt, en dat willen we
+ * eerst bij één klant zien werken voor het voor iedereen open gaat. Miranda
+ * meldde zich op 23-09-2026 aan om juist zulke explainers te maken.
+ *
+ * Openzetten voor iedereen: verplaats de stijl naar de gewone lijst in
+ * lib/infographics/story-style.ts (haal `beperkt` weg).
+ */
+export const REALISTISCHE_STIJL_ACCOUNTS = new Set<string>([
+  "mirandavand247@gmail.com",
+]);
+
+export function magRealistischeStijl(email: string | null | undefined): boolean {
+  return !!email && (REALISTISCHE_STIJL_ACCOUNTS.has(email.toLowerCase()) || isTeamAccount(email));
+}

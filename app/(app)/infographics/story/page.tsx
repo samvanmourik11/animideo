@@ -11,11 +11,11 @@ import { knipScriptInScenes, geschatteDuur, MAX_SCENES } from "@/lib/infographic
 import { lijktOpDraaiboek, type DraaiboekLezing } from "@/lib/infographics/draaiboek";
 import { splitVoiceDurations, storyWindows } from "@/lib/infographics/story-layout";
 import { storyAspectRatio } from "@/lib/infographics/canvas-size";
-import { DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
+import { DEFAULT_STORY_STYLE, stijlenVoor } from "@/lib/infographics/story-style";
 import StylePicker from "@/components/style/StylePicker";
 import BibliotheekKiezer from "@/components/characters/BibliotheekKiezer";
 import { createClient } from "@/lib/supabase/client";
-import { isTeamAccount } from "@/lib/studio/access";
+import { isTeamAccount, magRealistischeStijl } from "@/lib/studio/access";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 import { DEFAULT_VOICE, voicePreviewUrl, voicesForLanguage, voiceForLanguage } from "@/lib/infographics/story-voices";
 import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
@@ -119,6 +119,8 @@ export default function StoryPage() {
   // alleen in het menu op interne accounts, net als de andere tools die nog niet
   // af zijn (zie lib/studio/access.ts).
   const [intern, setIntern] = useState(false);
+  // De realistische stijl staat per account open (zie lib/studio/access.ts).
+  const [magRealistisch, setMagRealistisch] = useState(false);
   const [format, setFormat] = useState<"16:9" | "9:16">("16:9");
   const [showSafeZone, setShowSafeZone] = useState(false);
   const [styleId, setStyleId] = useState<string>(DEFAULT_STORY_STYLE);
@@ -312,8 +314,14 @@ export default function StoryPage() {
   useEffect(() => {
     createClient()
       .auth.getUser()
-      .then(({ data }) => setIntern(isTeamAccount(data.user?.email)))
-      .catch(() => setIntern(false));
+      .then(({ data }) => {
+        setIntern(isTeamAccount(data.user?.email));
+        setMagRealistisch(magRealistischeStijl(data.user?.email));
+      })
+      .catch(() => {
+        setIntern(false);
+        setMagRealistisch(false);
+      });
   }, []);
 
   // Past een brand kit toe: hoofdkleur ← primair (val terug op secundair) en
@@ -1326,6 +1334,7 @@ export default function StoryPage() {
             <StylePicker
               value={styleId}
               onChange={setStyleId}
+              presets={stijlenVoor(magRealistisch)}
               disabled={!!spec}
               hint={spec ? "De stijl ligt vast voor dit verhaal. Klik “Nieuw verhaal” voor een andere stijl." : undefined}
             />

@@ -2,6 +2,8 @@
 // (generate-story) en latere regeneraties/aanpassingen (scene-image) exact
 // dezelfde "animatiemarkt flat infographic" look gebruiken.
 
+import type { VisualStyle } from "@/lib/types";
+
 export const STYLE_PREAMBLE =
   "Flat vector illustration in a professional, modern corporate animated-explainer / infographic style. " +
   "Clean geometric shapes, flat colors with a subtle paper-grain texture, crisp edges, no realistic shading, no gradients. " +
@@ -102,6 +104,18 @@ export interface StoryStylePreset {
   tagline: string; // korte omschrijving
   emoji: string;   // simpele thumbnail zonder assets
   preamble: string;
+  /**
+   * Alleen zichtbaar voor accounts die er toestemming voor hebben (zie
+   * magRealistischeStijl in lib/studio/access.ts). Zo kan een stijl eerst bij
+   * één klant draaien zonder in ieders menu te verschijnen.
+   */
+  beperkt?: boolean;
+  /**
+   * Stijl-referentiepack dat meegaat naar het beeldmodel (lib/style-packs.ts).
+   * De andere stijlen doen het met alleen de preamble; een levensechte look
+   * krijg je met tekst alleen niet betrouwbaar, dus die leunt op voorbeelden.
+   */
+  visualStyle?: VisualStyle;
 }
 
 export const STORY_STYLE_PRESETS: StoryStylePreset[] = [
@@ -144,7 +158,43 @@ export const STORY_STYLE_PRESETS: StoryStylePreset[] = [
       "materials, gentle soft studio lighting and subtle depth of field. Friendly, playful, tactile " +
       "toy-like look with rounded edges and soft shadows. ",
   },
+  {
+    // Levensechte beelden in plaats van een tekening. De stijl bestond al als
+    // referentiepack voor de Creator Studio ("Realistic Animation", mei 2026);
+    // hier komt hij als keuze in de storytelling-tool. Bewust `beperkt`: dit
+    // lijkt op echt gefilmd materiaal, dus eerst bij één klant.
+    id: "realistisch",
+    name: "Realistisch",
+    tagline: "Levensecht, geen tekening",
+    emoji: "📷",
+    beperkt: true,
+    visualStyle: "Realistic",
+    // De bewoordingen komen uit de oorspronkelijke stijlen "Realistic" en
+    // "Cinematic" die tot 26-05-2026 in de wizard zaten (commit 71822a5 haalde
+    // ze weg toen stijl op referentiebeelden overging).
+    preamble:
+      "Photorealistic photograph, shot on a full-frame DSLR, natural daylight, documentary photography. " +
+      "Real people in real locations: natural skin texture, real fabrics and materials, true-to-life " +
+      "proportions and anatomy, shallow depth of field with a softly blurred background, subtle film grain, " +
+      "ultra-sharp focus, true-to-life colors. " +
+      "No CGI, no illustration, no digital art, NOT a cartoon, NOT flat vector, no outlines. Real photograph only. ",
+  },
 ];
+
+/** De stijlen die dit account mag kiezen: de vrije stijlen plus waar het recht op heeft. */
+export function stijlenVoor(magRealistisch: boolean): StoryStylePreset[] {
+  return STORY_STYLE_PRESETS.filter((s) => !s.beperkt || magRealistisch);
+}
+
+/** Het referentiepack bij een stijl, als die er een heeft. */
+export function visualStyleVan(styleId: string | null | undefined): VisualStyle | null {
+  return STORY_STYLE_PRESETS.find((s) => s.id === styleId)?.visualStyle ?? null;
+}
+
+/** Is dit een stijl die niet elk account mag gebruiken? */
+export function isBeperkteStijl(styleId: string | null | undefined): boolean {
+  return STORY_STYLE_PRESETS.some((s) => s.id === styleId && s.beperkt === true);
+}
 
 export const DEFAULT_STORY_STYLE = "flat-vector";
 

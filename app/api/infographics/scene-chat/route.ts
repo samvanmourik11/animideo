@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle, editIllustration, cleanupSceneIllustration, cleanupFlatGraphic } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE } from "@/lib/infographics/story-style";
+import { visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE } from "@/lib/infographics/story-style";
 import { castRefsVanSpec, MAX_CAST_REFS, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
 import { planSceneChat, planLayoutChat } from "@/lib/infographics/scene-chat";
 import { ICOON_SLEUTELS, icoonKeuzelijst, type OverheidLayout } from "@/lib/infographics/overheid-scene";
@@ -166,7 +166,9 @@ export async function POST(req: NextRequest) {
         const result = await generateImageWithStyle({
           prompt: buildIllustrationPrompt(plan.illustration, body.styleId, body.language, kader, plan.labels),
           format,
-          visualStyle: null,
+          // Zelfde stijlpack als bij het eerste beeld; anders valt een
+          // bijgestuurd beeld terug naar een tekening (zie story-style.ts).
+          visualStyle: visualStyleVan(body.styleId),
           seed: typeof body.seed === "number" ? body.seed : undefined,
           brandUrls: castSheet ? [castSheet] : undefined,
           characterUrls: castRefs.length ? castRefs.map((r) => r.url) : undefined,

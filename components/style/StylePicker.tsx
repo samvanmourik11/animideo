@@ -19,16 +19,23 @@ export default function StylePicker({
   disabled = false,
   /** Toelichting onder de kaartjes, bijv. waarom de keuze vastligt. */
   hint,
+  /**
+   * Welke stijlen dit account mag kiezen. Standaard alleen de stijlen die voor
+   * iedereen open staan; een beperkte stijl (zie stijlenVoor) komt er alleen
+   * bij als de pagina hem meegeeft.
+   */
+  presets = STORY_STYLE_PRESETS.filter((s) => !s.beperkt),
 }: {
   value: string;
   onChange: (styleId: string) => void;
   disabled?: boolean;
   hint?: string;
+  presets?: typeof STORY_STYLE_PRESETS;
 }) {
   return (
     <div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {STORY_STYLE_PRESETS.map((s) => (
+        {presets.map((s) => (
           <button
             key={s.id}
             type="button"

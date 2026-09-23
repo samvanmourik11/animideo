@@ -6,13 +6,13 @@ import { knipScriptInScenes, isLetterlijk } from "@/lib/infographics/story-scrip
 import { storySpecSchema, castRefsVanSpec, mergeVasteCast, castRefsVoorScene, MAX_CAST_REFS, type StorySpec, type StoryScene, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
 import { generateImageWithStyle, cleanupSceneIllustration, cleanupFlatGraphic } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, buildCastSheetBrief, castSheetRefLine } from "@/lib/infographics/story-style";
+import { isBeperkteStijl, visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, buildCastSheetBrief, castSheetRefLine } from "@/lib/infographics/story-style";
 import { artDirectScenes, regisseerOverheidScenes } from "@/lib/infographics/art-direct";
 import { ICOON_SLEUTELS, icoonKeuzelijst } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
 import { nlBeeldkennis } from "@/lib/infographics/nl-beeldkennis";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
-import { isTeamAccount } from "@/lib/studio/access";
+import { isTeamAccount, magRealistischeStijl } from "@/lib/studio/access";
 import type { InfographicFormat } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -103,7 +103,15 @@ export async function POST(req: NextRequest) {
     // De overheidsmodus tekent diagrammen op een leeg vlak in plaats van scènes op
     // een plek, en negeert daarmee de gekozen tekenstijl (zie OVERHEID_FRAMING).
     const kader = mode === "overheid" ? ("overheid" as const) : ("verhaal" as const);
-    const styleId = body.styleId ?? "flat-vector";
+    // Een beperkte stijl (nu: de realistische) is niet zomaar voor iedereen.
+    // Het menu verbergt hem al, maar wie de aanroep naspeelt zou hem alsnog
+    // krijgen — daarom hier ook, net als bij de overheidsmodus hierboven.
+    const gevraagdeStijl = body.styleId ?? "flat-vector";
+    const styleId =
+      isBeperkteStijl(gevraagdeStijl) && !magRealistischeStijl(user.email) ? "flat-vector" : gevraagdeStijl;
+    // De realistische stijl leunt op referentiebeelden uit het stijlpack; de
+    // andere stijlen doen het met alleen de prompt.
+    const visualStyle = visualStyleVan(styleId);
     const language = body.language ?? "Nederlands";
     const keepTerms = Array.isArray(body.keepTerms) ? body.keepTerms : [];
     const characterUrl = body.characterUrl?.trim() || null;
@@ -314,7 +322,7 @@ export async function POST(req: NextRequest) {
           // Kader "vlak" (de standaard): dit is een referentieblad, geen scène.
           prompt: buildIllustrationPrompt(buildCastSheetBrief(cast), styleId, language),
           format,
-          visualStyle: null,
+          visualStyle,
           seed,
           // Alle gekozen portretten als character-refs: het castblad is het
           // ene beeld waarop iedereen naast elkaar staat, dus hier moeten ze
@@ -357,7 +365,7 @@ export async function POST(req: NextRequest) {
         const result = await generateImageWithStyle({
           prompt: buildIllustrationPrompt(scene.illustration, styleId, language, kader, scene.labels),
           format,
-          visualStyle: null,
+          visualStyle,
           seed,
           // Het castblad krijgt de merk-slots: die staan vooraan in de rij
           // referenties en wegen het zwaarst — en identiteit is hier het doel.
