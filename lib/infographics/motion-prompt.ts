@@ -52,17 +52,23 @@ const OVERHEID_STYLE_RULE =
 const OVERHEID_MOTION =
   "Animate this diagram the way a flat motion-graphics explainer moves. Use only the elements that are already in the image, and give them graphic motion: shapes and panels slide in from an edge or scale up into place, a row of items appears one after another in a quick sequence, a chain or ribbon of coins flows steadily along its own path, a stack or bar grows upward, arrows travel from one element to the next, and a flat figure may raise an arm or tilt slightly. Existing elements are allowed to enter or leave the frame along their path — that is part of this style — as long as nothing NEW ever appears. Keep the motion clean, even-paced and purposeful: one clear movement that explains what this image is about, not busy fidgeting in every corner.";
 
+/**
+ * Wat er overblijft van de algemene beschrijving zodra er een plan ligt.
+ *
+ * Eerst stond het hele DEFAULT_MOTION-verhaal áchter het plan, met zijn lijstje
+ * "iemand mag ademen, knipperen, zijn gewicht verplaatsen". Seedance pakte dat
+ * lijstje en negeerde het plan: de beweging had niets met de zin te maken. Nu
+ * blijft alleen de rem staan, en is het plan de opdracht.
+ */
+const PLAN_KADER =
+  "This is the ONLY motion in the clip. Everything else in the image stays completely still. Keep the motion small, slow, smooth and natural, and do not add any second movement anywhere in the frame.";
+
 export function buildMotionPrompt(steer?: string, mode?: "story" | "report" | "overheid"): string {
   const extra = (steer || "").trim();
   if (mode === "overheid") {
-    const motion = extra
-      ? `Apply motion to the existing diagram as follows: ${extra}. ${OVERHEID_MOTION}`
-      : OVERHEID_MOTION;
+    const motion = extra ? `${extra} ${PLAN_KADER}` : OVERHEID_MOTION;
     return `Animate ONLY the elements in the existing image. ${motion} ${OVERHEID_STYLE_RULE} ${OVERHEID_PRESERVE}`.slice(0, 2500);
   }
-  // De vuistregel staat zowel voor- als achteraan, zodat hij het zwaarst weegt.
-  const motion = extra
-    ? `Apply motion to the existing illustration as follows: ${extra}. ${DEFAULT_MOTION}`
-    : DEFAULT_MOTION;
+  const motion = extra ? `${extra} ${PLAN_KADER}` : DEFAULT_MOTION;
   return `Animate ONLY the existing image. ${motion} ${STYLE_RULE} ${PRESERVE_RULE}`.slice(0, 2500);
 }

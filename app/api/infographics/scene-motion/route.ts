@@ -81,7 +81,11 @@ export async function POST(req: NextRequest) {
 
     // VOORAF: bepaal exact de (minimale) beweging voor deze specifieke scène.
     const plan = await planMotion({ imageUrl, voiceover, illustration, title, steer: steer ?? prompt, mode });
-    let currentSteer = plan ?? steer ?? prompt;
+    // Het plan is de opdracht; de wens van de gebruiker zit er al in verwerkt.
+    // De "kern" staat in het log, zodat bij een rare clip te zien is of de
+    // regisseur de zin verkeerd begreep of het videomodel zijn plan negeerde.
+    if (plan?.kern) console.info(`[scene-motion] kern van de scène: ${plan.kern} → ${plan.beweging}`);
+    let currentSteer = plan?.beweging ?? steer ?? prompt;
     // "Schoon" = het kritische oog zag niets in beeld verschijnen dat niet in het
     // bronbeeld stond. Alleen zulke pogingen mogen getoond worden.
     let bestCleanUrl: string | null = null;
@@ -102,7 +106,7 @@ export async function POST(req: NextRequest) {
 
       // Kritisch oog: toets STRENG tegen het plan (en het bronbeeld) én geef een score.
       const frames = await extractFrames(tempUrl, 4);
-      const verdict = await critiqueMotion({ frames, voiceover, illustration, title, plan, sourceImageUrl: imageUrl, mode });
+      const verdict = await critiqueMotion({ frames, voiceover, illustration, title, plan: plan?.beweging ?? null, sourceImageUrl: imageUrl, mode });
       lastReason = verdict.reason;
       if (verdict.addedElements) {
         // Harde veto: er kwam iets bij (hand, persoon, object). Deze clip komt
