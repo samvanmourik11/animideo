@@ -6,8 +6,11 @@ import CharacterStudio from "@/components/characters/CharacterStudio";
 
 export default function CharactersClient({
   initialCharacters,
+  magRealistisch = false,
 }: {
   initialCharacters: Character[];
+  /** Mag dit account de realistische stijl kiezen? */
+  magRealistisch?: boolean;
 }) {
   const [characters, setCharacters] = useState<Character[]>(initialCharacters);
 
@@ -34,6 +37,7 @@ export default function CharactersClient({
         onAdd={addCharacter}
         onRemove={removeCharacter}
         onRename={renameCharacter}
+        magRealistisch={magRealistisch}
       />
     </div>
   );

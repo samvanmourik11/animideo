@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Character, VisualStyle } from "@/lib/types";
-import StylePicker from "@/components/StylePicker";
+import StylePicker from "@/components/style/StylePicker";
+import { DEFAULT_STORY_STYLE, stijlenVoor, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
 import { compressImage } from "@/lib/compress-image";
 
 interface Props {
@@ -10,15 +11,25 @@ interface Props {
   onAdd:      (c: Character) => void;
   onRemove:   (id: string) => void;
   onRename:   (c: Character) => void;
+  /** Mag dit account de realistische stijl kiezen? (zie lib/studio/access.ts) */
+  magRealistisch?: boolean;
 }
 
 type Mode = "upload" | "generate";
 
-export default function CharacterStudio({ characters, onAdd, onRemove, onRename }: Props) {
+/** De naam van een stijl, of de opgeslagen waarde zelf bij een personage uit het oude systeem. */
+function stijlNaam(id: string): string {
+  return STORY_STYLE_PRESETS.find((p) => p.id === id)?.name ?? id;
+}
+
+export default function CharacterStudio({ characters, onAdd, onRemove, onRename, magRealistisch = false }: Props) {
   const [mode, setMode] = useState<Mode>("upload");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [style, setStyle] = useState<VisualStyle>("Realistic");
+  // Dezelfde stijlen als in de storytelling- en dialoogtool. Het oude lijstje
+  // ("Realistic Animation", "Kurzgezagt") hoorde bij een ander systeem: een
+  // personage daaruit paste nooit bij de video waarin het werd gebruikt.
+  const [style, setStyle] = useState<string>(DEFAULT_STORY_STYLE);
   const [gender, setGender] = useState("");
   const [ageRange, setAgeRange] = useState("");
   const [removeBg, setRemoveBg] = useState(true);
@@ -62,7 +73,7 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename 
       mode === "generate"
         ? "Karakter genereren..."
         : transformStyle
-          ? `Foto transformeren naar ${style}...`
+          ? `Foto transformeren naar ${stijlNaam(style)}...`
           : "Foto verwerken..."
     );
 
@@ -202,7 +213,13 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename 
               className="w-full bg-slate-900/60 border border-white/10 rounded-md px-3 py-2 text-sm text-white"
             />
           </div>
-          <StylePicker value={style} onChange={setStyle} label="Stijl" size="sm" />
+          <div>
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">Stijl</label>
+            <StylePicker value={style} onChange={setStyle} presets={stijlenVoor(magRealistisch)} />
+            <p className="text-[10px] text-slate-500 mt-1">
+              Kies dezelfde stijl als de video's waarin dit personage meespeelt.
+            </p>
+          </div>
 
           {mode === "upload" ? (
             <div>
@@ -279,7 +296,7 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename 
             {mode === "upload" && (
               <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer" title="Een gestyleerde versie van je foto met dezelfde persoon, in de gekozen stijl">
                 <input type="checkbox" checked={transformStyle} onChange={e => setTransformStyle(e.target.checked)} />
-                Transformeer naar {style} <span className="text-slate-500">(+2 credits)</span>
+                Transformeer naar {stijlNaam(style)} <span className="text-slate-500">(+2 credits)</span>
               </label>
             )}
             <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
@@ -383,7 +400,7 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename 
                         {c.name}
                       </p>
                       <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">
-                        {[c.gender, c.age_range, c.style].filter(Boolean).join(" · ")}
+                        {[c.gender, c.age_range, c.style ? stijlNaam(c.style) : ""].filter(Boolean).join(" · ")}
                       </p>
                     </>
                   )}

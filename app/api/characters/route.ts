@@ -5,6 +5,8 @@ import { removeBackground } from "@/lib/bg-remove";
 import { describeCharacter } from "@/lib/character-describe";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 import { generateImageWithStyle } from "@/lib/image-gen";
+import { storyStylePreamble, visualStyleVan, isBeperkteStijl, DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
+import { magRealistischeStijl } from "@/lib/studio/access";
 
 // De character-flow doet meerdere trage externe calls achter elkaar (stijl-
 // transform, achtergrond verwijderen, AI-beschrijving). Zonder deze regel valt
@@ -43,7 +45,17 @@ export async function POST(req: NextRequest) {
   const mode             = String(form.get("mode") ?? "");
   const name             = String(form.get("name") ?? "").trim() || "Karakter";
   const description      = String(form.get("description") ?? "").trim();
-  const style            = String(form.get("style") ?? "").trim();
+  // De stijl komt uit STORY_STYLE_PRESETS. Oude waarden uit het vorige systeem
+  // ("Realistic Animation") en onbekende waarden vallen terug op de standaard,
+  // en de beperkte stijl blijft beperkt — het menu verbergt hem al, maar wie de
+  // aanroep naspeelt zou hem anders alsnog krijgen.
+  const gevraagdeStijl   = String(form.get("style") ?? "").trim();
+  const bekend           = STORY_STYLE_PRESETS.some((p) => p.id === gevraagdeStijl);
+  const style            = !bekend
+    ? DEFAULT_STORY_STYLE
+    : isBeperkteStijl(gevraagdeStijl) && !magRealistischeStijl(user.email)
+      ? DEFAULT_STORY_STYLE
+      : gevraagdeStijl;
   const gender           = String(form.get("gender") ?? "").trim();
   const ageRange         = String(form.get("age_range") ?? "").trim();
   const aspectRatio      = String(form.get("aspect_ratio") ?? "1:1");
@@ -105,7 +117,11 @@ export async function POST(req: NextRequest) {
       }
       const genderPart = gender ? ` ${gender}.` : "";
       const agePart = ageRange ? ` Approximate age ${ageRange}.` : "";
-      const prompt = `Portrait of a single character on a plain neutral background. ${description}.${genderPart}${agePart} Centered framing, head and upper body visible, looking at camera. Clean, no other people, no text, no logos.`;
+      // De stijl komt uit dezelfde lijst als de storytelling- en dialoogtool
+      // (STORY_STYLE_PRESETS). Een personage dat in "papercut" is gemaakt hoort
+      // ook papercut te zijn als het in zo'n video wordt gebruikt; met het oude
+      // lijstje ("Realistic Animation") stond er altijd iets anders.
+      const prompt = `${storyStylePreamble(style)} Portrait of a single character on a plain neutral background. ${description}.${genderPart}${agePart} Centered framing, head and upper body visible, looking at camera. Clean, no other people, no text, no logos.`;
 
       // Via de helper zodat de style-refs van het gekozen pack als
       // image_urls meegaan — anders blijft een gegenereerd karakter
@@ -113,7 +129,9 @@ export async function POST(req: NextRequest) {
       const { imageUrl: tempUrl } = await generateImageWithStyle({
         prompt,
         format: aspectRatio === "9:16" || aspectRatio === "16:9" ? aspectRatio : "16:9",
-        visualStyle: (style || null) as VisualStyle | null,
+        // Alleen de realistische stijl leunt op een referentiepack; de andere
+        // stijlen doen het met hun preamble in de prompt hierboven.
+        visualStyle: visualStyleVan(style),
       });
       // Mirror to our storage so it stays available
       const imgRes = await fetch(tempUrl);
@@ -144,12 +162,12 @@ export async function POST(req: NextRequest) {
         // benadrukte prompt toe ("character ref = identiteit, render in de
         // stijl van de style refs"). Resultaat: een character daadwerkelijk
         // in de gekozen pack-stijl, niet meer in generieke cartoon-look.
-        const stylePrompt = `Transform the${genderHint} person${ageHint} in the source photo into a portrait illustration. Preserve the EXACT same facial features, hairstyle, expression, body shape, and outfit colors. Centered headshot, head and upper body, looking at camera, plain neutral background. No text, no logos, no other people.`;
+        const stylePrompt = `${storyStylePreamble(style)} Transform the${genderHint} person${ageHint} in the source photo into a portrait in this style. Preserve the EXACT same facial features, hairstyle, expression, body shape, and outfit colors. Centered headshot, head and upper body, looking at camera, plain neutral background. No text, no logos, no other people.`;
 
         const { imageUrl: tempUrl } = await generateImageWithStyle({
           prompt: stylePrompt,
           format: aspectRatio === "9:16" || aspectRatio === "16:9" ? aspectRatio : "16:9",
-          visualStyle: style as VisualStyle,
+          visualStyle: visualStyleVan(style),
           // Source foto als character-ref zodat de identiteit behouden blijft
           // en de helper's character-instructie automatisch wordt meegestuurd.
           characterUrls: [initialImageUrl],

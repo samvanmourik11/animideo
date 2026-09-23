@@ -5,8 +5,8 @@ import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { beeldAlsDataUrl } from "@/lib/infographics/beeld-inline";
 import { isIndelingsAanwijzing, scherpereInstructie } from "@/lib/infographics/beeld-aanwijzing";
 import { controleerAanwijzing } from "@/lib/infographics/aanwijzing-controle";
-import { visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE } from "@/lib/infographics/story-style";
-import { castRefsVanSpec, MAX_CAST_REFS, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
+import { visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE } from "@/lib/infographics/story-style";
+import { castRefsVanSpec, castRefsVoorScene, MAX_CAST_REFS, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
 import { planSceneChat, planLayoutChat } from "@/lib/infographics/scene-chat";
 import { ICOON_SLEUTELS, icoonKeuzelijst, type OverheidLayout } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
@@ -221,13 +221,24 @@ export async function POST(req: NextRequest) {
           characterUrl: body.characterUrl ?? null,
           characterRole: body.characterRole ?? null,
         }).slice(0, MAX_CAST_REFS);
+        // Hoort de vaste cast in DEZE scene? Zelfde regel als bij het eerste
+        // beeld (zie generate-story): het castblad ging ook hier onvoorwaardelijk
+        // mee, dus één scene opnieuw laten tekenen haalde de Romeinen zo weer
+        // terug in een scene over het heden. De pagina stuurt `castNames` mee;
+        // is die leeg terwijl het verhaal wél een cast heeft, dan hoort hier
+        // niemand van de cast in beeld.
+        const castNamenHier = (body.castNames ?? []).filter(Boolean);
+        const verhaalHeeftCast = (body.cast ?? []).length > 0 || castRefs.length > 0;
+        const castInDezeScene = !verhaalHeeftCast || castNamenHier.length > 0;
+        const refsHier = castInDezeScene ? castRefsVoorScene(castRefs, castNamenHier) : [];
+        const bladHier = castInDezeScene ? castSheet : null;
         const extraContext = [
           nlBeeldkennis(body.language, plan.illustration, plan.labels.join(" ")),
           paletteHint,
-          castGuidance(body.cast, body.castNames),
-          castSheet ? CAST_SHEET_GUIDANCE : "",
+          castInDezeScene ? castGuidance(body.cast, castNamenHier) : GEEN_CAST_IN_SCENE,
+          bladHier ? CAST_SHEET_GUIDANCE : "",
           referencePhoto ? REFERENCE_PHOTO_GUIDANCE : "",
-          castRefGuidance(castRefs),
+          castInDezeScene ? castRefGuidance(refsHier) : "",
           anchor ? STYLE_MATCH_ANCHOR : "",
         ].filter(Boolean).join(" ").trim() || undefined;
         // Portretten in het character-slot (identiteit), het anker en een
@@ -240,8 +251,8 @@ export async function POST(req: NextRequest) {
           // bijgestuurd beeld terug naar een tekening (zie story-style.ts).
           visualStyle: visualStyleVan(body.styleId),
           seed: typeof body.seed === "number" ? body.seed : undefined,
-          brandUrls: castSheet ? [castSheet] : undefined,
-          characterUrls: castRefs.length ? castRefs.map((r) => r.url) : undefined,
+          brandUrls: bladHier ? [bladHier] : undefined,
+          characterUrls: refsHier.length ? refsHier.map((r) => r.url) : undefined,
           ingredientUrls: ingredientUrls.length ? ingredientUrls : undefined,
           extraContext,
         });
