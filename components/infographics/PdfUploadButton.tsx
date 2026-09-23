@@ -3,15 +3,18 @@
 import { useRef, useState } from "react";
 
 /**
- * Uploadt een PDF, laat de server de tekst extraheren en geeft die terug via
- * onExtracted. Gebruikt voor de infographic-bron: cijfers en feiten uit een PDF.
+ * Uploadt een PDF of Word-bestand, laat de server de tekst extraheren en geeft
+ * die terug via onExtracted. Gebruikt voor de infographic-bron (cijfers en
+ * feiten) én voor aangeleverde draaiboeken, die vrijwel altijd .docx zijn.
  */
 export default function PdfUploadButton({
   onExtracted,
   className = "",
+  label = "PDF of Word uploaden",
 }: {
   onExtracted: (text: string) => void;
   className?: string;
+  label?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
@@ -28,17 +31,24 @@ export default function PdfUploadButton({
     try {
       const form = new FormData();
       form.append("file", file);
-      const res = await fetch("/api/infographics/extract-pdf", { method: "POST", body: form });
+      // Word gaat langs een eigen lezer die de tabellen heel laat: in een
+      // draaiboek zit de shotlijst in een tabel, en platte tekst plakt de
+      // kolommen (beeld / voice-over) aan elkaar.
+      const isWord = /\.docx$/i.test(file.name) || file.type.includes("wordprocessingml");
+      const res = await fetch(isWord ? "/api/infographics/extract-docx" : "/api/infographics/extract-pdf", {
+        method: "POST",
+        body: form,
+      });
       const json = await res.json();
       if (!res.ok) {
-        setError(json.error || "PDF verwerken mislukt.");
+        setError(json.error || `${isWord ? "Word-bestand" : "PDF"} verwerken mislukt.`);
         return;
       }
       onExtracted(json.text as string);
       setNote(
         json.truncated
-          ? "PDF was lang, alleen het eerste deel is overgenomen. Controleer de tekst."
-          : "Tekst uit PDF toegevoegd. Controleer en pas waar nodig aan."
+          ? "Het document was lang, alleen het eerste deel is overgenomen. Controleer de tekst."
+          : "Tekst toegevoegd. Controleer en pas waar nodig aan."
       );
     } catch {
       setError("Er ging iets mis bij het uploaden.");
@@ -52,7 +62,7 @@ export default function PdfUploadButton({
       <input
         ref={inputRef}
         type="file"
-        accept="application/pdf,.pdf"
+        accept="application/pdf,.pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         onChange={handleFile}
         className="hidden"
       />
@@ -62,7 +72,7 @@ export default function PdfUploadButton({
         disabled={loading}
         className="text-xs bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md disabled:opacity-50"
       >
-        {loading ? "PDF lezen…" : "PDF uploaden"}
+        {loading ? "Document lezen…" : label}
       </button>
       {error && <p className="text-xs text-red-400 mt-1.5">{error}</p>}
       {note && !error && <p className="text-xs text-emerald-400 mt-1.5">{note}</p>}

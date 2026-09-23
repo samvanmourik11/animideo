@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import SceneOverlay from "@/components/infographics/render/StoryScene";
 import EditableStoryScene from "@/components/infographics/render/EditableStoryScene";
 import OverheidSceneView from "@/components/infographics/render/OverheidSceneView";
 import SceneChat from "@/components/infographics/story/SceneChat";
 import StoryPlayer from "@/components/infographics/render/StoryPlayer";
 import PdfUploadButton from "@/components/infographics/PdfUploadButton";
+import { knipScriptInScenes, geschatteDuur, MAX_SCENES } from "@/lib/infographics/story-script";
+import { lijktOpDraaiboek, type DraaiboekLezing } from "@/lib/infographics/draaiboek";
 import { splitVoiceDurations, storyWindows } from "@/lib/infographics/story-layout";
 import { storyAspectRatio } from "@/lib/infographics/canvas-size";
 import { DEFAULT_STORY_STYLE } from "@/lib/infographics/story-style";
@@ -131,6 +133,19 @@ export default function StoryPage() {
   const [kiezerOpen, setKiezerOpen] = useState(false);
   // Gewenste videolengte in seconden; bepaalt hoeveel scenes de AI maakt.
   const [targetSeconds, setTargetSeconds] = useState(90);
+  // Schrijft de AI het script, of levert de gebruiker het zelf aan? Bij een
+  // eigen script wordt die tekst letterlijk de voice-over (zie
+  // lib/infographics/story-script.ts) en verzint de AI alleen nog het beeld.
+  const [scriptModus, setScriptModus] = useState<"verzinnen" | "eigen">("verzinnen");
+  const [script, setScript] = useState("");
+  // Zelfde knipper als de server gebruikt, zodat de gebruiker vóór het genereren
+  // al ziet hoeveel scenes (en dus hoeveel credits) het gaat worden.
+  const scriptScenes = useMemo(() => knipScriptInScenes(script), [script]);
+  // Een draaiboek (shotlijst met kolommen) wordt eerst gelezen: daar staat de
+  // voice-over tussen de beeldbeschrijvingen, tijdcodes en briefing in.
+  const isDraaiboek = useMemo(() => lijktOpDraaiboek(script), [script]);
+  const [lezing, setLezing] = useState<DraaiboekLezing | null>(null);
+  const [leesBusy, setLeesBusy] = useState(false);
   const [navy, setNavy] = useState("#16243f");
   const [fontFamily, setFontFamily] = useState<string>(DEFAULT_STORY_FONT);
   // Tekst in beeld: koppen, accentwoorden en grote getallen. Uit voor nieuwe
@@ -509,6 +524,26 @@ export default function StoryPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  /** Leest een aangeleverd draaiboek uit elkaar. Gratis, dus vóór het genereren. */
+  async function leesDraaiboek() {
+    setLeesBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch("/api/infographics/lees-draaiboek", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ document: script }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(apiError(data, "Draaiboek lezen mislukt"));
+      setLezing(data.lezing as DraaiboekLezing);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLeesBusy(false);
+    }
+  }
+
   async function generate() {
     setLoading(true);
     setErr(null);
@@ -517,11 +552,23 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/generate-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, text, mode, format, targetSeconds, styleId, language, tone, angle, castRefs, brandColors: brandColorsPayload() }),
+        body: JSON.stringify({ topic, text, script: scriptModus === "eigen" ? script : "", shots: scriptModus === "eigen" && lezing ? lezing.scenes.map((sc) => ({ voiceover: sc.voiceover, beeld: sc.beeld, beweging: sc.beweging, tekstInBeeld: sc.tekstInBeeld })) : undefined, mode, format, targetSeconds, styleId, language, tone, angle, castRefs, brandColors: brandColorsPayload() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiError(data, "Verhaal genereren mislukt"));
-      setSpec(data.spec as StorySpec);
+      const nieuweSpec = data.spec as StorySpec;
+      setSpec(nieuweSpec);
+      // De bewegingsaanwijzingen uit het draaiboek ("macro-inzoom", "snelle
+      // cuts") vullen het veld bij elke scene alvast in, zodat "Animeer beeld"
+      // doet wat er in het draaiboek staat.
+      if (lezing) {
+        const aanwijzingen: Record<string, string> = {};
+        nieuweSpec.scenes.forEach((sc, i) => {
+          const beweging = lezing.scenes[i]?.beweging?.trim();
+          if (beweging) aanwijzingen[sc.id] = beweging;
+        });
+        if (Object.keys(aanwijzingen).length) setMotionInstr((m) => ({ ...m, ...aanwijzingen }));
+      }
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -923,59 +970,158 @@ export default function StoryPage() {
       {loadingProject && <p className="text-sm text-blue-300 mb-4">Verhaal laden…</p>}
 
       <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3 mb-8">
+        {/* Wie schrijft het script? Wie er zelf al een heeft, wil niet dat de AI
+            er iets anders van maakt — zie de knipper in story-script.ts. */}
+        <div className="flex flex-wrap gap-1.5">
+          {([
+            ["verzinnen", "✍️ De AI schrijft het script"],
+            ["eigen", "📄 Ik heb zelf al een script"],
+          ] as const).map(([waarde, label]) => (
+            <button
+              key={waarde}
+              onClick={() => setScriptModus(waarde)}
+              disabled={!!spec}
+              className={`text-xs px-3 py-1.5 rounded-full border transition ${
+                scriptModus === waarde
+                  ? "bg-blue-500/20 border-blue-400/40 text-blue-100"
+                  : "bg-slate-900/60 border-white/10 text-slate-300 hover:bg-slate-800"
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         <label className="block">
           <span className="block text-[11px] text-slate-400 mb-0.5">Onderwerp / titel</span>
           <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="bijv. De geschiedenis van de VOC" className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white" />
         </label>
-        <div>
-          <div className="flex items-center justify-between mb-0.5 gap-2 flex-wrap">
-            <span className="text-[11px] text-slate-400">Brontekst / data (cijfers worden hier letterlijk uit gehaald)</span>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <input
-                value={pageUrl}
-                onChange={(e) => setPageUrl(e.target.value)}
-                placeholder="https://… (blog/artikel)"
-                className="w-40 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white"
-              />
-              <button
-                onClick={fetchPageText}
-                disabled={pageBusy || !pageUrl.trim()}
-                title="Haal de tekst van deze webpagina op als brontekst"
-                className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 disabled:opacity-50 shrink-0"
-              >
-                {pageBusy ? "Ophalen…" : "🌐 Uit webpagina"}
-              </button>
-              <PdfUploadButton onExtracted={(t) => setText(t)} />
+        {/* De AI schrijft zelf: dan is dit de bron waar zij feiten uit haalt. */}
+        {scriptModus === "verzinnen" && (
+          <div>
+            <div className="flex items-center justify-between mb-0.5 gap-2 flex-wrap">
+              <span className="text-[11px] text-slate-400">Brontekst / data (cijfers worden hier letterlijk uit gehaald)</span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <input
+                  value={pageUrl}
+                  onChange={(e) => setPageUrl(e.target.value)}
+                  placeholder="https://… (blog/artikel)"
+                  className="w-40 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white"
+                />
+                <button
+                  onClick={fetchPageText}
+                  disabled={pageBusy || !pageUrl.trim()}
+                  title="Haal de tekst van deze webpagina op als brontekst"
+                  className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 disabled:opacity-50 shrink-0"
+                >
+                  {pageBusy ? "Ophalen…" : "🌐 Uit webpagina"}
+                </button>
+                <PdfUploadButton onExtracted={(t) => setText(t)} />
+              </div>
             </div>
-          </div>
-          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Plak hier je bron: cijfers, feiten en kernpunten. De AI maakt er een verhaalboog van. (Of upload een PDF.)" className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-xs text-white" />
-          {!spec && (
-            <div className="mt-1.5">
-              <button
-                onClick={planSeries}
-                disabled={seriesBusy || (!topic.trim() && !text.trim())}
-                title="Splitst je onderwerp in meerdere losse korte video's"
-                className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 disabled:opacity-50"
-              >
-                {seriesBusy ? "Serie bedenken…" : "🎬 Maak er een serie van"}
-              </button>
-              {episodes.length > 0 && (
-                <div className="mt-2 space-y-1.5">
-                  <p className="text-[11px] text-slate-400">Kies een aflevering — die vult onderwerp + brontekst, daarna genereer je 'm normaal:</p>
-                  {episodes.map((ep, i) => (
-                    <div key={i} className="flex items-start justify-between gap-3 bg-slate-900/40 border border-white/10 rounded px-2.5 py-2">
-                      <div className="min-w-0">
-                        <div className="text-xs font-medium text-white">{i + 1}. {ep.title}</div>
-                        <div className="text-[11px] text-slate-400">{ep.angle}</div>
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Plak hier je bron: cijfers, feiten en kernpunten. De AI maakt er een verhaalboog van. (Of upload een PDF.)" className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-xs text-white" />
+            {!spec && (
+              <div className="mt-1.5">
+                <button
+                  onClick={planSeries}
+                  disabled={seriesBusy || (!topic.trim() && !text.trim())}
+                  title="Splitst je onderwerp in meerdere losse korte video's"
+                  className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {seriesBusy ? "Serie bedenken…" : "🎬 Maak er een serie van"}
+                </button>
+                {episodes.length > 0 && (
+                  <div className="mt-2 space-y-1.5">
+                    <p className="text-[11px] text-slate-400">Kies een aflevering — die vult onderwerp + brontekst, daarna genereer je 'm normaal:</p>
+                    {episodes.map((ep, i) => (
+                      <div key={i} className="flex items-start justify-between gap-3 bg-slate-900/40 border border-white/10 rounded px-2.5 py-2">
+                        <div className="min-w-0">
+                          <div className="text-xs font-medium text-white">{i + 1}. {ep.title}</div>
+                          <div className="text-[11px] text-slate-400">{ep.angle}</div>
+                        </div>
+                        <button onClick={() => planEpisode(ep)} className="shrink-0 text-[11px] px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white">Maak deze →</button>
                       </div>
-                      <button onClick={() => planEpisode(ep)} className="shrink-0 text-[11px] px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white">Maak deze →</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Eigen script: deze tekst wordt letterlijk de voice-over. */}
+        {scriptModus === "eigen" && (
+          <div>
+            <div className="flex items-center justify-between mb-0.5 gap-2 flex-wrap">
+              <span className="text-[11px] text-slate-400">Jouw script (dit wordt letterlijk ingesproken)</span>
+              <PdfUploadButton onExtracted={(t) => { setScript(t); setLezing(null); }} label="PDF of Word uploaden" />
+            </div>
+            <textarea
+              value={script}
+              onChange={(e) => { setScript(e.target.value); setLezing(null); }}
+              rows={10}
+              placeholder="Plak hier je voice-over script of je hele draaiboek. Elke witregel wordt een nieuwe scene. De AI verandert geen woord; hij bedenkt alleen het beeld erbij."
+              className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+            />
+            {!script.trim() && (
+              <p className="text-[11px] text-slate-500 mt-1">Zet een witregel tussen de stukken die elk hun eigen beeld krijgen. Een compleet draaiboek mag ook.</p>
+            )}
+
+            {/* Draaiboek: eerst uit elkaar trekken, anders wordt de briefing
+                meegelezen als voice-over. */}
+            {script.trim() && isDraaiboek && !lezing && (
+              <div className="mt-2 bg-amber-500/10 border border-amber-400/30 rounded p-2.5">
+                <p className="text-[11px] text-amber-100">
+                  Dit lijkt een draaiboek, geen kale voice-over. Laat het eerst uitlezen: dan wordt per shot de gesproken tekst,
+                  het beeld en de beweging eruit gehaald, en blijven de briefing, tijdcodes en tabelkoppen buiten je video.
+                </p>
+                <button
+                  onClick={leesDraaiboek}
+                  disabled={leesBusy}
+                  className="mt-1.5 text-[11px] px-2 py-1 rounded border border-amber-400/40 bg-amber-500/20 text-amber-50 hover:bg-amber-500/30 disabled:opacity-50"
+                >
+                  {leesBusy ? "Draaiboek lezen…" : "📋 Lees mijn draaiboek (gratis)"}
+                </button>
+              </div>
+            )}
+
+            {lezing && (
+              <div className="mt-2 bg-slate-900/50 border border-white/10 rounded p-2.5">
+                <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
+                  <span className="text-[11px] text-slate-300">
+                    {lezing.scenes.length} shots uit je draaiboek · ongeveer {geschatteDuur(lezing.scenes.map((sc) => sc.voiceover).join(" "))} seconden ·{" "}
+                    {lezing.scenes.length * CREDIT_COSTS.IMAGE_GENERATION} credits voor de beelden
+                  </span>
+                  <button onClick={() => setLezing(null)} className="text-[11px] text-slate-400 hover:text-white underline">opnieuw lezen</button>
+                </div>
+                {lezing.opmerkingen.length > 0 && (
+                  <p className="text-[11px] text-slate-500 mb-1.5">Overgeslagen: {lezing.opmerkingen.join(" · ")}</p>
+                )}
+                <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                  {lezing.scenes.map((sc, i) => (
+                    <div key={i} className="text-[11px] border-l-2 border-white/10 pl-2">
+                      <div className="text-white">
+                        {i + 1}. {sc.voiceover || <span className="text-slate-500">(geen gesproken tekst)</span>}
+                        {!sc.letterlijk && sc.voiceover && (
+                          <span className="ml-1 text-amber-300" title="Deze zin staat niet letterlijk in je document; controleer hem.">⚠ afwijkend</span>
+                        )}
+                      </div>
+                      {sc.beeld && <div className="text-slate-400">beeld: {sc.beeld}</div>}
+                      {sc.beweging && <div className="text-slate-500">beweging: {sc.beweging}</div>}
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+
+            {script.trim() && !isDraaiboek && !lezing && (
+              <p className="text-[11px] text-slate-400 mt-1">
+                {scriptScenes.length} {scriptScenes.length === 1 ? "scene" : "scenes"} · ongeveer {geschatteDuur(script)} seconden ·{" "}
+                {scriptScenes.length * CREDIT_COSTS.IMAGE_GENERATION} credits voor de beelden
+                {scriptScenes.length >= MAX_SCENES && " · langere scripts worden samengevoegd tot 20 scenes"}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Huisstijl: kies een opgeslagen kit óf haal 'm uit een website; kleuren,
             font en logo worden overgenomen en blijven handmatig overschrijfbaar. */}
@@ -1239,8 +1385,8 @@ export default function StoryPage() {
             </select>
           </label>
           <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Videolengte</span>
-            <select value={targetSeconds} onChange={(e) => setTargetSeconds(Number(e.target.value))} className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white">
+            <span className="block text-[11px] text-slate-400 mb-0.5">Videolengte{scriptModus === "eigen" ? " (volgt je script)" : ""}</span>
+            <select value={targetSeconds} onChange={(e) => setTargetSeconds(Number(e.target.value))} disabled={scriptModus === "eigen"} title={scriptModus === "eigen" ? "Je eigen script bepaalt de lengte: er wordt niets weggelaten of bijgeschreven." : undefined} className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed">
               <option value={30}>Kort · ~30 sec (±5 scenes)</option>
               <option value={60}>~1 min (±10 scenes)</option>
               <option value={90}>~1,5 min (±15 scenes)</option>
@@ -1256,7 +1402,7 @@ export default function StoryPage() {
             <span className="block text-[11px] text-slate-400 mb-0.5">Accent{brandKitId ? " · uit huisstijl" : ""}</span>
             <input type="color" value={accent} onChange={(e) => { setAccent(e.target.value); setBrandKitId(""); }} className="h-9 w-14 bg-transparent border border-white/10 rounded cursor-pointer" />
           </label>
-          <button onClick={generate} disabled={loading || !text.trim()} title={!text.trim() ? "Vul eerst een brontekst in" : mode === "overheid"
+          <button onClick={generate} disabled={loading || (scriptModus === "eigen" ? !script.trim() || (isDraaiboek && !lezing) : !text.trim())} title={scriptModus === "eigen" && !script.trim() ? "Plak eerst je script" : scriptModus === "eigen" && isDraaiboek && !lezing ? "Laat je draaiboek eerst uitlezen, anders komt de briefing in de voice-over terecht" : scriptModus !== "eigen" && !text.trim() ? "Vul eerst een brontekst in" : mode === "overheid"
               ? "De overheidsstijl tekent zijn scenes zelf, zonder beeldmodel: alleen het script kost credits."
               : `Script schrijven is gratis, ${CREDIT_COSTS.IMAGE_GENERATION} credit per scene-beeld. Komen er meerdere personages in voor, dan maakt de tool daar gratis een castblad bij dat ze in elke scene hetzelfde houdt.`} className="btn-primary text-sm disabled:opacity-50">
             {loading ? (mode === "overheid" ? "Genereren… (script + scenes)" : "Genereren… (script + beelden)") : "Genereer verhaal"}
@@ -1270,7 +1416,7 @@ export default function StoryPage() {
         {err && <p className="text-red-400 text-sm break-words">{err}</p>}
       </div>
 
-      {loading && <p className="text-slate-400 text-sm">Even geduld, de AI schrijft het script en genereert per scene een illustratie. Dit duurt ongeveer 20 tot 40 seconden.</p>}
+      {loading && <p className="text-slate-400 text-sm">{scriptModus === "eigen" ? "Even geduld, je script staat vast en de AI tekent er per scene een illustratie bij. Dit duurt ongeveer 20 tot 40 seconden." : "Even geduld, de AI schrijft het script en genereert per scene een illustratie. Dit duurt ongeveer 20 tot 40 seconden."}</p>}
 
       {spec && (
         <div className="space-y-8">

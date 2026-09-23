@@ -11,6 +11,12 @@ import { NL_REGIE_REGEL } from "@/lib/infographics/nl-beeldkennis";
 
 export interface ArtDirectScene {
   voiceover: string;
+  /**
+   * Het beeld dat de maker zélf voorschreef (uit de Beeld-kolom van zijn
+   * draaiboek). Staat dit er, dan is het geen inspiratie maar een opdracht: de
+   * regie werkt het uit in plaats van iets anders te bedenken.
+   */
+  beeldWens?: string;
 }
 /** Eén terugkerend personage, met een uiterlijk dat in élke scène gelijk blijft. */
 export interface ArtDirectCastMember {
@@ -430,8 +436,24 @@ export async function artDirectScenes(input: {
   if (n === 0) return null;
   try {
     const sceneList = input.scenes
-      .map((s, i) => `Scene ${i + 1}:\n  Voice-over: ${s.voiceover}`)
+      .map((s, i) => {
+        const wens = (s.beeldWens ?? "").trim();
+        return [
+          `Scene ${i + 1}:`,
+          `  Voice-over: ${s.voiceover}`,
+          wens ? `  Beeld volgens de maker (VOLG DIT): ${wens}` : "",
+        ].filter(Boolean).join("\n");
+      })
       .join("\n\n");
+
+    // Staat er een beeldwens bij, dan is de regie uitwerken, niet bedenken.
+    // Zonder deze regel schrijft het model alsnog zijn eigen beeld en ziet de
+    // maker zijn draaiboek niet terug.
+    const wensRegel = input.scenes.some((s) => (s.beeldWens ?? "").trim())
+      ? "\n\nDe maker heeft bij scenes zelf een beeld beschreven. Dat is leidend: neem onderwerp, " +
+        "handeling en omgeving daaruit over en vul alleen aan wat een tekenaar nodig heeft (licht, " +
+        "camerastandpunt, kleding, details). Verander niet wát er te zien is en verzin er geen andere scène van."
+      : "";
 
     // De regie moet weten dat er een vast personage is, anders bedenkt hij per
     // scène nieuwe mensen en verschuift de rol alsnog — de referentie-afbeelding
@@ -488,7 +510,7 @@ ${input.rawText.slice(0, 9000)}
 """
 
 SCRIPT (${n} scenes, in volgorde):
-${sceneList}${vasteRegel}${rolRegel}
+${sceneList}${vasteRegel}${rolRegel}${wensRegel}
 
 Geef nu de visual bible en per scene een sterke, bewuste illustratie-briefing als JSON.`,
         },
