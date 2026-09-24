@@ -61,7 +61,8 @@ KIES ÉÉN ACTIE:
 WAT JE INVULT:
 - "instruction" (alleen bij "edit"): ÉÉN heldere, concrete, visuele instructie in het ENGELS voor een model dat het beeld bewerkt. Wees expliciet over wat verandert én wat hetzelfde blijft, in zichtbare elementen (kleuren, objecten, posities, personen). Bij "alleen X"-wensen: zeg expliciet dat de rest verdwijnt of neutraal wordt. Laat bij andere acties leeg ("").
 - "illustration" (alleen bij "regenerate"): de VOLLEDIGE nieuwe illustratie-briefing in het ENGELS — één concrete, letterlijke scène (wie, wat, waar, welke handeling), met de plek erbij die het hele beeld vult. Neem uit de huidige briefing over wat de gebruiker niet wil veranderen. Geen tekst, letters of cijfers in het beeld. Laat bij andere acties leeg ("").
-- "labels": de exacte woorden die NA deze beurt in het beeld mogen staan, in de taal van de video. Neem de huidige labels over als de gebruiker daar niets over zegt. Vraagt hij om een woord erbij, weg of anders, pas de lijst dan aan. Maximaal drie labels van één of twee woorden, correct gespeld. Geen tekst in beeld? Lege lijst.
+- "labels": de exacte woorden die NA deze beurt in het beeld mogen staan, in de taal van de video. Neem de huidige labels over als de gebruiker daar niets over zegt. Vraagt hij om een woord erbij, weg of anders, pas de lijst dan aan. Normaal maximaal drie labels van één of twee woorden, correct gespeld. Geen tekst in beeld? Lege lijst.
+  VRAAGT DE GEBRUIKER OM EEN BEPAALDE ZIN IN BEELD ("op het scherm staat: ..."), zet die zin dan LETTERLIJK in de lijst, ook als hij langer is. Alles wat niet in deze lijst staat wordt namelijk na afloop uit het beeld gewist — een zin die je hier weglaat, verdwijnt dus, hoe vaak de gebruiker er ook om vraagt.
 - "reply": één korte zin in het NEDERLANDS, in de je-vorm, die zegt wat je gaat doen ("Ik zet het logo van de foto op de auto."). Bij "none" leg je vriendelijk uit dat dit vak alleen over het beeld gaat en waar de gebruiker het wél aanpast (de voice-over staat als tekstveld boven de chat).
 
 VASTE CAST: krijg je een cast mee, dan komen die personen in meerdere scenes van dezelfde video voor en moeten ze overal hetzelfde blijven. Noem ze in je instructie of briefing bij naam met hun uiterlijk erbij ("JOHAN (the appraiser, mid-40s, short blond hair, grey blazer over a green shirt)"), en verzin nooit een ander uiterlijk voor ze. Vraagt de gebruiker juist om iemand te veranderen, voer dat dan uit voor deze scene en zeg er in je antwoord bij dat het personage in de andere scenes nog het oude uiterlijk heeft.
@@ -296,9 +297,15 @@ ${message.slice(0, 2000)}
       action,
       instruction: (parsed.instruction ?? "").trim(),
       illustration: (parsed.illustration ?? "").trim(),
+      // Labels waren afgekapt op 24 tekens. Een klant die vroeg om "De afspraak is
+      // vrijdag om 14.00 uur in vergaderruimte B" op een scherm, kreeg die zin
+      // daardoor nooit: hij viel uit de lijst, en de tekstcontrole wist daarna
+      // álle tekst die niet in de lijst staat (gemeten 24-09-2026). Een hele zin
+      // mag nu, want de gebruiker vroeg er zelf om; korte losse labels blijven de
+      // norm omdat een beeldmodel van lange tekst makkelijk letterbrij maakt.
       labels: (Array.isArray(parsed.labels) ? parsed.labels : input.labels ?? [])
         .map((l) => (l ?? "").trim())
-        .filter((l) => l.length > 0 && l.length <= 24)
+        .filter((l) => l.length > 0 && l.length <= 80)
         .slice(0, 3),
       reply: (parsed.reply ?? "").trim() || fallback.reply,
       controle: (parsed.controle ?? "").trim().slice(0, 300),

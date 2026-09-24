@@ -165,135 +165,143 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      let rawUrl: string;
-      if (plan.action === "edit" && source) {
-        // Gerichte bewerking: compositie en stijl blijven, alleen de gevraagde
-        // wijziging. De referentiefoto gaat als extra ingredient mee.
-        // Ook een bewerking moet Nederlandse dingen Nederlands houden: "maak er
-        // een rijbewijs bij" levert anders alsnog een Amerikaans pasje op.
-        const kennis = nlBeeldkennis(body.language, plan.instruction, plan.labels.join(" "));
-        const result = await editIllustration(
-          source,
-          kennis ? `${plan.instruction} ${kennis}` : plan.instruction,
-          format,
-          // Het castblad erbij: zonder een referentie van wie wie is, verandert een
-          // bewerking geregeld een gezicht of een kledingstuk (zelfde reden als in
-          // de dialoogtool, zie dialogue-aanwijzing).
-          [referencePhoto, castSheet].filter((u): u is string => !!u),
-          body.styleId,
-          body.language
-        );
-        rawUrl = result.imageUrl;
-
-        // Is de wens ook echt uitgevoerd? Zonder deze controle kreeg de gebruiker
-        // altijd een vinkje, ook als er niets veranderde — en betaalde hij er een
-        // credit voor. Eén herkansing met de fout erbij, net als in de dialoogtool.
-        if (plan.controle) {
-          const uitslag = await controleerAanwijzing(rawUrl, plan.controle).catch(() => null);
-          if (uitslag && uitslag.ja === false) {
-            const tweede = await editIllustration(
-              source,
-              scherpereInstructie(plan.instruction, plan.controle, uitslag.waarom ?? ""),
-              format,
-              [referencePhoto, castSheet].filter((u): u is string => !!u),
-              body.styleId,
-              body.language
-            ).catch(() => null);
-            const naTweede = tweede ? await controleerAanwijzing(tweede.imageUrl, plan.controle).catch(() => null) : null;
-            if (tweede && naTweede?.ja !== false) {
-              rawUrl = tweede.imageUrl;
-            } else {
-              // Twee keer niet gelukt: credit terug en eerlijk zijn. Het oude beeld
-              // blijft staan; een half gelukte bewerking is erger dan geen.
-              await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: aanpassing lukte niet").catch(() => {});
-              return NextResponse.json({
-                action: "none",
-                gelukt: false,
-                reply: `Dit is twee keer geprobeerd, maar het staat er nog niet${uitslag.waarom ? ` (te zien was: ${uitslag.waarom})` : ""}. Probeer het anders te zeggen, of vraag om het beeld opnieuw te tekenen. Je credit is teruggestort.`,
-              });
-            }
+      // Eén beeldpoging, in het pad dat bij de wens hoort. `scherper` is leeg bij
+      // de eerste poging en bevat bij een herkansing wat er nog niet klopte.
+      const maakBeeld = async (scherper: string): Promise<string> => {
+        let rawUrl: string;
+        if (plan.action === "edit" && source) {
+          // Gerichte bewerking: compositie en stijl blijven, alleen de gevraagde
+          // wijziging. De referentiefoto gaat als extra ingredient mee.
+          // Ook een bewerking moet Nederlandse dingen Nederlands houden: "maak er
+          // een rijbewijs bij" levert anders alsnog een Amerikaans pasje op.
+          const kennis = nlBeeldkennis(body.language, plan.instruction, plan.labels.join(" "));
+          const result = await editIllustration(
+            source,
+            [scherper || plan.instruction, kennis].filter(Boolean).join(" "),
+            format,
+            // Het castblad erbij: zonder een referentie van wie wie is, verandert een
+            // bewerking geregeld een gezicht of een kledingstuk (zelfde reden als in
+            // de dialoogtool, zie dialogue-aanwijzing).
+            [referencePhoto, castSheet].filter((u): u is string => !!u),
+            body.styleId,
+            body.language
+          );
+          rawUrl = result.imageUrl;
+        } else {
+          // Nieuw beeld vanaf de (herschreven) briefing, met dezelfde seed, anker,
+          // personage en huisstijl als de rest van het verhaal.
+          const anchor = body.anchorImageUrl?.trim() || null;
+          const paletteHint = brandPaletteHint(body.brandColors?.primary, body.brandColors?.accent);
+          // De zelf gekozen personages, met de oude enkel-personage-velden als
+          // terugval zodat een bestaand verhaal zijn mascotte houdt.
+          const castRefs = castRefsVanSpec({
+            castRefs: body.castRefs ?? null,
+            characterUrl: body.characterUrl ?? null,
+            characterRole: body.characterRole ?? null,
+          }).slice(0, MAX_CAST_REFS);
+          // Hoort de vaste cast in DEZE scene? Zelfde regel als bij het eerste
+          // beeld (zie generate-story): het castblad ging ook hier onvoorwaardelijk
+          // mee, dus één scene opnieuw laten tekenen haalde de Romeinen zo weer
+          // terug in een scene over het heden. De pagina stuurt `castNames` mee;
+          // is die leeg terwijl het verhaal wél een cast heeft, dan hoort hier
+          // niemand van de cast in beeld.
+          const castNamenHier = (body.castNames ?? []).filter(Boolean);
+          const verhaalHeeftCast = (body.cast ?? []).length > 0 || castRefs.length > 0;
+          const castInDezeScene = !verhaalHeeftCast || castNamenHier.length > 0;
+          const refsHier = castInDezeScene ? castRefsVoorScene(castRefs, castNamenHier) : [];
+          const bladHier = castInDezeScene ? castSheet : null;
+          const extraContext = [
+            nlBeeldkennis(body.language, plan.illustration, plan.labels.join(" ")),
+            paletteHint,
+            castInDezeScene ? castGuidance(body.cast, castNamenHier) : GEEN_CAST_IN_SCENE,
+            bladHier ? CAST_SHEET_GUIDANCE : "",
+            referencePhoto ? REFERENCE_PHOTO_GUIDANCE : "",
+            castInDezeScene ? castRefGuidance(refsHier) : "",
+            // Dezelfde regels als bij het eerste beeld: zonder deze twee komt een
+            // opnieuw getekende scene terug op een ander kantoor.
+            voorwerpRegie(
+              (body.voorwerpen ?? []).map((v) => ({ naam: v.naam, uiterlijk: v.uiterlijk, bladUrl: v.bladUrl ?? null })),
+              body.voiceover
+            ),
+            body.omgeving
+              ? omgevingRegie({ beschrijving: body.omgeving.beschrijving, kenmerken: body.omgeving.kenmerken ?? [] })
+              : "",
+            anchor ? STYLE_MATCH_ANCHOR : "",
+          ].filter(Boolean).join(" ").trim() || undefined;
+          // Portretten in het character-slot (identiteit), het anker en een
+          // meegestuurde foto als ingredient (stijl resp. onderwerp).
+          const ingredientUrls = [referencePhoto, anchor].filter((u): u is string => !!u);
+          const result = await generateImageWithStyle({
+            prompt: [buildIllustrationPrompt(plan.illustration, body.styleId, body.language, kader, plan.labels), scherper].filter(Boolean).join(" "),
+            format,
+            // Zelfde stijlpack als bij het eerste beeld; anders valt een
+            // bijgestuurd beeld terug naar een tekening (zie story-style.ts).
+            visualStyle: visualStyleVan(body.styleId),
+            seed: typeof body.seed === "number" ? body.seed : undefined,
+            brandUrls: [
+              (body.omgeving?.varianten ?? []).find((v) => v.url)?.url ?? "",
+              bladHier ?? "",
+              ...(body.voorwerpen ?? []).map((v) => v.bladUrl ?? ""),
+            ].filter((u): u is string => !!u).slice(0, 3) || undefined,
+            characterUrls: refsHier.length ? refsHier.map((r) => r.url) : undefined,
+            ingredientUrls: ingredientUrls.length ? ingredientUrls : undefined,
+            extraContext,
+          });
+          rawUrl = result.imageUrl;
+          // Tweede pass: zwevende rommel wegvegen met behoud van de omgeving.
+          try {
+            rawUrl = body.mode === "overheid"
+              ? (await cleanupFlatGraphic(rawUrl, format, plan.labels)).imageUrl
+              : (await cleanupSceneIllustration(rawUrl, format, plan.labels, body.styleId)).imageUrl;
+          } catch (e) {
+            console.error("[scene-chat] cleanup mislukt, ruw beeld behouden:", e);
           }
         }
-      } else {
-        // Nieuw beeld vanaf de (herschreven) briefing, met dezelfde seed, anker,
-        // personage en huisstijl als de rest van het verhaal.
-        const anchor = body.anchorImageUrl?.trim() || null;
-        const paletteHint = brandPaletteHint(body.brandColors?.primary, body.brandColors?.accent);
-        // De zelf gekozen personages, met de oude enkel-personage-velden als
-        // terugval zodat een bestaand verhaal zijn mascotte houdt.
-        const castRefs = castRefsVanSpec({
-          castRefs: body.castRefs ?? null,
-          characterUrl: body.characterUrl ?? null,
-          characterRole: body.characterRole ?? null,
-        }).slice(0, MAX_CAST_REFS);
-        // Hoort de vaste cast in DEZE scene? Zelfde regel als bij het eerste
-        // beeld (zie generate-story): het castblad ging ook hier onvoorwaardelijk
-        // mee, dus één scene opnieuw laten tekenen haalde de Romeinen zo weer
-        // terug in een scene over het heden. De pagina stuurt `castNames` mee;
-        // is die leeg terwijl het verhaal wél een cast heeft, dan hoort hier
-        // niemand van de cast in beeld.
-        const castNamenHier = (body.castNames ?? []).filter(Boolean);
-        const verhaalHeeftCast = (body.cast ?? []).length > 0 || castRefs.length > 0;
-        const castInDezeScene = !verhaalHeeftCast || castNamenHier.length > 0;
-        const refsHier = castInDezeScene ? castRefsVoorScene(castRefs, castNamenHier) : [];
-        const bladHier = castInDezeScene ? castSheet : null;
-        const extraContext = [
-          nlBeeldkennis(body.language, plan.illustration, plan.labels.join(" ")),
-          paletteHint,
-          castInDezeScene ? castGuidance(body.cast, castNamenHier) : GEEN_CAST_IN_SCENE,
-          bladHier ? CAST_SHEET_GUIDANCE : "",
-          referencePhoto ? REFERENCE_PHOTO_GUIDANCE : "",
-          castInDezeScene ? castRefGuidance(refsHier) : "",
-          // Dezelfde regels als bij het eerste beeld: zonder deze twee komt een
-          // opnieuw getekende scene terug op een ander kantoor.
-          voorwerpRegie(
-            (body.voorwerpen ?? []).map((v) => ({ naam: v.naam, uiterlijk: v.uiterlijk, bladUrl: v.bladUrl ?? null })),
-            body.voiceover
-          ),
-          body.omgeving
-            ? omgevingRegie({ beschrijving: body.omgeving.beschrijving, kenmerken: body.omgeving.kenmerken ?? [] })
-            : "",
-          anchor ? STYLE_MATCH_ANCHOR : "",
-        ].filter(Boolean).join(" ").trim() || undefined;
-        // Portretten in het character-slot (identiteit), het anker en een
-        // meegestuurde foto als ingredient (stijl resp. onderwerp).
-        const ingredientUrls = [referencePhoto, anchor].filter((u): u is string => !!u);
-        const result = await generateImageWithStyle({
-          prompt: buildIllustrationPrompt(plan.illustration, body.styleId, body.language, kader, plan.labels),
-          format,
-          // Zelfde stijlpack als bij het eerste beeld; anders valt een
-          // bijgestuurd beeld terug naar een tekening (zie story-style.ts).
-          visualStyle: visualStyleVan(body.styleId),
-          seed: typeof body.seed === "number" ? body.seed : undefined,
-          brandUrls: [
-            (body.omgeving?.varianten ?? []).find((v) => v.url)?.url ?? "",
-            bladHier ?? "",
-            ...(body.voorwerpen ?? []).map((v) => v.bladUrl ?? ""),
-          ].filter((u): u is string => !!u).slice(0, 3) || undefined,
-          characterUrls: refsHier.length ? refsHier.map((r) => r.url) : undefined,
-          ingredientUrls: ingredientUrls.length ? ingredientUrls : undefined,
-          extraContext,
-        });
-        rawUrl = result.imageUrl;
-        // Tweede pass: zwevende rommel wegvegen met behoud van de omgeving.
+
+        // Tekst en merktekens controleren — ook na een bewerking, want een edit kan
+        // een woord net zo goed verminken of een logo bijtekenen als een generatie.
         try {
-          rawUrl = body.mode === "overheid"
-            ? (await cleanupFlatGraphic(rawUrl, format, plan.labels)).imageUrl
-            : (await cleanupSceneIllustration(rawUrl, format, plan.labels, body.styleId)).imageUrl;
+          // Stuurde de gebruiker een logo of product mee, dan hoort dat merk in beeld
+          // en mag de controle het niet weghalen.
+          rawUrl = (await borgBeeldtekst(rawUrl, plan.labels, format, body.language, !!referencePhoto, body.styleId)).imageUrl;
         } catch (e) {
-          console.error("[scene-chat] cleanup mislukt, ruw beeld behouden:", e);
+          console.error("[scene-chat] tekstcontrole mislukt:", e);
+        }
+        return rawUrl;
+      };
+
+      // IS DE WENS ÉCHT UITGEVOERD?
+      //
+      // Deze controle stond eerst alleen in de bewerk-tak. Een klant die om een
+      // tekstballon of een tekst op een scherm vroeg, ging juist naar het opnieuw
+      // tekenen (dat pad hoort bij "erbij zetten"), en daar keek niemand mee:
+      // hij kreeg 13 keer een vinkje en 13 keer een credit van de rekening,
+      // terwijl het scherm leeg bleef (gemeten 24-09-2026). Nu geldt de controle
+      // voor beide paden, en pas ná de tekstcontrole — die kan de gevraagde tekst
+      // er namelijk zelf weer uit halen.
+      let rawUrl = await maakBeeld("");
+      if (plan.controle) {
+        const uitslag = await controleerAanwijzing(rawUrl, plan.controle).catch(() => null);
+        if (uitslag && uitslag.ja === false) {
+          const tweede = await maakBeeld(
+            scherpereInstructie(plan.action === "edit" ? plan.instruction : plan.illustration, plan.controle, uitslag.waarom ?? "")
+          ).catch(() => null);
+          const naTweede = tweede ? await controleerAanwijzing(tweede, plan.controle).catch(() => null) : null;
+          if (tweede && naTweede?.ja !== false) {
+            rawUrl = tweede;
+          } else {
+            // Twee keer niet gelukt: credit terug en eerlijk zijn. Het oude beeld
+            // blijft staan; een half gelukte aanpassing is erger dan geen.
+            await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: aanpassing lukte niet").catch(() => {});
+            return NextResponse.json({
+              action: "none",
+              gelukt: false,
+              reply: `Dit is twee keer geprobeerd, maar het staat er nog niet${uitslag.waarom ? ` (te zien was: ${uitslag.waarom})` : ""}. Probeer het anders te zeggen, of vraag om het beeld opnieuw te tekenen. Je credit is teruggestort.`,
+            });
+          }
         }
       }
 
-      // Tekst en merktekens controleren — ook na een bewerking, want een edit kan
-      // een woord net zo goed verminken of een logo bijtekenen als een generatie.
-      try {
-        // Stuurde de gebruiker een logo of product mee, dan hoort dat merk in beeld
-        // en mag de controle het niet weghalen.
-        rawUrl = (await borgBeeldtekst(rawUrl, plan.labels, format, body.language, !!referencePhoto, body.styleId)).imageUrl;
-      } catch (e) {
-        console.error("[scene-chat] tekstcontrole mislukt:", e);
-      }
       const imageUrl = await persistFalAssetSoft(supabase, user.id, rawUrl, "image");
       return NextResponse.json({
         action: plan.action,
