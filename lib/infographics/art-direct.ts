@@ -30,6 +30,10 @@ export interface ArtDirectResult {
   /** De vaste cast van dit verhaal (0-4 personen). */
   cast: ArtDirectCastMember[];
   illustrations: string[]; // exact één per scene, in dezelfde volgorde
+  /** Per scene: welke vaste voorwerpen erin voorkomen (namen uit de meegegeven lijst). */
+  sceneVoorwerpen: string[][];
+  /** Per scene: speelt hij zich af op de vaste plek? */
+  sceneOpVastePlek: boolean[];
   /** Per scene: welke castleden erin voorkomen (namen uit `cast`). */
   sceneCast: string[][];
   /** Per scene: de exacte woorden die in beeld mogen staan (vaak leeg). */
@@ -74,10 +78,16 @@ const ART_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["illustration", "cast", "kernbeeld", "labels"],
+        required: ["illustration", "cast", "voorwerpen", "opVastePlek", "kernbeeld", "labels"],
         properties: {
           illustration: { type: "string" },
           cast: { type: "array", items: { type: "string" } },
+          // Welke vaste voorwerpen in deze scene in beeld zijn, en of de scene
+          // zich op de vaste plek afspeelt. Zonder dit onderscheid komt een
+          // machine of een kantoor in élke scene terug, ook waar het nergens op
+          // slaat — dezelfde fout als met de Romeinse personages.
+          voorwerpen: { type: "array", items: { type: "string" } },
+          opVastePlek: { type: "boolean" },
           // Dwingt de regisseur het verband expliciet te maken. Zonder dit veld
           // schrijft hij een beeld dat "ergens over het onderwerp" gaat in plaats
           // van over déze zin — precies waarom de beelden random aanvoelden.
@@ -428,6 +438,10 @@ export async function artDirectScenes(input: {
    * rollen bij verzinnen tot het maximum van vier.
    */
   vasteCast?: { name?: string | null; role?: string | null; appearance?: string | null }[] | null;
+  /** Vaste voorwerpen uit de bibliotheek die in dit verhaal mogen voorkomen. */
+  voorwerpen?: { naam: string; uiterlijk: string }[] | null;
+  /** De vaste plek van dit verhaal, als de gebruiker er een koos. */
+  omgeving?: { naam: string; beschrijving: string } | null;
   /** Beeldmodus: "overheid" regisseert diagrammen i.p.v. scènes. */
   mode?: "story" | "report" | "overheid";
   /** Taal van de video; bepaalt of de Nederlandse beeldkennis meegaat. */
@@ -483,6 +497,25 @@ export async function artDirectScenes(input: {
         `Verdeel ze over de scenes waar ze inhoudelijk thuishoren en zet hun naam telkens in "cast" van die scene. ` +
         `Je mag hooguit aanvullen tot in totaal vier castleden; verzin geen vervanger voor iemand die hier al staat.`
       : "";
+    // Vaste voorwerpen en de vaste plek: wat de klant uit zijn bibliotheek koos.
+    // Per scene bepaalt de regie of ze daar thuishoren — een machine hoort niet
+    // in elke scene, en een verhaal kan van plek wisselen.
+    const voorwerpen = (input.voorwerpen ?? []).filter((v) => v.naam?.trim() && v.uiterlijk?.trim());
+    const voorwerpRegel = voorwerpen.length
+      ? `\n\nVASTE VOORWERPEN (${voorwerpen.length}): de klant heeft deze dingen vastgelegd; ze zien er in al zijn video's hetzelfde uit.\n` +
+        voorwerpen.map((v) => `- ${v.naam}: ${v.uiterlijk}`).join("\n") +
+        `\nZet bij elke scene in "voorwerpen" de namen (exact zoals hierboven) van de dingen die in DIE scene in beeld zijn — ` +
+        `en alleen als de zin van die scene erover gaat of het er logisch staat. Hooguit twee per scene. Noem ze in je Engelse ` +
+        `briefing bij naam met hun beschrijving erbij. Gaat de scene er niet over, dan een lege lijst: een machine die in elk ` +
+        `beeld opduikt is net zo storend als een personage dat overal opduikt.`
+      : "";
+    const plek = input.omgeving?.naam?.trim() && input.omgeving?.beschrijving?.trim() ? input.omgeving : null;
+    const plekRegel = plek
+      ? `\n\nVASTE PLEK: de klant heeft één plek vastgelegd — ${plek.naam}: ${plek.beschrijving}\n` +
+        `Zet "opVastePlek" op true bij elke scene die zich daar afspeelt, en beschrijf die scene dan ook op die plek. ` +
+        `Speelt een scene ergens anders (buiten, bij de klant, in een andere tijd), dan false en beschrijf je die andere plek gewoon.`
+      : "";
+
     const rolRegel = rol && !vast.length
       ? `\n\nVAST PERSONAGE: elke scène draait om dezelfde persoon, in dezelfde rol: ${rol}. ` +
         `Benoem hem/haar in de illustratie-briefings als "${rol}" en geef die rol in elke scène ` +
@@ -511,7 +544,7 @@ ${input.rawText.slice(0, 9000)}
 """
 
 SCRIPT (${n} scenes, in volgorde):
-${sceneList}${vasteRegel}${rolRegel}${wensRegel}
+${sceneList}${vasteRegel}${voorwerpRegel}${plekRegel}${rolRegel}${wensRegel}
 
 Geef nu de visual bible en per scene een sterke, bewuste illustratie-briefing als JSON.`,
         },
@@ -525,7 +558,7 @@ Geef nu de visual bible en per scene een sterke, bewuste illustratie-briefing al
     const parsed = JSON.parse(completion.choices[0]?.message?.content ?? "{}") as {
       visualBible?: ArtDirectResult["bible"];
       cast?: Partial<ArtDirectCastMember>[];
-      scenes?: { illustration?: string; cast?: string[]; kernbeeld?: string; labels?: string[] }[];
+      scenes?: { illustration?: string; cast?: string[]; voorwerpen?: string[]; opVastePlek?: boolean; kernbeeld?: string; labels?: string[] }[];
     };
     if (!Array.isArray(parsed.scenes) || parsed.scenes.length !== n) return null;
     const illustrations = parsed.scenes.map((s) => (s.illustration ?? "").trim());
@@ -547,11 +580,19 @@ Geef nu de visual bible en per scene een sterke, bewuste illustratie-briefing al
         .filter((l) => l.length > 0 && l.length <= 24)
         .slice(0, 3)
     );
+    // Alleen namen die echt in de meegegeven lijst staan; een verzonnen naam
+    // zou anders een leeg blad opleveren.
+    const voorwerpNamen = new Set((input.voorwerpen ?? []).map((v) => v.naam));
+    const sceneVoorwerpen = parsed.scenes.map((s) =>
+      (Array.isArray(s.voorwerpen) ? s.voorwerpen : []).filter((naam: unknown) => typeof naam === "string" && voorwerpNamen.has(naam))
+    );
+    const sceneOpVastePlek = parsed.scenes.map((s) => s.opVastePlek === true);
+
     const gekeurd = await keurAansluiting(
       illustrations.map((b, i) => ({ voiceover: input.scenes[i]?.voiceover ?? "", illustration: b })),
       input.mode === "overheid"
     );
-    return { bible, cast, illustrations: gekeurd ?? illustrations, sceneCast, sceneLabels };
+    return { bible, cast, illustrations: gekeurd ?? illustrations, sceneCast, sceneLabels, sceneVoorwerpen, sceneOpVastePlek };
   } catch (e) {
     console.error("[art-direct] mislukt, originele briefings behouden:", e);
     return null;

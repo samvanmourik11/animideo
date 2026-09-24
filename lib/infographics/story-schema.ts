@@ -118,6 +118,38 @@ export interface StoryCastMember {
  * een ander gezicht verzon. Deze lijst is het castblad: iedereen die je zelf
  * vastlegt staat erin, met zijn eigen rol.
  */
+/**
+ * Hoeveel vaste voorwerpen er per verhaal mee kunnen. Twee per beeld is de grens
+ * die de dialoogtool hanteert (meer referentiebeelden verdringen het castblad);
+ * vier in het hele verhaal geeft genoeg keuze zonder die grens te raken.
+ */
+export const MAX_STORY_VOORWERPEN = 4;
+/** Hoeveel voorwerpbladen er hooguit in één beeld meegaan. */
+export const MAX_VOORWERPEN_PER_BEELD = 2;
+
+/** Een vast voorwerp in een verhaal, met het blad dat vastlegt hoe het eruitziet. */
+export interface StoryVoorwerp {
+  naam: string;
+  /** Engelse beschrijving; gaat rechtstreeks naar het beeldmodel. */
+  uiterlijk: string;
+  /** Het voorwerp één keer getekend op een egale achtergrond. */
+  bladUrl?: string | null;
+  /** Het id in de bibliotheek, zodat een nieuw getekend blad daar terugkomt. */
+  bibliotheekId?: string | null;
+}
+
+/** De vaste plek van een verhaal: één beeld per camerastand. */
+export interface StoryOmgeving {
+  naam: string;
+  /** Engelse beschrijving van de plek. */
+  beschrijving: string;
+  /** Wat er in elk beeld van deze plek hetzelfde moet zijn. */
+  kenmerken: string[];
+  /** De getekende varianten: totaal / medium / detail. */
+  varianten: { soort: string; url: string }[];
+  bibliotheekId?: string | null;
+}
+
 export interface StoryCastRef {
   /** Publieke URL van het portret (bibliotheek of upload). */
   url: string;
@@ -165,6 +197,14 @@ export interface StoryScene {
   layout?: OverheidLayout | null;
   /** Namen uit spec.cast die in deze scene voorkomen. */
   castNames?: string[];
+  /** Namen uit spec.voorwerpen die in deze scene in beeld zijn. */
+  voorwerpNamen?: string[];
+  /**
+   * Speelt deze scene zich af op de vaste plek uit spec.omgeving? De beeldregie
+   * bepaalt dat: een verhaal kan van plek wisselen, en dan hoort het beeld van
+   * het kantoor daar niet meer bij.
+   */
+  opVastePlek?: boolean;
   /**
    * De exacte woorden die IN het beeld mogen staan (meestal leeg).
    *
@@ -279,6 +319,15 @@ export interface StorySpec {
    * er hooguit nog wat rollen bij verzinnen tot het maximum van vier.
    */
   castRefs?: StoryCastRef[] | null;
+  /**
+   * Vaste voorwerpen uit de bibliotheek: dingen die er in elke video hetzelfde
+   * uitzien (een machine, een product, een voertuig). Zelfde idee als het
+   * castblad voor personages — het blad gaat mee naar elke scene waarin het
+   * voorwerp voorkomt. De dialoogtool had dit al; storytelling niet.
+   */
+  voorwerpen?: StoryVoorwerp[] | null;
+  /** De vaste plek waar (een deel van) dit verhaal zich afspeelt. */
+  omgeving?: StoryOmgeving | null;
   // Verouderd — één vast personage. Blijft staan zodat verhalen van vóór het
   // castblad hun personage houden; `castRefsVanSpec()` leest het als cast van één.
   characterUrl?: string | null;

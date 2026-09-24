@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import FotoNaarItem from "@/components/bibliotheek/FotoNaarItem";
 import { STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
 import {
   MAX_OMGEVING_NAAM, MAX_OMGEVING_BESCHRIJVING, variantenVoorStijl, beeldUitAndereStijl,
+  leesBibliotheekOmgeving,
   type BibliotheekOmgeving,
 } from "@/lib/infographics/omgeving-bibliotheek";
 import { OMGEVING_VARIANTEN } from "@/lib/infographics/omgeving";
@@ -156,10 +158,13 @@ export default function OmgevingenClient({
   initialOmgevingen,
   nietActief,
   fout,
+  magRealistisch = false,
 }: {
   initialOmgevingen: BibliotheekOmgeving[];
   nietActief: boolean;
   fout: string | null;
+  /** Mag dit account de realistische stijl kiezen? */
+  magRealistisch?: boolean;
 }) {
   const [omgevingen, setOmgevingen] = useState(initialOmgevingen);
   const [naam, setNaam] = useState("");
@@ -206,8 +211,18 @@ export default function OmgevingenClient({
         </div>
       )}
 
+      <FotoNaarItem
+        soort="omgeving"
+        magRealistisch={magRealistisch}
+        disabled={nietActief}
+        onKlaar={(item) => {
+          const o = leesBibliotheekOmgeving(item);
+          if (o) setOmgevingen((lijst) => [o, ...lijst]);
+        }}
+      />
+
       <div className="bg-white/5 border border-white/10 rounded-xl p-5 mb-5">
-        <h2 className="text-sm font-semibold text-white mb-3">Nieuwe plek</h2>
+        <h2 className="text-sm font-semibold text-white mb-3">Of zelf beschrijven</h2>
         <form onSubmit={voegToe} className="flex flex-col gap-2">
           <input
             value={naam}

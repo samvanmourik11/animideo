@@ -3,7 +3,7 @@ import { openai } from "@/lib/openai";
 import { createClient } from "@/lib/supabase/server";
 import { buildStoryPrompt } from "@/lib/infographics/build-story-prompt";
 import { knipScriptInScenes, isLetterlijk } from "@/lib/infographics/story-script";
-import { storySpecSchema, castRefsVanSpec, mergeVasteCast, castRefsVoorScene, MAX_CAST_REFS, type StorySpec, type StoryScene, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
+import { storySpecSchema, castRefsVanSpec, mergeVasteCast, castRefsVoorScene, MAX_CAST_REFS, MAX_STORY_VOORWERPEN, MAX_VOORWERPEN_PER_BEELD, type StoryVoorwerp, type StoryOmgeving, type StorySpec, type StoryScene, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
 import { generateImageWithStyle, cleanupSceneIllustration, cleanupFlatGraphic } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { isBeperkteStijl, visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, buildCastSheetBrief, castSheetRefLine } from "@/lib/infographics/story-style";
@@ -11,6 +11,8 @@ import { artDirectScenes, regisseerOverheidScenes } from "@/lib/infographics/art
 import { ICOON_SLEUTELS, icoonKeuzelijst } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
 import { nlBeeldkennis } from "@/lib/infographics/nl-beeldkennis";
+import { voorwerpRegie } from "@/lib/infographics/dialogue-staging";
+import { omgevingRegie } from "@/lib/infographics/omgeving";
 import { keurStoryBeeld, herkansingRegels, minstFout, type StoryFout } from "@/lib/infographics/story-keuring";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
 import { isTeamAccount, magRealistischeStijl } from "@/lib/studio/access";
@@ -55,6 +57,9 @@ interface Body {
   characterRole?: string | null;
   // De cast die de gebruiker zelf heeft samengesteld: portret + naam + rol.
   castRefs?: StoryCastRef[];
+  // Vaste voorwerpen en de vaste plek uit de bibliotheek.
+  voorwerpen?: StoryVoorwerp[];
+  omgeving?: StoryOmgeving | null;
 }
 
 // Gemiddeld spreektempo (woorden/sec) en richtlengte per scene (sec), waaruit we
@@ -125,6 +130,15 @@ export async function POST(req: NextRequest) {
       characterRole: body.characterRole ?? null,
     }).slice(0, MAX_CAST_REFS);
     const castRefUrls = castRefs.map((r) => r.url);
+    // Vaste voorwerpen en de vaste plek: dezelfde gedachte als het castblad —
+    // één keer getekend, en dát beeld gaat mee naar elke scene waarin het hoort.
+    const voorwerpen = (Array.isArray(body.voorwerpen) ? body.voorwerpen : [])
+      .filter((v) => (v?.naam ?? "").trim() && (v?.uiterlijk ?? "").trim())
+      .slice(0, MAX_STORY_VOORWERPEN);
+    const omgeving =
+      body.omgeving && (body.omgeving.naam ?? "").trim() && (body.omgeving.beschrijving ?? "").trim()
+        ? body.omgeving
+        : null;
     const { secs, sceneCount: geplandeScenes, wordsPerScene } = planLength(body.targetSeconds ?? 60);
 
     // Een eigen script bepaalt zelf zijn lengte: de gekozen videolengte telt dan
@@ -267,6 +281,8 @@ export async function POST(req: NextRequest) {
       scenes: spec.scenes.map((s, i) => ({ voiceover: s.voiceover, beeldWens: shots[i]?.beeld ?? "" })),
       characterRole: characterUrl ? body.characterRole : null,
       vasteCast: castRefs.length ? castRefs : null,
+      voorwerpen: voorwerpen.length ? voorwerpen.map((v) => ({ naam: v.naam, uiterlijk: v.uiterlijk })) : null,
+      omgeving: omgeving ? { naam: omgeving.naam, beschrijving: omgeving.beschrijving } : null,
     });
     // De cast hoort bij het verhaal, niet bij één scene: hij gaat mee naar elke
     // beeld-prompt én wordt in de spec bewaard, zodat een latere regeneratie via
@@ -282,6 +298,8 @@ export async function POST(req: NextRequest) {
         ...s,
         illustration: art.illustrations[i] || s.illustration,
         castNames: art.sceneCast[i] ?? [],
+        voorwerpNamen: art.sceneVoorwerpen[i] ?? [],
+        opVastePlek: art.sceneOpVastePlek[i] === true,
         labels: art.sceneLabels[i] ?? s.labels ?? [],
       }));
     }
@@ -362,6 +380,16 @@ export async function POST(req: NextRequest) {
         const regieDeeldeCastIn = spec.scenes.some((sc) => (sc.castNames ?? []).length > 0);
         const castInDezeScene = !regieDeeldeCastIn || (scene.castNames ?? []).length > 0;
         const bladVoorScene = castInDezeScene ? castSheetUrl : null;
+
+        // De vaste voorwerpen van DEZE scene, en de plek als de scene zich daar
+        // afspeelt. Zelfde regel als bij de cast: alleen waar het hoort, anders
+        // duikt de machine in elk beeld op.
+        const voorwerpenHier = voorwerpen
+          .filter((v) => (scene.voorwerpNamen ?? []).includes(v.naam))
+          .slice(0, MAX_VOORWERPEN_PER_BEELD);
+        const plekHier = omgeving && scene.opVastePlek === true ? omgeving : null;
+        const plekBeeld = (plekHier?.varianten ?? []).find((v) => v.url)?.url ?? null;
+
         const extraContext = [
           // Het uiterlijk van Nederlandse dingen ligt vast; laat het beeldmodel er
           // geen Amerikaanse versie van maken.
@@ -370,6 +398,12 @@ export async function POST(req: NextRequest) {
           castInDezeScene ? castGuidance(cast, scene.castNames) : GEEN_CAST_IN_SCENE,
           bladVoorScene ? CAST_SHEET_GUIDANCE : "",
           castInDezeScene ? castRefGuidance(refsInScene) : "",
+          // Dezelfde regels als in de dialoogtool: het blad legt vast hoe het
+          // voorwerp eruitziet, het plekbeeld hoe de plek eruitziet.
+          voorwerpRegie(voorwerpenHier.map((v) => ({ naam: v.naam, uiterlijk: v.uiterlijk, bladUrl: v.bladUrl ?? null })), scene.voiceover),
+          plekBeeld && plekHier
+            ? omgevingRegie({ beschrijving: plekHier.beschrijving, kenmerken: plekHier.kenmerken ?? [] })
+            : "",
           anchorUrl ? STYLE_MATCH_ANCHOR : "",
         ].filter(Boolean).join(" ").trim() || undefined;
         // Het anker levert de tekenstijl, de portretten de identiteit. Ze horen
@@ -390,7 +424,12 @@ export async function POST(req: NextRequest) {
             seed,
             // Het castblad krijgt de merk-slots: die staan vooraan in de rij
             // referenties en wegen het zwaarst — en identiteit is hier het doel.
-            brandUrls: bladVoorScene ? [bladVoorScene] : undefined,
+            // Volgorde als in de dialoogtool: de plek eerst (die bepaalt het hele
+            // beeld), dan het castblad, dan de voorwerpbladen. De helper kapt af
+            // op het aantal merk-slots.
+            brandUrls: [plekBeeld, bladVoorScene, ...voorwerpenHier.map((v) => v.bladUrl ?? "")].filter(
+              (u): u is string => !!u
+            ).slice(0, 3) || undefined,
             characterUrls: castInDezeScene && refsInScene.length ? refsInScene.map((r) => r.url) : undefined,
             ingredientUrls: ingredientUrls.length ? ingredientUrls : undefined,
             extraContext,

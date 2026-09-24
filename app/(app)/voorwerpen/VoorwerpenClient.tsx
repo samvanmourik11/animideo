@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { STORY_STYLE_PRESETS } from "@/lib/infographics/story-style";
-import { MAX_NAAM, MAX_UITERLIJK, type BibliotheekVoorwerp } from "@/lib/infographics/voorwerp-bibliotheek";
+import { MAX_NAAM, MAX_UITERLIJK, leesBibliotheekVoorwerp, type BibliotheekVoorwerp } from "@/lib/infographics/voorwerp-bibliotheek";
+import FotoNaarItem from "@/components/bibliotheek/FotoNaarItem";
 
 // De voorwerpenbibliotheek: voorwerpen die in elke video hetzelfde horen te zijn,
 // zoals de Wonderwagen. Een voorwerp wordt getekend in de eerste video waarin het in
@@ -138,10 +139,13 @@ export default function VoorwerpenClient({
   initialVoorwerpen,
   nietActief,
   fout,
+  magRealistisch = false,
 }: {
   initialVoorwerpen: BibliotheekVoorwerp[];
   nietActief: boolean;
   fout: string | null;
+  /** Mag dit account de realistische stijl kiezen? */
+  magRealistisch?: boolean;
 }) {
   const [voorwerpen, setVoorwerpen] = useState(initialVoorwerpen);
   const [naam, setNaam] = useState("");
@@ -187,8 +191,18 @@ export default function VoorwerpenClient({
         </div>
       )}
 
+      <FotoNaarItem
+        soort="voorwerp"
+        magRealistisch={magRealistisch}
+        disabled={nietActief}
+        onKlaar={(item) => {
+          const v = leesBibliotheekVoorwerp(item);
+          if (v) setVoorwerpen((lijst) => [v, ...lijst]);
+        }}
+      />
+
       <div className="bg-white/5 border border-white/10 rounded-xl p-5 mb-5">
-        <h2 className="text-sm font-semibold text-white mb-3">Nieuw voorwerp</h2>
+        <h2 className="text-sm font-semibold text-white mb-3">Of zelf beschrijven</h2>
         <form onSubmit={voegToe} className="flex flex-col gap-2">
           <input
             value={naam}

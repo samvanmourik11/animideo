@@ -14,6 +14,7 @@ import { storyAspectRatio } from "@/lib/infographics/canvas-size";
 import { DEFAULT_STORY_STYLE, stijlenVoor } from "@/lib/infographics/story-style";
 import StylePicker from "@/components/style/StylePicker";
 import BibliotheekKiezer from "@/components/characters/BibliotheekKiezer";
+import VasteDingen from "@/components/infographics/story/VasteDingen";
 import { createClient } from "@/lib/supabase/client";
 import { isTeamAccount, magRealistischeStijl } from "@/lib/studio/access";
 import type { StorySpec } from "@/lib/infographics/story-schema";
@@ -21,7 +22,7 @@ import { DEFAULT_VOICE, voicePreviewUrl, voicesForLanguage, voiceForLanguage } f
 import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
 import { STORY_FONTS, DEFAULT_STORY_FONT, nearestStoryFont, STORY_FONTS_CSS_HREF } from "@/lib/infographics/story-fonts";
 import { tekstInBeeldAan, castRefsVanSpec, castRefsVoorScene, MAX_CAST_REFS } from "@/lib/infographics/story-schema";
-import type { StoryCastRef } from "@/lib/infographics/story-schema";
+import type { StoryCastRef, StoryVoorwerp, StoryOmgeving } from "@/lib/infographics/story-schema";
 import { MusicPickerButton } from "@/components/music/MusicPicker";
 import { findMusicTrackByUrl } from "@/lib/music/library";
 import type { BrandKit } from "@/lib/types";
@@ -131,6 +132,9 @@ export default function StoryPage() {
   // met een eigen rol. Eerder kon er maar één mee, waardoor je bij een video met
   // een monteur én een klant de halve cast aan het beeldmodel moest overlaten.
   const [castRefs, setCastRefs] = useState<StoryCastRef[]>([]);
+  // Vaste voorwerpen en de vaste plek uit de bibliotheek (net als de cast).
+  const [vasteVoorwerpen, setVasteVoorwerpen] = useState<StoryVoorwerp[]>([]);
+  const [vasteOmgeving, setVasteOmgeving] = useState<StoryOmgeving | null>(null);
   const [characterBusy, setCharacterBusy] = useState(false);
   const [kiezerOpen, setKiezerOpen] = useState(false);
   // Gewenste videolengte in seconden; bepaalt hoeveel scenes de AI maakt.
@@ -560,7 +564,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/generate-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, text, script: scriptModus === "eigen" ? script : "", shots: scriptModus === "eigen" && lezing ? lezing.scenes.map((sc) => ({ voiceover: sc.voiceover, beeld: sc.beeld, beweging: sc.beweging, tekstInBeeld: sc.tekstInBeeld })) : undefined, mode, format, targetSeconds, styleId, language, tone, angle, castRefs, brandColors: brandColorsPayload() }),
+        body: JSON.stringify({ topic, text, script: scriptModus === "eigen" ? script : "", shots: scriptModus === "eigen" && lezing ? lezing.scenes.map((sc) => ({ voiceover: sc.voiceover, beeld: sc.beeld, beweging: sc.beweging, tekstInBeeld: sc.tekstInBeeld })) : undefined, mode, format, targetSeconds, styleId, language, tone, angle, castRefs, voorwerpen: vasteVoorwerpen, omgeving: vasteOmgeving, brandColors: brandColorsPayload() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiError(data, "Verhaal genereren mislukt"));
@@ -1322,6 +1326,17 @@ export default function StoryPage() {
                   : "Deze mensen komen in elke scene hetzelfde terug, elk in hun eigen rol."}
               </span>
             </div>
+
+            {/* Voorwerpen en plek werken hetzelfde als de cast: je legt ze vast,
+                en de beeldregie bepaalt in welke scene ze horen. */}
+            <VasteDingen
+              styleId={spec?.styleId ?? styleId}
+              voorwerpen={vasteVoorwerpen}
+              omgeving={vasteOmgeving}
+              onVoorwerpen={setVasteVoorwerpen}
+              onOmgeving={setVasteOmgeving}
+              disabled={!!spec}
+            />
           </div>
         </div>
 

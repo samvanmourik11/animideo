@@ -86,10 +86,10 @@ export default function BibliotheekClient({
           negatieve marge niet — ze staan als onderkop prima onder het tabje. */}
       {tab === "personages" && <CharactersClient initialCharacters={characters} magRealistisch={magRealistisch} />}
       {tab === "voorwerpen" && (
-        <VoorwerpenClient initialVoorwerpen={voorwerpen} nietActief={voorwerpenNietActief} fout={null} />
+        <VoorwerpenClient initialVoorwerpen={voorwerpen} nietActief={voorwerpenNietActief} fout={null} magRealistisch={magRealistisch} />
       )}
       {tab === "omgevingen" && (
-        <OmgevingenClient initialOmgevingen={omgevingen} nietActief={omgevingenNietActief} fout={null} />
+        <OmgevingenClient initialOmgevingen={omgevingen} nietActief={omgevingenNietActief} fout={null} magRealistisch={magRealistisch} />
       )}
     </div>
   );
