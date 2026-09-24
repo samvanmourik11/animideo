@@ -6,7 +6,9 @@ import { beeldAlsDataUrl } from "@/lib/infographics/beeld-inline";
 import { isIndelingsAanwijzing, scherpereInstructie } from "@/lib/infographics/beeld-aanwijzing";
 import { controleerAanwijzing } from "@/lib/infographics/aanwijzing-controle";
 import { visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE } from "@/lib/infographics/story-style";
-import { castRefsVanSpec, castRefsVoorScene, MAX_CAST_REFS, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
+import { castRefsVanSpec, castRefsVoorScene, MAX_CAST_REFS, type StoryCastMember, type StoryCastRef, type StoryVoorwerp, type StoryOmgeving } from "@/lib/infographics/story-schema";
+import { voorwerpRegie } from "@/lib/infographics/dialogue-staging";
+import { omgevingRegie } from "@/lib/infographics/omgeving";
 import { planSceneChat, planLayoutChat } from "@/lib/infographics/scene-chat";
 import { ICOON_SLEUTELS, icoonKeuzelijst, type OverheidLayout } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
@@ -60,6 +62,9 @@ interface Body {
   // Beelden van de scenes eromheen, zodat "zoals in het vorige beeld" te volgen
   // is. De pagina stuurt er hooguit een paar mee.
   contextImages?: { label?: string; url?: string }[] | null;
+  // De vaste voorwerpen en de plek van DEZE scene (de pagina filtert al).
+  voorwerpen?: StoryVoorwerp[] | null;
+  omgeving?: StoryOmgeving | null;
   // De zelf gekozen personages van dit verhaal (portret + rol). Alleen de mensen
   // die in DEZE scene staan gaan mee; de pagina filtert daar al op.
   castRefs?: StoryCastRef[] | null;
@@ -239,6 +244,15 @@ export async function POST(req: NextRequest) {
           bladHier ? CAST_SHEET_GUIDANCE : "",
           referencePhoto ? REFERENCE_PHOTO_GUIDANCE : "",
           castInDezeScene ? castRefGuidance(refsHier) : "",
+          // Dezelfde regels als bij het eerste beeld: zonder deze twee komt een
+          // opnieuw getekende scene terug op een ander kantoor.
+          voorwerpRegie(
+            (body.voorwerpen ?? []).map((v) => ({ naam: v.naam, uiterlijk: v.uiterlijk, bladUrl: v.bladUrl ?? null })),
+            body.voiceover
+          ),
+          body.omgeving
+            ? omgevingRegie({ beschrijving: body.omgeving.beschrijving, kenmerken: body.omgeving.kenmerken ?? [] })
+            : "",
           anchor ? STYLE_MATCH_ANCHOR : "",
         ].filter(Boolean).join(" ").trim() || undefined;
         // Portretten in het character-slot (identiteit), het anker en een
@@ -251,7 +265,11 @@ export async function POST(req: NextRequest) {
           // bijgestuurd beeld terug naar een tekening (zie story-style.ts).
           visualStyle: visualStyleVan(body.styleId),
           seed: typeof body.seed === "number" ? body.seed : undefined,
-          brandUrls: bladHier ? [bladHier] : undefined,
+          brandUrls: [
+            (body.omgeving?.varianten ?? []).find((v) => v.url)?.url ?? "",
+            bladHier ?? "",
+            ...(body.voorwerpen ?? []).map((v) => v.bladUrl ?? ""),
+          ].filter((u): u is string => !!u).slice(0, 3) || undefined,
           characterUrls: refsHier.length ? refsHier.map((r) => r.url) : undefined,
           ingredientUrls: ingredientUrls.length ? ingredientUrls : undefined,
           extraContext,

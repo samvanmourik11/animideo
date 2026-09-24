@@ -487,6 +487,14 @@ export default function StoryPage() {
     if (uitSpec.length) setCastRefs(uitSpec);
   }, [spec?.castRefs, spec?.characterUrl, spec?.characterRole]);
 
+  // Hetzelfde voor de vaste voorwerpen en de plek: een heropend verhaal moet ze
+  // tonen, anders lijkt het alsof ze weg zijn en raakt een scene die opnieuw
+  // getekend wordt zijn kantoor kwijt.
+  useEffect(() => {
+    if (spec?.voorwerpen?.length) setVasteVoorwerpen(spec.voorwerpen);
+    if (spec?.omgeving) setVasteOmgeving(spec.omgeving);
+  }, [spec?.voorwerpen, spec?.omgeving]);
+
   // Serie: splits het onderwerp/de bron in losse afleveringen.
   async function planSeries() {
     setErr(null);
@@ -714,6 +722,10 @@ export default function StoryPage() {
           cast: spec.cast ?? null,
           castNames: s.castNames ?? null,
           castSheetUrl: spec.castSheetUrl ?? null,
+          // De vaste dingen van DEZE scene: zonder deze twee verliest een scene
+          // die opnieuw getekend wordt zijn kantoor en zijn machine.
+          voorwerpen: (spec.voorwerpen ?? []).filter((v) => (s.voorwerpNamen ?? []).includes(v.naam)),
+          omgeving: s.opVastePlek ? spec.omgeving ?? null : null,
           // De beelden van de scenes ernaast, zodat "zoals in het vorige beeld"
           // te volgen is. Meer dan een paar maakt de vraag duurder, niet beter.
           contextImages: spec.scenes

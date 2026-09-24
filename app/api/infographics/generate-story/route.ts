@@ -488,7 +488,7 @@ export async function POST(req: NextRequest) {
     );
     const scenes: StoryScene[] = [first, ...rest];
 
-    return NextResponse.json({ spec: { ...spec, scenes, seed, anchorImageUrl, styleId, language, cast, castSheetUrl, castRefs: castRefsMetNaam, characterUrl, characterRole: body.characterRole?.trim() || null } });
+    return NextResponse.json({ spec: { ...spec, scenes, seed, anchorImageUrl, styleId, language, cast, castSheetUrl, castRefs: castRefsMetNaam, voorwerpen, omgeving, characterUrl, characterRole: body.characterRole?.trim() || null } });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error("generate-story failed:", msg);
