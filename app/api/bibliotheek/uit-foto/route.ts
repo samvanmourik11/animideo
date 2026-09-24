@@ -11,10 +11,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { canUseDialoog, magRealistischeStijl } from "@/lib/studio/access";
-import { generateImageWithStyle, editIllustration } from "@/lib/image-gen";
+import { generateImageWithStyle } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import {
-  buildIllustrationPrompt, isBeperkteStijl, visualStyleVan, stijlOmschrijving, REFERENCE_PHOTO_GUIDANCE,
+  buildIllustrationPrompt, isBeperkteStijl, visualStyleVan, REFERENCE_PHOTO_GUIDANCE,
   DEFAULT_STORY_STYLE, STORY_STYLE_PRESETS,
 } from "@/lib/infographics/story-style";
 import { leesFoto, tekenOpdrachtUitFoto, type FotoSoort } from "@/lib/infographics/foto-naar-bibliotheek";
@@ -77,46 +77,29 @@ export async function POST(req: NextRequest) {
 
     let getekendUrl: string;
     try {
+      // HOE DE FOTO EEN TEKENING WORDT.
+      //
+      // Eerst geprobeerd: de foto als referentie meesturen. Dat levert in elke
+      // tekenstijl een FOTO op — het model kopieert wat het ziet, en een tweede
+      // bewerkstap ("teken dit na als papercut") haalt dat er niet meer uit: die
+      // stap is gebouwd om een beeld juist gelijk te houden. Drie keer gemeten
+      // met dezelfde kantoorfoto: drie keer een foto terug.
+      //
+      // Daarom tekent hij nu vanaf de BESCHRIJVING die het visiemodel van de foto
+      // maakte. Die is gedetailleerd genoeg om de plek te herkennen (witte
+      // bakstenen muur, twee bureaus, raam links, blauwe bank) en het resultaat
+      // is wél de gekozen stijl. Alleen bij de realistische stijl gaat de foto
+      // zelf mee: daar is fotografisch juist het doel.
+      const realistisch = styleId === "realistisch";
       const result = await generateImageWithStyle({
-        prompt: `${buildIllustrationPrompt(tekenOpdrachtUitFoto(lezing, soort), styleId, "Nederlands")}${REFERENCE_PHOTO_GUIDANCE}`,
+        prompt: realistisch
+          ? `${buildIllustrationPrompt(tekenOpdrachtUitFoto(lezing, soort), styleId, "Nederlands")}${REFERENCE_PHOTO_GUIDANCE}`
+          : buildIllustrationPrompt(tekenOpdrachtUitFoto(lezing, soort, false), styleId, "Nederlands"),
         format: "16:9",
         visualStyle: visualStyleVan(styleId),
-        // De foto als INGREDIENT, niet als merk-referentie. In de merk-slots staat
-        // "neem dit exact over", en dan komt de foto er vrijwel fotografisch weer
-        // uit — gemeten met een kantoorfoto in flat-vector: het resultaat was een
-        // foto, geen tekening. Als ingredient plus REFERENCE_PHOTO_GUIDANCE
-        // ("teken het na in de stijl hierboven, nooit fotorealistisch") klopt de
-        // vorm én de stijl.
-        ingredientUrls: [fotoUrl],
+        ingredientUrls: realistisch ? [fotoUrl] : undefined,
       });
-      let ruwUrl = result.imageUrl;
-      // TWEEDE STAP: echt naar de tekenstijl toe.
-      //
-      // Met de foto als referentie komt er een beeld uit dat nog steeds een foto
-      // is: de vorm klopt, de stijl niet (gemeten met een kantoorfoto in
-      // flat-vector — twee keer een foto terug). Een aparte bewerking die alleen
-      // de stijl omzet, met de vorm als gegeven, lost dat op. Bij de realistische
-      // stijl slaan we hem over: daar ís fotografisch het doel.
-      if (styleId !== "realistisch") {
-        try {
-          const omgezet = await editIllustration(
-            ruwUrl,
-            `Redraw this photograph as ${stijlOmschrijving(styleId)}. Keep the exact same layout, the same furniture ` +
-              "and objects in the same positions, the same proportions and the same colours, but draw everything as an " +
-              "illustration in that style: no photographic texture, no camera grain, no depth-of-field blur. It must " +
-              "clearly look drawn, not photographed.",
-            "16:9",
-            null,
-            styleId,
-            "Nederlands"
-          );
-          ruwUrl = omgezet.imageUrl;
-        } catch (e) {
-          // Lukt het omzetten niet, dan liever het beeld uit stap één dan niets.
-          console.error("[bibliotheek/uit-foto] stijl omzetten mislukt, eerste beeld behouden:", e);
-        }
-      }
-      getekendUrl = await persistFalAssetSoft(supabase, user.id, ruwUrl, "image");
+      getekendUrl = await persistFalAssetSoft(supabase, user.id, result.imageUrl, "image");
     } catch (e) {
       await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: foto omzetten mislukt").catch(() => {});
       throw e;

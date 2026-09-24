@@ -95,15 +95,17 @@ export async function leesFoto(fotoDataUrl: string, soort: FotoSoort): Promise<F
  * een voorwerp wordt het een blad op een lege achtergrond (zoals het castblad
  * voor personages), bij een omgeving een lege plek zonder mensen.
  */
-export function tekenOpdrachtUitFoto(lezing: FotoLezing, soort: FotoSoort): string {
+export function tekenOpdrachtUitFoto(lezing: FotoLezing, soort: FotoSoort, metFoto = true): string {
   const kenmerken = lezing.kenmerken.length
     ? `These details belong to it and must be clearly visible: ${lezing.kenmerken.join(", ")}. `
     : "";
   if (soort === "voorwerp") {
     return (
       `A reference sheet for ONE object: ${lezing.beschrijving} ${kenmerken}` +
-      "The reference image is a PHOTO of that exact object: keep its real shape, proportions, colours and details, " +
-      "but draw it in the illustration style of this video — never paste or trace the photo. " +
+      (metFoto
+        ? "The reference image is a PHOTO of that exact object: keep its real shape, proportions, colours and details, " +
+          "but draw it in the illustration style of this video — never paste or trace the photo. "
+        : "") +
       "Draw the object once, centred on a plain light neutral background. " +
       "No people, no animals, no other objects and no scenery. " +
       "No text, no names, no labels, no numbers and no frames anywhere in the image."
@@ -111,9 +113,12 @@ export function tekenOpdrachtUitFoto(lezing: FotoLezing, soort: FotoSoort): stri
   }
   return (
     `A location background for an animated film: a wide establishing view of this place. ${lezing.beschrijving} ${kenmerken}` +
-    "The reference image is a PHOTO of that exact place: keep the same layout, the same furniture and objects in the " +
-    "same positions, the same colours and the same light, but draw it in the illustration style of this video — never " +
-    "paste or trace the photo. " +
+    (metFoto
+      ? "The reference image is a PHOTO of that exact place: keep the same layout, the same furniture and objects in the " +
+        "same positions, the same colours and the same light, but draw it in the illustration style of this video — never " +
+        "paste or trace the photo. "
+      : "Draw it exactly as described above: the same layout, the same furniture and objects in the same positions and " +
+        "the same colours. ") +
     "EMPTY PLACE: there are no people, no animals and no characters anywhere in this image — only the place itself. " +
     "No text, no letters, no labels, no logos and no frames anywhere in the image."
   );
