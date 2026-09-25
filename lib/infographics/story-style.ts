@@ -3,6 +3,7 @@
 // dezelfde "animatiemarkt flat infographic" look gebruiken.
 
 import type { VisualStyle } from "@/lib/types";
+import { isZin } from "@/lib/infographics/tekst-vergelijk";
 
 export const STYLE_PREAMBLE =
   "Flat vector illustration in a professional, modern corporate animated-explainer / infographic style. " +
@@ -295,6 +296,26 @@ export function labelGuidance(labels?: string[] | null): string {
   const woorden = (labels ?? []).map((l) => l.trim()).filter(Boolean).slice(0, 3);
   if (woorden.length === 0) return "";
   const lijst = woorden.map((w) => `"${w}"`).join(", ");
+
+  // EEN GEVRAAGDE ZIN IS GEEN LABEL.
+  //
+  // De regels hieronder zijn geschreven voor losse labels bij een balk of een
+  // icoon: klein houden, nooit het hoofdelement, nooit in een leeg vlak. Precies
+  // die drie regels verbieden een tekstballon of een zin op een beeldscherm —
+  // en dat is wel wat klanten vragen (twee meldingen, 24 en 25-09-2026).
+  if (woorden.some(isZin)) {
+    return (
+      ` TEXT — this image must contain this exact text, clearly readable: ${lijst}. ` +
+      `Spell it exactly as written here, character for character, including accents, capitals and punctuation. ` +
+      `Place it where the scene says it belongs — inside a speech bubble, on a screen, on a sign or on a note — ` +
+      `drawn as part of the illustration, in a clean plain sans-serif, large enough to read comfortably and with ` +
+      `clear contrast against its background. The text may take up real space in the image; give it room rather ` +
+      `than shrinking it until it is unreadable. Do not translate it, do not shorten it, and add no other word, ` +
+      `letter, number, caption or heading anywhere in the image. ` +
+      MERK_NEGATIEF
+    );
+  }
+
   return (
     ` TEXT — this image contains text, and these are the ONLY words allowed in it: ${lijst}. ` +
     `Spell each one exactly as written here, character for character, including any accents or capitals. ` +

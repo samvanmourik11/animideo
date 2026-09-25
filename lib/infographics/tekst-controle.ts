@@ -1,6 +1,7 @@
 import { openai } from "@/lib/openai";
 import { editIllustration } from "@/lib/image-gen";
 import { beeldVoorKijkvraag } from "@/lib/infographics/beeld-inline";
+import { exactErin, hoortErbij, isZin, staatErin } from "@/lib/infographics/tekst-vergelijk";
 
 // SPELLINGCONTROLE OP WAT ER ÉCHT IN BEELD STAAT.
 //
@@ -80,16 +81,6 @@ async function leesBeeldtekst(imageUrl: string): Promise<{ tekst: string[]; merk
   }
 }
 
-/** Voor de vergelijking: kleine verschillen die er niet toe doen wegpoetsen. */
-function normaliseer(t: string): string {
-  return t
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9€%]+/g, " ")
-    .trim();
-}
-
 export async function controleerBeeldtekst(
   imageUrl: string,
   labels: string[],
@@ -103,7 +94,6 @@ export async function controleerBeeldtekst(
   const bedoeld = labels.map((l) => l.trim()).filter(Boolean);
   const { tekst: gevonden, merkteken } = await leesBeeldtekst(imageUrl);
 
-  const bedoeldNorm = bedoeld.map(normaliseer);
   const problemen: string[] = [];
   // Een verzonnen logo is altijd fout, met of zonder tekst in beeld.
   if (merkteken && !merkToegestaan) problemen.push("er staat een verzonnen logo of watermerk in beeld");
@@ -115,19 +105,17 @@ export async function controleerBeeldtekst(
     return { ok: problemen.length === 0, gevonden: [], merkteken, probleem: problemen.join("; ") };
   }
 
-  // 1. Staat elk bedoeld woord er exact zo?
-  for (let i = 0; i < bedoeld.length; i++) {
-    const treffer = gevonden.some((g) => normaliseer(g).includes(bedoeldNorm[i]));
-    if (!treffer) problemen.push(`"${bedoeld[i]}" staat er niet (goed) in`);
+  // 1. Staat elk bedoeld label er goed genoeg in? Een kort label moet
+  //    letterlijk kloppen; een door de gebruiker gevraagde zin mag over meerdere
+  //    tekstblokken verdeeld staan en een leesafwijking hebben (tekst-vergelijk).
+  for (const b of bedoeld) {
+    if (!staatErin(b, gevonden)) problemen.push(`"${b}" staat er niet (goed) in`);
   }
 
-  // 2. Staat er tekst die er niet hoort? Elk gelezen blok moet in een bedoeld
+  // 2. Staat er tekst die er niet hoort? Elk gelezen blok moet bij een bedoeld
   //    label passen; wat overblijft is brabbeltekst of een verzonnen kop.
   for (const g of gevonden) {
-    const gn = normaliseer(g);
-    if (!gn) continue;
-    const hoortErbij = bedoeldNorm.some((b) => b.includes(gn) || gn.includes(b));
-    if (!hoortErbij) problemen.push(`"${g}" hoort er niet te staan`);
+    if (!hoortErbij(g, bedoeld)) problemen.push(`"${g}" hoort er niet te staan`);
   }
 
   return {
@@ -154,10 +142,28 @@ export async function borgBeeldtekst(
   merkToegestaan = false,
   /** De gekozen tekenstijl, zodat een tekstcorrectie het beeld niet van stijl verandert. */
   styleId?: string | null
-): Promise<{ imageUrl: string; hersteld: boolean; tekstVerwijderd: boolean }> {
+): Promise<{ imageUrl: string; hersteld: boolean; tekstVerwijderd: boolean; zinNietExact?: boolean }> {
   const bedoeld = labels.map((l) => l.trim()).filter(Boolean);
+
+  // VROEG DE GEBRUIKER ZELF OM EEN ZIN IN BEELD?
+  //
+  // Dan geldt "geen tekst is beter dan foute tekst" niet. Die regel is bedoeld
+  // voor labels die de app er zelf bij verzint; bij een zin die iemand expliciet
+  // in een tekstballon of op een scherm wil, is wissen het slechtste antwoord.
+  // Twee dingen gaan daarom anders: de correctie repareert alleen de spelling
+  // (de gewone correctie luidt "verwijder alle andere tekst en vul de plek met
+  // de omringende kleur" — die gumde de hele tekstballon weg), en als het dan
+  // nog niet klopt blijft het beeld mét tekst staan. Gemeten 25-09-2026: het
+  // beeldmodel schreef "vergaderruume" in plaats van "vergaderruimte".
+  const heeftZin = bedoeld.some(isZin);
+
   const oordeel = await controleerBeeldtekst(imageUrl, bedoeld, merkToegestaan);
-  if (oordeel.ok) return { imageUrl, hersteld: false, tekstVerwijderd: false };
+  // Een zin die er "in de kern" staat is goed genoeg om hem te laten staan, maar
+  // niet goed genoeg om hem zo in een video te zetten: het model schreef
+  // "afspreak" in plaats van "afspraak". Staat hij niet teken voor teken goed,
+  // dan volgt hieronder alsnog één spellingronde.
+  const zinKlopt = bedoeld.every((b) => !isZin(b) || exactErin(b, oordeel.gevonden));
+  if (oordeel.ok && zinKlopt) return { imageUrl, hersteld: false, tekstVerwijderd: false, zinNietExact: false };
 
   const woorden = bedoeld.map((w) => `"${w}"`).join(", ");
   // Alleen merktekens weghalen als ze er niet horen. Heeft de gebruiker een logo
@@ -166,7 +172,12 @@ export async function borgBeeldtekst(
     ? ""
     : ", and remove every logo, brand mark, badge or emblem, in every corner and on every object";
   try {
-    const correctie = bedoeld.length
+    const correctie = heeftZin
+      ? `Correct the spelling of the text in this image so that it reads exactly ${woorden}, character for character, ` +
+        `in ${language === "Nederlands" ? "Dutch" : language}. Keep the speech bubble, screen, sign, note or panel it sits in exactly ` +
+        `where it is, at the same size and shape, and keep the composition, all shapes, objects, figures, colours and the ` +
+        `illustration style exactly the same. Only fix the letters — do not remove, move or resize anything.`
+      : bedoeld.length
       ? `Fix the text in this image. The only words that may appear are ${woorden}, each spelled exactly like that, ` +
         `character for character, in ${language === "Nederlands" ? "Dutch" : language}. Correct every misspelled or garbled word to the exact spelling given, ` +
         `remove every other word, letter, number and caption${merkRegel}. Fill the freed area with the surrounding ` +
@@ -177,7 +188,18 @@ export async function borgBeeldtekst(
 
     // Eén hercontrole. Nog steeds fout? Dan liever helemaal geen tekst.
     const naOordeel = await controleerBeeldtekst(hersteld.imageUrl, bedoeld, merkToegestaan);
-    if (naOordeel.ok) return { imageUrl: hersteld.imageUrl, hersteld: true, tekstVerwijderd: false };
+    const zinNaKlopt = bedoeld.every((b) => !isZin(b) || exactErin(b, naOordeel.gevonden));
+    if (naOordeel.ok && zinNaKlopt) {
+      return { imageUrl: hersteld.imageUrl, hersteld: true, tekstVerwijderd: false, zinNietExact: false };
+    }
+
+    // Een gevraagde zin halen we nooit weg; een tekstballon met een spelfout is
+    // te herstellen, een weggegumde tekstballon niet. We geven wel door dat de
+    // spelling niet klopt, zodat de app dat eerlijk kan zeggen in plaats van
+    // "klaar" te melden bij een zin met een tikfout.
+    if (heeftZin) {
+      return { imageUrl: hersteld.imageUrl, hersteld: true, tekstVerwijderd: false, zinNietExact: !zinNaKlopt };
+    }
 
     const kaal = await editIllustration(
       hersteld.imageUrl,

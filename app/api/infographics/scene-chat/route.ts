@@ -12,6 +12,7 @@ import { omgevingRegie } from "@/lib/infographics/omgeving";
 import { planSceneChat, planLayoutChat } from "@/lib/infographics/scene-chat";
 import { ICOON_SLEUTELS, icoonKeuzelijst, type OverheidLayout } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
+import { gevraagdeZin } from "@/lib/infographics/tekst-vergelijk";
 import { nlBeeldkennis } from "@/lib/infographics/nl-beeldkennis";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 import type { InfographicFormat } from "@/lib/types";
@@ -142,6 +143,15 @@ export async function POST(req: NextRequest) {
         .filter((m) => m.text.length > 0),
     });
 
+    // De gevraagde zin hoort op de lijst met toegestane tekst. De planner zet hem
+    // daar meestal zelf op, maar niet altijd — en wat er niet op staat, wist de
+    // opruimstap uit het beeld, tekstballon en al. Daarom lezen we hem ook zelf
+    // uit de opdracht (zie gevraagdeZin).
+    const zin = gevraagdeZin(plan.action === "edit" ? plan.instruction : plan.illustration);
+    if (zin && !plan.labels.some((l) => l.trim() === zin)) {
+      plan.labels = [zin, ...plan.labels].slice(0, 3);
+    }
+
     // Verplaatsen, groter/kleiner, iemand erbij of weg: dat kan een bewerking van
     // een bestaand plaatje niet (gemeten in de dialoogtool op 19-09-2026, commit
     // 63f88bc). Zulke wensen gaan naar het opnieuw tekenen, ook als de planner ze
@@ -167,6 +177,10 @@ export async function POST(req: NextRequest) {
     try {
       // Eén beeldpoging, in het pad dat bij de wens hoort. `scherper` is leeg bij
       // de eerste poging en bevat bij een herkansing wat er nog niet klopte.
+      // Kwam de gevraagde zin er niet teken voor teken in? Dan zegt de app dat
+      // erbij. Een beeldmodel spelt een lange zin nu eenmaal niet betrouwbaar;
+      // doen alsof het goed is, is precies de klacht die we aan het oplossen zijn.
+      let spellingWankel = false;
       const maakBeeld = async (scherper: string): Promise<string> => {
         let rawUrl: string;
         if (plan.action === "edit" && source) {
@@ -233,6 +247,9 @@ export async function POST(req: NextRequest) {
           const ingredientUrls = [referencePhoto, anchor].filter((u): u is string => !!u);
           const result = await generateImageWithStyle({
             prompt: [buildIllustrationPrompt(plan.illustration, body.styleId, body.language, kader, plan.labels), scherper].filter(Boolean).join(" "),
+            // Vroeg de gebruiker om tekst in beeld? Dan mag de slotregel van de
+            // prompt niet "No text overlays" zijn — zie tekstGewenst in image-gen.
+            tekstGewenst: plan.labels.length > 0,
             format,
             // Zelfde stijlpack als bij het eerste beeld; anders valt een
             // bijgestuurd beeld terug naar een tekening (zie story-style.ts).
@@ -263,7 +280,9 @@ export async function POST(req: NextRequest) {
         try {
           // Stuurde de gebruiker een logo of product mee, dan hoort dat merk in beeld
           // en mag de controle het niet weghalen.
-          rawUrl = (await borgBeeldtekst(rawUrl, plan.labels, format, body.language, !!referencePhoto, body.styleId)).imageUrl;
+          const geborgd = await borgBeeldtekst(rawUrl, plan.labels, format, body.language, !!referencePhoto, body.styleId);
+          rawUrl = geborgd.imageUrl;
+          spellingWankel = geborgd.zinNietExact === true;
         } catch (e) {
           console.error("[scene-chat] tekstcontrole mislukt:", e);
         }
@@ -306,7 +325,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         action: plan.action,
         gelukt: true,
-        reply: plan.reply,
+        reply: spellingWankel
+          ? `${plan.reply} Let op: de zin staat erin, maar het tekenmodel spelt lange zinnen vaak net verkeerd — controleer hem, en houd hem kort als het kan.`
+          : plan.reply,
         imageUrl,
         // Bij een regeneratie is de briefing herschreven; die moet de client
         // bewaren, anders valt een volgende regeneratie terug op de oude scène.

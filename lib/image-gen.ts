@@ -63,6 +63,14 @@ export interface NanoBananaInput {
   quality?: "standard" | "pro" | null;
   // Vaste seed → reproduceerbaar/consistente look bij "Opnieuw" en tussen scènes.
   seed?: number | null;
+  /**
+   * Waar als er tekst IN het beeld hoort (de gebruiker vroeg om een zin op een
+   * scherm of in een tekstballon). Zonder deze schakelaar eindigde élke
+   * beeldopdracht met "No text overlays" — de laatste regel van de prompt, en
+   * dus de regel die het model het zwaarst weegt. Daardoor werd een gevraagde
+   * tekstballon stelselmatig niet getekend (gemeten 25-09-2026).
+   */
+  tekstGewenst?: boolean | null;
 }
 
 export interface NanoBananaResult {
@@ -161,7 +169,11 @@ export async function generateImageWithStyle(input: NanoBananaInput): Promise<Na
   // "signature" erin met een content_policy_violation. Dat gebeurde in stilte bij
   // élke opschoonronde en tekstcorrectie (gemeten 23-09-2026), waardoor verzonnen
   // logo's en letterbrij gewoon in de video belandden. "brand mark" mag wel.
-  promptParts.push("No text overlays, no brand marks, no logos.");
+  promptParts.push(
+    input.tekstGewenst
+      ? "No brand marks, no logos."
+      : "No text overlays, no brand marks, no logos."
+  );
 
   // Hier stond een afkapgrens van 4000 tekens, nog uit de tijd van Flux en DALL-E.
   // Nano Banana neemt er 50.000. In de dialoogmodus is een beeldopdracht 6000 tot 7500
