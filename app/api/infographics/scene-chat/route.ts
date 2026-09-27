@@ -181,7 +181,15 @@ export async function POST(req: NextRequest) {
       // erbij. Een beeldmodel spelt een lange zin nu eenmaal niet betrouwbaar;
       // doen alsof het goed is, is precies de klacht die we aan het oplossen zijn.
       let spellingWankel = false;
-      const maakBeeld = async (scherper: string): Promise<string> => {
+      // Bij een herkansing (`vorigeUrl` gezet) doen we twee dingen anders dan bij
+      // de eerste poging: het model bewerkt zijn EIGEN mislukte beeld verder in
+      // plaats van blind opnieuw te beginnen vanaf het origineel — zo ziet het
+      // wat er nog fout staat, in plaats van te gokken — en we schakelen naar het
+      // Pro-model. Dat laatste kost per beeld ~4x zoveel, maar alleen de 10-15%
+      // van de aanpassingen die de controle niet in één keer haalt betaalt dat;
+      // de eerste, goedkope poging blijft ongewijzigd.
+      const maakBeeld = async (scherper: string, vorigeUrl?: string): Promise<string> => {
+        const herkansing = !!vorigeUrl;
         let rawUrl: string;
         if (plan.action === "edit" && source) {
           // Gerichte bewerking: compositie en stijl blijven, alleen de gevraagde
@@ -190,7 +198,7 @@ export async function POST(req: NextRequest) {
           // een rijbewijs bij" levert anders alsnog een Amerikaans pasje op.
           const kennis = nlBeeldkennis(body.language, plan.instruction, plan.labels.join(" "));
           const result = await editIllustration(
-            source,
+            vorigeUrl ?? source,
             [scherper || plan.instruction, kennis].filter(Boolean).join(" "),
             format,
             // Het castblad erbij: zonder een referentie van wie wie is, verandert een
@@ -198,7 +206,8 @@ export async function POST(req: NextRequest) {
             // de dialoogtool, zie dialogue-aanwijzing).
             [referencePhoto, castSheet].filter((u): u is string => !!u),
             body.styleId,
-            body.language
+            body.language,
+            herkansing
           );
           rawUrl = result.imageUrl;
         } else {
@@ -250,6 +259,9 @@ export async function POST(req: NextRequest) {
             // Vroeg de gebruiker om tekst in beeld? Dan mag de slotregel van de
             // prompt niet "No text overlays" zijn — zie tekstGewenst in image-gen.
             tekstGewenst: plan.labels.length > 0,
+            // Zelfde reden als bij bewerken: alleen de herkansing na een
+            // mislukte controle krijgt het duurdere Pro-model.
+            quality: herkansing ? "pro" : undefined,
             format,
             // Zelfde stijlpack als bij het eerste beeld; anders valt een
             // bijgestuurd beeld terug naar een tekening (zie story-style.ts).
@@ -303,7 +315,8 @@ export async function POST(req: NextRequest) {
         const uitslag = await controleerAanwijzing(rawUrl, plan.controle).catch(() => null);
         if (uitslag && uitslag.ja === false) {
           const tweede = await maakBeeld(
-            scherpereInstructie(plan.action === "edit" ? plan.instruction : plan.illustration, plan.controle, uitslag.waarom ?? "")
+            scherpereInstructie(plan.action === "edit" ? plan.instruction : plan.illustration, plan.controle, uitslag.waarom ?? ""),
+            rawUrl
           ).catch(() => null);
           const naTweede = tweede ? await controleerAanwijzing(tweede, plan.controle).catch(() => null) : null;
           if (tweede && naTweede?.ja !== false) {

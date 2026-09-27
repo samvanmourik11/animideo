@@ -361,9 +361,17 @@ export async function editIllustration(
   /** De gekozen tekenstijl; zonder dit dwong deze prompt altijd vlakke vector af. */
   styleId?: string | null,
   /** Taal van de video; tekst in beeld hoort in die taal te staan. */
-  language?: string | null
+  language?: string | null,
+  /**
+   * Naar de Pro-variant (scherper, ~4x duurder). Bewust ALLEEN voor de
+   * herkansing na een mislukte controle: de eerste poging blijft goedkoop,
+   * en juist de lastige 10-15% die de controle niet haalt krijgt het
+   * sterkere model — in plaats van blind dezelfde poging te herhalen.
+   */
+  pro?: boolean
 ): Promise<NanoBananaResult> {
   const aspect = aspectFor(format);
+  const model = pro ? EDIT_MODEL_PRO : EDIT_MODEL;
   const refs = (refUrls ?? []).filter((u): u is string => !!u && u.trim().length > 0);
   const stijl = stijlOmschrijving(styleId);
   const taal = (language ?? "Nederlands").trim() || "Nederlands";
@@ -378,7 +386,7 @@ export async function editIllustration(
   ].filter(Boolean).join(" ").slice(0, 4000);
 
   const imageUrls = [sourceImageUrl, ...refs];
-  const result = await fal.subscribe(EDIT_MODEL, {
+  const result = await fal.subscribe(model, {
     input: {
       prompt,
       image_urls: imageUrls,
@@ -391,7 +399,7 @@ export async function editIllustration(
   const tempUrl = (result.data as { images?: { url: string }[] }).images?.[0]?.url;
   if (!tempUrl) throw new Error("Geen afbeelding ontvangen van Nano Banana (edit)");
 
-  return { imageUrl: tempUrl, usedModel: EDIT_MODEL, promptUsed: prompt, refsUsed: imageUrls };
+  return { imageUrl: tempUrl, usedModel: model, promptUsed: prompt, refsUsed: imageUrls };
 }
 
 /**
