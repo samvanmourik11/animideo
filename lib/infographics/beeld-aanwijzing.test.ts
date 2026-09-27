@@ -89,7 +89,6 @@ describe("isIndelingsAanwijzing", () => {
       "het doel moet links staan in plaats van rechts",
       "zet Coco erbij, rechts naast Leo",
       "de bal moet groter zijn",
-      "haal de tweede schildpad weg",
       "Move the soccer goal to the left side of the image.",
       "Add the green turtle next to the lion.",
     ]) expect(isIndelingsAanwijzing(t)).toBe(true);
@@ -102,6 +101,21 @@ describe("isIndelingsAanwijzing", () => {
       "maak de lucht bewolkt",
       "zijn trui moet groen zijn",
       "Give the turtle a red cap.",
+    ]) expect(isIndelingsAanwijzing(t)).toBe(false);
+  });
+
+  // Stond tot 27-09-2026 in dezelfde groep als "erbij zetten", op basis van dezelfde
+  // meting van 19-09-2026 — maar die ging over ERBIJ zetten, niet over weghalen.
+  // Opnieuw gemeten op 27-09-2026, met het beeld ernaast: een bewerking haalt een
+  // object er precies zo uit en houdt de rest van de scène pixel-voor-pixel gelijk;
+  // opnieuw tekenen haalt het object ook weg maar levert een compleet andere kamer
+  // op. Weghalen hoort dus NIET meer bij deze groep.
+  it("dwingt weghalen niet meer naar opnieuw tekenen", () => {
+    for (const t of [
+      "haal de tweede schildpad weg",
+      "verwijder de plant in de hoek",
+      "haal de plant weg",
+      "Remove the plant in the corner.",
     ]) expect(isIndelingsAanwijzing(t)).toBe(false);
   });
 });

@@ -164,7 +164,7 @@ const INDELING = [
 ];
 
 /**
- * Erbij zetten of weghalen — alleen te herkennen aan wat de GEBRUIKER schrijft.
+ * Iemand of iets ERBIJ zetten — alleen te herkennen aan wat de GEBRUIKER schrijft.
  *
  * Deze stond eerst ook op de Engelse instructie, en die gebruikt "add" voor het
  * kleinste detail: "maak de lucht bewolkt" werd "Add several fluffy white clouds" en
@@ -172,12 +172,23 @@ const INDELING = [
  * andere houdingen en een andere achtergrond, terwijl de gebruiker alleen wolken vroeg
  * (gemeten 19-09-2026). Een bewerking doet dat prima.
  */
-const ERBIJ_WEG =
-  /\b((erbij|bij)\s*(zetten|tekenen)?|toevoegen|weghalen|verwijder(en)?|eruit|zonder)\b|\bhaal\b[^.]*\bweg\b|\b(mag|moet)\s+weg\b|\b(add|insert|remove|delete|erase|without)\b/i;
+const ERBIJ =
+  /\b((erbij|bij)\s*(zetten|tekenen)?|toevoegen)\b|\b(add|insert)\b/i;
+
+// Iets WEGHALEN ("verwijder", "haal weg", "remove") stond tot 27-09-2026 in
+// dezelfde groep als ERBIJ (dus ook gedwongen naar opnieuw tekenen), op basis
+// van dezelfde meting van 19-09-2026 — maar die ging over ERBIJ zetten (een
+// tweede schildpad naast de eerste), niet over weghalen. Opnieuw gemeten op
+// 27-09-2026 met het huidige model, met het beeld ernaast: een bewerking haalt
+// een object er precies zo uit en houdt de rest van de scène pixel-voor-pixel
+// gelijk (zelfde muur, bureaus, schermteksten). Opnieuw tekenen haalt het object
+// ook weg, maar levert een compleet andere kamer op — andere muurkleur, ander
+// meubilair, de tekst op de schermen weg. Voor weghalen is een bewerking dus
+// niet alleen gelijkwaardig maar aantoonbaar beter; dit gaat er daarom uit.
 
 export function isIndelingsAanwijzing(gebruiker?: string | null, ...rest: (string | null | undefined)[]): boolean {
   const alles = [gebruiker, ...rest].filter(Boolean).join(" ");
-  return INDELING.some((p) => p.test(alles)) || ERBIJ_WEG.test(gebruiker ?? "");
+  return INDELING.some((p) => p.test(alles)) || ERBIJ.test(gebruiker ?? "");
 }
 
 /**
