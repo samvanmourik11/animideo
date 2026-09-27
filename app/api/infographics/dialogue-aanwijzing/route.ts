@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { openai } from "@/lib/openai";
 import { bewerkBeeld } from "@/lib/image-gen";
+import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { beeldAlsDataUrl } from "@/lib/infographics/beeld-inline";
 import {
@@ -138,16 +139,24 @@ export async function POST(req: NextRequest) {
       // uitgevoerd: een bewerking in woorden verlengt niets. Dan eerst de schets (zie
       // schets-bewerking.ts); vindt die het voorwerp niet, dan gewoon bewerken.
       const geschetst = opDeGrond
-        ? await zetOpDeGrond({ bronUrl: doel, voorwerp: opDeGrond, instructie, format: spec.format }).catch((e) => {
-            console.error("[dialogue-aanwijzing] schets mislukt, gewone bewerking:", e);
-            return null;
-          })
+        ? await zetOpDeGrond({ bronUrl: doel, voorwerp: opDeGrond, instructie, format: spec.format })
+            .then((url) => (url ? zonderTekst(url, spec.format, spec.language) : null))
+            .catch((e) => {
+              console.error("[dialogue-aanwijzing] schets mislukt, gewone bewerking:", e);
+              return null;
+            })
         : null;
       // Alleen een castblad van de echte karakters (zie DialogueSpec.castSheetVan).
       const castblad = spec.castSheetVan === "portret" ? (spec.castSheetUrl ?? "").trim() : "";
-      const bewerk = async (opdracht: string) =>
-        (await bewerkBeeld({
-          bronUrl: doel,
+      // Bij een herkansing (`bron` gezet) bewerkt het model zijn EIGEN mislukte
+      // beeld verder in plaats van blind opnieuw te beginnen vanaf het origineel,
+      // en schakelen we naar het Pro-model — zelfde reden als in de storytelling-
+      // tool (commit 996d0df): alleen de 10-15% die de controle niet haalt
+      // betaalt de duurdere poging, de eerste blijft goedkoop.
+      const bewerk = async (opdracht: string, bron?: string) => {
+        const herkansing = !!bron;
+        const ruw = (await bewerkBeeld({
+          bronUrl: bron ?? doel,
           instructie: opdracht,
           referentieUrls: [castblad].filter(Boolean),
           referentieUitleg: castblad
@@ -155,7 +164,14 @@ export async function POST(req: NextRequest) {
               "their appearance; do not copy its layout, background or poses."
             : undefined,
           format: spec.format,
+          pro: herkansing,
         })).imageUrl;
+        // In de dialoogmodus hoort er NOOIT tekst in beeld te staan (geen tekstlaag,
+        // de personages praten). Deze controle stond al bij elke generatie, maar
+        // ontbrak hier — een bewerking kan een woord net zo makkelijk optekenen als
+        // een generatie (zelfde reden als storytelling, zie borgBeeldtekst).
+        return zonderTekst(ruw, spec.format, spec.language);
+      };
 
       let nieuwUrl = geschetst ?? (await bewerk(instructie));
       // Klaar zijn is niet hetzelfde als gelukt. Zonder deze controle meldde de app
@@ -166,7 +182,7 @@ export async function POST(req: NextRequest) {
       let uitslag = controle ? await controleerAanwijzing(nieuwUrl, controle) : { ja: null, waarom: "" };
       if (controle && uitslag.ja === false) {
         console.warn(`[dialogue-aanwijzing] bewerking deed het niet: ${uitslag.waarom || "geen verschil te zien"}; herkansing`);
-        const tweede = await bewerk(scherpereInstructie(instructie, controle, uitslag.waarom)).catch((e) => {
+        const tweede = await bewerk(scherpereInstructie(instructie, controle, uitslag.waarom), nieuwUrl).catch((e) => {
           console.error("[dialogue-aanwijzing] herkansing mislukt:", e);
           return null;
         });
