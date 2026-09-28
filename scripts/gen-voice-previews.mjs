@@ -25,8 +25,31 @@ async function loadEnv() {
   } catch {}
 }
 
-const VOICES = ["Charlotte", "Sarah", "Daniel", "George"];
-const SAMPLE = "Hoi! Zo klinkt mijn stem. Ik vertel jouw verhaal rustig, helder en met een glimlach.";
+// Lijst met de hand bijgehouden, maar wél compleet: hij liep achter op
+// lib/infographics/story-voices.ts, waardoor de Vlaamse stemmen nooit een preview
+// kregen. Kinderstemmen krijgen een eigen zin — een kind dat "ik vertel jouw
+// verhaal rustig en helder" zegt klinkt als een volwassene in een kinderlijf.
+const VOLWASSEN = "Hoi! Zo klinkt mijn stem. Ik vertel jouw verhaal rustig, helder en met een glimlach.";
+const KIND = "Hoi! Zo klinkt mijn stem. Kom je mee op avontuur? Het wordt echt heel erg leuk!";
+
+const VOICES = [
+  ["Charlotte", VOLWASSEN], ["Sarah", VOLWASSEN], ["Daniel", VOLWASSEN], ["George", VOLWASSEN],
+  ["rbqBOMK4BPTMGvIB7N8w", VOLWASSEN], // Hugo
+  // Vlaams
+  ["02TPKkY2rZbgnKFIPrT9", VOLWASSEN], ["Yv0oyZ3obP9foTH7emqG", VOLWASSEN], ["AgeYjqDIfXtkcA3mOcsH", VOLWASSEN],
+  ["wwW0aOSbbYgXMec1zRTp", VOLWASSEN], ["4Q02te4SdfFsVbcIKmbk", VOLWASSEN], ["LoLnBvKBzvdDcAUMNbKV", VOLWASSEN],
+  // Kinderstemmen
+  ["5krdMTA5HonvWAlY2vSx", KIND], ["ihKwLOjVUMG4lgUI6meZ", KIND], ["XjGYkUkzth8BPs29fmcV", KIND],
+  ["EeQEodFZVtBkjtgK3HBc", KIND], ["hO2yZ8lxM3axUxL8OeKX", KIND], ["0luPAj5RsdhmnkZaiYcb", KIND],
+  // Nederlandse mannenstemmen
+  ["rN2gFSK0c2RP1mgdpt69", VOLWASSEN], ["MkRWZTk4OBui6Jb2lgK0", VOLWASSEN], ["yGnXd97Wft6RDkIaLXiR", VOLWASSEN],
+  ["0qLmDzgqulxcvv0yf3kg", VOLWASSEN], ["SFlhmoT9q6x81D3fl3dp", VOLWASSEN], ["YWWzyiP9IlB03CVK6QXN", VOLWASSEN],
+  ["2GJZCZIWrWiGFDntCFaz", VOLWASSEN], ["FsohHqfNToVd5t03K9nL", VOLWASSEN], ["YXgx21dvgkRwunWFpa5d", VOLWASSEN],
+  // Nederlandse vrouwenstemmen
+  ["7qdUFMklKPaaAVMsBTBt", VOLWASSEN], ["XCOm4Hr4NoqIsKeVFU2y", VOLWASSEN], ["qpYcCnnbKrqp5HBM19ou", VOLWASSEN],
+  ["6e6TrJGLhrDGMKOy5x2i", VOLWASSEN], ["kZQ3IGqYUStQ8u1Y62s6", VOLWASSEN], ["46eAUFOjYHnAbq9XpWMc", VOLWASSEN],
+  ["tfweP7lGJyLeNV9dH1Rm", VOLWASSEN], ["DiUBVrSFwkMaPz4XqWvR", VOLWASSEN],
+];
 
 async function main() {
   await loadEnv();
@@ -36,11 +59,11 @@ async function main() {
   const outDir = join(root, "public", "voice-previews");
   await mkdir(outDir, { recursive: true });
 
-  for (const voice of VOICES) {
+  for (const [voice, tekst] of VOICES) {
     process.stdout.write(`Genereren: ${voice}… `);
     const result = await fal.subscribe("fal-ai/elevenlabs/tts/eleven-v3", {
       input: {
-        text: SAMPLE,
+        text: tekst,
         voice,
         language_code: "nl",
         stability: 0.5,

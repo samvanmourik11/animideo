@@ -14,7 +14,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const MAX_BYTES = 20 * 1024 * 1024;
-const MAX_CHARS = 30000;
+// Zelfde plafond als extract-pdf en lees-draaiboek — zie de uitleg daar.
+const MAX_CHARS = 100000;
 
 /** HTML van mammoth terugbrengen tot tekst met tabelstructuur. */
 export function htmlNaarTekst(html: string): string {

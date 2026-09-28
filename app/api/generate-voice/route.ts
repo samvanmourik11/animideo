@@ -14,8 +14,19 @@ type FalAudioResult = { audio?: { url: string } };
 const ALLOWED_VOICES = new Set([
   "Aria","Roger","Sarah","Laura","Charlie","George","Callum","River","Liam","Charlotte",
   "Alice","Matilda","Will","Jessica","Eric","Chris","Brian","Daniel","Lily","Bill","Rachel",
-  // Hugo V uit de ElevenLabs-stemmenbibliotheek; fal accepteert naast namen ook voice-id's.
-  "rbqBOMK4BPTMGvIB7N8w",
+  // Hugo V + de uitgebreide Nederlandse/Vlaamse/kinderstem-bibliotheek uit de
+  // ElevenLabs-stemmenbibliotheek; fal accepteert naast namen ook voice-id's.
+  // Zie lib/infographics/story-voices.ts voor de volledige lijst met uitleg.
+  "rbqBOMK4BPTMGvIB7N8w", // Hugo
+  "rN2gFSK0c2RP1mgdpt69", "MkRWZTk4OBui6Jb2lgK0", "yGnXd97Wft6RDkIaLXiR", "0qLmDzgqulxcvv0yf3kg",
+  "SFlhmoT9q6x81D3fl3dp", "YWWzyiP9IlB03CVK6QXN", "2GJZCZIWrWiGFDntCFaz", "FsohHqfNToVd5t03K9nL",
+  "7qdUFMklKPaaAVMsBTBt", "XCOm4Hr4NoqIsKeVFU2y", "qpYcCnnbKrqp5HBM19ou", "6e6TrJGLhrDGMKOy5x2i",
+  "kZQ3IGqYUStQ8u1Y62s6", "46eAUFOjYHnAbq9XpWMc", "tfweP7lGJyLeNV9dH1Rm", "DiUBVrSFwkMaPz4XqWvR",
+  "5krdMTA5HonvWAlY2vSx", "ihKwLOjVUMG4lgUI6meZ", "XjGYkUkzth8BPs29fmcV",
+  "EeQEodFZVtBkjtgK3HBc", "hO2yZ8lxM3axUxL8OeKX", "0luPAj5RsdhmnkZaiYcb",
+  "02TPKkY2rZbgnKFIPrT9", "Yv0oyZ3obP9foTH7emqG", "AgeYjqDIfXtkcA3mOcsH",
+  "wwW0aOSbbYgXMec1zRTp", "4Q02te4SdfFsVbcIKmbk", "LoLnBvKBzvdDcAUMNbKV",
+  "YXgx21dvgkRwunWFpa5d", // Jamie — storyteller-stem, diep en kalm
 ]);
 
 const LANGUAGE_TO_CODE: Record<string, string> = {

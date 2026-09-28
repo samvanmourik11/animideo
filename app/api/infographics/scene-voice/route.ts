@@ -22,7 +22,37 @@ const ALLOWED_VOICES = new Set([
   "02TPKkY2rZbgnKFIPrT9", // Katleen  — warme Vlaamse vrouwenstem
   "Yv0oyZ3obP9foTH7emqG", // Jeroen   — warme Vlaamse mannenstem
   "AgeYjqDIfXtkcA3mOcsH", // Gunther  — rustige Vlaamse verteller
+  "wwW0aOSbbYgXMec1zRTp", // Dauphine — zachte Vlaamse vertelster
+  "4Q02te4SdfFsVbcIKmbk", // Elenor   — jonge Vlaamse (Antwerpse) stem
+  "LoLnBvKBzvdDcAUMNbKV", // Rutger   — rustige, welbespraakte Vlaamse stem
+  // Kinderstemmen. ElevenLabs heeft geen Nederlandse kinderstemmen; dit zijn
+  // kinderstemmen uit andere talen die via eleven-v3 gewoon Nederlands spreken.
+  "5krdMTA5HonvWAlY2vSx", // Tuur — jongensstem, verwonderd
+  "ihKwLOjVUMG4lgUI6meZ", // Finn — jongensstem, nieuwsgierig
+  "XjGYkUkzth8BPs29fmcV", // Boaz — jongensstem, uitbundig
+  "EeQEodFZVtBkjtgK3HBc", // Fien — meisjesstem, expressief
+  "hO2yZ8lxM3axUxL8OeKX", // Saar — meisjesstem, hoog en vrolijk
+  "0luPAj5RsdhmnkZaiYcb", // Noor — meisjesstem, levendig
   "rbqBOMK4BPTMGvIB7N8w", // Hugo V   — enthousiaste Nederlandse mannenstem
+  // Echte Nederlandse mannenstemmen (uitbreiding 27-09-2026).
+  "rN2gFSK0c2RP1mgdpt69", // Tom    — warme, natuurlijke verteller
+  "MkRWZTk4OBui6Jb2lgK0", // Ruben  — jong en ontspannen
+  "yGnXd97Wft6RDkIaLXiR", // Pepijn — rustig en zakelijk
+  "0qLmDzgqulxcvv0yf3kg", // Remko  — heldere verteller
+  "SFlhmoT9q6x81D3fl3dp", // Daan   — energiek en jong
+  "YWWzyiP9IlB03CVK6QXN", // Niels  — casual, alledaags
+  "2GJZCZIWrWiGFDntCFaz", // Bram   — diep en betrouwbaar
+  "FsohHqfNToVd5t03K9nL", // Sjaak  — nieuwsgierig en optimistisch
+  // Echte Nederlandse vrouwenstemmen (uitbreiding 27-09-2026).
+  "7qdUFMklKPaaAVMsBTBt", // Roos     — helder en zelfverzekerd
+  "XCOm4Hr4NoqIsKeVFU2y", // Linda    — warm en professioneel
+  "qpYcCnnbKrqp5HBM19ou", // Mia      — vriendelijk en rustig
+  "6e6TrJGLhrDGMKOy5x2i", // Noa      — fris, goed voor verhalen
+  "kZQ3IGqYUStQ8u1Y62s6", // Lieke    — levendig, social-media-stijl
+  "46eAUFOjYHnAbq9XpWMc", // Anne     — vriendelijk en zorgzaam
+  "tfweP7lGJyLeNV9dH1Rm", // Marianne — warme seniorenstem
+  "DiUBVrSFwkMaPz4XqWvR", // Jolanda  — aangenaam en geruststellend
+  "YXgx21dvgkRwunWFpa5d", // Jamie    — storyteller-stem, diep en kalm
 ]);
 
 function probeDuration(file: string): Promise<number> {

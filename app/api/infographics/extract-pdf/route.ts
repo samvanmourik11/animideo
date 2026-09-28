@@ -5,7 +5,12 @@ import { createClient } from "@/lib/supabase/server";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-const MAX_CHARS = 12000;
+// Zelfde plafond als extract-docx en lees-draaiboek. Stond eerst op 12.000 (te
+// laag: een 7-pagina's script van 23.805 tekens werd tot bijna de helft
+// afgekapt), toen op 30.000 — ook dat bleek te krap voor een uitgebreider
+// dossier van 27 pagina's / 61.940 tekens. Nu ruim boven wat een lang
+// draaiboek in de praktijk haalt, met ruimte om te groeien.
+const MAX_CHARS = 100000;
 const MAX_BYTES = 20 * 1024 * 1024;
 
 // Haalt de platte tekst uit een geuploade PDF zodat de gebruiker de cijfers en

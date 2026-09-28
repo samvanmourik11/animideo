@@ -424,11 +424,28 @@ export interface CastRefLike {
   appearance?: string | null;
 }
 
+// Bijfiguren die te veel op de vaste personages lijken (Sam, 27-09-2026): een
+// scène met Thomas en drie collega's leverde drie collega's op die er bijna
+// hetzelfde uitzagen als Thomas zelf, en een klas met Milan erin tekende de
+// klasgenootjes als kopieën van Milan. "Mag afwijken" / "moet anders zijn" bleek
+// te vaag om tegen een sterk referentiebeeld (castblad, anker, mascotte-foto) op
+// te boksen — het beeldmodel pakt zonder concreet alternatief gewoon het gezicht
+// dat het al ziet. Vandaar deze tekst met CONCRETE, tegenstrijdige kenmerken
+// (haarkleur, bouw, huidskleur, kleding) i.p.v. het woord "anders".
+const EXTRAS_MOETEN_VERSCHILLEN =
+  "Any other, unnamed people in the scene are ordinary background extras — they are not related to this character " +
+  "and must not resemble them. Give every extra a hair colour, hairstyle, build, age and skin tone that is visibly " +
+  "different from this character, and different clothing colours too. If there is more than one extra in the same " +
+  "image, also make them clearly different from each other: vary hair colour, build and outfit so no two people in " +
+  "the picture look like siblings or copies of one another. Extras are never smaller or younger copies of this " +
+  "character.";
+
 export const CHARACTER_GUIDANCE =
   " A reference image of a RECURRING CHARACTER / mascot is provided. Wherever the scene has a main character, " +
   "draw THIS SAME character — match its design, face, hair, outfit, colours and proportions — redrawn in the " +
   "illustration style described above (not a photo). Keep this character visually identical and recognisable " +
-  "across every scene. Other background people may vary, but the recurring character stays the same.";
+  "across every scene. " +
+  EXTRAS_MOETEN_VERSCHILLEN;
 
 // Zachte huisstijl-palet-instructie voor de illustraties: de merkkleuren leiden,
 // aangevuld met natuurlijke steunkleuren (niet strak/eentonig geforceerd). Wordt
@@ -464,7 +481,8 @@ export const STYLE_MATCH_ANCHOR =
   "Do NOT copy its composition, location, poses or objects — THIS scene has its own layout and subject as described above. " +
   "People: anyone belonging to the recurring cast described in this prompt must look EXACTLY the same as in the reference " +
   "(same face, hair, build, clothing and colours) — they are literally the same person in a later moment of the same story. " +
-  "Other, unnamed background people are new and distinct individuals (varied faces, ages and clothing) in that same art style.";
+  "Other, unnamed background people must NOT be copied from the reference image: give each of them a different hair " +
+  "colour, build, age and skin tone than the cast and than each other, in that same art style.";
 
 /**
  * De vaste cast, woordelijk in elke beeld-prompt.
@@ -487,8 +505,10 @@ export function castGuidance(cast?: StoryCastMemberLike[] | null, namesInScene?:
     ` RECURRING CAST — these people appear in several scenes of this video and MUST be drawn identically every time, ` +
     `as the same person in a different moment: ${lijst}. ` +
     `Match each one's face, hair, build, clothing and colours exactly as described; never re-age them, never change their ` +
-    `outfit or hair colour, and never swap their roles. Any other people in the scene are extras and must look clearly ` +
-    `different from the cast, so the viewer can always tell who is who.`
+    `outfit or hair colour, and never swap their roles. Any other people in the scene are unrelated background extras: ` +
+    `give each of them a hair colour, hairstyle, build, age and skin tone that is visibly different from every cast ` +
+    `member listed above and from each other — no two people in the image may share the same hair colour, build and ` +
+    `outfit — so the viewer can always tell who is who.`
   );
 }
 
@@ -511,7 +531,9 @@ export const CAST_SHEET_GUIDANCE =
   "side by side, full body, against a plain background. That sheet defines what these people look like and how tall they " +
   "are relative to each other. Draw the cast members in this scene exactly as they appear on that sheet: same faces, hair, " +
   "clothing, colours, body build and the same height differences. Do not restyle or re-age anyone, and do not copy the " +
-  "line-up pose or its plain background — this scene has its own location and action.";
+  "line-up pose or its plain background — this scene has its own location and action. Only the people on that sheet may " +
+  "look like the people on that sheet: any other, unnamed person in the scene must have a different hair colour, build, " +
+  "age and skin tone than everyone on the sheet — never copy the sheet's faces onto background extras.";
 
 /**
  * De regel voor een scene waar de vaste cast NIET in hoort.

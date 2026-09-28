@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Character } from "@/lib/types";
-import { STORY_VOICES, voicePreviewUrl } from "@/lib/infographics/story-voices";
+import { STORY_VOICES, voicePreviewUrl, groupVoices } from "@/lib/infographics/story-voices";
 import {
   MAX_CAST,
   type DialogueCastMember,
@@ -161,8 +161,12 @@ export default function CastPicker({
                     disabled={disabled}
                     className="w-full bg-slate-800 border border-white/10 rounded px-1.5 py-1 text-[11px] text-white disabled:opacity-60"
                   >
-                    {STORY_VOICES.map((v) => (
-                      <option key={v.id} value={v.id}>{v.label} — {v.description}</option>
+                    {groupVoices(STORY_VOICES).map((g) => (
+                      <optgroup key={g.category} label={g.label}>
+                        {g.voices.map((v) => (
+                          <option key={v.id} value={v.id}>{v.label} — {v.description}</option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </label>

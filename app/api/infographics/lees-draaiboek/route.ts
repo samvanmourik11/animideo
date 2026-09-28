@@ -13,9 +13,12 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 // Een draaiboek met shotlijst én een uitgeschreven script is al gauw 6.000
-// tekens; 30.000 vangt ook de uitgebreide varianten zonder het model te laten
-// afkappen.
-const MAX_TEKENS = 30000;
+// tekens. Stond op 30.000, maar een dossier van 27 pagina's (61.940 tekens)
+// liep daar alsnog tegenaan — zelfde plafond als extract-pdf/extract-docx,
+// anders knipt het hier alsnog af nadat de upload het al volledig doorliet.
+// GPT-4o's contextvenster (128k tokens, ruim 400.000 tekens) heeft hier geen
+// moeite mee.
+const MAX_TEKENS = 100000;
 
 export async function POST(req: NextRequest) {
   try {
