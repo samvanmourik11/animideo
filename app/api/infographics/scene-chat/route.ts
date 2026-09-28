@@ -5,7 +5,7 @@ import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { beeldAlsDataUrl } from "@/lib/infographics/beeld-inline";
 import { isIndelingsAanwijzing, scherpereInstructie } from "@/lib/infographics/beeld-aanwijzing";
 import { controleerAanwijzing } from "@/lib/infographics/aanwijzing-controle";
-import { visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, castSheetOrderLine } from "@/lib/infographics/story-style";
+import { visualStyleVan, toegestaneStijl, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, castSheetOrderLine } from "@/lib/infographics/story-style";
 import { castRefsVanSpec, castRefsVoorScene, MAX_CAST_REFS, type StoryCastMember, type StoryCastRef, type StoryVoorwerp, type StoryOmgeving } from "@/lib/infographics/story-schema";
 import { voorwerpRegie } from "@/lib/infographics/dialogue-staging";
 import { omgevingRegie } from "@/lib/infographics/omgeving";
@@ -15,6 +15,7 @@ import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
 import { gevraagdeZin } from "@/lib/infographics/tekst-vergelijk";
 import { nlBeeldkennis } from "@/lib/infographics/nl-beeldkennis";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
+import { isJouwAnimatieVideoAccount } from "@/lib/studio/access";
 import type { InfographicFormat } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -78,6 +79,8 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = (await req.json()) as Body;
+    // Zelfde grendel als bij genereren: een interne tekenstijl alleen voor @jouwanimatievideo.nl.
+    body.styleId = toegestaneStijl(body.styleId, isJouwAnimatieVideoAccount(user.email));
     const message = (body.message ?? "").trim();
     if (!message) return NextResponse.json({ error: "Geen bericht" }, { status: 400 });
 

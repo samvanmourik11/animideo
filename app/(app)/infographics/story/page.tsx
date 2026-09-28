@@ -1392,6 +1392,7 @@ export default function StoryPage() {
               presets={stijlenVoor(magRealistisch)}
               disabled={!!spec}
               hint={spec ? "De stijl ligt vast voor dit verhaal. Klik “Nieuw verhaal” voor een andere stijl." : undefined}
+              metIntern={jouwAnimatieVideoAccount}
             />
           </div>
         )}

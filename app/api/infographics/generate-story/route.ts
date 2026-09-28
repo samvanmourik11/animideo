@@ -6,7 +6,7 @@ import { knipScriptInScenes, isLetterlijk } from "@/lib/infographics/story-scrip
 import { storySpecSchema, castRefsVanSpec, mergeVasteCast, castRefsVoorScene, MAX_CAST_REFS, MAX_STORY_VOORWERPEN, MAX_VOORWERPEN_PER_BEELD, type StoryVoorwerp, type StoryOmgeving, type StorySpec, type StoryScene, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
 import { generateImageWithStyle, cleanupSceneIllustration, cleanupFlatGraphic } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { isBeperkteStijl, visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, buildCastSheetBrief, castSheetRefLine, castSheetOrderLine } from "@/lib/infographics/story-style";
+import { isBeperkteStijl, visualStyleVan, toegestaneStijl, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, buildCastSheetBrief, castSheetRefLine, castSheetOrderLine } from "@/lib/infographics/story-style";
 import { artDirectScenes, regisseerOverheidScenes } from "@/lib/infographics/art-direct";
 import { ICOON_SLEUTELS, icoonKeuzelijst } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
@@ -117,8 +117,12 @@ export async function POST(req: NextRequest) {
     // Het menu verbergt hem al, maar wie de aanroep naspeelt zou hem alsnog
     // krijgen — daarom hier ook, net als bij de overheidsmodus hierboven.
     const gevraagdeStijl = body.styleId ?? "flat-vector";
-    const styleId =
+    const stijlNaRealistischeGate =
       isBeperkteStijl(gevraagdeStijl) && !magRealistischeStijl(user.email) ? "flat-vector" : gevraagdeStijl;
+    // Interne tekenstijlen (zie INTERNE_STIJLEN, bijv. Geschiedenis-cartoon) alleen
+    // voor @jouwanimatievideo.nl; een klant die zo'n id meestuurt krijgt de
+    // standaardstijl. Zelfde grendel als de pro-beeldschakelaar hieronder.
+    const styleId = toegestaneStijl(stijlNaRealistischeGate, isJouwAnimatieVideoAccount(user.email));
     // De realistische stijl leunt op referentiebeelden uit het stijlpack; de
     // andere stijlen doen het met alleen de prompt.
     const visualStyle = visualStyleVan(styleId);

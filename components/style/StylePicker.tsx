@@ -1,6 +1,6 @@
 "use client";
 
-import { STORY_STYLE_PRESETS, stylePreviewUrl } from "@/lib/infographics/story-style";
+import { STORY_STYLE_PRESETS, INTERNE_STIJLEN, stylePreviewUrl } from "@/lib/infographics/story-style";
 
 // Tekenstijl kiezen op BEELD in plaats van op naam.
 //
@@ -25,17 +25,25 @@ export default function StylePicker({
    * bij als de pagina hem meegeeft.
    */
   presets = STORY_STYLE_PRESETS.filter((s) => !s.beperkt),
+  metIntern = false,
 }: {
   value: string;
   onChange: (styleId: string) => void;
   disabled?: boolean;
   hint?: string;
   presets?: typeof STORY_STYLE_PRESETS;
+  /** Toon ook de interne stijlen (alleen voor @jouwanimatievideo.nl, zie INTERNE_STIJLEN). */
+  metIntern?: boolean;
 }) {
+  // Een al bestaand verhaal in een interne stijl moet zijn eigen stijl blijven
+  // tonen, ook als iemand anders het opent; anders staat er geen kaartje aan.
+  const stijlen = metIntern || INTERNE_STIJLEN.some((s) => s.id === value)
+    ? [...presets, ...INTERNE_STIJLEN]
+    : presets;
   return (
     <div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {presets.map((s) => (
+      <div className={`grid grid-cols-2 gap-2 ${stijlen.length > 4 ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}>
+        {stijlen.map((s) => (
           <button
             key={s.id}
             type="button"

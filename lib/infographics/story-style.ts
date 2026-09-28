@@ -198,6 +198,7 @@ const STIJL_OMSCHRIJVING: Record<string, string> = {
   papercut: "the layered paper-cut collage style",
   "soft-3d": "the soft rounded 3D illustration style",
   realistisch: "the photorealistic live-action photographic look",
+  "geschiedenis-cartoon": "the humorous cel-shaded history-cartoon style",
 };
 
 export function stijlOmschrijving(styleId: string | null | undefined): string {
@@ -219,10 +220,67 @@ export function isBeperkteStijl(styleId: string | null | undefined): boolean {
   return STORY_STYLE_PRESETS.some((s) => s.id === styleId && s.beperkt === true);
 }
 
+// ---------------------------------------------------------------------------
+// INTERNE TEKENSTIJLEN — alleen voor ons eigen team.
+//
+// Bewust een aparte lijst en niet een vlag op STORY_STYLE_PRESETS: die lijst
+// voedt ook de dialoogtool, waar de AI zelf een stijl uit kiest en de chat er
+// een enum van maakt. Een interne stijl daarin zou dus bij klanten kunnen
+// opduiken zonder dat iemand hem aanklikt. Wie hier een stijl zoekt voor een
+// prompt gebruikt vindStijl(); wie een kiezer voor klanten bouwt, blijft bij
+// STORY_STYLE_PRESETS.
+//
+// Geschiedenis-cartoon is gemaakt voor onze eigen history-shorts
+// (@jouwanimatievideo.history): een mix van een cel-shaded comedy-cartoon
+// (ronde witte koppen, overdreven reacties, één visuele grap per beeld) en een
+// geschiedenis-kaartvideo (geschilderde reliëfkaarten, gekleurde gebieden,
+// legers als groepjes koppen).
+// ---------------------------------------------------------------------------
+export const INTERNE_STIJLEN: StoryStylePreset[] = [
+  {
+    id: "geschiedenis-cartoon",
+    name: "Geschiedenis-cartoon",
+    tagline: "Intern · history shorts",
+    emoji: "🏺",
+    preamble:
+      "Humorous animated history cartoon, mixing a cel-shaded comedy cartoon with a hand-painted history-map explainer. " +
+      "Characters are short, chunky cartoon figures with round, plain white heads that are large but in proportion — about " +
+      "one third of their total height, sitting on a real neck and body — with tiny black dot eyes, simple " +
+      "expressive eyebrows and at most a small mouth or moustache. They wear historically accurate period clothing " +
+      "(uniforms, robes, armour, hats, lab coats) drawn with bold dark outlines and simple two-tone cel shading. Poses and " +
+      "reactions are exaggerated for comedy: shocked stares, smug grins, panic, deadpan disbelief. Backgrounds are richly " +
+      "painted and atmospheric with visible brush texture, in an earthy, slightly muted period palette (olive, ochre, " +
+      "rust, stone grey, dusty sky blue) with one warm accent colour. When the scene is about geography, a journey or a " +
+      "war, show it as a textured relief map of the real region (painted terrain, blue seas) with flat coloured " +
+      "territories, bold hand-drawn arrows and routes, and armies shown as clusters of small cartoon heads. Add one small " +
+      "visual gag that fits the story: an absurd detail, an over-the-top reaction or an ironic object. " +
+      "Not photorealistic, not 3D, not anime. ",
+  },
+];
+
+/** Alle stijlen, klant én intern: alleen om een bekende id op te zoeken. */
+export const ALLE_STIJLEN: StoryStylePreset[] = [...STORY_STYLE_PRESETS, ...INTERNE_STIJLEN];
+
+export function isInterneStijl(styleId?: string | null): boolean {
+  return INTERNE_STIJLEN.some((s) => s.id === styleId);
+}
+
+/**
+ * De stijl die de server echt gebruikt.
+ *
+ * Een verborgen kaartje in de kiezer is geen grendel: wie de aanroep naspeelt,
+ * kan elke id meesturen. Daarom valt een interne stijl voor een klantaccount
+ * hier terug op de standaard — hetzelfde patroon als de overheidsmodus.
+ */
+export function toegestaneStijl(styleId: string | null | undefined, magIntern: boolean): string {
+  const id = styleId ?? DEFAULT_STORY_STYLE;
+  return isInterneStijl(id) && !magIntern ? DEFAULT_STORY_STYLE : id;
+}
+
 export const DEFAULT_STORY_STYLE = "flat-vector";
 
 export function storyStylePreamble(styleId?: string | null): string {
-  return STORY_STYLE_PRESETS.find((s) => s.id === styleId)?.preamble ?? STYLE_PREAMBLE;
+  return ALLE_STIJLEN.find((s) => s.id === styleId)?.preamble ?? STYLE_PREAMBLE;
 }
 
 // Taal (mensleesbaar NL) → Engelse naam voor de tekst-in-beeld-regel.

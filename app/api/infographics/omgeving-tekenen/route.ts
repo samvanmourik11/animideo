@@ -9,13 +9,13 @@
 // wat de gebruiker intikte is een wens, wat er getekend staat is wat de rest van de
 // video moet volgen. Dezelfde reden waarom het uiterlijk van een personage van zijn
 // tekening wordt afgelezen (zie uiterlijk-uit-blad.ts).
-import { canUseDialoog } from "@/lib/studio/access";
+import { canUseDialoog, isJouwAnimatieVideoAccount } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
 import { DIALOOG_CREDITS } from "@/lib/infographics/dialoog-credits";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { buildIllustrationPrompt } from "@/lib/infographics/story-style";
+import { buildIllustrationPrompt, toegestaneStijl } from "@/lib/infographics/story-style";
 import { illustratieContext, STIJL_VAST } from "@/lib/infographics/dialogue-staging";
 import { zonderTekst } from "@/lib/infographics/dialogue-beeldtekst";
 import { kenmerkenUitBeeld, plekKlopt } from "@/lib/infographics/omgeving-controle";
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     const beschrijving = (body.beschrijving ?? "").trim();
     if (!beschrijving) return NextResponse.json({ error: "Geen omschrijving van de plek" }, { status: 400 });
 
-    const styleId = body.styleId ?? "flat-vector";
+    const styleId = toegestaneStijl(body.styleId, isJouwAnimatieVideoAccount(user.email));
     const format: InfographicFormat = body.format ?? "16:9";
     const gevraagd = (Array.isArray(body.soorten) && body.soorten.length
       ? body.soorten.filter((s): s is OmgevingVariantSoort => (OMGEVING_VARIANTEN as readonly string[]).includes(s))
