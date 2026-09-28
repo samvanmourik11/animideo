@@ -573,6 +573,31 @@ export function castSheetRefLine(refs: CastRefLike[]): string {
   );
 }
 
+/**
+ * Welke naam op welke positie van het castblad staat — voor scenes waar de
+ * cast alleen een tekstbeschrijving heeft, geen eigen portret.
+ *
+ * Zonder deze regel kreeg het beeldmodel per scene alleen de namen die er
+ * horen te staan (via castGuidance) én het volledige castblad met alle vier
+ * gezichten, maar nooit de koppeling "positie 3 op het blad = Professor
+ * Dunning". Bij een scene waarin de handlanger "als een leraar" iets uitlegt,
+ * pakte het model dan het gezicht van de professor — die associeert het met
+ * "lesgeven" — in plaats van de handlanger. Dit herhaalt de volgorde die ook
+ * op het blad zelf staat (zie buildCastSheetBrief, zelfde array-volgorde), zodat
+ * het model een naam aan een positie koppelt in plaats van aan de inhoud van
+ * de scene.
+ */
+export function castSheetOrderLine(cast: StoryCastMemberLike[]): string {
+  const leden = (cast ?? []).filter((c) => c?.name?.trim() && c?.appearance?.trim());
+  if (leden.length < 2) return "";
+  const namen = leden.map((c, i) => `${i + 1}. ${c.name.trim().toUpperCase()}`).join(", ");
+  return (
+    ` The line-up sheet shows these people in exactly this left-to-right order: ${namen}. ` +
+    `Match each name in this scene to that exact position on the sheet — never pick a face because it ` +
+    `fits the scene's action or mood better; identity always comes from the name, not from what the person is doing.`
+  );
+}
+
 export function buildCastSheetBrief(cast: StoryCastMemberLike[]): string {
   const wie = cast
     .map((c, i) => `${i + 1}. ${c.name.trim()}${c.role.trim() ? ` (${c.role.trim()})` : ""} — ${c.appearance.trim()}`)

@@ -6,7 +6,7 @@ import { knipScriptInScenes, isLetterlijk } from "@/lib/infographics/story-scrip
 import { storySpecSchema, castRefsVanSpec, mergeVasteCast, castRefsVoorScene, MAX_CAST_REFS, MAX_STORY_VOORWERPEN, MAX_VOORWERPEN_PER_BEELD, type StoryVoorwerp, type StoryOmgeving, type StorySpec, type StoryScene, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
 import { generateImageWithStyle, cleanupSceneIllustration, cleanupFlatGraphic } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { isBeperkteStijl, visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, buildCastSheetBrief, castSheetRefLine } from "@/lib/infographics/story-style";
+import { isBeperkteStijl, visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, buildCastSheetBrief, castSheetRefLine, castSheetOrderLine } from "@/lib/infographics/story-style";
 import { artDirectScenes, regisseerOverheidScenes } from "@/lib/infographics/art-direct";
 import { ICOON_SLEUTELS, icoonKeuzelijst } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
@@ -408,6 +408,10 @@ export async function POST(req: NextRequest) {
           paletteHint,
           castInDezeScene ? castGuidance(cast, scene.castNames) : GEEN_CAST_IN_SCENE,
           bladVoorScene ? CAST_SHEET_GUIDANCE : "",
+          // Zonder deze regel moest het model zelf raden welk gezicht op het blad bij
+          // welke naam hoort; bij een scene waarin iemand "als een leraar" iets
+          // uitlegt greep het dan soms mis naar de professor. Zie castSheetOrderLine.
+          bladVoorScene ? castSheetOrderLine(cast) : "",
           castInDezeScene ? castRefGuidance(refsInScene) : "",
           // Dezelfde regels als in de dialoogtool: het blad legt vast hoe het
           // voorwerp eruitziet, het plekbeeld hoe de plek eruitziet.

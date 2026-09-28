@@ -5,7 +5,7 @@ import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { beeldAlsDataUrl } from "@/lib/infographics/beeld-inline";
 import { isIndelingsAanwijzing, scherpereInstructie } from "@/lib/infographics/beeld-aanwijzing";
 import { controleerAanwijzing } from "@/lib/infographics/aanwijzing-controle";
-import { visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE } from "@/lib/infographics/story-style";
+import { visualStyleVan, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, castSheetOrderLine } from "@/lib/infographics/story-style";
 import { castRefsVanSpec, castRefsVoorScene, MAX_CAST_REFS, type StoryCastMember, type StoryCastRef, type StoryVoorwerp, type StoryOmgeving } from "@/lib/infographics/story-schema";
 import { voorwerpRegie } from "@/lib/infographics/dialogue-staging";
 import { omgevingRegie } from "@/lib/infographics/omgeving";
@@ -238,6 +238,9 @@ export async function POST(req: NextRequest) {
             paletteHint,
             castInDezeScene ? castGuidance(body.cast, castNamenHier) : GEEN_CAST_IN_SCENE,
             bladHier ? CAST_SHEET_GUIDANCE : "",
+            // Zelfde reden als bij het eerste beeld (zie generate-story): zonder deze
+            // regel raadt het model welk gezicht op het blad bij welke naam hoort.
+            bladHier ? castSheetOrderLine(body.cast ?? []) : "",
             referencePhoto ? REFERENCE_PHOTO_GUIDANCE : "",
             castInDezeScene ? castRefGuidance(refsHier) : "",
             // Dezelfde regels als bij het eerste beeld: zonder deze twee komt een
