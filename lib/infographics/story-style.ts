@@ -56,7 +56,7 @@ export const STYLE_NEGATIVE =
 // verbod op lucht, wolken en planten. Je zag mensen zweven in het niets.
 //
 // Vandaar STYLE_OMGEVING: de plek wordt volledig getekend, van rand tot rand.
-// En daar bovenop STYLE_VERHAAL_COMPOSITIE voor de storytelling-infographic,
+// En daar bovenop styleVerhaalCompositie() voor de storytelling-infographic,
 // waar de omgeving ook nog eens de drager is van de typografie eroverheen.
 // STYLE_FRAMING blijft alleen over voor het castblad (één personage, geen plek).
 // ---------------------------------------------------------------------------
@@ -81,12 +81,41 @@ export const STYLE_OMGEVING =
 // VERZONNEN logo, dat over het echte logo van de klant heen viel. Noem nooit een
 // logo, merk of watermerk in een beeldprompt, ook niet als toelichting. Zeg wat je
 // wilt zien, niet wat er later overheen komt.
-export const STYLE_VERHAAL_COMPOSITIE =
-  " Compose this as a wide establishing shot of that place, with clear depth: a foreground, a middle ground " +
-  "and a background that runs all the way to the top edge of the frame (sky, horizon, wall or far scenery). " +
-  "This image fills a whole video frame, so let it read from edge to edge and keep the main subject in the " +
-  "centre or the lower half. Keep the top-right corner calm, open and light in tone, with no busy detail or dark " +
-  "masses there. Use a muted, natural, harmonious colour palette with soft flat shapes. ";
+// Bij 9:16 (Sam, 28-09-2026) leverde de vaste tekst "wide establishing shot"
+// geregeld een beeld op dat er inderdaad breed/liggend uitzag maar dan
+// uitgeknepen op een staand canvas — een horizontale strook in het midden met
+// een groot leeg grijs vlak erboven en eronder. Het beeldmodel volgt kennelijk
+// het woord "wide" letterlijker dan de opdracht om het hele frame te vullen.
+// Vandaar een eigen, staande versie van deze tekst voor 9:16 (nooit meer
+// "wide" noemen), met een expliciet verbod op precies dat lege-balken-patroon.
+function styleVerhaalCompositie(format?: string | null): string {
+  if (format === "9:16") {
+    return (
+      " Compose this as a TALL, VERTICAL shot of that place: stack the depth top to bottom instead of side to " +
+      "side — a close foreground low in the frame, a middle ground above it, and a background that reaches all " +
+      "the way up to the very top edge (sky, ceiling, upper walls or far scenery). The illustration must fill " +
+      "this entire tall portrait frame from the top edge to the bottom edge, with no plain, empty, grey or " +
+      "blank band above or below the scene — never a wide, landscape-shaped or horizontally arranged picture " +
+      "with empty space padded in above and below it to make it fit a tall canvas. Pay extra attention to the " +
+      "BOTTOM edge specifically: extend the floor, ground or nearest surface all the way down to the very " +
+      "bottom of the frame — a common mistake is stopping the floor short and leaving a plain strip underneath " +
+      "it, which is exactly what must NOT happen. If the scene compares two " +
+      "things side by side (a split screen, before/after, then/now), stack the two halves ONE ABOVE THE OTHER " +
+      "instead — an upper half and a lower half, each spanning the FULL WIDTH of the frame, divided by a single " +
+      "horizontal line — never place them left and right, because a left-right split only fills a thin strip of " +
+      "a tall canvas and leaves the rest empty. Keep the main subject in the centre or the lower half. Keep the " +
+      "top-right corner calm, open and light in tone, with no busy detail or dark masses there. Use a muted, " +
+      "natural, harmonious colour palette with soft flat shapes. "
+    );
+  }
+  return (
+    " Compose this as a wide establishing shot of that place, with clear depth: a foreground, a middle ground " +
+    "and a background that runs all the way to the top edge of the frame (sky, horizon, wall or far scenery). " +
+    "This image fills a whole video frame, so let it read from edge to edge and keep the main subject in the " +
+    "centre or the lower half. Keep the top-right corner calm, open and light in tone, with no busy detail or dark " +
+    "masses there. Use a muted, natural, harmonious colour palette with soft flat shapes. "
+  );
+}
 
 // Taalregel voor eventuele tekst in het beeld. Beeldmodellen negeren "geen tekst"
 // vaak en vullen dan Engelse labels in. Daarom: als er tóch tekst nodig/aanwezig
@@ -392,7 +421,9 @@ export function buildIllustrationPrompt(
   language?: string | null,
   kaderKeuze: BeeldKader = "vlak",
   /** Exacte woorden die in beeld mogen staan. Leeg = beeld blijft tekstvrij. */
-  labels?: string[] | null
+  labels?: string[] | null,
+  /** "16:9" of "9:16" — bepaalt of de compositie-instructie breed of staand is. */
+  format?: string | null
 ): string {
   const tekstRegel = (labels ?? []).filter((l) => l?.trim()).length > 0
     ? labelGuidance(labels)
@@ -404,7 +435,7 @@ export function buildIllustrationPrompt(
     return `${OVERHEID_PREAMBLE}Subject: ${brief.trim()}.${OVERHEID_FRAMING}${tekstRegel ?? `${TEKST_NEGATIEF}${langTextRule(language)}`}`;
   }
   const kader =
-    kaderKeuze === "verhaal" ? `${STYLE_OMGEVING}${STYLE_VERHAAL_COMPOSITIE}`
+    kaderKeuze === "verhaal" ? `${STYLE_OMGEVING}${styleVerhaalCompositie(format)}`
     : kaderKeuze === "omgeving" ? STYLE_OMGEVING
     : `${STYLE_FRAMING}${STYLE_NEGATIVE}`;
   return `${storyStylePreamble(styleId)}Scene: ${brief.trim()}.${kader}${tekstRegel ?? langTextRule(language)}`;

@@ -261,7 +261,7 @@ export async function POST(req: NextRequest) {
           // meegestuurde foto als ingredient (stijl resp. onderwerp).
           const ingredientUrls = [referencePhoto, anchor].filter((u): u is string => !!u);
           const result = await generateImageWithStyle({
-            prompt: [buildIllustrationPrompt(plan.illustration, body.styleId, body.language, kader, plan.labels), scherper].filter(Boolean).join(" "),
+            prompt: [buildIllustrationPrompt(plan.illustration, body.styleId, body.language, kader, plan.labels, format), scherper].filter(Boolean).join(" "),
             // Vroeg de gebruiker om tekst in beeld? Dan mag de slotregel van de
             // prompt niet "No text overlays" zijn — zie tekstGewenst in image-gen.
             tekstGewenst: plan.labels.length > 0,

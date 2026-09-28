@@ -437,7 +437,7 @@ export async function POST(req: NextRequest) {
         let extraRegels = "";
         for (let poging = 1; poging <= 2; poging++) {
           const result = await generateImageWithStyle({
-            prompt: [buildIllustrationPrompt(scene.illustration, styleId, language, kader, scene.labels), extraRegels].filter(Boolean).join(" "),
+            prompt: [buildIllustrationPrompt(scene.illustration, styleId, language, kader, scene.labels, format), extraRegels].filter(Boolean).join(" "),
             tekstGewenst: (scene.labels ?? []).length > 0,
             format,
             visualStyle,
