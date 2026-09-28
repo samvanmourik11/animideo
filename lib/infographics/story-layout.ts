@@ -95,10 +95,17 @@ export function sceneDuration(scene: StoryScene): number {
 // Cumulatieve tijdlijn (geen overlap-aftrek), zodat één doorlopende voice-over
 // exact over de scenes valt. De crossfade is puur visueel (zie storyLayers).
 export interface StoryWindow { index: number; start: number; duration: number; }
+
+// De video stopte meteen bij het laatste woord van de voice-over — geen moment
+// om het laatste beeld te laten bezinken. Dit rekt alleen de láátste scene op;
+// de rest van de tijdlijn (crossfades, muziekbed-lengte, export-duur) volgt
+// automatisch mee omdat die allemaal van `total` afhangen.
+export const STORY_OUTRO_PAD = 1.5;
+
 export function storyWindows(scenes: StoryScene[]): { windows: StoryWindow[]; total: number } {
   let cursor = 0;
   const windows = scenes.map((s, index) => {
-    const duration = sceneDuration(s);
+    const duration = sceneDuration(s) + (index === scenes.length - 1 ? STORY_OUTRO_PAD : 0);
     const w = { index, start: cursor, duration };
     cursor += duration;
     return w;

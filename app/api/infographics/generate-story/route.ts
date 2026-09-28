@@ -15,7 +15,7 @@ import { voorwerpRegie } from "@/lib/infographics/dialogue-staging";
 import { omgevingRegie } from "@/lib/infographics/omgeving";
 import { keurStoryBeeld, herkansingRegels, minstFout, type StoryFout } from "@/lib/infographics/story-keuring";
 import { deductCredits, CREDIT_COSTS } from "@/lib/credits";
-import { isTeamAccount, magRealistischeStijl } from "@/lib/studio/access";
+import { isTeamAccount, magRealistischeStijl, isJouwAnimatieVideoAccount } from "@/lib/studio/access";
 import type { InfographicFormat } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -60,6 +60,10 @@ interface Body {
   // Vaste voorwerpen en de vaste plek uit de bibliotheek.
   voorwerpen?: StoryVoorwerp[];
   omgeving?: StoryOmgeving | null;
+  // Nano Banana Pro i.p.v. standaard. Alleen effectief voor interne accounts
+  // (zie isJouwAnimatieVideoAccount hieronder) — bij een klant-account wordt dit
+  // altijd genegeerd, ook als het request het meestuurt.
+  quality?: "standard" | "pro";
 }
 
 // Gemiddeld spreektempo (woorden/sec) en richtlengte per scene (sec), waaruit we
@@ -118,6 +122,12 @@ export async function POST(req: NextRequest) {
     // De realistische stijl leunt op referentiebeelden uit het stijlpack; de
     // andere stijlen doen het met alleen de prompt.
     const visualStyle = visualStyleVan(styleId);
+    // Pro-beelden (Nano Banana Pro) alleen voor onze eigen accounts: duurder per
+    // beeld, en nog niet iets wat een klant kan aan- of uitzetten. Zelfde
+    // dubbele controle als hierboven — het schakelaartje in de UI is al verborgen
+    // voor klanten, maar de route vertrouwt dat niet blind.
+    const imageQuality: "standard" | "pro" =
+      body.quality === "pro" && isJouwAnimatieVideoAccount(user.email) ? "pro" : "standard";
     const language = body.language ?? "Nederlands";
     const keepTerms = Array.isArray(body.keepTerms) ? body.keepTerms : [];
     const characterUrl = body.characterUrl?.trim() || null;
@@ -343,6 +353,7 @@ export async function POST(req: NextRequest) {
           format,
           visualStyle,
           seed,
+          quality: imageQuality,
           // Alle gekozen portretten als character-refs: het castblad is het
           // ene beeld waarop iedereen naast elkaar staat, dus hier moeten ze
           // allemaal in — daarna erft elke scene de identiteit van dit blad.
@@ -423,6 +434,7 @@ export async function POST(req: NextRequest) {
             format,
             visualStyle,
             seed,
+            quality: imageQuality,
             // Het castblad krijgt de merk-slots: die staan vooraan in de rij
             // referenties en wegen het zwaarst — en identiteit is hier het doel.
             // Volgorde als in de dialoogtool: de plek eerst (die bepaalt het hele

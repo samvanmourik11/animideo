@@ -90,3 +90,14 @@ export const REALISTISCHE_STIJL_ACCOUNTS = new Set<string>([
 export function magRealistischeStijl(email: string | null | undefined): boolean {
   return !!email && (REALISTISCHE_STIJL_ACCOUNTS.has(email.toLowerCase()) || isTeamAccount(email));
 }
+
+/**
+ * Elk @jouwanimatievideo.nl-adres, op domein — niet de vaste TEAM_ACCOUNTS-lijst.
+ *
+ * Gebruikt voor de pro-beeldkwaliteit-schakelaar in de storytelling-tool: die
+ * mag met elk intern adres meegroeien zonder dat er telkens een e-mailadres bij
+ * een losse lijst moet, en een duurder model onbedoeld voor een klant aanzet.
+ */
+export function isJouwAnimatieVideoAccount(email: string | null | undefined): boolean {
+  return !!email && email.toLowerCase().endsWith("@jouwanimatievideo.nl");
+}

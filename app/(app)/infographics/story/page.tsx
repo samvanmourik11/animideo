@@ -16,7 +16,7 @@ import StylePicker from "@/components/style/StylePicker";
 import BibliotheekKiezer from "@/components/characters/BibliotheekKiezer";
 import VasteDingen from "@/components/infographics/story/VasteDingen";
 import { createClient } from "@/lib/supabase/client";
-import { isTeamAccount, magRealistischeStijl } from "@/lib/studio/access";
+import { isTeamAccount, magRealistischeStijl, isJouwAnimatieVideoAccount } from "@/lib/studio/access";
 import type { StorySpec } from "@/lib/infographics/story-schema";
 import { DEFAULT_VOICE, voicePreviewUrl, voicesForLanguage, voiceForLanguage } from "@/lib/infographics/story-voices";
 import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
@@ -122,6 +122,10 @@ export default function StoryPage() {
   const [intern, setIntern] = useState(false);
   // De realistische stijl staat per account open (zie lib/studio/access.ts).
   const [magRealistisch, setMagRealistisch] = useState(false);
+  // Pro-beelden (Nano Banana Pro): duurder per beeld, alleen aan te zetten door
+  // onszelf — vandaar los van magRealistisch, dat een klant-account kan zijn.
+  const [jouwAnimatieVideoAccount, setJouwAnimatieVideoAccount] = useState(false);
+  const [proBeelden, setProBeelden] = useState(false);
   const [format, setFormat] = useState<"16:9" | "9:16">("16:9");
   const [showSafeZone, setShowSafeZone] = useState(false);
   const [styleId, setStyleId] = useState<string>(DEFAULT_STORY_STYLE);
@@ -321,10 +325,12 @@ export default function StoryPage() {
       .then(({ data }) => {
         setIntern(isTeamAccount(data.user?.email));
         setMagRealistisch(magRealistischeStijl(data.user?.email));
+        setJouwAnimatieVideoAccount(isJouwAnimatieVideoAccount(data.user?.email));
       })
       .catch(() => {
         setIntern(false);
         setMagRealistisch(false);
+        setJouwAnimatieVideoAccount(false);
       });
   }, []);
 
@@ -572,7 +578,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/generate-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, text, script: scriptModus === "eigen" ? script : "", shots: scriptModus === "eigen" && lezing ? lezing.scenes.map((sc) => ({ voiceover: sc.voiceover, beeld: sc.beeld, beweging: sc.beweging, tekstInBeeld: sc.tekstInBeeld })) : undefined, mode, format, targetSeconds, styleId, language, tone, angle, castRefs, voorwerpen: vasteVoorwerpen, omgeving: vasteOmgeving, brandColors: brandColorsPayload() }),
+        body: JSON.stringify({ topic, text, script: scriptModus === "eigen" ? script : "", shots: scriptModus === "eigen" && lezing ? lezing.scenes.map((sc) => ({ voiceover: sc.voiceover, beeld: sc.beeld, beweging: sc.beweging, tekstInBeeld: sc.tekstInBeeld })) : undefined, mode, format, targetSeconds, styleId, language, tone, angle, castRefs, voorwerpen: vasteVoorwerpen, omgeving: vasteOmgeving, brandColors: brandColorsPayload(), quality: jouwAnimatieVideoAccount && proBeelden ? "pro" : "standard" }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiError(data, "Verhaal genereren mislukt"));
@@ -805,16 +811,21 @@ export default function StoryPage() {
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Voice-over mislukt"));
       const durs = splitVoiceDurations(spec.scenes, d.duration);
-      setSpec((prev) => prev ? {
-        ...prev,
+      const nieuweSpec: StorySpec = {
+        ...spec,
         voiceUrl: d.audioUrl,
         voiceDuration: d.duration,
         voice,
         voiceIsCustom: false,
         voiceFileName: null,
-        scenes: prev.scenes.map((s, idx) => ({ ...s, voiceDuration: durs[idx] })),
-      } : prev);
+        scenes: spec.scenes.map((s, idx) => ({ ...s, voiceDuration: durs[idx] })),
+      };
+      setSpec(nieuweSpec);
       setSyncNote(null);
+      // Meteen synchroniseren op de echte woordtiming — zonder deze stap lag de
+      // voice-over steeds een fractie te vroeg/te laat op de scenes, en niemand
+      // klikte uit zichzelf nog op "Autosync op voice".
+      await autoSync(nieuweSpec);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -836,18 +847,17 @@ export default function StoryPage() {
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Uploaden mislukt"));
       const durs = splitVoiceDurations(spec.scenes, d.duration);
-      setSpec((prev) => prev ? {
-        ...prev,
+      const nieuweSpec: StorySpec = {
+        ...spec,
         voiceUrl: d.audioUrl,
         voiceDuration: d.duration,
         voiceIsCustom: true,
         voiceFileName: d.fileName ?? file.name,
-        scenes: prev.scenes.map((s, idx) => ({ ...s, voiceDuration: durs[idx] })),
-      } : prev);
-      setSyncNote({
-        tekst: "Eigen voice-over geladen. Klik op 'Autosync op voice' om de scenes op de opname te leggen.",
-        waarschuwing: false,
-      });
+        scenes: spec.scenes.map((s, idx) => ({ ...s, voiceDuration: durs[idx] })),
+      };
+      setSpec(nieuweSpec);
+      // Meteen synchroniseren i.p.v. wachten op een handmatige klik — zie genVoice().
+      await autoSync(nieuweSpec);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -860,9 +870,13 @@ export default function StoryPage() {
   // Autosync (zoals de Creator Studio): legt de scenegrenzen op de echte
   // woordtiming in de voice-over, zodat beeld en stem gelijk lopen. Vereist een
   // gegenereerde voice-over (spec.voiceUrl).
-  async function autoSync() {
-    if (!spec) return;
-    if (!spec.voiceUrl) { setErr("Genereer of upload eerst een voice-over voordat je autosynct."); return; }
+  async function autoSync(specOverride?: StorySpec) {
+    // specOverride: genVoice()/uploadVoice() roepen dit direct aan met de net
+    // opgebouwde spec, want setSpec() is asynchroon — zonder override zou dit nog
+    // de OUDE spec (zonder de kersverse voiceUrl) te pakken krijgen.
+    const target = specOverride ?? spec;
+    if (!target) return;
+    if (!target.voiceUrl) { setErr("Genereer of upload eerst een voice-over voordat je autosynct."); return; }
     setErr(null);
     setSyncNote(null);
     setSyncBusy(true);
@@ -870,7 +884,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/autosync-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spec }),
+        body: JSON.stringify({ spec: target }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Autosync mislukt"));
@@ -1452,6 +1466,12 @@ export default function StoryPage() {
             <span className="block text-[11px] text-slate-400 mb-0.5">Accent{brandKitId ? " · uit huisstijl" : ""}</span>
             <input type="color" value={accent} onChange={(e) => { setAccent(e.target.value); setBrandKitId(""); }} className="h-9 w-14 bg-transparent border border-white/10 rounded cursor-pointer" />
           </label>
+          {jouwAnimatieVideoAccount && (
+            <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer" title="Nano Banana Pro: scherpere, consistentere beelden — kost meer per generatie. Alleen zichtbaar voor onze eigen accounts.">
+              <input type="checkbox" checked={proBeelden} onChange={(e) => setProBeelden(e.target.checked)} className="h-3.5 w-3.5 accent-cyan-500" />
+              Pro-beelden (intern)
+            </label>
+          )}
           <button onClick={generate} disabled={loading || (scriptModus === "eigen" ? !script.trim() || (isDraaiboek && !lezing) : !text.trim())} title={scriptModus === "eigen" && !script.trim() ? "Plak eerst je script" : scriptModus === "eigen" && isDraaiboek && !lezing ? "Laat je draaiboek eerst uitlezen, anders komt de briefing in de voice-over terecht" : scriptModus !== "eigen" && !text.trim() ? "Vul eerst een brontekst in" : mode === "overheid"
               ? "De overheidsstijl tekent zijn scenes zelf, zonder beeldmodel: alleen het script kost credits."
               : `Script schrijven is gratis, ${CREDIT_COSTS.IMAGE_GENERATION} credit per scene-beeld. Komen er meerdere personages in voor, dan maakt de tool daar gratis een castblad bij dat ze in elke scene hetzelfde houdt.`} className="btn-primary text-sm disabled:opacity-50">
@@ -1549,7 +1569,7 @@ export default function StoryPage() {
                   </select>
                 </label>
                 <button
-                  onClick={autoSync}
+                  onClick={() => autoSync()}
                   disabled={syncBusy || !spec.voiceUrl}
                   title="Legt de scenes precies op de gesproken voice-over (Whisper). Werkt ook op een eigen geüploade opname."
                   className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50"
