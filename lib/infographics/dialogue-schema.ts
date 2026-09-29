@@ -792,14 +792,26 @@ export function sceneCast(
   verhaallijn?: VerhaalDeel[] | null,
 ): DialogueCastMember[] {
   const sprekers = new Set(scene.lines.map((l) => l.characterId).filter((id) => id && id !== VERTELLER_ID));
-  const volgensVerhaal = new Set(scene.deel ? verhaallijn?.[scene.deel - 1]?.wie ?? [] : []);
+  const deelInfo = scene.deel ? (verhaallijn?.[scene.deel - 1] ?? null) : null;
+  const volgensVerhaal = new Set(deelInfo?.wie ?? []);
   const tekst = scene.lines.map((l) => `${l.text ?? ""} ${l.actie ?? ""}`).join(" ");
   const genoemd = (c: DialogueCastMember) =>
     c.name.trim().length >= 2 &&
     new RegExp(`(^|[^\\p{L}])${zoekNaam(c.name.trim())}([^\\p{L}]|$)`, "iu").test(tekst);
 
+  // GENOEMD ≠ AANWEZIG. "Die brief is vast van de koning!" noemt de koning
+  // zonder dat hij in beeld staat — een tekstmatch op de naam kan dat verschil
+  // niet zien. Heeft deze scene wél een verhaaldeel (dus een bewust bepaalde
+  // "wie"-lijst), dan is dié de baas; de naamsvermelding telt dan niet meer mee
+  // en voegt geen personages toe die er volgens het verhaal niet bij horen. Zo'n
+  // scene zonder deel-koppeling (los draaiboek, geen verhaallijn) heeft dat
+  // houvast niet, en blijft op de naamsvermelding vertrouwen — beter een gok
+  // dan altijd maar de eerste twee personages.
   const gewicht = (c: DialogueCastMember) =>
-    sprekers.has(c.id) ? 0 : volgensVerhaal.has(c.characterId) ? 1 : genoemd(c) ? 2 : null;
+    sprekers.has(c.id) ? 0
+    : volgensVerhaal.has(c.characterId) ? 1
+    : !deelInfo && genoemd(c) ? 2
+    : null;
   const inBeeld = cast
     .map((c) => ({ c, g: gewicht(c) }))
     .filter((x): x is { c: DialogueCastMember; g: number } => x.g !== null)

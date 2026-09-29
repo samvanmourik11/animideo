@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { zonderHerhaling, sceneCast, voorwerpenInScene, MAX_PER_SCENE, VERTELLER_ID } from "./dialogue-schema";
 import type { DialogueScene, DialogueCastMember, DialogueLine } from "./dialogue-schema";
+import type { VerhaalDeel } from "./verhaallijn";
 
 // Lilly zegt "kijk eens!", en pas de beeldregie schrijft op dat ze naar de
 // bosanemoon wijst. Zonder die beschrijving ging het voorwerpblad niet mee.
@@ -149,6 +150,37 @@ describe("sceneCast", () => {
 
   it("zet er nooit meer dan drie in één beeld", () => {
     expect(sceneCast(scene(["char-1", "char-2", "char-3", "char-4"]), cast)).toHaveLength(MAX_PER_SCENE);
+  });
+
+  // "Die brief is vast van de koning!" noemt de koning zonder dat hij in beeld
+  // is — hij komt pas twee scenes later echt in beeld. Zonder deze regel plakte
+  // een naamsvermelding hem er toch bij, zodra de scene nog een lege plek had
+  // (MAX_PER_SCENE = 3, en er spraken er hier maar twee).
+  it("zet een personage er niet bij alleen omdat zijn naam valt, als het verhaaldeel hem niet noemt", () => {
+    const koning = maak("char-3", "De koning");
+    const castMetKoning = [...cast.filter((c) => c.id !== "char-3"), koning];
+    const regelMetNaam: DialogueLine = { characterId: "char-1", text: "Die brief is vast van de koning!", emotion: "neutraal" };
+    const sceneMetDeel: DialogueScene = {
+      id: "s1", setting: "bij het huis", deel: 1,
+      lines: [regelMetNaam, { characterId: "char-2", text: "Ja!", emotion: "blij" }],
+    };
+    const verhaallijn: VerhaalDeel[] = [
+      { fase: null, titel: "Bij het huis", wat: "", plek: "", wie: ["uuid-char-1", "uuid-char-2"], verteller: "" },
+    ];
+    const namen = sceneCast(sceneMetDeel, castMetKoning, verhaallijn).map((c) => c.name);
+    expect(namen).not.toContain("De koning");
+    expect(namen).toEqual(["A", "B"]);
+  });
+
+  it("valt terug op de naamsvermelding als de scene geen verhaaldeel heeft", () => {
+    const koning = maak("char-3", "De koning");
+    const castMetKoning = [...cast.filter((c) => c.id !== "char-3"), koning];
+    const sceneZonderDeel: DialogueScene = {
+      id: "s1", setting: "bij het huis",
+      lines: [{ characterId: "char-1", text: "Die brief is vast van de koning!", emotion: "neutraal" }],
+    };
+    const namen = sceneCast(sceneZonderDeel, castMetKoning).map((c) => c.name);
+    expect(namen).toContain("De koning");
   });
 });
 
