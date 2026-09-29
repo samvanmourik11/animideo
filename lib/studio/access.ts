@@ -85,6 +85,9 @@ export function canUseDialoog(email: string | null | undefined): boolean {
  */
 export const REALISTISCHE_STIJL_ACCOUNTS = new Set<string>([
   "mirandavand247@gmail.com",
+  // Allison Knobben (uitvaartbegeleidster) — webinar 24-09-2026, per mail
+  // 25-09-2026 toegezegd bij aanmelding.
+  "info@allisonuitvaartplanner.nl",
 ]);
 
 export function magRealistischeStijl(email: string | null | undefined): boolean {
