@@ -11,7 +11,17 @@
 // voice-over (letterlijk), het beeld en een eventuele bewegingsaanwijzing. Wat
 // het model teruggeeft wordt hier nagerekend: een voice-over die niet
 // woord-voor-woord in het document staat, is verzonnen en wordt gemarkeerd.
-
+//
+// Sommige draaiboeken (de "History short"-sjabloon) hebben er een vierde kolom
+// bij: een complete, in het Engels geschreven beeldmodel-prompt, klaar om
+// woordelijk naar het beeldmodel te gaan — inclusief een vast huisstijlblok dat
+// zelf al specifieke verzinsels verbiedt. Die kolom werd hiervoor genegeerd: er
+// kwam alleen de korte Nederlandse "beeld"-omschrijving uit, die de AI-regie
+// vervolgens zelf weer moest interpreteren en aanvullen — en dat invullen ging
+// bij elke scene anders, met wisselende outfits, verzonnen dieren en figuranten
+// uit andere tijdperken tot gevolg. "beeldPrompt" bewaart die kant-en-klare
+// tekst apart, zodat hij straks ongewijzigd naar het beeldmodel kan (zie
+// generate-story/route.ts), zonder tussenkomst van de regie.
 /** Eén shot zoals hij uit een draaiboek komt. */
 export interface DraaiboekScene {
   /** Letterlijk de voice-over uit het document. */
@@ -22,6 +32,12 @@ export interface DraaiboekScene {
   beweging: string;
   /** Tekst die in beeld moet verschijnen ("Tekst in beeld"-kolom). */
   tekstInBeeld: string;
+  /**
+   * Een kant-en-klare, letterlijke beeldmodel-prompt uit het draaiboek (bijv.
+   * een "NANO BANANA"-kolom), als het document die geeft. Leeg als het
+   * draaiboek alleen een korte omschrijving heeft, geen complete prompt.
+   */
+  beeldPrompt: string;
   /** Staat deze voice-over letterlijk in het document? Zo niet: tonen als waarschuwing. */
   letterlijk: boolean;
 }
@@ -48,12 +64,13 @@ export const DRAAIBOEK_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["voiceover", "beeld", "beweging", "tekstInBeeld"],
+        required: ["voiceover", "beeld", "beweging", "tekstInBeeld", "beeldPrompt"],
         properties: {
           voiceover: { type: "string" },
           beeld: { type: "string" },
           beweging: { type: "string" },
           tekstInBeeld: { type: "string" },
+          beeldPrompt: { type: "string" },
         },
       },
     },
@@ -73,6 +90,7 @@ export const DRAAIBOEK_SYSTEEM = [
   '- "beeld": wat er te zien is, in de woorden van het draaiboek. Laat weg wat over de camera of beweging gaat.',
   '- "beweging": alleen de camera- of bewegingsaanwijzing ("camera glijdt", "macro-inzoom", "snelle cuts", "split-screen"). Staat die er niet, dan leeg.',
   '- "tekstInBeeld": tekst die in beeld moet verschijnen. Een streepje of "—" betekent geen tekst: dan leeg.',
+  '- "beeldPrompt": alleen invullen als de tabel ZELF al een complete, in het Engels geschreven instructie voor een beeldmodel bevat — een kolom als "NANO BANANA", "BEELDPROMPT", "IMAGE PROMPT" of "AI PROMPT". Herken je zo\'n kolom, neem de tekst dan LETTERLIJK over, woord voor woord, inclusief een eventueel herhaald huisstijlblok ("HOUSE STYLE..."). Dit is geen samenvatting of vertaling van "beeld" — het is de volledige, losstaande prompt zoals hij in het document staat. Is er geen zo\'n kolom, dan blijft "beeldPrompt" leeg en gebruik je alleen "beeld".',
   "",
   "WAT JE WEGLAAT:",
   "- de briefing: doel, positionering, doelgroep, tone of voice, gebruik, woordaantallen, planning;",
@@ -133,6 +151,7 @@ export function keurLezing(ruw: unknown, document: string): DraaiboekLezing | nu
         beeld: streepje((s?.beeld ?? "").trim()),
         beweging: streepje((s?.beweging ?? "").trim()),
         tekstInBeeld: streepje((s?.tekstInBeeld ?? "").trim()),
+        beeldPrompt: streepje((s?.beeldPrompt ?? "").trim()),
         letterlijk: staatInDocument(voiceover, document),
       };
     })

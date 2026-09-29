@@ -578,7 +578,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/generate-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic, text, script: scriptModus === "eigen" ? script : "", shots: scriptModus === "eigen" && lezing ? lezing.scenes.map((sc) => ({ voiceover: sc.voiceover, beeld: sc.beeld, beweging: sc.beweging, tekstInBeeld: sc.tekstInBeeld })) : undefined, mode, format, targetSeconds, styleId, language, tone, angle, castRefs, voorwerpen: vasteVoorwerpen, omgeving: vasteOmgeving, brandColors: brandColorsPayload(), quality: jouwAnimatieVideoAccount && proBeelden ? "pro" : "standard" }),
+        body: JSON.stringify({ topic, text, script: scriptModus === "eigen" ? script : "", shots: scriptModus === "eigen" && lezing ? lezing.scenes.map((sc) => ({ voiceover: sc.voiceover, beeld: sc.beeld, beweging: sc.beweging, tekstInBeeld: sc.tekstInBeeld, beeldPrompt: sc.beeldPrompt })) : undefined, mode, format, targetSeconds, styleId, language, tone, angle, castRefs, voorwerpen: vasteVoorwerpen, omgeving: vasteOmgeving, brandColors: brandColorsPayload(), quality: jouwAnimatieVideoAccount && proBeelden ? "pro" : "standard" }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(apiError(data, "Verhaal genereren mislukt"));

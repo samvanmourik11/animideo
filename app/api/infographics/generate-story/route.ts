@@ -31,7 +31,10 @@ interface Body {
   // Al gelezen shots uit een draaiboek (zie /api/infographics/lees-draaiboek):
   // voice-over letterlijk, plus het beeld en de beweging die de maker zelf
   // beschreef. Staat dit erin, dan gaat `script` niet meer door de knipper.
-  shots?: { voiceover?: string; beeld?: string; beweging?: string; tekstInBeeld?: string }[];
+  // `beeldPrompt`: als het draaiboek zelf al een complete beeldmodel-prompt
+  // gaf (bijv. een "NANO BANANA"-kolom), gaat die woordelijk naar het
+  // beeldmodel — zie de toelichting bij de scene-render hieronder.
+  shots?: { voiceover?: string; beeld?: string; beweging?: string; tekstInBeeld?: string; beeldPrompt?: string }[];
   mode?: "story" | "report" | "overheid";
   // Tekst in beeld (koppen, accentwoorden, grote getallen).
   tekstInBeeld?: boolean;
@@ -327,6 +330,25 @@ export async function POST(req: NextRequest) {
         illustration: s.illustration?.trim() || (shots[i]?.beeld ?? "").trim() || s.voiceover,
       }));
     }
+    // Gaf het draaiboek voor deze scene al een complete beeldmodel-prompt, dan
+    // is dat de baas — óók over wat de AI-regie hierboven net bedacht heeft.
+    // De regie kreeg alleen de korte "beeld"-omschrijving als aanwijzing en
+    // vulde de rest zelf in, met wisselende outfits, verzonnen dieren en
+    // figuranten uit andere tijdperken tot gevolg. Zie renderScene() voor het
+    // gebruik: zo'n scene slaat ook de huisstijl/cast-laag helemaal over, want
+    // de prompt bevat zijn eigen complete stijlblok.
+    spec.scenes = spec.scenes.map((s, i) => {
+      const letterlijk = (shots[i]?.beeldPrompt ?? "").trim();
+      if (!letterlijk) return s;
+      // Tekst tussen aanhalingstekens in de prompt is bedoeld als tekst in
+      // beeld (zo schrijft dit format het altijd). Zonder dit dacht de
+      // tekstcontrole verderop dat élke tekst per ongeluk in het beeld stond
+      // en veegde hij labels weg die het draaiboek juist expliciet wilde.
+      const labels = s.labels?.length
+        ? s.labels
+        : Array.from(new Set((letterlijk.match(/"([^"]{1,40})"/g) ?? []).map((m) => m.slice(1, -1).trim()).filter(Boolean))).slice(0, 6);
+      return { ...s, illustration: letterlijk, labels };
+    });
 
     // 3. Consistente look tussen scenes: vaste seed + een "anker"-beeld. We
     // genereren scene 0 eerst en gebruiken die als stijl-/character-referentie
@@ -378,6 +400,50 @@ export async function POST(req: NextRequest) {
 
     const renderScene = async (scene: StoryScene, i: number, anchorUrl: string | null): Promise<StoryScene> => {
       try {
+        // Een letterlijke beeldprompt (zie hierboven) is zelf al compleet: eigen
+        // huisstijlblok, eigen personagebeschrijvingen, eigen verbod op
+        // verzinsels. Onze eigen stijllaag (buildIllustrationPrompt), het
+        // castblad en het anker erbovenop zetten zou twee concurrerende
+        // stijlinstructies opleveren — precies de inconsistentie die deze
+        // functie moet voorkomen. Zo'n scene gaat dus ongewijzigd naar het
+        // beeldmodel, zonder extra laag.
+        const letterlijkeBeeldPrompt = (shots[i]?.beeldPrompt ?? "").trim();
+        if (letterlijkeBeeldPrompt) {
+          const pogingen: { url: string; fouten: StoryFout[] }[] = [];
+          let extraRegels = "";
+          for (let poging = 1; poging <= 2; poging++) {
+            const result = await generateImageWithStyle({
+              prompt: [letterlijkeBeeldPrompt, extraRegels].filter(Boolean).join(" "),
+              tekstGewenst: true,
+              format,
+              seed,
+              quality: imageQuality,
+            });
+            let cleanUrl = result.imageUrl;
+            try {
+              cleanUrl = (await cleanupSceneIllustration(result.imageUrl, format, scene.labels, styleId)).imageUrl;
+            } catch (e) {
+              const reden = (e as { body?: { detail?: unknown } })?.body?.detail;
+              console.error(
+                `[generate-story] cleanup scene ${i} (letterlijke prompt) mislukt, ruw beeld behouden:`,
+                reden ? JSON.stringify(reden) : e
+              );
+            }
+            try {
+              cleanUrl = (await borgBeeldtekst(cleanUrl, scene.labels ?? [], format, language, false, styleId)).imageUrl;
+            } catch (e) {
+              console.error(`[generate-story] tekstcontrole scene ${i} (letterlijke prompt) mislukt:`, e);
+            }
+            const keuring = await keurStoryBeeld(cleanUrl);
+            pogingen.push({ url: cleanUrl, fouten: keuring.fouten });
+            if (!keuring.fouten.length || poging === 2) break;
+            extraRegels = herkansingRegels(keuring, scene.castNames ?? []);
+            console.warn(`[generate-story] scene ${i} (letterlijke prompt) afgekeurd (${keuring.fouten.join(", ")}), tweede poging`);
+          }
+          const imageUrl = await persistFalAssetSoft(supabase, user.id, minstFout(pogingen.map((p) => ({ beeld: p.url, fouten: p.fouten }))), "image");
+          return { ...scene, id: scene.id || `scene-${i}`, imageUrl };
+        }
+
         // Alleen de gezichten van wie in DEZE scene staat. Weet de regie niet wie
         // erin staat (geen castNames), dan liever iedereen dan niemand: een
         // ontbrekend portret betekent een nieuw verzonnen gezicht.
