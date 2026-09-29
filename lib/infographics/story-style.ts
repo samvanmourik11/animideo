@@ -88,6 +88,20 @@ export const STYLE_OMGEVING =
 // het woord "wide" letterlijker dan de opdracht om het hele frame te vullen.
 // Vandaar een eigen, staande versie van deze tekst voor 9:16 (nooit meer
 // "wide" noemen), met een expliciet verbod op precies dat lege-balken-patroon.
+//
+// Twee stagiairs meldden op 29-09-2026 nog steeds een verzonnen logo
+// rechtsboven, ook na de LET OP hierboven. De oude zin ("calm, open and light
+// in tone, with no busy detail or dark masses") beschrijft alleen de TOON van
+// de hoek — een klein rond insigne kan daar makkelijk aan voldoen, dat is ook
+// "licht" en niet "druk". TOP_RIGHT_CORNER beschrijft daarom concreet de
+// INHOUD (een doorlopende achtergrond, niets erbovenop), met een opsomming van
+// vormen i.p.v. het woord dat we juist vermijden.
+const TOP_RIGHT_CORNER =
+  "The top-right corner is a plain, uninterrupted continuation of the background — the same sky, wall or " +
+  "surface as the rest of the image, carried all the way into that corner, with nothing else drawn on top of " +
+  "it: no separate marks, seals, circular badges, insignia, stickers or small graphic shapes placed there, " +
+  "however faint or small. ";
+
 function styleVerhaalCompositie(format?: string | null): string {
   if (format === "9:16") {
     return (
@@ -103,17 +117,18 @@ function styleVerhaalCompositie(format?: string | null): string {
       "things side by side (a split screen, before/after, then/now), stack the two halves ONE ABOVE THE OTHER " +
       "instead — an upper half and a lower half, each spanning the FULL WIDTH of the frame, divided by a single " +
       "horizontal line — never place them left and right, because a left-right split only fills a thin strip of " +
-      "a tall canvas and leaves the rest empty. Keep the main subject in the centre or the lower half. Keep the " +
-      "top-right corner calm, open and light in tone, with no busy detail or dark masses there. Use a muted, " +
-      "natural, harmonious colour palette with soft flat shapes. "
+      "a tall canvas and leaves the rest empty. Keep the main subject in the centre or the lower half. " +
+      TOP_RIGHT_CORNER +
+      "Use a muted, natural, harmonious colour palette with soft flat shapes. "
     );
   }
   return (
     " Compose this as a wide establishing shot of that place, with clear depth: a foreground, a middle ground " +
     "and a background that runs all the way to the top edge of the frame (sky, horizon, wall or far scenery). " +
     "This image fills a whole video frame, so let it read from edge to edge and keep the main subject in the " +
-    "centre or the lower half. Keep the top-right corner calm, open and light in tone, with no busy detail or dark " +
-    "masses there. Use a muted, natural, harmonious colour palette with soft flat shapes. "
+    "centre or the lower half. " +
+    TOP_RIGHT_CORNER +
+    "Use a muted, natural, harmonious colour palette with soft flat shapes. "
   );
 }
 

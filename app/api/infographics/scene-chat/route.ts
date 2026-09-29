@@ -12,6 +12,7 @@ import { omgevingRegie } from "@/lib/infographics/omgeving";
 import { planSceneChat, planLayoutChat } from "@/lib/infographics/scene-chat";
 import { ICOON_SLEUTELS, icoonKeuzelijst, type OverheidLayout } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
+import { keurStoryBeeld, herkansingRegels } from "@/lib/infographics/story-keuring";
 import { gevraagdeZin } from "@/lib/infographics/tekst-vergelijk";
 import { nlBeeldkennis } from "@/lib/infographics/nl-beeldkennis";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
@@ -338,6 +339,33 @@ export async function POST(req: NextRequest) {
             });
           }
         }
+      }
+
+      // NAKIJKEN OP DE BEKENDE FOUTEN — dubbel, gezichtloos, misvormd, zwevend,
+      // of een verzonnen logo/merkteken. Dit liep tot nu toe alleen bij het
+      // allereerste genereren van het verhaal (zie keurStoryBeeld in
+      // generate-story/route.ts). Een scene die je via de chat opnieuw laat
+      // tekenen of bewerkt had dus geen enkele bescherming tegen precies de
+      // fouten die de eerste generatie al opving — gemeld door twee stagiairs
+      // (29-09-2026): gezichtloze poppetjes en een zelfbedacht logo rechtsboven,
+      // allebei ontstaan tijdens het bijwerken van een scene, niet bij de start.
+      // Dit is een andere controle dan hierboven: die keek of de GEVRAAGDE
+      // wijziging gelukt is, deze kijkt of het beeld verder klopt.
+      try {
+        const keuring = await keurStoryBeeld(rawUrl);
+        if (keuring.fouten.length) {
+          const castNamenVoorHerkansing = (body.castNames ?? []).filter((n): n is string => !!n);
+          const opnieuw = await maakBeeld(herkansingRegels(keuring, castNamenVoorHerkansing), rawUrl).catch(() => null);
+          if (opnieuw) {
+            const tweedeKeuring = await keurStoryBeeld(opnieuw).catch(() => ({ fouten: [], uitleg: "" }));
+            // Minst foute wint — net als bij het eerste genereren. Lukt de
+            // herkansing niet beter, dan blijft het eerste beeld staan: dat is
+            // al betaald en is niet slechter dan wat de herkansing opleverde.
+            if (tweedeKeuring.fouten.length < keuring.fouten.length) rawUrl = opnieuw;
+          }
+        }
+      } catch (e) {
+        console.error("[scene-chat] nakijken op bekende fouten mislukt, beeld ongewijzigd:", e);
       }
 
       const imageUrl = await persistFalAssetSoft(supabase, user.id, rawUrl, "image");
