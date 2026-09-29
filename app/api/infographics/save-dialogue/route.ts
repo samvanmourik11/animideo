@@ -1,6 +1,7 @@
 import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { metHerkansing } from "@/lib/supabase/retry-single";
 import type { DialogueSpec } from "@/lib/infographics/dialogue-schema";
 
 export const runtime = "nodejs";
@@ -28,14 +29,16 @@ export async function POST(req: NextRequest) {
     const title = (body.title ?? body.spec.title ?? "").trim() || "Naamloze dialoog";
 
     if (body.projectId) {
-      const { data, error } = await supabase
-        .from("projects")
-        .update({ title, story_spec: body.spec, status: "Draft" })
-        .eq("id", body.projectId)
-        .eq("user_id", user.id)
-        .eq("mode", "dialogue")
-        .select("id")
-        .single();
+      const { data, error } = await metHerkansing(() =>
+        supabase
+          .from("projects")
+          .update({ title, story_spec: body.spec, status: "Draft" })
+          .eq("id", body.projectId as string)
+          .eq("user_id", user.id)
+          .eq("mode", "dialogue")
+          .select("id")
+          .single()
+      );
       if (error || !data) {
         console.error("save-dialogue: bijwerken mislukt:", error?.message ?? "(geen melding)");
         return NextResponse.json({ error: error?.message ?? "Project niet gevonden" }, { status: 404 });
