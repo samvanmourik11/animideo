@@ -8,7 +8,7 @@
 // meisjes bleven gelijk; shot 3 kreeg een veel grotere deur, deels achter het meisje.
 
 import sharp from "sharp";
-import { fal } from "@fal-ai/client";
+import { fal } from "@/lib/fal";
 import { zoekVoorwerp } from "@/lib/editor/vision";
 import { maakSchetsAf } from "@/lib/image-gen";
 import { grondOnder, mensenVoorVorm, schetsSvg, schetsVak, vakInPixels } from "./schets-vorm";

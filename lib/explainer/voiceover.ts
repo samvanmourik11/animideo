@@ -1,4 +1,4 @@
-import { fal } from "@fal-ai/client";
+import { fal } from "@/lib/fal";
 
 fal.config({ credentials: process.env.FAL_KEY });
 

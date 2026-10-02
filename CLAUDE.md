@@ -53,6 +53,12 @@ Mollie-dashboard gebeurt (opzeggingen!) synchroniseert niet vanzelf naar
 providerkosten per call in het commentaar. Modellen rond ~$2,40 per clip zijn
 bewust afgeserveerd. Nieuwe of duurdere calls eerst overleggen.
 
+**fal altijd via `lib/fal.ts`, nooit rechtstreeks uit `@fal-ai/client`.** Daar zit
+het kostenlogboek tussen (tabel `provider_kosten`, overzicht op `/admin`). Wie het
+was, komt uit `deductCredits()`; een route die fal aanroept zonder af te schrijven,
+roept zelf `zetKostenContext()` aan. Zonder logboek was de fal-rekening een raadsel:
+demo's op de interne accounts schrijven geen credits af maar kosten wél geld.
+
 **Gegenereerde video's krijgen altijd een publieke URL** die te openen is, niet
 alleen een pad in de opslag.
 

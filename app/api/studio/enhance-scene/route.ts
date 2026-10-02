@@ -5,7 +5,7 @@
 // Vervangt scene.image_url door het bewerkte beeld (merge-veilig opgeslagen).
 
 import { NextRequest, NextResponse } from "next/server";
-import { fal } from "@fal-ai/client";
+import { fal } from "@/lib/fal";
 import { createClient } from "@/lib/supabase/server";
 import { deductCredits, addCredits, CREDIT_COSTS } from "@/lib/credits";
 import { Scene } from "@/lib/types";

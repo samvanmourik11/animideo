@@ -170,10 +170,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ action: "none", reply: plan.reply });
     }
 
-    const credit = await deductCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Story scene-beeld (chat)");
+    const credit = await deductCredits(user.id, CREDIT_COSTS.STORY_SCENE_IMAGE, "Story scene-beeld (chat)");
     if (!credit.success) {
       return NextResponse.json(
-        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.IMAGE_GENERATION },
+        { error: "insufficient_credits", credits: credit.credits, required: CREDIT_COSTS.STORY_SCENE_IMAGE },
         { status: 402 }
       );
     }
@@ -331,7 +331,7 @@ export async function POST(req: NextRequest) {
           } else {
             // Twee keer niet gelukt: credit terug en eerlijk zijn. Het oude beeld
             // blijft staan; een half gelukte aanpassing is erger dan geen.
-            await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: aanpassing lukte niet").catch(() => {});
+            await addCredits(user.id, CREDIT_COSTS.STORY_SCENE_IMAGE, "Refund: aanpassing lukte niet").catch(() => {});
             return NextResponse.json({
               action: "none",
               gelukt: false,
@@ -385,7 +385,7 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       // Beeld mislukt ná het afboeken: credits terug, anders betaalt de gebruiker
       // voor niets.
-      await addCredits(user.id, CREDIT_COSTS.IMAGE_GENERATION, "Refund: scene-beeld (chat) mislukt").catch(() => {});
+      await addCredits(user.id, CREDIT_COSTS.STORY_SCENE_IMAGE, "Refund: scene-beeld (chat) mislukt").catch(() => {});
       throw e;
     }
   } catch (err: unknown) {

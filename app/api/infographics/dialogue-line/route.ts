@@ -1,6 +1,6 @@
 import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
-import { fal } from "@fal-ai/client";
+import { fal } from "@/lib/fal";
 import { spawn } from "node:child_process";
 import { writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";

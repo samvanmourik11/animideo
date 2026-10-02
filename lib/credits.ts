@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { zetKostenContext } from "@/lib/provider-kosten";
 
 // Het transactielogboek MOET via de service-client geschreven worden. De RLS op
 // credit_transactions kent alleen een SELECT-policy voor eigen rijen en een
@@ -102,6 +103,11 @@ export async function deductCredits(
   amount: number,
   reason: string
 ): Promise<{ success: boolean; credits: number }> {
+  // Moet vóór de eerste await: zo erft de rest van dit verzoek wie het is, en komt
+  // elke fal-aanroep daarna op naam in het kostenlogboek — ook bij de accounts die
+  // hieronder niets afschrijven, want daar zit juist het meeste verbruik.
+  zetKostenContext(userId, reason);
+
   const supabase = await createClient();
 
   const profile = await getProfile(userId);

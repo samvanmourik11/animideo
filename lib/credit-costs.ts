@@ -12,6 +12,12 @@
 export const CREDIT_COSTS = {
   SCRIPT_GENERATION: 0,     // GRATIS — GPT-4o tekst: script, analyses, spec, AI-regisseur (~$0,02-0,04)
   IMAGE_GENERATION: 1,      // Nano Banana (niet-Pro): beeld genereren/bewerken/karakter (~$0,039)
+  // Storytelling-scene: één scene is niet één beeld. Per scene tekent de tool het
+  // beeld, haalt er een opschoonronde overheen, controleert de tekst en keurt het
+  // resultaat; wordt het afgekeurd, dan gaat dat allemaal nog een keer. Dat zijn 2
+  // tot 6 Nano Banana-aanroepen (~$0,08-0,23) tegen 1 credit (~€0,10 bij Starter):
+  // op veel scenes legden we geld toe. Vandaar 2 (02-10-2026).
+  STORY_SCENE_IMAGE: 2,
   IMAGE_GENERATION_PRO: 2,  // Nano Banana Pro 2K (~$0,15) — was 4
   ENHANCE: 1,               // CodeFormer gezichtsherstel / IC-Light belichting (~$0,002-0,04)
   SUBTITLES: 1,             // VEED burned-in ondertiteling (~$0,05-0,10/video)

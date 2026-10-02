@@ -8,6 +8,7 @@ import { canUseDialoog } from "@/lib/studio/access";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import type { Character } from "@/lib/types";
+import { zetKostenContext } from "@/lib/provider-kosten";
 
 export const runtime = "nodejs";
 
@@ -23,6 +24,8 @@ export async function POST(req: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    // Deze stap schrijft geen credits af, dus zet hij zelf wie het is voor het kostenlogboek.
+    zetKostenContext(user.id, "Dialoog: personage bewaren");
     if (!canUseDialoog(user.email)) return NextResponse.json({ error: "Deze tool is nog niet beschikbaar" }, { status: 403 });
 
     const body = (await req.json()) as Body;

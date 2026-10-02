@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fal } from "@fal-ai/client";
+import { fal } from "@/lib/fal";
 import { createClient } from "@/lib/supabase/server";
+import { zetKostenContext } from "@/lib/provider-kosten";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -17,6 +18,8 @@ export async function POST(req: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Niet ingelogd" }, { status: 401 });
+  // Deze stap schrijft geen credits af, dus zet hij zelf wie het is voor het kostenlogboek.
+  zetKostenContext(user.id, "Test Nano Banana");
 
   const { data: profile } = await supabase
     .from("profiles")

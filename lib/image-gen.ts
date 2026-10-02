@@ -1,4 +1,4 @@
-import { fal } from "@fal-ai/client";
+import { fal } from "@/lib/fal";
 import { stijlOmschrijving } from "@/lib/infographics/story-style";
 import {
   styleRefUrls,

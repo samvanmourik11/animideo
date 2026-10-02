@@ -182,7 +182,7 @@ export async function POST(req: NextRequest) {
     // De overheidsmodus tekent zijn scenes zelf (SVG, geen beeldmodel) en kost
     // dus alleen het script. Dat scheelt de gebruiker een credit per scene.
     const isOverheid = body.mode === "overheid";
-    const cost = CREDIT_COSTS.SCRIPT_GENERATION + (isOverheid ? 0 : sceneCount * CREDIT_COSTS.IMAGE_GENERATION);
+    const cost = CREDIT_COSTS.SCRIPT_GENERATION + (isOverheid ? 0 : sceneCount * CREDIT_COSTS.STORY_SCENE_IMAGE);
     const credit = await deductCredits(user.id, cost, `Story genereren (${sceneCount} scenes)`);
     if (!credit.success) {
       return NextResponse.json(

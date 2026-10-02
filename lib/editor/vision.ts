@@ -13,7 +13,7 @@
 // De kaders komen terug als fracties van het beeld (0..1), zodat de rest van de
 // editor er niets van hoeft te weten.
 
-import { fal } from "@fal-ai/client";
+import { fal } from "@/lib/fal";
 
 fal.config({ credentials: process.env.FAL_KEY });
 

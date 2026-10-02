@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateImageWithStyle } from "@/lib/image-gen";
+import { zetKostenContext } from "@/lib/provider-kosten";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -13,6 +14,8 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
+  // Deze stap schrijft geen credits af, dus zet hij zelf wie het is voor het kostenlogboek.
+  zetKostenContext(user.id, "Story: proefbeeld");
 
   let body: { prompt?: string };
   try {

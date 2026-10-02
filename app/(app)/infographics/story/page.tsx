@@ -1141,7 +1141,7 @@ export default function StoryPage() {
                 <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
                   <span className="text-[11px] text-slate-300">
                     {lezing.scenes.length} shots uit je draaiboek · ongeveer {geschatteDuur(lezing.scenes.map((sc) => sc.voiceover).join(" "))} seconden ·{" "}
-                    {lezing.scenes.length * CREDIT_COSTS.IMAGE_GENERATION} credits voor de beelden
+                    {lezing.scenes.length * CREDIT_COSTS.STORY_SCENE_IMAGE} credits voor de beelden
                   </span>
                   <button onClick={() => setLezing(null)} className="text-[11px] text-slate-400 hover:text-white underline">opnieuw lezen</button>
                 </div>
@@ -1168,7 +1168,7 @@ export default function StoryPage() {
             {script.trim() && !isDraaiboek && !lezing && (
               <p className="text-[11px] text-slate-400 mt-1">
                 {scriptScenes.length} {scriptScenes.length === 1 ? "scene" : "scenes"} · ongeveer {geschatteDuur(script)} seconden ·{" "}
-                {scriptScenes.length * CREDIT_COSTS.IMAGE_GENERATION} credits voor de beelden
+                {scriptScenes.length * CREDIT_COSTS.STORY_SCENE_IMAGE} credits voor de beelden
                 {scriptScenes.length >= MAX_SCENES && " · langere scripts worden samengevoegd tot 20 scenes"}
               </p>
             )}
@@ -1475,12 +1475,12 @@ export default function StoryPage() {
           )}
           <button onClick={generate} disabled={loading || (scriptModus === "eigen" ? !script.trim() || (isDraaiboek && !lezing) : !text.trim())} title={scriptModus === "eigen" && !script.trim() ? "Plak eerst je script" : scriptModus === "eigen" && isDraaiboek && !lezing ? "Laat je draaiboek eerst uitlezen, anders komt de briefing in de voice-over terecht" : scriptModus !== "eigen" && !text.trim() ? "Vul eerst een brontekst in" : mode === "overheid"
               ? "De overheidsstijl tekent zijn scenes zelf, zonder beeldmodel: alleen het script kost credits."
-              : `Script schrijven is gratis, ${CREDIT_COSTS.IMAGE_GENERATION} credit per scene-beeld. Komen er meerdere personages in voor, dan maakt de tool daar gratis een castblad bij dat ze in elke scene hetzelfde houdt.`} className="btn-primary text-sm disabled:opacity-50">
+              : `Script schrijven is gratis, ${CREDIT_COSTS.STORY_SCENE_IMAGE} credits per scene-beeld. Komen er meerdere personages in voor, dan maakt de tool daar gratis een castblad bij dat ze in elke scene hetzelfde houdt.`} className="btn-primary text-sm disabled:opacity-50">
             {loading ? (mode === "overheid" ? "Genereren… (script + scenes)" : "Genereren… (script + beelden)") : "Genereer verhaal"}
             {/* In de overheidsmodus tekent de app de scenes zelf, dus er is geen
                 beeldmodel en geen tarief per scene. */}
             <span className="text-white/70 ml-1">
-              {mode === "overheid" ? "· zonder beeldcredits" : `· ${CREDIT_COSTS.IMAGE_GENERATION}/scene cr.`}
+              {mode === "overheid" ? "· zonder beeldcredits" : `· ${CREDIT_COSTS.STORY_SCENE_IMAGE}/scene cr.`}
             </span>
           </button>
         </div>
@@ -1797,7 +1797,7 @@ export default function StoryPage() {
                   <SceneChat
                     messages={scene.chat ?? []}
                     busy={!!imgBusy[scene.id]}
-                    creditLabel={creditLabel(CREDIT_COSTS.IMAGE_GENERATION)}
+                    creditLabel={creditLabel(CREDIT_COSTS.STORY_SCENE_IMAGE)}
                     gratis={!!scene.layout}
                     onSend={(text, file) => sendSceneChat(i, text, file)}
                     onRevert={(msg) => revertSceneChat(i, msg)}

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fal } from "@fal-ai/client";
+import { fal } from "@/lib/fal";
 import { createClient } from "@/lib/supabase/server";
 import { isTeamAccount } from "@/lib/studio/access";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
