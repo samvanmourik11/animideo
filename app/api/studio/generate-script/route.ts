@@ -346,14 +346,31 @@ Respond with only the JSON object, starting with { and ending with }.`;
       // naam; anders moest de klant elk gekozen personage per scène opnieuw kiezen.
       // AI-rollen worden {selecteer personage}. Achtergrondfiguren blijven tekst.
       let promptBody = s.image_prompt ?? "";
-      for (const rid of castIds) {
-        const role = roles.find(r => r.id === rid);
-        if (!role) continue;
-        for (const variant of [role.name, role.name.split(/\s*[-–]\s*|\s+/)[0]]) {
-          if (!variant) continue;
-          const esc = variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          promptBody = promptBody.replace(new RegExp(`(?<!\\{)\\b${esc}\\b(?!\\})`, "g"), role.characterId ? `{${role.name}}` : "{selecteer personage}");
-        }
+      // Eerst alle volledige namen (langste eerst), daarna pas voornamen — en die
+      // alleen als ze uniek zijn. Anders werd "Vriendin 2" via de voornaam van
+      // "Vriendin 1" half omgezet tot "{Vriendin 1} 2".
+      const sceneRoles = castIds
+        .map(rid => roles.find(r => r.id === rid))
+        .filter((r): r is CastRole => !!r);
+      const voornaam = (n: string) => n.split(/\s*[-–]\s*|\s+/)[0];
+      const voornaamTelling = new Map<string, number>();
+      for (const r of roles) voornaamTelling.set(voornaam(r.name).toLowerCase(), (voornaamTelling.get(voornaam(r.name).toLowerCase()) ?? 0) + 1);
+      const vervangingen = [
+        ...sceneRoles.map(r => ({ role: r, variant: r.name })).sort((x, y) => y.variant.length - x.variant.length),
+        ...sceneRoles
+          .map(r => ({ role: r, variant: voornaam(r.name) }))
+          .filter(v => v.variant && v.variant !== v.role.name && voornaamTelling.get(v.variant.toLowerCase()) === 1),
+      ];
+      for (const { role, variant } of vervangingen) {
+        const esc = variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        promptBody = promptBody.replace(new RegExp(`(?<!\\{)\\b${esc}\\b(?!\\})`, "g"), role.characterId ? `{${role.name}}` : "{selecteer personage}");
+      }
+      // Een gekozen personage dat wel in deze scène staat maar niet bij naam in de
+      // tekst ("haar vriendinnen"), kreeg geen placeholder en dus geen vast gezicht.
+      // Zet het er expliciet bij; de klant ziet het en kan het per scène wijzigen.
+      const ontbrekend = sceneRoles.filter(r => !!r.characterId && !promptBody.includes(`{${r.name}}`));
+      if (ontbrekend.length > 0) {
+        promptBody = `${promptBody.trimEnd()} Ook in beeld: ${ontbrekend.map(r => `{${r.name}}`).join(", ")}.`;
       }
 
       return {

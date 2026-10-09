@@ -29,7 +29,7 @@ export default async function StudioNewPage() {
         </div>
         <p className="text-sm text-slate-400">
           Bouw je karakters één keer en hergebruik ze in elk project. Kies per
-          project een hoofd- en bijpersoon, of laat AI er een verzinnen.
+          project tot 10 personages, of laat AI ze verzinnen.
         </p>
       </div>
       <StudioCreateTabs

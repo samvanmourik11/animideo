@@ -205,7 +205,11 @@ export async function POST(req: NextRequest) {
     // Tekst naar de AI: gekoppelde placeholder → voornaam; ongekoppelde → weg.
     imagePrompt = imagePrompt.replace(/\{([^}]+)\}/g, (_m, inner) => {
       const c = charByName.get(String(inner).trim().toLowerCase());
-      return c ? c.name.split(/\s*[-–]\s*|\s+/)[0] : "";
+      if (!c) return "";
+      // Voornaam alleen als die uniek naar dit personage wijst; "Vriendin 1" en
+      // "Vriendin 2" zouden anders allebei "Vriendin" heten in de beeldopdracht.
+      const first = c.name.split(/\s*[-–]\s*|\s+/)[0];
+      return charByName.get(first.toLowerCase())?.id === c.id ? first : c.name;
     }).replace(/[ \t]{2,}/g, " ").replace(/\s+([.,!?])/g, "$1").trim();
 
     // (2) Back-compat: ALLEEN als er geen placeholders zijn, cast-rollen gebruiken.
