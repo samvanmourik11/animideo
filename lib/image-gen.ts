@@ -33,7 +33,7 @@ const FLUX_KONTEXT = "fal-ai/flux-pro/kontext";
 // voor character + ingredients zodat ze samen kunnen werken met de stijl.
 const MAX_TOTAL_REFS = 8;
 const MAX_STYLE_REFS = 3;
-const MAX_CHARACTER_REFS = 3; // tot 2 karakter-ankers + 1 vorige-scène (chaining)
+const MAX_CHARACTER_REFS = 3; // karakter-ankers eerst, daarna vorige scène (chaining)
 const MAX_BRAND_REFS = 3;     // échte merk-objecten (boot, kleding, locatie, …)
 // Ruim onder de 50.000 die Nano Banana accepteert. Zie de uitleg bij fullPrompt.
 const MAX_PROMPT_TEKENS = 12000;

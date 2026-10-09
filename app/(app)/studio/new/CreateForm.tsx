@@ -8,10 +8,11 @@ import { useRouter } from "next/navigation";
 // project te maken — anders ben je je gegenereerde werk kwijt.
 const DRAFT_KEY = "studio-draft-id";
 import { createClient } from "@/lib/supabase/client";
-import CharacterPicker from "@/components/studio/CharacterPicker";
-import { BrandKit, Character, OutroContact, VisualStyle } from "@/lib/types";
+import CastMultiPicker, { MAX_GEKOZEN_PERSONAGES } from "@/components/studio/CastMultiPicker";
+import { BrandKit, CastRole, Character, OutroContact, VisualStyle } from "@/lib/types";
 import StylePicker from "@/components/StylePicker";
 import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
+import { slugify } from "@/lib/studio/brand-assets";
 
 /** Lees een fetch-respons veilig als JSON, ook als de body leeg of geen JSON is. */
 async function readJson(res: Response): Promise<{ idea?: string; error?: string }> {
@@ -107,8 +108,12 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
   const [sceneCount, setSceneCount] = useState<number>(8);
   const [visualStyle, setVisualStyle] = useState<VisualStyle>("Schilderachtig");
   const [brandKitId, setBrandKitId] = useState<string>("");
-  const [mainCharacterId, setMainCharacterId] = useState<string>("");
-  const [supportingCharacterId, setSupportingCharacterId] = useState<string>("");
+  // Gekozen personages in volgorde: [0] = hoofdpersoon, [1] = bijpersoon, de rest
+  // gaat als gekoppelde rol mee in cast_roles (zelfde kolom als het script vult).
+  const [castIds, setCastIds] = useState<string[]>([]);
+  // Door AI verzonnen rollen uit een eerder script van dit concept: bewaren we bij
+  // opnieuw opslaan, zodat bestaande scènes hun rollen niet kwijtraken.
+  const [aiRoles, setAiRoles] = useState<CastRole[]>([]);
   const [outroLogo, setOutroLogo] = useState<Preview | null>(null);
   const [outro, setOutro] = useState<OutroContact>({});
   const [submitting, setSubmitting] = useState(false);
@@ -170,7 +175,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
       const supabase = createClient();
       const { data: p } = await supabase
         .from("projects")
-        .select("title, notes, format, visual_style, brand_kit_id, main_character_id, supporting_character_id, outro_contact, mode")
+        .select("title, notes, format, visual_style, brand_kit_id, main_character_id, supporting_character_id, cast_roles, outro_contact, mode")
         .eq("id", id)
         .eq("user_id", userId)
         .maybeSingle();
@@ -181,8 +186,12 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
       if (p.format === "16:9" || p.format === "9:16") setFormat(p.format);
       if (p.visual_style) setVisualStyle(p.visual_style as VisualStyle);
       setBrandKitId(p.brand_kit_id ?? "");
-      setMainCharacterId(p.main_character_id ?? "");
-      setSupportingCharacterId(p.supporting_character_id ?? "");
+      const roles = (Array.isArray(p.cast_roles) ? p.cast_roles : []) as CastRole[];
+      setCastIds([...new Set([
+        p.main_character_id, p.supporting_character_id,
+        ...roles.map(r => r.characterId),
+      ].filter((x): x is string => !!x))].slice(0, MAX_GEKOZEN_PERSONAGES));
+      setAiRoles(roles.filter(r => !r.characterId));
       setOutro((p.outro_contact ?? {}) as OutroContact);
       if ((p.notes ?? "").trim()) setIdeaMode("self");
     })();
@@ -519,8 +528,9 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
         notes:                    idea,
         mode:                     "studio",
         brand_kit_id:             brandKitId || null,
-        main_character_id:        mainCharacterId || null,
-        supporting_character_id:  supportingCharacterId || null,
+        main_character_id:        castIds[0] ?? null,
+        supporting_character_id:  castIds[1] ?? null,
+        cast_roles:               castRolesVoor(castIds, characters, aiRoles),
         outro_contact:            cleanedOutro,
       };
 
@@ -1087,8 +1097,8 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
           <div>
             <h2 className="text-sm font-semibold text-white mb-1">Karakters</h2>
             <p className="text-xs text-slate-400">
-              Kies wie er in beeld komt. Laat een rol leeg en AI verzint zelf een
-              passende persoon — die contrasteert dan automatisch met de wel ingevulde rol.
+              Kies wie er in beeld komt, tot {MAX_GEKOZEN_PERSONAGES} personages. De eerste is de
+              hoofdpersoon. Kies je niemand, dan verzint AI zelf passende personen.
             </p>
           </div>
           {onSwitchToCharacters && (
@@ -1102,24 +1112,11 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <CharacterPicker
-            label="Hoofdpersoon"
-            value={mainCharacterId}
-            characters={characters}
-            excludeId={supportingCharacterId}
-            onChange={setMainCharacterId}
-            placeholder="AI verzint hoofdpersoon"
-          />
-          <CharacterPicker
-            label="Bijpersoon"
-            value={supportingCharacterId}
-            characters={characters}
-            excludeId={mainCharacterId}
-            onChange={setSupportingCharacterId}
-            placeholder="AI verzint bijpersoon"
-          />
-        </div>
+        <CastMultiPicker
+          value={castIds}
+          characters={characters}
+          onChange={setCastIds}
+        />
 
       </div>
 
@@ -1240,3 +1237,21 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
     </form>
   );
 }
+
+// Gekozen personages als gekoppelde cast-rollen, plus eerder door AI verzonnen
+// rollen die nog niet door een gekozen personage zijn vervangen.
+function castRolesVoor(ids: string[], characters: Character[], aiRoles: CastRole[]): CastRole[] {
+  const gekozen: CastRole[] = ids
+    .map(id => characters.find(c => c.id === id))
+    .filter((c): c is Character => !!c)
+    .map(c => ({
+      id: `role-${slugify(c.name)}`,
+      name: c.name,
+      appearance: c.description || c.name,
+      characterId: c.id,
+      anchorUrl: null,
+    }));
+  const bezet = new Set(gekozen.map(r => r.id));
+  return [...gekozen, ...aiRoles.filter(r => !bezet.has(r.id))];
+}
+

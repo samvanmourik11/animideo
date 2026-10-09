@@ -56,9 +56,21 @@ export async function POST(req: NextRequest) {
   const validAssetIds = new Set(brandAssetBlock.ids);
 
   type CharRow = { id: string; name: string; description: string | null; gender: string | null; age_range: string | null; image_url: string | null };
-  let mainChar: CharRow | null = null;
-  let supportChar: CharRow | null = null;
-  const charIds = [project.main_character_id, project.supporting_character_id].filter(Boolean) as string[];
+  // Gekozen personages: hoofd- en bijpersoon uit hun eigen kolommen, de rest (tot
+  // 10 in totaal) als gekoppelde rol in cast_roles. Die kolom apart en defensief
+  // lezen, zoals generate-scene-image dat ook doet.
+  let savedRoles: CastRole[] = [];
+  {
+    const { data: castRow } = await supabase
+      .from("projects").select("cast_roles").eq("id", projectId).eq("user_id", user.id).single();
+    const c = (castRow as { cast_roles?: unknown } | null)?.cast_roles;
+    if (Array.isArray(c)) savedRoles = c as CastRole[];
+  }
+  const charIds = [...new Set([
+    project.main_character_id, project.supporting_character_id,
+    ...savedRoles.map(r => r.characterId),
+  ].filter((x): x is string => !!x))].slice(0, 10);
+  let chosenChars: CharRow[] = [];
   if (charIds.length > 0) {
     const { data: chars } = await supabase
       .from("characters")
@@ -66,14 +78,15 @@ export async function POST(req: NextRequest) {
       .in("id", charIds)
       .eq("user_id", user.id);
     const byId = new Map((chars ?? []).map(c => [c.id, c as CharRow]));
-    mainChar    = project.main_character_id        ? byId.get(project.main_character_id)        ?? null : null;
-    supportChar = project.supporting_character_id  ? byId.get(project.supporting_character_id)  ?? null : null;
+    chosenChars = charIds.map(id => byId.get(id)).filter((c): c is CharRow => !!c);
   }
+  // Ruimte voor alle gekozen personages plus een paar door AI verzonnen rollen.
+  const castCap = Math.max(5, chosenChars.length + 3);
 
   const charLabel = (c: CharRow) => `${c.name}${[c.gender, c.age_range].filter(Boolean).length ? ` (${[c.gender, c.age_range].filter(Boolean).join(", ")})` : ""}`;
 
   const hasStyle = !!project.style_reference_url;
-  const characterCount = (mainChar ? 1 : 0) + (supportChar ? 1 : 0);
+  const characterCount = chosenChars.length;
   const hasCharacter = characterCount > 0 || (project.character_reference_urls?.length ?? 0) > 0;
 
   const anchorContext = (hasStyle || hasCharacter) ? `
@@ -97,13 +110,15 @@ VISUAL STYLE: Every image_prompt must reflect "${visualStyle}" as the rendering 
     // Personages zijn een hulpmiddel voor VISUELE consistentie, GEEN verplicht
     // verhaalstramien. Zonder gekozen personages verzinnen we dus géén standaard
     // "hoofdpersoon met een probleem"; de scriptvorm volgt de briefing.
-    if (!mainChar && !supportChar) {
+    if (chosenChars.length === 0) {
       return `\n\nPERSONAGES: er zijn geen vaste personages gekozen. Verzin GEEN standaard hoofdpersoon-met-een-probleem en open NIET met "Dit is [naam]...". Laat de SCRIPTVORM (zie hieronder) het script bepalen. Mensen in beeld mag alleen als de gekozen vorm daar baat bij heeft; houd diezelfde persoon dan visueel consistent en forceer geen tweede personage.`;
     }
     const lines: string[] = [];
-    if (mainChar) lines.push(`HOOFDPERSONAGE (vast, voor visuele consistentie): ${charLabel(mainChar)}${mainChar.description ? ` — ${mainChar.description}` : ""}`);
-    if (supportChar) lines.push(`TWEEDE PERSONAGE (vast, voor visuele consistentie): ${charLabel(supportChar)}${supportChar.description ? ` — ${supportChar.description}` : ""}`);
-    lines.push(`Deze personages zijn gekozen voor VISUELE consistentie tussen scenes. Gebruik ze waar ze passen, maar ze dwingen GEEN vast verhaalstramien af: kies nog steeds de scriptvorm die het beste bij de briefing past, en open niet standaard met "Dit is [naam]...". Vermeld in elke image_prompt met een persoon of het het hoofdpersonage of het tweede personage is, met kerneigenschappen (geslacht, leeftijdsindicatie, kledingkleur) voor consistentie.`);
+    chosenChars.forEach((c, i) => {
+      const label = i === 0 ? "HOOFDPERSONAGE" : chosenChars.length === 2 ? "TWEEDE PERSONAGE" : `PERSONAGE ${i + 1}`;
+      lines.push(`${label} (vast, voor visuele consistentie): ${charLabel(c)}${c.description ? ` — ${c.description}` : ""}`);
+    });
+    lines.push(`Deze personages zijn gekozen voor VISUELE consistentie tussen scenes. Gebruik ze waar ze passen, maar ze dwingen GEEN vast verhaalstramien af: kies nog steeds de scriptvorm die het beste bij de briefing past, en open niet standaard met "Dit is [naam]...". Vermeld in elke image_prompt met een persoon welk gekozen personage het is (bij naam), met kerneigenschappen (geslacht, leeftijdsindicatie, kledingkleur) voor consistentie.${chosenChars.length > 3 ? ` Laat de gekozen personages verspreid over de scènes optreden; zet er per scène hooguit 3 tegelijk prominent in beeld, anders lopen de gezichten door elkaar.` : ""}`);
     return `\n\nPERSONAGES:\n${lines.join("\n")}`;
   })();
 
@@ -168,7 +183,7 @@ ${characterContext}
 ${brandContext}${brandAssetBlock.text}
 Generate EXACTLY ${sceneCount} scenes. Return ONLY a valid JSON OBJECT (no markdown, no code fences, no commentary) with this exact shape:
 {
-  "cast": [ ALL recurring on-screen people in this video (max 5), each: { "name": "<short name used in the image_prompts, e.g. Lisa>", "appearance": "<detailed, FIXED visual description in ${project.language}: gender, approximate age, hair (colour, length, style), build, and EXACT clothing (each garment + its colour), plus 1-2 distinguishing features>" }.${(mainChar || supportChar) ? ` ALWAYS include these chosen characters under these EXACT names: ${[mainChar?.name, supportChar?.name].filter(Boolean).join(", ")}.` : ""} Empty array [] only for product/process/abstract videos with no recurring person.],
+  "cast": [ ALL recurring on-screen people in this video (max ${castCap}), each: { "name": "<short name used in the image_prompts, e.g. Lisa>", "appearance": "<detailed, FIXED visual description in ${project.language}: gender, approximate age, hair (colour, length, style), build, and EXACT clothing (each garment + its colour), plus 1-2 distinguishing features>" }.${chosenChars.length > 0 ? ` ALWAYS include these chosen characters under these EXACT names: ${chosenChars.map(c => c.name).join(", ")}.` : ""} Empty array [] only for product/process/abstract videos with no recurring person.],
   "scenes": [ exactly ${sceneCount} scene objects ]
 }
 
@@ -269,7 +284,7 @@ Respond with only the JSON object, starting with { and ending with }.`;
       cast = root.cast
         .map(c => ({ name: (c?.name ?? "").trim(), appearance: (c?.appearance ?? "").trim() }))
         .filter(c => c.appearance.length > 0)
-        .slice(0, 5);
+        .slice(0, castCap);
     }
 
     // Gestructureerde cast: seed uit gekozen characters (gekoppeld) + GPT-rollen
@@ -283,8 +298,7 @@ Respond with only the JSON object, starting with { and ending with }.`;
       if (existing) { if (characterId && !existing.characterId) existing.characterId = characterId; return; }
       roleMap.set(id, { id, name: nm, appearance: (appearance || nm).trim(), characterId, anchorUrl: null });
     };
-    if (mainChar) addRole(mainChar.name, mainChar.description ?? charLabel(mainChar), mainChar.id);
-    if (supportChar) addRole(supportChar.name, supportChar.description ?? charLabel(supportChar), supportChar.id);
+    for (const c of chosenChars) addRole(c.name, c.description ?? charLabel(c), c.id);
     for (const c of cast) addRole(c.name, c.appearance, null);
     roles = [...roleMap.values()];
     const validRoleIds = new Set(roles.map(r => r.id));
@@ -327,9 +341,10 @@ Respond with only the JSON object, starting with { and ending with }.`;
         ? [...new Set(s.cast_names.map(n => `role-${slugify((n ?? "").trim())}`).filter(id => validRoleIds.has(id)))]
         : [];
 
-      // Zet elke cast-naam in de prompt om naar een generieke {selecteer personage}-
-      // placeholder (invul-slot). De gebruiker kiest per scène welk character dat
-      // wordt. Achtergrondfiguren (geen cast-rol) blijven gewone tekst.
+      // Zet elke cast-naam in de prompt om naar een {…}-placeholder (invul-slot).
+      // Een rol die aan een gekozen personage hangt, staat meteen ingevuld met diens
+      // naam; anders moest de klant elk gekozen personage per scène opnieuw kiezen.
+      // AI-rollen worden {selecteer personage}. Achtergrondfiguren blijven tekst.
       let promptBody = s.image_prompt ?? "";
       for (const rid of castIds) {
         const role = roles.find(r => r.id === rid);
@@ -337,7 +352,7 @@ Respond with only the JSON object, starting with { and ending with }.`;
         for (const variant of [role.name, role.name.split(/\s*[-–]\s*|\s+/)[0]]) {
           if (!variant) continue;
           const esc = variant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-          promptBody = promptBody.replace(new RegExp(`(?<!\\{)\\b${esc}\\b(?!\\})`, "g"), "{selecteer personage}");
+          promptBody = promptBody.replace(new RegExp(`(?<!\\{)\\b${esc}\\b(?!\\})`, "g"), role.characterId ? `{${role.name}}` : "{selecteer personage}");
         }
       }
 

@@ -246,7 +246,9 @@ export async function POST(req: NextRequest) {
       }
       // Herbouw het consistentie-blok uit de RESOLVED personages.
       imagePrompt += `\n\nPERSONAGE-CONSISTENTIE — houd elk personage in deze scène IDENTIEK aan zijn referentie (zelfde gezicht, haar, leeftijd, bouw en EXACT dezelfde kleding en kleuren): ${resolved.map(r => `${r.name} — ${r.appearance}`).join(" | ")}.`;
-      const anchors = resolved.filter(r => r.url).sort((a, b) => a.prio - b.prio).slice(0, 2);
+      // Hooguit 3 gezichten per scène: met meer gaan ze in het beeldmodel door
+      // elkaar lopen. Bij 3 valt de vorige-scène-referentie af (zie MAX_CHARACTER_REFS).
+      const anchors = resolved.filter(r => r.url).sort((a, b) => a.prio - b.prio).slice(0, 3);
       usedCharRefs = anchors.map(a => ({ name: a.name, url: a.url }));
       characterRefs = [...anchors.map(a => a.url), ...previousSceneRefs.slice(0, 1)];
       if (anchors.length > 0) {
