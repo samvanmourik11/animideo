@@ -459,6 +459,67 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack, ch
     } catch { /* best-effort; scène blijft gewoon zonder logo */ }
   }
 
+  // ── Volgorde aanpassen, scènes invoegen en verwijderen ──────────────────────
+  // Beeld én bewegende clip horen bij de scène zelf, dus ze verhuizen automatisch
+  // mee. Een eindscène (call-to-action) blijft altijd achteraan staan: die sluit
+  // de video af met logo en contactgegevens.
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dropIdx, setDropIdx] = useState<number | null>(null);
+  const [newSceneId, setNewSceneId] = useState<string | null>(null);
+  const isCta = (s: Scene) => s.designed?.kind === "cta";
+
+  function commitOrder(list: Scene[]) {
+    const ordered = [...list.filter(s => !isCta(s)), ...list.filter(isCta)]
+      .map((s, i) => ({ ...s, number: i + 1 }));
+    pushScenes(ordered);
+  }
+
+  function moveScene(id: string, toIdx: number) {
+    const list = [...scenesRef.current];
+    const from = list.findIndex(s => s.id === id);
+    if (from < 0) return;
+    const [moved] = list.splice(from, 1);
+    // toIdx is de plek vóór de scène waar je op loslaat (in de lijst mét de
+    // gesleepte scène); na het uitnemen schuift alles erachter één op.
+    list.splice(toIdx > from ? toIdx - 1 : toIdx, 0, moved);
+    commitOrder(list);
+  }
+
+  function insertScene(atIdx: number) {
+    const fresh: Scene = {
+      id: typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `scene-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      number: atIdx + 1,
+      duration: 5,
+      voiceover_text: "",
+      image_prompt: "",
+      motion_prompt: "",
+      image_url: null,
+      video_url: null,
+      canvas_json: null,
+    };
+    const list = [...scenesRef.current];
+    list.splice(atIdx, 0, fresh);
+    commitOrder(list);
+    setNewSceneId(fresh.id);
+  }
+
+  function removeScene(id: string) {
+    const scene = scenesRef.current.find(s => s.id === id);
+    if (!scene) return;
+    if ((scene.image_url || scene.video_url) && !window.confirm("Deze scène en het beeld ervan verwijderen?")) return;
+    commitOrder(scenesRef.current.filter(s => s.id !== id));
+  }
+
+  // Net ingevoegde scène in beeld brengen, zodat je meteen de beschrijving typt.
+  useEffect(() => {
+    if (!newSceneId) return;
+    const el = document.getElementById(`studio-scene-${newSceneId}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    el?.querySelector("textarea")?.focus();
+  }, [newSceneId]);
+
   async function generateAll() {
     if (batchRunning) return;
     setBatchRunning(true);
@@ -469,6 +530,8 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack, ch
       const current = scenesRef.current.find(s => s.id === id);
       if (!current) continue;
       if ((statuses[id] ?? (current.image_url ? "done" : "idle")) === "done") continue;
+      // Ingevoegde scène zonder beschrijving: overslaan i.p.v. een foutmelding.
+      if (!current.designed && !current.image_prompt?.trim()) continue;
       await generateOne(id);
     }
     setBatchRunning(false);
@@ -529,17 +592,66 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack, ch
         </div>
       </div>
 
-      <div className="space-y-4">
+      <p className="text-[11px] text-slate-500 mb-2">
+        Sleep een scène aan <span className="text-slate-300">⠿</span> om de volgorde te veranderen, of voeg met <span className="text-slate-300">+</span> een scène toe tussen twee andere.
+      </p>
+      <div>
         {scenes.map((scene, idx) => {
           const status = effectiveStatus(scene);
           const err = errors[scene.id];
           const isLast = idx === scenes.length - 1;
           const showOutroBtn = isLast && hasOutroContent;
+          const cta = isCta(scene);
+          const dragging = dragId === scene.id;
           return (
-            <div key={scene.id} className="bg-white/5 border border-white/10 rounded-xl p-4 grid grid-cols-1 md:grid-cols-[1fr_280px] gap-4">
+            <div key={scene.id}>
+            <InsertBar
+              disabled={anyRunning}
+              dropActive={dragId !== null && dropIdx === idx}
+              onInsert={() => insertScene(idx)}
+              onDragHover={dragId ? () => setDropIdx(idx) : undefined}
+              onDropHere={() => { if (dragId) moveScene(dragId, idx); setDragId(null); setDropIdx(null); }}
+            />
+            <div
+              id={`studio-scene-${scene.id}`}
+              onDragOver={e => {
+                if (!dragId) return;
+                e.preventDefault();
+                // Bovenste helft = ervoor, onderste helft = erna. Nooit ná een eindscène.
+                const r = e.currentTarget.getBoundingClientRect();
+                const after = e.clientY > r.top + r.height / 2;
+                setDropIdx(cta ? idx : after ? idx + 1 : idx);
+              }}
+              onDrop={e => {
+                e.preventDefault();
+                if (dragId && dropIdx !== null) moveScene(dragId, dropIdx);
+                setDragId(null);
+                setDropIdx(null);
+              }}
+              className={`bg-white/5 border rounded-xl p-4 grid grid-cols-1 md:grid-cols-[1fr_280px] gap-4 transition-opacity ${
+                dragging ? "opacity-40 border-cyan-400/60" : newSceneId === scene.id && !scene.image_url ? "border-cyan-500/50" : "border-white/10"
+              }`}
+            >
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-cyan-400">
+                  <span className="flex items-center gap-2 text-xs font-bold text-cyan-400">
+                    {!cta && (
+                      <span
+                        draggable={!anyRunning}
+                        onDragStart={e => {
+                          setDragId(scene.id);
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", scene.id);
+                          const card = document.getElementById(`studio-scene-${scene.id}`);
+                          if (card) e.dataTransfer.setDragImage(card, 24, 24);
+                        }}
+                        onDragEnd={() => { setDragId(null); setDropIdx(null); }}
+                        title={anyRunning ? "Wacht tot het genereren klaar is" : "Sleep om de volgorde te veranderen"}
+                        className={`select-none text-base leading-none px-1 rounded ${anyRunning ? "text-slate-600 cursor-not-allowed" : "text-slate-400 hover:text-white hover:bg-white/10 cursor-grab active:cursor-grabbing"}`}
+                      >
+                        ⠿
+                      </span>
+                    )}
                     Scene #{idx + 1} ({scene.duration}s){scene.designed?.kind === "bullets" ? " · opsomming" : scene.designed?.kind === "cta" ? " · eindscène" : isLast && hasOutroContent ? " · outro" : ""}
                   </span>
                   <div className="flex gap-1.5">
@@ -593,14 +705,29 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack, ch
                     )}
                     <button
                       onClick={() => generateOne(scene.id)}
-                      disabled={status === "running" || batchRunning}
+                      disabled={status === "running" || batchRunning || (!scene.designed && !scene.image_prompt?.trim())}
+                      title={!scene.designed && !scene.image_prompt?.trim() ? "Beschrijf eerst wat er in beeld moet komen" : undefined}
                       className="text-xs bg-white/10 hover:bg-white/15 text-white px-2.5 py-1 rounded-md disabled:opacity-50"
                     >
                       {status === "running" ? "Bezig..." : status === "done" ? "Opnieuw" : "Genereer"}
                     </button>
+                    {!cta && (
+                      <button
+                        onClick={() => removeScene(scene.id)}
+                        disabled={anyRunning || scenes.length <= 1}
+                        className="text-xs bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-200 px-2 py-1 rounded-md disabled:opacity-40"
+                        title="Scène verwijderen"
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 </div>
-                <p className="text-xs text-slate-400 italic">&quot;{scene.voiceover_text}&quot;</p>
+                {scene.voiceover_text?.trim() ? (
+                  <p className="text-xs text-slate-400 italic">&quot;{scene.voiceover_text}&quot;</p>
+                ) : (
+                  <p className="text-xs text-slate-500">Nog geen voice-overtekst — die voeg je toe bij de stap Voice-over.</p>
+                )}
                 {scene.designed ? (
                   <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/[0.06] p-2.5 text-xs text-cyan-200">
                     {scene.designed.kind === "cta"
@@ -609,6 +736,9 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack, ch
                   </div>
                 ) : (
                 <>
+                {!scene.image_prompt?.trim() && (
+                  <p className="text-[11px] text-cyan-300">Beschrijf wat er in deze scène in beeld moet komen.</p>
+                )}
                 <PromptEditor
                   value={scene.image_prompt}
                   onChange={v => updatePrompt(scene.id, v)}
@@ -750,8 +880,18 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack, ch
                 )}
               </div>
             </div>
+            </div>
           );
         })}
+        {scenes.length > 0 && !isCta(scenes[scenes.length - 1]) && (
+          <InsertBar
+            disabled={anyRunning}
+            dropActive={dragId !== null && dropIdx === scenes.length}
+            onInsert={() => insertScene(scenes.length)}
+            onDragHover={dragId ? () => setDropIdx(scenes.length) : undefined}
+            onDropHere={() => { if (dragId) moveScene(dragId, scenes.length); setDragId(null); setDropIdx(null); }}
+          />
+        )}
       </div>
 
       <div className="flex items-center justify-between mt-6">
@@ -790,6 +930,37 @@ export default function StudioStepImages({ project, onUpdate, onNext, onBack, ch
             }
           }}
         />
+      )}
+    </div>
+  );
+}
+
+// Smalle balk tussen twee scènes: een plusje om er een scène tussen te zetten, en
+// tijdens het slepen de lijn die laat zien waar de scène terechtkomt.
+function InsertBar({ disabled, dropActive, onInsert, onDragHover, onDropHere }: {
+  disabled: boolean;
+  dropActive: boolean;
+  onInsert: () => void;
+  onDragHover?: () => void;
+  onDropHere: () => void;
+}) {
+  return (
+    <div
+      className="group relative h-6 flex items-center justify-center"
+      onDragOver={onDragHover ? e => { e.preventDefault(); onDragHover(); } : undefined}
+      onDrop={e => { e.preventDefault(); onDropHere(); }}
+    >
+      <div className={`absolute inset-x-0 top-1/2 -translate-y-1/2 rounded-full transition-all ${dropActive ? "h-1 bg-cyan-400" : "h-px bg-transparent group-hover:bg-white/10"}`} />
+      {!dropActive && (
+        <button
+          type="button"
+          onClick={onInsert}
+          disabled={disabled}
+          title="Scène hier invoegen"
+          className="relative z-10 flex items-center gap-1 rounded-full border border-white/15 bg-slate-900 px-2.5 py-0.5 text-[11px] text-slate-400 opacity-60 hover:opacity-100 hover:border-cyan-400/60 hover:text-cyan-200 disabled:hidden"
+        >
+          + Scène
+        </button>
       )}
     </div>
   );

@@ -40,11 +40,37 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
   const waveRef = useRef<HTMLDivElement>(null);
 
   const scenes = project.scenes ?? [];
-  const fullScript = scenes.map(s => s.voiceover_text).filter(Boolean).join(" ");
-  // Bewerkbaar script: begint met de tekst uit de scènes, maar de gebruiker kan
-  // 'm hier zelf aanpassen of (als de scènes geen tekst hebben) helemaal intypen.
-  const [scriptText, setScriptText] = useState(fullScript);
+  // De tekst wordt per scène bewerkt en direct in de scènes opgeslagen. Eerder
+  // was dit één los tekstvak dat nergens bewaard werd: een aanpassing kwam niet
+  // in de editor aan (de scènes hielden de oude zinnen) en na "terug" stond de
+  // oude tekst er weer. Alleen zonder scènes valt het terug op één vrij tekstvak.
+  const [freeText, setFreeText] = useState("");
+  const scriptText = scenes.length > 0
+    ? scenes.map(s => (s.voiceover_text ?? "").trim()).filter(Boolean).join(" ")
+    : freeText;
   const totalVideoDuration = scenes.reduce((acc, s) => acc + (s.duration || 0), 0);
+
+  // Welke tekst zit er in de huidige audio? Zo zien we dat de tekst na het
+  // genereren nog is aangepast, en dat de stem dus iets anders zegt dan er staat.
+  // Per project in localStorage; zonder notitie (oudere projecten) gaan we ervan
+  // uit dat audio en tekst bij elkaar horen.
+  const voicedKey = `voice-script-${project.id}`;
+  const [voicedScript, setVoicedScript] = useState<string | null>(null);
+  useEffect(() => {
+    let stored: string | null = null;
+    try { stored = window.localStorage.getItem(voicedKey); } catch {}
+    setVoicedScript(stored ?? (project.voice_audio_url ? scriptText : null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  function rememberVoiced(text: string) {
+    setVoicedScript(text);
+    try { window.localStorage.setItem(voicedKey, text); } catch {}
+  }
+  const textChanged = !!audioUrl && voicedScript !== null && voicedScript !== scriptText;
+
+  function setSceneText(sceneId: string, text: string) {
+    onUpdate({ scenes: scenes.map(s => s.id === sceneId ? { ...s, voiceover_text: text } : s) });
+  }
 
   useEffect(() => {
     if (!audioUrl || !waveRef.current) return;
@@ -71,10 +97,10 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
     };
   }, [audioUrl]);
 
-  async function handleGenerate() {
+  async function handleGenerate(): Promise<boolean> {
     if (!scriptText.trim()) {
       setError("Vul eerst de voice-over-tekst in.");
-      return;
+      return false;
     }
     setError("");
     setGenerating(true);
@@ -89,13 +115,16 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
       const data = await res.json();
       if (!res.ok || !data.audioUrl) {
         setError(data.error ?? "Voice generatie mislukt");
-        return;
+        return false;
       }
       setAudioUrl(data.audioUrl);
+      rememberVoiced(scriptText);
       onUpdate({ voice_audio_url: data.audioUrl, selected_voice: data.voice, status: "VoiceReady" });
+      return true;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
+      return false;
     } finally {
       setGenerating(false);
     }
@@ -131,6 +160,8 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
       });
 
       setAudioUrl(url);
+      // Eigen opname: we kunnen niet weten wat erin gezegd wordt, dus geen waarschuwing.
+      rememberVoiced(scriptText);
       onUpdate({ voice_audio_url: url, status: "VoiceReady" });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Upload mislukt");
@@ -139,19 +170,19 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
     }
   }
 
-  async function handleAlign() {
+  async function handleAlign(): Promise<boolean> {
     setAlignResult(null);
     setAligning(true);
     try {
       const res = await fetch("/api/align-voice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: project.id }),
+        body: JSON.stringify({ projectId: project.id, clientScenes: scenes.length > 0 ? scenes : undefined }),
       });
       const data = await res.json();
       if (!res.ok || !data.scenes) {
         setAlignResult({ ok: false, message: data.error ?? "Sync mislukt" });
-        return;
+        return false;
       }
       onUpdate({ scenes: data.scenes });
 
@@ -183,11 +214,21 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
           ? "Synchroon op tekstlengte (Whisper miste woorden)"
           : `Scenes gesynchroniseerd op stem (${data.wordsMatched} woorden)${bulletScenes.length ? `, opsommingen synced` : ""}`,
       });
+      return true;
     } catch (err: unknown) {
       setAlignResult({ ok: false, message: err instanceof Error ? err.message : String(err) });
+      return false;
     } finally {
       setAligning(false);
     }
+  }
+
+  // Tekst aangepast na het genereren: eerst de stem vernieuwen en de scènes erop
+  // laten aansluiten, dan pas door — anders zegt de stem in de editor nog de oude tekst.
+  async function refreshAndContinue() {
+    if (!(await handleGenerate())) return;
+    await handleAlign();
+    onNext();
   }
 
   const fmtDur = (n: number) => Math.round(n * 10) / 10;
@@ -203,17 +244,44 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
       </div>
 
       <div className="bg-white/5 border border-white/10 rounded-xl p-5 space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-slate-200 mb-2">Volledig script ({project.language})</label>
-          <textarea
-            value={scriptText}
-            onChange={e => setScriptText(e.target.value)}
-            disabled={generating}
-            placeholder="Typ hier de voice-over-tekst voor je video…"
-            rows={Math.min(12, Math.max(4, scenes.length * 2))}
-            className="w-full bg-slate-950/60 border border-white/10 rounded-md px-3 py-2 text-sm text-white font-mono leading-relaxed disabled:opacity-60"
-          />
-        </div>
+        {scenes.length > 0 ? (
+          <div>
+            <label className="block text-sm font-medium text-slate-200 mb-2">Voice-over per scène ({project.language})</label>
+            <div className="space-y-2">
+              {scenes.map((s, i) => (
+                <div key={s.id} className="flex items-start gap-2">
+                  <span className="text-[11px] font-bold text-cyan-400 mt-2 w-14 shrink-0">Scène {i + 1}</span>
+                  <textarea
+                    value={s.voiceover_text ?? ""}
+                    onChange={e => setSceneText(s.id, e.target.value)}
+                    disabled={generating || aligning}
+                    placeholder="Tekst die bij deze scène wordt uitgesproken…"
+                    rows={2}
+                    className="flex-1 bg-slate-950/60 border border-white/10 rounded-md px-3 py-2 text-sm text-white leading-relaxed disabled:opacity-60"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div>
+            <label className="block text-sm font-medium text-slate-200 mb-2">Volledig script ({project.language})</label>
+            <textarea
+              value={freeText}
+              onChange={e => setFreeText(e.target.value)}
+              disabled={generating}
+              placeholder="Typ hier de voice-over-tekst voor je video…"
+              rows={4}
+              className="w-full bg-slate-950/60 border border-white/10 rounded-md px-3 py-2 text-sm text-white font-mono leading-relaxed disabled:opacity-60"
+            />
+          </div>
+        )}
+
+        {textChanged && !generating && (
+          <div className="bg-amber-950/40 border border-amber-700/40 text-amber-200 text-xs rounded-lg px-3 py-2">
+            Je hebt de tekst aangepast. De stem zegt nog de oude tekst — maak de voice-over opnieuw zodat hij klopt.
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
@@ -261,8 +329,8 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
         </div>
 
         <button
-          onClick={handleGenerate}
-          disabled={generating || !scriptText.trim()}
+          onClick={() => { handleGenerate(); }}
+          disabled={generating || aligning || !scriptText.trim()}
           className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 text-white font-medium py-2.5 rounded-lg"
         >
           {generating ? "Voice genereren..." : audioUrl ? "Opnieuw genereren" : "Genereer voice-over"}
@@ -367,11 +435,13 @@ export default function Step5Voiceover({ project, onUpdate, onNext, onBack }: Pr
       <div className="flex items-center justify-between mt-6">
         <button onClick={onBack} className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-2 rounded-md">← Terug</button>
         <button
-          onClick={onNext}
-          disabled={!audioUrl}
+          onClick={textChanged ? refreshAndContinue : onNext}
+          disabled={!audioUrl || generating || aligning}
           className="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 text-white font-medium px-6 py-2.5 rounded-lg"
         >
-          Naar editor →
+          {generating || aligning
+            ? "Voice-over vernieuwen…"
+            : textChanged ? "Voice-over vernieuwen en naar editor →" : "Naar editor →"}
         </button>
       </div>
     </div>

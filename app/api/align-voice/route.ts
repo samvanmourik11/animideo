@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { projectId } = await req.json() as { projectId: string };
+  const { projectId, clientScenes } = await req.json() as { projectId: string; clientScenes?: Scene[] };
   if (!projectId) return NextResponse.json({ error: "projectId ontbreekt" }, { status: 400 });
 
   const { data: project } = await supabase
@@ -30,7 +30,18 @@ export async function POST(req: NextRequest) {
   if (!project) return NextResponse.json({ error: "Project niet gevonden" }, { status: 404 });
   if (!project.voice_audio_url) return NextResponse.json({ error: "Eerst voice-over genereren" }, { status: 400 });
 
-  const scenes = (project.scenes ?? []) as Scene[];
+  // De voice-over-stap stuurt de scènes mee zoals de gebruiker ze nét heeft
+  // getypt: de autosave kan nog onderweg zijn, en met de DB-tekst zou de sync
+  // op de oude zinnen matchen. Beelden/clips vullen we aan uit de DB, zodat een
+  // achterlopende client nooit een gegenereerd beeld wist.
+  const dbScenes = (project.scenes ?? []) as Scene[];
+  const dbById = new Map(dbScenes.map(s => [s.id, s]));
+  const scenes: Scene[] = Array.isArray(clientScenes) && clientScenes.length > 0
+    ? clientScenes.map(s => {
+        const d = dbById.get(s.id);
+        return d ? { ...s, image_url: s.image_url ?? d.image_url ?? null, video_url: s.video_url ?? d.video_url ?? null } : s;
+      })
+    : dbScenes;
   if (scenes.length === 0) return NextResponse.json({ error: "Geen scenes" }, { status: 400 });
 
   const audioRes = await fetch(project.voice_audio_url);

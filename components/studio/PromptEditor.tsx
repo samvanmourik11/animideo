@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Character } from "@/lib/types";
 
 // Textarea met "/"-autocomplete voor personages én klikbare {…}-tokens. Typ "/"
@@ -31,6 +31,25 @@ export default function PromptEditor({
   const [idx, setIdx] = useState(0);
   // Open token-kiezer: welk {…}-voorkomen, en waar (wrapper-relatieve px).
   const [tokenMenu, setTokenMenu] = useState<{ index: number; x: number; y: number } | null>(null);
+  // Breedte van de scrollbalk van de textarea. Zodra een lange prompt gaat
+  // scrollen, neemt die balk (met een muis aangesloten) ruimte in en breekt de
+  // tekst eerder af dan in de overlay — dan schoof het blauwe vlak van {Kyan}
+  // naar een ander woord. De overlay krijgt daarom evenveel ruimte rechts.
+  const [scrollbarW, setScrollbarW] = useState(0);
+  useLayoutEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    const measure = () => {
+      const cs = getComputedStyle(ta);
+      const borders = parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+      setScrollbarW(Math.max(0, ta.offsetWidth - ta.clientWidth - borders));
+      if (overlayRef.current) overlayRef.current.scrollTop = ta.scrollTop;
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(ta);
+    return () => ro.disconnect();
+  }, [value]);
 
   const filtered = menu
     ? characters.filter(c => c.name.toLowerCase().includes(menu.query.toLowerCase())).slice(0, 8)
@@ -128,6 +147,7 @@ export default function PromptEditor({
         ref={overlayRef}
         aria-hidden
         className="pointer-events-none absolute inset-0 z-10 overflow-hidden whitespace-pre-wrap break-words border border-transparent rounded-md px-2 py-1.5 text-sm leading-5 text-transparent"
+        style={{ paddingRight: `calc(0.5rem + ${scrollbarW}px)` }}
       >
         {segs.map((s, i) =>
           s.tokenIndex === null ? (
