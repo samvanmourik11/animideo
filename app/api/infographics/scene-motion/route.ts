@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { imageUrl, steer, prompt, voiceover, illustration, title, mode } = (await req.json()) as {
+    const { imageUrl, steer, prompt, voiceover, illustration, title, mode, styleId } = (await req.json()) as {
       imageUrl?: string;
       steer?: string;
       prompt?: string;
@@ -55,6 +55,8 @@ export async function POST(req: NextRequest) {
       title?: string;
       // Beeldmodus van het verhaal: "overheid" beweegt als motion graphics.
       mode?: "story" | "report" | "overheid";
+      // Tekenstijl van het verhaal: een foto mag geen tekening worden.
+      styleId?: string | null;
     };
     if (!imageUrl) return NextResponse.json({ error: "Geen beeld" }, { status: 400 });
 
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
 
     // Eén animatie-poging: submit + poll → tijdelijke video-URL (of null).
     async function generateClip(steerText: string | undefined): Promise<string | null> {
-      const safePrompt = buildMotionPrompt(steerText, mode);
+      const safePrompt = buildMotionPrompt(steerText, mode, styleId);
       const { request_id } = await fal.queue.submit(SEEDANCE_LITE, {
         input: { image_url: imageUrl, prompt: safePrompt, duration: "5", resolution: "720p", camera_fixed: true } as never,
       });

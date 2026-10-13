@@ -62,7 +62,7 @@ export const STYLE_NEGATIVE =
 // ---------------------------------------------------------------------------
 
 export const STYLE_OMGEVING =
-  " The described location is fully drawn as a real, believable environment that fills the entire frame " +
+  " The described location is fully shown as a real, believable environment that fills the entire frame " +
   "from edge to edge: floor or ground, walls or horizon, background depth, and the furniture, objects and " +
   "surroundings that belong in such a place. NEVER an empty white, off-white or plain flat background — " +
   "the people are standing INSIDE this place, not floating in front of a blank backdrop. Light and colours " +
@@ -102,7 +102,13 @@ const TOP_RIGHT_CORNER =
   "it: no separate marks, seals, circular badges, insignia, stickers or small graphic shapes placed there, " +
   "however faint or small. ";
 
-function styleVerhaalCompositie(format?: string | null): string {
+function verhaalPalet(styleId?: string | null): string {
+  return isFotoStijl(styleId)
+    ? "Use natural, true-to-life photographic colours and lighting. "
+    : "Use a muted, natural, harmonious colour palette with soft flat shapes. ";
+}
+
+function styleVerhaalCompositie(format?: string | null, styleId?: string | null): string {
   if (format === "9:16") {
     return (
       " Compose this as a TALL, VERTICAL shot of that place: stack the depth top to bottom instead of side to " +
@@ -119,7 +125,7 @@ function styleVerhaalCompositie(format?: string | null): string {
       "horizontal line — never place them left and right, because a left-right split only fills a thin strip of " +
       "a tall canvas and leaves the rest empty. Keep the main subject in the centre or the lower half. " +
       TOP_RIGHT_CORNER +
-      "Use a muted, natural, harmonious colour palette with soft flat shapes. "
+      verhaalPalet(styleId)
     );
   }
   return (
@@ -128,7 +134,7 @@ function styleVerhaalCompositie(format?: string | null): string {
     "This image fills a whole video frame, so let it read from edge to edge and keep the main subject in the " +
     "centre or the lower half. " +
     TOP_RIGHT_CORNER +
-    "Use a muted, natural, harmonious colour palette with soft flat shapes. "
+    verhaalPalet(styleId)
   );
 }
 
@@ -204,16 +210,19 @@ export const STORY_STYLE_PRESETS: StoryStylePreset[] = [
       "toy-like look with rounded edges and soft shadows. ",
   },
   {
-    // Levensechte beelden in plaats van een tekening. De stijl bestond al als
-    // referentiepack voor de Creator Studio ("Realistic Animation", mei 2026);
-    // hier komt hij als keuze in de storytelling-tool. Bewust `beperkt`: dit
+    // Levensechte beelden in plaats van een tekening. Bewust `beperkt`: dit
     // lijkt op echt gefilmd materiaal, dus eerst bij één klant.
+    //
+    // GEEN visualStyle meer (13-10-2026). Hier ging het referentiepack
+    // "Realistic Animation" mee, maar die voorbeeldbeelden zijn geschilderde,
+    // semi-realistische illustraties — geen foto's. Het beeldmodel kreeg dus
+    // "echte foto" in de tekst en drie tekeningen als voorbeeld, en koos per
+    // beeld (en soms per persoon) een kant: half foto, half animatie.
     id: "realistisch",
     name: "Realistisch",
     tagline: "Levensecht, geen tekening",
     emoji: "📷",
     beperkt: true,
-    visualStyle: "Realistic",
     // De bewoordingen komen uit de oorspronkelijke stijlen "Realistic" en
     // "Cinematic" die tot 26-05-2026 in de wizard zaten (commit 71822a5 haalde
     // ze weg toen stijl op referentiebeelden overging).
@@ -252,6 +261,17 @@ export function stijlOmschrijving(styleId: string | null | undefined): string {
 /** De stijlen die dit account mag kiezen: de vrije stijlen plus waar het recht op heeft. */
 export function stijlenVoor(magRealistisch: boolean): StoryStylePreset[] {
   return STORY_STYLE_PRESETS.filter((s) => !s.beperkt || magRealistisch);
+}
+
+/**
+ * Is dit een fotografische stijl (geen tekening)?
+ *
+ * Veel vaste zinnen in de beeldopdracht zijn geschreven voor tekeningen ("zachte
+ * vlakke vormen", "teken deze persoon opnieuw"). Bij een foto trekken die het
+ * beeld half naar een illustratie; daarom krijgt zo'n stijl een eigen slotregel.
+ */
+export function isFotoStijl(styleId: string | null | undefined): boolean {
+  return styleId === "realistisch";
 }
 
 /** Het referentiepack bij een stijl, als die er een heeft. */
@@ -450,10 +470,43 @@ export function buildIllustrationPrompt(
     return `${OVERHEID_PREAMBLE}Subject: ${brief.trim()}.${OVERHEID_FRAMING}${tekstRegel ?? `${TEKST_NEGATIEF}${langTextRule(language)}`}`;
   }
   const kader =
-    kaderKeuze === "verhaal" ? `${STYLE_OMGEVING}${styleVerhaalCompositie(format)}`
+    kaderKeuze === "verhaal" ? `${STYLE_OMGEVING}${styleVerhaalCompositie(format, styleId)}`
     : kaderKeuze === "omgeving" ? STYLE_OMGEVING
     : `${STYLE_FRAMING}${STYLE_NEGATIVE}`;
-  return `${storyStylePreamble(styleId)}Scene: ${brief.trim()}.${kader}${tekstRegel ?? langTextRule(language)}`;
+  return `${storyStylePreamble(styleId)}Scene: ${brief.trim()}.${STIJL_VOORRANG}${kader}${tekstRegel ?? langTextRule(language)}${fotoSlotregel(styleId)}`;
+}
+
+/**
+ * De gekozen stijl wint van wat er in het script staat.
+ *
+ * Schrijft iemand in het script "aquarel" of "Pixar-stijl" en kiest hij in de
+ * app een andere stijl, dan nam het beeldmodel de stijl uit de scènetekst over
+ * (die is concreter en staat dichter bij het onderwerp). De stijl komt uit de
+ * keuze in de app — de scènetekst bepaalt alleen WAT er te zien is.
+ */
+export const STIJL_VOORRANG =
+  " The visual style is set ONLY by the style description at the very start of this prompt. If the scene description " +
+  "mentions any other art style, medium, rendering technique, colour scheme or look (for example watercolour, vector, " +
+  "cartoon, anime, 3D, Pixar, photo, painting or a named house style), ignore that part completely and use only its " +
+  "content: who and what is in the image, where, and what happens.";
+
+/**
+ * Slotregel voor de fotografische stijl.
+ *
+ * Ná alle andere regels, omdat een deel van de vaste tekst (castblad, portretten,
+ * anker) over "tekenen" en "illustratie" spreekt. Zonder deze regel won die
+ * woordkeus het soms per persoon: een echt gefotografeerde kamer met een
+ * getekend mens erin.
+ */
+export function fotoSlotregel(styleId?: string | null): string {
+  if (!isFotoStijl(styleId)) return "";
+  return (
+    " FINAL STYLE RULE — this overrides every other word about style in this prompt: the whole image is ONE real " +
+    "photograph. Every person is a real human being with real skin, hair and fabric, every object and place is real " +
+    "and photographed in the same light. Wherever this prompt says draw, drawn, redraw, illustration or flat, read it " +
+    "as photograph. Never a drawing, painting, cartoon, comic, anime, CGI or 3D render — not even for one person or one " +
+    "object in the image."
+  );
 }
 
 // Referentiefoto per scène (verbeterplan-feature): het échte product/logo/object dat
@@ -462,7 +515,7 @@ export function buildIllustrationPrompt(
 export const REFERENCE_PHOTO_GUIDANCE =
   " A reference photo of a specific real product, object or logo is provided. Recreate THAT specific " +
   "item accurately in the scene — match its real shape, proportions, colours and distinctive details — " +
-  "but redraw it in the illustration style described above (never paste the photo, never make it photo-realistic). " +
+  "but render it in the style described above (never paste the photo itself). " +
   "Keep the rest of the scene as described.";
 
 // Vast personage/mascotte (verbeterplan F5): een terugkerend figuur dat in elke scène
@@ -514,8 +567,8 @@ export function castRefGuidance(refs: CastRefLike[]): string {
     ` CHARACTER REFERENCE PORTRAITS — ${leden.length} portraits of specific, named people are provided, in this exact order: ` +
     `${lijst}. Each portrait defines ONE person: their face, hair, build, clothing and colours. ` +
     `Whenever one of these people appears in a scene, draw THAT person from THEIR OWN portrait — never mix two of them ` +
-    `together, never give one person's face or outfit to another, and never swap their roles. Redraw them in the ` +
-    `illustration style described above (not as photos), and keep each of them identical across every scene. ` +
+    `together, never give one person's face or outfit to another, and never swap their roles. Render them in the ` +
+    `style described above (never paste the portraits themselves), and keep each of them identical across every scene. ` +
     `Other people in the scene are extras and must look clearly different from these ${leden.length}.`
   );
 }
@@ -546,8 +599,8 @@ const EXTRAS_MOETEN_VERSCHILLEN =
 
 export const CHARACTER_GUIDANCE =
   " A reference image of a RECURRING CHARACTER / mascot is provided. Wherever the scene has a main character, " +
-  "draw THIS SAME character — match its design, face, hair, outfit, colours and proportions — redrawn in the " +
-  "illustration style described above (not a photo). Keep this character visually identical and recognisable " +
+  "draw THIS SAME character — match its design, face, hair, outfit, colours and proportions — rendered in the " +
+  "style described above (never paste the reference image itself). Keep this character visually identical and recognisable " +
   "across every scene. " +
   EXTRAS_MOETEN_VERSCHILLEN;
 
@@ -559,7 +612,7 @@ export function brandPaletteHint(primary?: string | null, accent?: string | null
   const cols = [primary, accent].filter((c): c is string => !!c && /^#[0-9a-fA-F]{6}$/.test(c.trim()));
   if (cols.length === 0) return "";
   const list = cols.join(" and ");
-  return ` Use a flat colour palette led by the brand colours ${list}: let these brand colours dominate the main shapes, fills and accents. Complement them with a few natural, harmonious supporting tones so the illustration stays clean and pleasant — do not force everything into one colour and do not make it monotone.`;
+  return ` Use a colour palette led by the brand colours ${list}: let these brand colours dominate the main shapes, fills and accents. Complement them with a few natural, harmonious supporting tones so the image stays clean and pleasant — do not force everything into one colour and do not make it monotone.`;
 }
 
 // Extra instructie wanneer er een "anker"-beeld als STIJL-referentie wordt
@@ -673,7 +726,7 @@ export function castSheetRefLine(refs: CastRefLike[]): string {
   return (
     ` The ${leden.length} reference portrait${leden.length === 1 ? " is" : "s are"} the actual ${leden.length === 1 ? "person" : "people"} to draw in this line-up, ` +
     `in this same left-to-right order: ${namen}. Take each one's face, hair, build, clothing and colours from their own ` +
-    `portrait and keep them recognisable; only redraw them in the illustration style and full body.`
+    `portrait and keep them recognisable; only render them in the style described above, full body.`
   );
 }
 

@@ -934,7 +934,7 @@ export default function StoryPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // Ankers voor het kritische oog: de voice-over, het bedoelde beeld en de titel.
-        body: JSON.stringify({ imageUrl: s.imageUrl, steer, voiceover: s.voiceover, illustration: s.illustration, title: spec?.title, mode: spec?.mode }),
+        body: JSON.stringify({ imageUrl: s.imageUrl, steer, voiceover: s.voiceover, illustration: s.illustration, title: spec?.title, mode: spec?.mode, styleId: spec?.styleId }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Animeren mislukt"));

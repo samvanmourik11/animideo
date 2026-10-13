@@ -6,7 +6,8 @@ import { knipScriptInScenes, isLetterlijk } from "@/lib/infographics/story-scrip
 import { storySpecSchema, castRefsVanSpec, mergeVasteCast, castRefsVoorScene, MAX_CAST_REFS, MAX_STORY_VOORWERPEN, MAX_VOORWERPEN_PER_BEELD, type StoryVoorwerp, type StoryOmgeving, type StorySpec, type StoryScene, type StoryCastMember, type StoryCastRef } from "@/lib/infographics/story-schema";
 import { generateImageWithStyle, cleanupSceneIllustration, cleanupFlatGraphic } from "@/lib/image-gen";
 import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
-import { isBeperkteStijl, visualStyleVan, toegestaneStijl, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, buildCastSheetBrief, castSheetRefLine, castSheetOrderLine } from "@/lib/infographics/story-style";
+import { haalStijlUitBeeldPrompts } from "@/lib/infographics/beeldprompt-stijl";
+import { fotoSlotregel, isBeperkteStijl, visualStyleVan, toegestaneStijl, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, buildCastSheetBrief, castSheetRefLine, castSheetOrderLine } from "@/lib/infographics/story-style";
 import { artDirectScenes, regisseerOverheidScenes } from "@/lib/infographics/art-direct";
 import { ICOON_SLEUTELS, icoonKeuzelijst } from "@/lib/infographics/overheid-scene";
 import { borgBeeldtekst } from "@/lib/infographics/tekst-controle";
@@ -337,8 +338,13 @@ export async function POST(req: NextRequest) {
     // figuranten uit andere tijdperken tot gevolg. Zie renderScene() voor het
     // gebruik: zo'n scene slaat ook de huisstijl/cast-laag helemaal over, want
     // de prompt bevat zijn eigen complete stijlblok.
+    // De stijl van zo'n prompt gaat er wél uit: de stijl komt uit de keuze in de
+    // app, niet uit het script (zie haalStijlUitBeeldPrompts).
+    const zonderStijl = shots.some((s) => (s?.beeldPrompt ?? "").trim())
+      ? await haalStijlUitBeeldPrompts(shots.map((s) => s?.beeldPrompt ?? ""))
+      : [];
     spec.scenes = spec.scenes.map((s, i) => {
-      const letterlijk = (shots[i]?.beeldPrompt ?? "").trim();
+      const letterlijk = (zonderStijl[i] ?? "").trim();
       if (!letterlijk) return s;
       // Tekst tussen aanhalingstekens in de prompt is bedoeld als tekst in
       // beeld (zo schrijft dit format het altijd). Zonder dit dacht de
@@ -388,6 +394,7 @@ export async function POST(req: NextRequest) {
             paletteHint,
             castRefGuidance(castRefsMetNaam),
             castSheetRefLine(castRefsMetNaam),
+            fotoSlotregel(styleId),
           ].filter(Boolean).join(" ").trim() || undefined,
         });
         castSheetUrl = await persistFalAssetSoft(supabase, user.id, sheet.imageUrl, "image");
@@ -407,15 +414,22 @@ export async function POST(req: NextRequest) {
         // stijlinstructies opleveren — precies de inconsistentie die deze
         // functie moet voorkomen. Zo'n scene gaat dus ongewijzigd naar het
         // beeldmodel, zonder extra laag.
-        const letterlijkeBeeldPrompt = (shots[i]?.beeldPrompt ?? "").trim();
+        //
+        // Uitzondering sinds 13-10-2026: de STIJL. Die is er hierboven uit gehaald
+        // en komt van de keuze in de app (buildIllustrationPrompt + stijlpack).
+        const letterlijkeBeeldPrompt = (zonderStijl[i] ?? "").trim();
         if (letterlijkeBeeldPrompt) {
           const pogingen: { url: string; fouten: StoryFout[] }[] = [];
           let extraRegels = "";
           for (let poging = 1; poging <= 2; poging++) {
             const result = await generateImageWithStyle({
-              prompt: [letterlijkeBeeldPrompt, extraRegels].filter(Boolean).join(" "),
+              prompt: [
+                buildIllustrationPrompt(letterlijkeBeeldPrompt, styleId, language, kader, scene.labels, format),
+                extraRegels,
+              ].filter(Boolean).join(" "),
               tekstGewenst: true,
               format,
+              visualStyle,
               seed,
               quality: imageQuality,
             });
@@ -490,6 +504,8 @@ export async function POST(req: NextRequest) {
             ? omgevingRegie({ beschrijving: plekHier.beschrijving, kenmerken: plekHier.kenmerken ?? [] })
             : "",
           anchorUrl ? STYLE_MATCH_ANCHOR : "",
+          // Als laatste: een deel van de regels hierboven spreekt over tekenen.
+          fotoSlotregel(styleId),
         ].filter(Boolean).join(" ").trim() || undefined;
         // Het anker levert de tekenstijl, de portretten de identiteit. Ze horen
         // dus in verschillende slots: als ingredient trok het portret de stijl

@@ -5,7 +5,7 @@ import { persistFalAssetSoft } from "@/lib/infographics/persist-asset";
 import { beeldAlsDataUrl } from "@/lib/infographics/beeld-inline";
 import { isIndelingsAanwijzing, scherpereInstructie } from "@/lib/infographics/beeld-aanwijzing";
 import { controleerAanwijzing } from "@/lib/infographics/aanwijzing-controle";
-import { visualStyleVan, toegestaneStijl, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, castSheetOrderLine } from "@/lib/infographics/story-style";
+import { fotoSlotregel, visualStyleVan, toegestaneStijl, buildIllustrationPrompt, STYLE_MATCH_ANCHOR, brandPaletteHint, REFERENCE_PHOTO_GUIDANCE, castRefGuidance, castGuidance, CAST_SHEET_GUIDANCE, GEEN_CAST_IN_SCENE, castSheetOrderLine } from "@/lib/infographics/story-style";
 import { castRefsVanSpec, castRefsVoorScene, MAX_CAST_REFS, type StoryCastMember, type StoryCastRef, type StoryVoorwerp, type StoryOmgeving } from "@/lib/infographics/story-schema";
 import { voorwerpRegie } from "@/lib/infographics/dialogue-staging";
 import { omgevingRegie } from "@/lib/infographics/omgeving";
@@ -257,6 +257,7 @@ export async function POST(req: NextRequest) {
               ? omgevingRegie({ beschrijving: body.omgeving.beschrijving, kenmerken: body.omgeving.kenmerken ?? [] })
               : "",
             anchor ? STYLE_MATCH_ANCHOR : "",
+            fotoSlotregel(body.styleId),
           ].filter(Boolean).join(" ").trim() || undefined;
           // Portretten in het character-slot (identiteit), het anker en een
           // meegestuurde foto als ingredient (stijl resp. onderwerp).

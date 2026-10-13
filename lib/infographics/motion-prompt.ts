@@ -1,3 +1,5 @@
+import { isFotoStijl } from "@/lib/infographics/story-style";
+
 // Bouwt de prompt voor de image-to-video (Seedance Lite) van een story-scene.
 //
 // FILOSOFIE: het beeld subtiel tot leven brengen volgens de LOGICA van het
@@ -16,6 +18,12 @@ const PRESERVE_RULE =
 
 const STYLE_RULE =
   "Flat 2D animated explainer-video style. Static locked camera, no camera movement, no zoom, no pan, no parallax. No 3D, no realism, no new lighting. Smooth, subtle, seamless loop.";
+
+// De vaste regel hierboven zei bij élke scène "vlakke 2D-animatie, geen
+// realisme". Bij de realistische stijl maakte het videomodel van een foto dan
+// halverwege de clip een tekening. Die stijl krijgt dus zijn eigen regel.
+const FOTO_STYLE_RULE =
+  "Real live-action video footage: keep the photorealistic look of the source image exactly — real people, real skin, real materials and natural light. Never turn it into a drawing, cartoon, illustration, painting, CGI or 3D render, not even for a moment. Static locked camera, no camera movement, no zoom, no pan, no parallax. Smooth, subtle, seamless loop.";
 
 // Géén opsomming van bladeren/wolken/rook meer. We dwingen het model naar de
 // interne logica van het beeld: alleen bewegen wat er realistisch zou bewegen.
@@ -63,12 +71,13 @@ const OVERHEID_MOTION =
 const PLAN_KADER =
   "This is the ONLY motion in the clip. Everything else in the image stays completely still. Keep the motion small, slow, smooth and natural, and do not add any second movement anywhere in the frame.";
 
-export function buildMotionPrompt(steer?: string, mode?: "story" | "report" | "overheid"): string {
+export function buildMotionPrompt(steer?: string, mode?: "story" | "report" | "overheid", styleId?: string | null): string {
   const extra = (steer || "").trim();
   if (mode === "overheid") {
     const motion = extra ? `${extra} ${PLAN_KADER}` : OVERHEID_MOTION;
     return `Animate ONLY the elements in the existing image. ${motion} ${OVERHEID_STYLE_RULE} ${OVERHEID_PRESERVE}`.slice(0, 2500);
   }
   const motion = extra ? `${extra} ${PLAN_KADER}` : DEFAULT_MOTION;
-  return `Animate ONLY the existing image. ${motion} ${STYLE_RULE} ${PRESERVE_RULE}`.slice(0, 2500);
+  const stijl = isFotoStijl(styleId) ? FOTO_STYLE_RULE : STYLE_RULE;
+  return `Animate ONLY the existing image. ${motion} ${stijl} ${PRESERVE_RULE}`.slice(0, 2500);
 }
