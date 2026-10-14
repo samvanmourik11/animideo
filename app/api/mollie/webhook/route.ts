@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { isTeruggeboekt, verwerkAchterstandBetaling, verwerkTerugboeking } from "@/lib/achterstand";
 
 const MOLLIE_BASE = "https://api.mollie.com/v2";
 
@@ -55,6 +56,28 @@ export async function POST(req: NextRequest) {
   const isTraject       = metadata?.isTraject       as boolean | undefined;
 
   const supabase = createServiceClient();
+
+  // ── Terugboeking (SEPA-storno) ────────────────────────────────────────────
+  // Mollie roept deze webhook opnieuw aan als er op een betaling wordt
+  // teruggeboekt; de status blijft dan "paid" en alleen `amountChargedBack`
+  // loopt op (hoofdletter B — de oude controle hieronder schreef het met een
+  // kleine b en zag daardoor nooit één terugboeking). Daarom staat dit vóór alle
+  // andere takken: anders leest de rest een storno als geslaagde betaling.
+  if (isTeruggeboekt(payment)) {
+    try {
+      await verwerkTerugboeking(paymentId);
+    } catch (e) {
+      // De dagelijkse sweep (cron/achterstand) pakt hem alsnog op.
+      console.error("[webhook] terugboeking verwerken mislukt:", e instanceof Error ? e.message : String(e));
+    }
+    return NextResponse.json({ received: true });
+  }
+
+  // ── Betaling van een openstaand bedrag via de betaallink ──────────────────
+  if (metadata?.achterstand) {
+    await verwerkAchterstandBetaling(payment);
+    return NextResponse.json({ received: true });
+  }
 
   // ── Starttraject (eenmalige betaling €246 → 3000 credits) ────────────────
   // Volledig geïsoleerd: markeer de checkout als betaald en stop. Geen
@@ -243,7 +266,7 @@ export async function POST(req: NextRequest) {
   // ── Successful recurring payment: renew credits ───────────────────────────
   if (status === "paid" && sequenceType === "recurring") {
     // Een teruggeboekte incasso blijft "paid" en wordt opnieuw gemeld: nooit bijschrijven.
-    if (Number(payment.amountChargedback?.value ?? 0) > 0) {
+    if (Number(payment.amountChargedBack?.value ?? 0) > 0) {
       return NextResponse.json({ received: true });
     }
 

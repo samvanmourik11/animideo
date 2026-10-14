@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import NavBar from "@/components/NavBar";
 import { getProfile } from "@/lib/credits";
+import AchterstandBalk from "@/components/AchterstandBalk";
 
 export default async function AppLayout({
   children,
@@ -26,6 +27,7 @@ export default async function AppLayout({
         creditsResetDate={profile.credits_reset_date}
         hideLeren={profile.hide_leren}
       />
+      {profile.achterstand_sinds ? <AchterstandBalk userId={user.id} /> : null}
       <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
     </div>
   );

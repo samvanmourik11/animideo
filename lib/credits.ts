@@ -60,6 +60,8 @@ export interface Profile {
   credits_reset_date: string | null;
   hide_leren: boolean;
   is_admin?: boolean;
+  /** Gezet na een teruggeboekte incasso; leeg zodra er betaald is (lib/achterstand.ts). */
+  achterstand_sinds?: string | null;
   created_at: string;
 }
 
@@ -118,6 +120,12 @@ export async function deductCredits(
   // Unlimited accounts: skip deduction entirely
   if (profile.email && UNLIMITED_ACCOUNTS.has(profile.email)) {
     return { success: true, credits: profile.credits };
+  }
+
+  // Teruggeboekte incasso nog niet betaald: het account staat op slot tot de
+  // betaallink is gebruikt. De balk bovenin de app legt uit waarom.
+  if (profile.achterstand_sinds) {
+    return { success: false, credits: profile.credits };
   }
 
   if (profile.credits < amount) {
