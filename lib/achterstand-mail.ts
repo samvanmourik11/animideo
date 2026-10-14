@@ -9,7 +9,13 @@
 //    gegeven en de software nooit te hebben gebruikt, terwijl ze het vinkje voor
 //    het doorlopende abonnement had gezet en twee video's had gemaakt.
 //  - "mislukt": de incasso ging mis zonder dat de klant erom vroeg (onvoldoende
-//    saldo, geblokkeerde rekening). Zakelijk maar vriendelijk, zonder bewijslast.
+//    saldo, geblokkeerde rekening). Zakelijk maar vriendelijk.
+//
+// De reeks bouwt op (Sam, 14-10-2026): de eerste mail meldt het en is nog
+// vriendelijk, want een terugboeking is vaak een vergissing. De herinnering laat
+// zien hoe het abonnement tot stand kwam, pas de laatste legt ook het gebruik
+// op tafel. Wie meteen het hele dossier krijgt, voelt zich beschuldigd voordat
+// er iets mis is.
 
 import { SELLER } from "@/lib/receipt";
 
@@ -141,20 +147,22 @@ function inleiding(d: Dossier, soort: MailSoort): string[] {
     return [
       `Op ${lijstVanDatums(d.eerderGemaild)} hebben we u gemaild over een openstaand bedrag van ${bedrag}. ` +
         `We hebben uw betaling nog niet ontvangen.`,
+      `Hieronder ziet u hoe uw abonnement tot stand is gekomen, en welke betalingen er zijn gedaan.`,
     ];
   }
   if (soort === "laatste") {
     return [
       `Dit is onze laatste herinnering. Ondanks onze e-mails van ${lijstVanDatums(d.eerderGemaild)} ` +
         `staat het bedrag van ${bedrag} nog altijd open.`,
+      `Hieronder vindt u het volledige overzicht: hoe uw abonnement tot stand is gekomen, uw betalingen ` +
+        `en hoe u de dienst heeft gebruikt.`,
     ];
   }
   if (d.toon === "bewust") {
     return [
-      `U heeft ${meer ? `de incasso's van ${datums}` : `de incasso van ${datums}`} voor uw abonnement op ` +
-        `JouwAnimatieVideo A.I. via uw bank laten terugboeken.`,
-      `Uw abonnement liep in die periode gewoon door en de dienst stond voor u klaar. ` +
-        `${meer ? "Deze bedragen zijn" : "Dit bedrag is"} daarmee niet betaald en ${meer ? "staan" : "staat"} nog open.`,
+      `We zagen dat ${meer ? `de incasso's van ${datums}` : `de incasso van ${datums}`} voor uw abonnement op ` +
+        `JouwAnimatieVideo A.I. via uw bank ${meer ? "zijn" : "is"} teruggeboekt. Misschien is dat per vergissing gebeurd.`,
+      `Uw abonnement liep in die periode gewoon door, dus ${meer ? "deze bedragen staan" : "dit bedrag staat"} nog open.`,
     ];
   }
   return [
@@ -169,6 +177,10 @@ function betaalVerzoek(d: Dossier, soort: MailSoort): string {
   if (soort === "laatste") {
     return `Betaal het openstaande bedrag van ${bedrag} binnen 14 dagen na deze e-mail. ` +
       `Blijft betaling uit, dan nemen wij verdere stappen om het bedrag te innen.`;
+  }
+  if (soort === "eerste") {
+    return `Wilt u het openstaande bedrag van ${bedrag} binnen 14 dagen betalen? Dat kan eenvoudig met de knop hieronder. ` +
+      `Klopt er iets niet, antwoord dan gerust op deze e-mail, dan kijken we samen naar een oplossing.`;
   }
   return `Wij verzoeken u het openstaande bedrag van ${bedrag} binnen 14 dagen te betalen.`;
 }
@@ -255,13 +267,15 @@ function blokVervolg(): Blok {
 function blokken(d: Dossier, soort: MailSoort): { voor: Blok[]; na: Blok[] } {
   const voor: Blok[] = [{ alineas: [...inleiding(d, soort), betaalVerzoek(d, soort)] }];
   const na: Blok[] = [];
-  if (d.toon === "bewust") {
+  // Eerste mail: alleen de melding. Herinnering: + aanmelding en betalingen.
+  // Laatste: + het gebruik. Zie de kop van dit bestand.
+  if (soort !== "eerste") {
     const a = blokAanmelding(d);
     if (a) na.push(a);
-    na.push(blokGebruik(d));
+    const b = blokBetalingen(d);
+    if (b) na.push(b);
   }
-  const b = blokBetalingen(d);
-  if (b) na.push(b);
+  if (soort === "laatste") na.push(blokGebruik(d));
   na.push(blokVervolg());
   return { voor, na };
 }

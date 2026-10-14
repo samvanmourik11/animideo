@@ -30,6 +30,26 @@ export const HERINNERING_NA_DAGEN = 7;
 
 const AFZENDER = "JouwAnimatieVideo <noreply@jouwanimatievideo.nl>";
 const ANTWOORD_NAAR = "info@jouwanimatievideo.nl";
+
+/**
+ * Antwoordt een klant op een mail, dan stopt de reeks en neemt de klantenservice
+ * het met de hand over (Sam, 14-10-2026): een herinnering terwijl je al een
+ * regeling aan het treffen bent, oogt onprofessioneel. Daarom gaat een antwoord
+ * naar een eigen adres per dossier dat Resend ontvangt (zie
+ * app/api/resend/inbound). Zolang ANTWOORD_DOMEIN niet gezet is, gaat het
+ * antwoord gewoon naar info@: anders zou een antwoord onbestelbaar terugkomen
+ * voordat de DNS klaar is.
+ */
+export function antwoordAdres(postId: string): string {
+  const domein = process.env.ANTWOORD_DOMEIN?.trim();
+  return domein ? `antwoord-${postId}@${domein}` : ANTWOORD_NAAR;
+}
+
+/** Het dossier-id uit een antwoordadres, of null. */
+export function postIdUitAdres(adres: string): string | null {
+  const m = /antwoord-([0-9a-f-]{36})@/i.exec(adres);
+  return m ? m[1].toLowerCase() : null;
+}
 /** Sam leest elke mail mee, zodat een reactie van de klant nooit als verrassing komt. */
 const KOPIE_NAAR = "info@jouwanimatievideo.nl";
 
@@ -47,6 +67,8 @@ export interface Post {
   mail_1_op: string | null;
   mail_2_op: string | null;
   mail_3_op: string | null;
+  /** De klant antwoordde op een mail: geen automatische mails meer, de klantenservice neemt het over. */
+  gereageerd_op: string | null;
   created_at: string;
 }
 
@@ -359,7 +381,11 @@ export async function stelDossierSamen(posten: Post[]): Promise<Dossier | null> 
 
 // ── Mailen ────────────────────────────────────────────────────────────────
 
-async function verstuur(aan: string, mail: { onderwerp: string; text: string; html: string }): Promise<string | null> {
+async function verstuur(
+  aan: string,
+  mail: { onderwerp: string; text: string; html: string },
+  antwoordAan: string = ANTWOORD_NAAR
+): Promise<string | null> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return "RESEND_API_KEY ontbreekt";
   const res = await fetch("https://api.resend.com/emails", {
@@ -369,7 +395,7 @@ async function verstuur(aan: string, mail: { onderwerp: string; text: string; ht
       from: AFZENDER,
       to: [aan],
       bcc: aan === KOPIE_NAAR ? undefined : [KOPIE_NAAR],
-      reply_to: ANTWOORD_NAAR,
+      reply_to: antwoordAan,
       subject: mail.onderwerp,
       text: mail.text,
       html: mail.html,
@@ -394,14 +420,23 @@ export async function mailKlant(post: Post, soort: MailSoort): Promise<{ verstuu
   const posten = await openPostenVan(post);
   if (posten.length === 0) return { verstuurd: false, fout: "niets open" };
 
-  const dossier = await stelDossierSamen(posten);
   const ids = posten.map((p) => p.id);
+  // Heeft de klant al geantwoord, dan ligt het dossier bij de klantenservice,
+  // ook als er intussen een nieuwe terugboeking bij is gekomen.
+  const gereageerd = posten.map((p) => p.gereageerd_op).filter((x): x is string => !!x).sort()[0];
+  if (gereageerd) {
+    await db.from("chargebacks").update({ gereageerd_op: gereageerd }).in("id", ids).is("gereageerd_op", null);
+    return { verstuurd: false, fout: "klant heeft gereageerd" };
+  }
+
+  const dossier = await stelDossierSamen(posten);
   if (!dossier) {
     await db.from("chargebacks").update({ mail_fout: "Geen e-mailadres bekend" }).in("id", ids);
     return { verstuurd: false, fout: "geen e-mailadres" };
   }
 
-  const fout = await verstuur(dossier.email, bouwMail(dossier, soort));
+  const nieuwste = [...posten].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+  const fout = await verstuur(dossier.email, bouwMail(dossier, soort), antwoordAdres(nieuwste.id));
   if (fout) {
     await db.from("chargebacks").update({ mail_fout: fout }).in("id", ids);
     console.error(`[achterstand] mail (${soort}) aan ${dossier.email} mislukt: ${fout}`);
@@ -440,9 +475,10 @@ export async function verstuurHerinneringen(nu = Date.now()): Promise<{ klant: s
 
 /** Welke mail er voor deze post nu aan de beurt is, of null. Los voor de tests. */
 export function volgendeMail(
-  p: Pick<Post, "mail_1_op" | "mail_2_op" | "mail_3_op" | "email">,
+  p: Pick<Post, "mail_1_op" | "mail_2_op" | "mail_3_op" | "email"> & { gereageerd_op?: string | null },
   nu = Date.now()
 ): MailSoort | null {
+  if (p.gereageerd_op) return null;
   const wacht = HERINNERING_NA_DAGEN * DAG;
   const verstreken = (iso: string) => nu - new Date(iso).getTime() >= wacht;
   // Eerste mail nooit verstuurd (bv. Resend lag eruit): alsnog proberen.
@@ -516,4 +552,73 @@ export async function verwerkAchterstandBetaling(payment: MolliePayment): Promis
     const fout = await verstuur(email, bouwBevestiging(naam, Number(payment.amount.value)));
     if (fout) console.error(`[achterstand] bevestiging aan ${email} mislukt: ${fout}`);
   }
+}
+
+// ── Antwoorden ────────────────────────────────────────────────────────────
+
+/**
+ * Een klant antwoordde op een van de mails. Stopt de reeks voor al zijn open
+ * posten en stuurt het antwoord door naar info@, met het dossier erbij, zodat
+ * de klantenservice het meteen kan oppakken. Het slot op het account blijft:
+ * het bedrag staat nog open tot de klantenservice anders besluit.
+ */
+export async function verwerkAntwoord(mail: {
+  emailId: string;
+  van: string;
+  aan: string[];
+  onderwerp: string;
+}): Promise<{ herkend: boolean }> {
+  const db = createServiceClient();
+  const postId = mail.aan.map(postIdUitAdres).find((x): x is string => !!x) ?? null;
+  const vanAdres = (/<([^>]+)>/.exec(mail.van)?.[1] ?? mail.van).trim().toLowerCase();
+
+  // Eerst via het adres (werkt ook als de klant vanaf een ander adres antwoordt),
+  // anders via de afzender.
+  let post = postId ? await haalPost(postId) : null;
+  if (!post) {
+    const { data } = await db.from("chargebacks").select("*").eq("status", "open").ilike("email", vanAdres).limit(1);
+    post = ((data ?? [])[0] as Post | undefined) ?? null;
+  }
+
+  const nu = new Date().toISOString();
+  const posten = post ? await openPostenVan(post) : [];
+  if (posten.length) {
+    await db.from("chargebacks").update({ gereageerd_op: nu }).in("id", posten.map((p) => p.id)).is("gereageerd_op", null);
+  }
+
+  // De inhoud zit niet in de webhook; die halen we apart op.
+  let tekst = "";
+  let html = "";
+  try {
+    const res = await fetch(`https://api.resend.com/emails/receiving/${encodeURIComponent(mail.emailId)}`, {
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}` },
+    });
+    if (res.ok) {
+      const j = (await res.json()) as { text?: string | null; html?: string | null };
+      tekst = j.text ?? "";
+      html = j.html ?? "";
+    }
+  } catch {
+    // Doorsturen zonder inhoud is beter dan niet doorsturen: info@ ziet dan in elk geval wie er reageerde.
+  }
+
+  const totaalOpen = posten.reduce((s, p) => s + Number(p.amount ?? 0), 0);
+  const kop = posten.length
+    ? `${vanAdres} heeft gereageerd op de mail over de terugboeking. De automatische herinneringen zijn gestopt; ` +
+      `neem het vanaf hier met de hand over. Openstaand: € ${totaalOpen.toFixed(2).replace(".", ",")}. ` +
+      `Het account staat nog op slot tot er betaald is of je het dossier afboekt.`
+    : `${vanAdres} stuurde een mail naar het antwoordadres van de terugboekingsmails, maar er is geen open dossier gevonden.`;
+  const fout = await verstuur(
+    KOPIE_NAAR,
+    {
+      onderwerp: `Reactie op terugboeking: ${mail.onderwerp || "(geen onderwerp)"}`,
+      text: `${kop}\n\n---\n\n${tekst || "(Inhoud niet op te halen, zie Resend > Receiving.)"}`,
+      html:
+        `<p style="font-family:sans-serif;background:#fef3c7;padding:12px;border-radius:6px">${kop.replace(/</g, "&lt;")}</p><hr>` +
+        (html || `<pre style="white-space:pre-wrap">${(tekst || "(Inhoud niet op te halen, zie Resend > Receiving.)").replace(/</g, "&lt;")}</pre>`),
+    },
+    vanAdres
+  );
+  if (fout) console.error(`[achterstand] antwoord van ${vanAdres} doorsturen mislukt: ${fout}`);
+  return { herkend: posten.length > 0 };
 }

@@ -5,7 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/supabase/service", () => ({ createServiceClient: () => ({}) }));
 
 import { bouwMail, rekeningKort, toonVoorReden, type Dossier } from "@/lib/achterstand-mail";
-import { isTeruggeboekt, volgendeMail } from "@/lib/achterstand";
+import { antwoordAdres, isTeruggeboekt, postIdUitAdres, volgendeMail } from "@/lib/achterstand";
+import { svixGeldig } from "@/lib/svix-handtekening";
+import { createHmac } from "crypto";
 
 const DAG = 24 * 60 * 60 * 1000;
 
@@ -59,10 +61,24 @@ describe("toon", () => {
 });
 
 describe("bouwMail", () => {
-  it("bewust: totaal, betaallink, het vinkje en het gebruik staan erin", () => {
+  it("eerste mail: alleen de melding en de betaallink, nog geen dossier", () => {
     const m = bouwMail(dossier(), "eerste");
     expect(m.onderwerp).toBe("Teruggeboekte incasso: openstaand bedrag € 98,00");
     expect(m.text).toContain("https://ai.jouwanimatievideo.nl/betalen/abc");
+    expect(m.text).toContain("vergissing");
+    expect(m.text).not.toContain("ZO IS UW ABONNEMENT TOT STAND GEKOMEN");
+    expect(m.text).not.toContain("ZO IS DE DIENST GEBRUIKT");
+  });
+
+  it("herinnering: + hoe het abonnement ontstond, nog zonder gebruik", () => {
+    const m = bouwMail(dossier({ eerderGemaild: ["2026-10-15T07:00:00Z"] }), "herinnering");
+    expect(m.text).toContain("Ik begrijp dat dit een doorlopend maandelijks abonnement is");
+    expect(m.text).toContain("OVERZICHT VAN UW BETALINGEN");
+    expect(m.text).not.toContain("ZO IS DE DIENST GEBRUIKT");
+  });
+
+  it("laatste: het volledige dossier, met gebruik", () => {
+    const m = bouwMail(dossier({ eerderGemaild: ["2026-10-15T07:00:00Z", "2026-10-22T07:00:00Z"] }), "laatste");
     expect(m.text).toContain("Ik begrijp dat dit een doorlopend maandelijks abonnement is");
     expect(m.text).toContain("14 juli 2026 om 17:21 uur");
     expect(m.text).toContain("3 projecten aangemaakt, waarvan 2 als video afgerond");
@@ -71,7 +87,7 @@ describe("bouwMail", () => {
     expect(m.html).toContain('href="https://ai.jouwanimatievideo.nl/betalen/abc"');
   });
 
-  it("mislukt: geen bewijslast, wel de reden in gewone taal", () => {
+  it("mislukt: eerste mail zonder bewijslast, wel de reden in gewone taal", () => {
     const m = bouwMail(dossier({ toon: "mislukt", redenCode: "AM04", open: [{ incassoDatum: "2026-10-13T23:44:44Z", bedrag: 49 }] }), "eerste");
     expect(m.onderwerp).toBe("Incasso niet gelukt: openstaand bedrag € 49,00");
     expect(m.text).toContain("onvoldoende saldo");
@@ -113,5 +129,39 @@ describe("isTeruggeboekt", () => {
     expect(isTeruggeboekt({ amountChargedBack: { value: "49.00" } })).toBe(true);
     expect(isTeruggeboekt({ amountChargedBack: null })).toBe(false);
     expect(rekeningKort("NL10 INGB 0005 3588 96")).toBe("eindigend op 8896");
+  });
+});
+
+describe("antwoorden", () => {
+  const id = "0a1b2c3d-1111-2222-3333-444455556666";
+
+  it("na een antwoord van de klant gaat er geen mail meer uit", () => {
+    const nu = Date.parse("2026-11-01T09:00:00Z");
+    const oud = new Date(nu - 30 * DAG).toISOString();
+    expect(volgendeMail({ email: "a@b.nl", mail_1_op: oud, mail_2_op: null, mail_3_op: null, gereageerd_op: oud }, nu)).toBeNull();
+    expect(volgendeMail({ email: "a@b.nl", mail_1_op: null, mail_2_op: null, mail_3_op: null, gereageerd_op: oud }, nu)).toBeNull();
+  });
+
+  it("antwoordadres valt terug op info@ zolang het domein niet is ingesteld", () => {
+    const oud = process.env.ANTWOORD_DOMEIN;
+    delete process.env.ANTWOORD_DOMEIN;
+    expect(antwoordAdres(id)).toBe("info@jouwanimatievideo.nl");
+    process.env.ANTWOORD_DOMEIN = "antwoord.jouwanimatievideo.nl";
+    expect(antwoordAdres(id)).toBe(`antwoord-${id}@antwoord.jouwanimatievideo.nl`);
+    expect(postIdUitAdres(`Klantenservice <antwoord-${id.toUpperCase()}@antwoord.jouwanimatievideo.nl>`)).toBe(id);
+    expect(postIdUitAdres("info@jouwanimatievideo.nl")).toBeNull();
+    if (oud === undefined) delete process.env.ANTWOORD_DOMEIN; else process.env.ANTWOORD_DOMEIN = oud;
+  });
+
+  it("webhook-handtekening: echt geldig, vervalst of te oud geweigerd", () => {
+    const geheim = "whsec_" + Buffer.from("geheime-sleutel-123").toString("base64");
+    const body = '{"type":"email.received"}';
+    const tijd = "1792000000";
+    const sig = createHmac("sha256", Buffer.from("geheime-sleutel-123")).update(`msg_1.${tijd}.${body}`).digest("base64");
+    const kop = { id: "msg_1", tijd, handtekening: `v1,${sig}` };
+    expect(svixGeldig(geheim, kop, body, 1792000010)).toBe(true);
+    expect(svixGeldig(geheim, kop, body + " ", 1792000010)).toBe(false);
+    expect(svixGeldig(geheim, kop, body, 1792000000 + 3600)).toBe(false);
+    expect(svixGeldig(geheim, { ...kop, handtekening: null }, body, 1792000010)).toBe(false);
   });
 });
