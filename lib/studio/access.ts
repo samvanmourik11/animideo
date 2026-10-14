@@ -80,9 +80,13 @@ export function canUseDialoog(email: string | null | undefined): boolean {
  * eerst bij één klant zien werken voor het voor iedereen open gaat. Miranda
  * meldde zich op 23-09-2026 aan om juist zulke explainers te maken.
  *
- * Openzetten voor iedereen: verplaats de stijl naar de gewone lijst in
- * lib/infographics/story-style.ts (haal `beperkt` weg).
+ * Sinds 14-10-2026 open voor iedereen (REALISTISCHE_STIJL_OPEN_TO_ALL): klanten
+ * vroegen er steeds vaker om, o.a. voor een horrorfilm met realistische beelden.
+ * De lijst hieronder blijft staan, zodat de stijl met één schakelaar weer alleen
+ * voor deze accounts kan gelden.
  */
+export const REALISTISCHE_STIJL_OPEN_TO_ALL = true;
+
 export const REALISTISCHE_STIJL_ACCOUNTS = new Set<string>([
   "mirandavand247@gmail.com",
   // Allison Knobben (uitvaartbegeleidster) — webinar 24-09-2026, per mail
@@ -91,6 +95,7 @@ export const REALISTISCHE_STIJL_ACCOUNTS = new Set<string>([
 ]);
 
 export function magRealistischeStijl(email: string | null | undefined): boolean {
+  if (REALISTISCHE_STIJL_OPEN_TO_ALL) return true;
   return !!email && (REALISTISCHE_STIJL_ACCOUNTS.has(email.toLowerCase()) || isTeamAccount(email));
 }
 

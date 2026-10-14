@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { STORY_STYLE_PRESETS, stijlenVoor, isBeperkteStijl, visualStyleVan, buildIllustrationPrompt, storyStylePreamble, STIJL_VOORRANG, fotoSlotregel } from "./story-style";
 import { buildMotionPrompt } from "./motion-prompt";
-import { magRealistischeStijl } from "@/lib/studio/access";
+import { magRealistischeStijl, REALISTISCHE_STIJL_OPEN_TO_ALL } from "@/lib/studio/access";
 
 // De realistische stijl staat per account open. Een verkeerde filtering zou hem
 // bij élke klant in het menu zetten, en dat is precies wat we niet willen —
@@ -48,10 +48,10 @@ describe("wie de realistische stijl mag", () => {
     expect(magRealistischeStijl("isa@jouwanimatievideo.nl")).toBe(true);
   });
 
-  it("houdt andere klanten en lege accounts buiten", () => {
-    expect(magRealistischeStijl("iemand@anders.nl")).toBe(false);
-    expect(magRealistischeStijl(null)).toBe(false);
-    expect(magRealistischeStijl(undefined)).toBe(false);
+  it("staat sinds 14-10-2026 voor elke klant open", () => {
+    expect(REALISTISCHE_STIJL_OPEN_TO_ALL).toBe(true);
+    expect(magRealistischeStijl("iemand@anders.nl")).toBe(true);
+    expect(magRealistischeStijl("misieln.media@gmail.com")).toBe(true);
   });
 });
 
