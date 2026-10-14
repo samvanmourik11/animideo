@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isAdminAccount } from "@/lib/studio/access";
 import AdminDashboard from "@/components/admin/AdminDashboard";
 import ProviderKosten from "@/components/admin/ProviderKosten";
+import Achterstanden from "@/components/admin/Achterstanden";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export default async function AdminDashboardPage() {
   return (
     <div className="space-y-5">
       <AdminDashboard />
+      <Achterstanden />
       <ProviderKosten />
     </div>
   );

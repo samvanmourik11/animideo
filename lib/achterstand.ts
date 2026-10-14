@@ -622,3 +622,64 @@ export async function verwerkAntwoord(mail: {
   if (fout) console.error(`[achterstand] antwoord van ${vanAdres} doorsturen mislukt: ${fout}`);
   return { herkend: posten.length > 0 };
 }
+
+// ── Beheer ────────────────────────────────────────────────────────────────
+
+export interface OpenDossier {
+  /** De nieuwste post: daarmee spreekt het beheerscherm het dossier aan. */
+  postId: string;
+  email: string | null;
+  totaal: number;
+  aantal: number;
+  redenCode: string | null;
+  sinds: string;
+  laatsteMail: MailSoort | null;
+  laatsteMailOp: string | null;
+  gereageerdOp: string | null;
+}
+
+/** Alle open dossiers, één per klant, voor het beheerscherm. */
+export async function openDossiers(): Promise<OpenDossier[]> {
+  const { data } = await createServiceClient().from("chargebacks").select("*").eq("status", "open");
+  const perKlant = new Map<string, Post[]>();
+  for (const p of (data ?? []) as Post[]) {
+    const sleutel = p.mollie_customer_id ?? p.email ?? p.id;
+    perKlant.set(sleutel, [...(perKlant.get(sleutel) ?? []), p]);
+  }
+  return [...perKlant.values()]
+    .map((posten) => {
+      posten.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+      const n = posten[0];
+      const laatsteMail: MailSoort | null = n.mail_3_op ? "laatste" : n.mail_2_op ? "herinnering" : n.mail_1_op ? "eerste" : null;
+      return {
+        postId: n.id,
+        email: n.email,
+        totaal: Math.round(posten.reduce((s, p) => s + Number(p.amount ?? 0), 0) * 100) / 100,
+        aantal: posten.length,
+        redenCode: n.reden_code,
+        sinds: posten[posten.length - 1].created_at,
+        laatsteMail,
+        laatsteMailOp: n.mail_3_op ?? n.mail_2_op ?? n.mail_1_op,
+        gereageerdOp: posten.map((p) => p.gereageerd_op).filter((x): x is string => !!x).sort()[0] ?? null,
+      };
+    })
+    .sort((a, b) => (a.sinds < b.sinds ? 1 : -1));
+}
+
+/**
+ * De reeks met de hand stoppen (klant belde of mailde los naar info@) of weer
+ * hervatten. Geldt voor alle open posten van die klant; het slot op het account
+ * blijft staan tot er betaald is.
+ */
+export async function zetReeks(postId: string, stoppen: boolean): Promise<boolean> {
+  const post = await haalPost(postId);
+  if (!post) return false;
+  const ids = (await openPostenVan(post)).map((p) => p.id);
+  if (!ids.length) return false;
+  const { error } = await createServiceClient()
+    .from("chargebacks")
+    .update({ gereageerd_op: stoppen ? new Date().toISOString() : null })
+    .in("id", ids);
+  if (error) throw new Error(error.message);
+  return true;
+}
