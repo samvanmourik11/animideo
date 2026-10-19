@@ -83,7 +83,7 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
           )}
 
           <button onClick={maak} disabled={bezig || !klaar} className="btn-primary w-full disabled:opacity-50">
-            {bezig ? "Bezig met insturen…" : `Maak · ${r.credits} credits`}
+            {bezig ? "Bezig met insturen…" : `Maak · ${r.credits} credit${r.credits === 1 ? "" : "s"}`}
           </button>
           {fout && (
             <p className="text-sm text-red-600 dark:text-red-300 bg-red-500/10 rounded-xl px-3 py-2">
