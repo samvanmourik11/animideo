@@ -173,6 +173,7 @@ export default function CreatieDetail({
                 </div>
               )}
 
+              <p className="text-[11px] text-tekst-3 pt-1">Bewerken · 1 credit per keer</p>
               <div className="grid grid-cols-2 gap-2">
                 {BEWERKINGEN.map((b) =>
                   b.maker === "belichting" ? (
@@ -180,7 +181,7 @@ export default function CreatieDetail({
                       key={b.maker}
                       onClick={() => setPaneel(paneel === "licht" ? null : "licht")}
                       title={b.uitleg}
-                      className={`n-knop2 py-2 px-2 text-sm ${paneel === "licht" ? "border-blue-500" : ""}`}
+                      className={`n-knop2 py-2 px-2 text-sm whitespace-nowrap ${paneel === "licht" ? "border-blue-500" : ""}`}
                     >
                       {b.icoon} {b.label}
                     </button>
@@ -190,9 +191,9 @@ export default function CreatieDetail({
                       disabled={bezig}
                       title={b.uitleg}
                       onClick={() => verder(b.maker, {}, `${b.label}: gestart.`)}
-                      className="n-knop2 py-2 px-2 text-sm disabled:opacity-50"
+                      className="n-knop2 py-2 px-2 text-sm whitespace-nowrap disabled:opacity-50"
                     >
-                      {b.icoon} {b.label} <span className="ml-1 text-[11px] text-tekst-3">{b.credits} cr.</span>
+                      {b.icoon} {b.label}
                     </button>
                   ),
                 )}
