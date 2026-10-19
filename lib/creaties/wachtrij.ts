@@ -3,6 +3,7 @@ import { fal } from "@/lib/fal";
 import { createServiceClient } from "@/lib/supabase/service";
 import { addCredits, deductCredits, getCredits } from "@/lib/credits";
 import { maakOpdracht, resultaatUrl } from "./makers";
+import { receptOpdracht } from "./recepten-opdrachten";
 import type { Creatie, CreatieSoort } from "./types";
 
 fal.config({ credentials: process.env.FAL_KEY });
@@ -40,7 +41,9 @@ export async function startCreatie(
 ): Promise<Creatie> {
   let opdracht;
   try {
-    opdracht = maakOpdracht(maker, ruweInvoer);
+    // Recepten bouwen hun opdracht op de server (de verborgen opdrachten); de rest via het
+    // client-veilige makers-register.
+    opdracht = maker === "recept" ? receptOpdracht(ruweInvoer) : maakOpdracht(maker, ruweInvoer);
   } catch (e) {
     throw new WachtrijFout(e instanceof Error ? e.message : String(e), 400);
   }

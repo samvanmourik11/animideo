@@ -24,8 +24,8 @@ const MAKEN: Item[] = [
   { href: "/ontdek", label: "Ontdek", icoon: "🏠" },
   { href: "/maak/beeld", label: "Beeld", icoon: "🖼️" },
   { href: "/maak/video", label: "Video", icoon: "🎬" },
-  { href: "/effecten", label: "Effecten", icoon: "⚡", binnenkort: true },
-  { href: "/apps", label: "Apps", icoon: "🧩", binnenkort: true },
+  { href: "/effecten", label: "Effecten", icoon: "⚡" },
+  { href: "/apps", label: "Apps", icoon: "🧩" },
   { href: "/stem", label: "Stem & Lipsync", icoon: "🗣️", binnenkort: true },
   {
     href: "/dashboard",

@@ -10,6 +10,7 @@ import { CREATIES_GEWIJZIGD } from "@/components/app-shell/Zijbalk";
 export interface CreatieFilter {
   soort?: string;
   maker?: string;
+  recept?: string;
   favoriet?: boolean;
   map?: string;
   zoek?: string;
@@ -19,6 +20,7 @@ function query(f: CreatieFilter, voor?: string) {
   const p = new URLSearchParams();
   if (f.soort) p.set("soort", f.soort);
   if (f.maker) p.set("maker", f.maker);
+  if (f.recept) p.set("recept", f.recept);
   if (f.favoriet) p.set("favoriet", "1");
   if (f.map) p.set("map", f.map);
   if (f.zoek) p.set("zoek", f.zoek);

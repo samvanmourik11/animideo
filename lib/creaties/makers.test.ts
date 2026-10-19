@@ -125,3 +125,47 @@ describe("fase 2: bewerkingen en tekst-naar-video", () => {
     expect(resultaatUrl("beeld", { image: { url: "c" } })).toBe("c");
   });
 });
+
+import { RECEPTEN } from "./recepten";
+import { receptOpdracht, heeftOpdracht } from "./recepten-opdrachten";
+
+describe("fase 3: het receptenboek", () => {
+  it("elk recept heeft een verborgen opdracht en een unieke id", () => {
+    const ids = new Set<string>();
+    for (const r of RECEPTEN) {
+      expect(heeftOpdracht(r.id, r.soort), r.id).toBe(true);
+      expect(ids.has(r.id), r.id).toBe(false);
+      ids.add(r.id);
+    }
+  });
+
+  it("bouwt voor elk recept een opdracht die rekent wat het recept belooft", () => {
+    for (const r of RECEPTEN) {
+      const o = receptOpdracht({
+        receptId: r.id,
+        fotoUrl: "https://x/f.jpg",
+        tekst: "een rood pak",
+        toestemming: true,
+      });
+      expect(o.soort, r.id).toBe(r.soort);
+      expect(o.credits, r.id).toBe(r.credits);
+      expect(JSON.stringify(o.falInvoer)).toContain("https://x/f.jpg");
+    }
+  });
+
+  it("gezichtsrecepten vragen eerst toestemming", () => {
+    expect(() => receptOpdracht({ receptId: "vermeer", fotoUrl: "https://x/f.jpg" })).toThrow(/toestemming/);
+    expect(() => receptOpdracht({ receptId: "delfts-blauw", fotoUrl: "https://x/f.jpg" })).not.toThrow();
+  });
+
+  it("verplicht tekstveld en een foto zijn nodig", () => {
+    expect(() => receptOpdracht({ receptId: "outfit", fotoUrl: "https://x/f.jpg", toestemming: true })).toThrow(/Vul eerst in/);
+    expect(() => receptOpdracht({ receptId: "billboard" })).toThrow(/Kies eerst een foto/);
+    expect(() => receptOpdracht({ receptId: "bestaat-niet", fotoUrl: "https://x/f.jpg" })).toThrow(/bestaat niet/);
+  });
+
+  it("Nog eens: de opgeslagen invoer geeft dezelfde opdracht", () => {
+    const o = receptOpdracht({ receptId: "productfoto", fotoUrl: "https://x/f.jpg", tekst: "marmer" });
+    expect(receptOpdracht(o.invoer)).toEqual(o);
+  });
+});

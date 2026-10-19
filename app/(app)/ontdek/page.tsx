@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { Creatie } from "@/lib/creaties/types";
+import { RECEPTEN } from "@/lib/creaties/recepten";
+import ReceptTegel from "@/components/creaties/ReceptTegel";
 
 export const metadata = { title: "Ontdek · Animideo" };
 
@@ -20,8 +22,8 @@ interface Tegel {
 const TEGELS: Tegel[] = [
   { href: "/maak/beeld", titel: "Beeld", uitleg: "Typ wat je wilt zien en krijg een beeld.", icoon: "🖼️", kleur: "from-blue-500/20 to-transparent" },
   { href: "/maak/video", titel: "Video", uitleg: "Breng een beeld tot leven, of beschrijf wat er gebeurt.", icoon: "🎬", kleur: "from-violet-500/20 to-transparent" },
-  { href: "/effecten", titel: "Effecten", uitleg: "Foto erin, viraal filmpje eruit.", icoon: "⚡", kleur: "from-amber-500/20 to-transparent", binnenkort: true },
-  { href: "/apps", titel: "Apps", uitleg: "Eén klik: productfoto, profielfoto, achtergrond weg.", icoon: "🧩", kleur: "from-emerald-500/20 to-transparent", binnenkort: true },
+  { href: "/effecten", titel: "Effecten", uitleg: "Foto erin, viraal filmpje eruit.", icoon: "⚡", kleur: "from-amber-500/20 to-transparent" },
+  { href: "/apps", titel: "Apps", uitleg: "Eén klik: productfoto, profielfoto, achtergrond weg.", icoon: "🧩", kleur: "from-emerald-500/20 to-transparent" },
   { href: "/stem", titel: "Stem & Lipsync", uitleg: "Nederlandse stemmen en pratende foto's.", icoon: "🗣️", kleur: "from-pink-500/20 to-transparent", binnenkort: true },
   { href: "/dashboard", titel: "Studio's", uitleg: "De grote videotools: uitleg-, verhaal- en dialoogvideo's.", icoon: "🏗️", kleur: "from-slate-500/20 to-transparent" },
 ];
@@ -60,6 +62,16 @@ export default async function OntdekPagina() {
           );
           return t.binnenkort ? <div key={t.titel}>{inhoud}</div> : <Link key={t.titel} href={t.href}>{inhoud}</Link>;
         })}
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-tekst">✨ Nieuw deze week</h2>
+          <Link href="/apps" className="text-xs text-blue-500 hover:text-blue-400">Alle apps →</Link>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {RECEPTEN.filter((r) => r.nieuw).slice(0, 6).map((r) => <ReceptTegel key={r.id} recept={r} />)}
+        </div>
       </div>
 
       {recent.length > 0 && (

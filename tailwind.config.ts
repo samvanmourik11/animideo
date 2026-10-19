@@ -5,6 +5,8 @@ const config: Config = {
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    // De kleuren van de effect- en app-tegels staan in lib/creaties/recepten.ts.
+    "./lib/creaties/**/*.{ts,tsx}",
   ],
   // Licht/donker in de nieuwe app: de kleuren hangen aan CSS-variabelen onder
   // [data-thema] (zie globals.css), en "dark:" geldt binnen een donker thema-blok.

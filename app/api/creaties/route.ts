@@ -29,6 +29,8 @@ export async function GET(req: NextRequest) {
   if (soort === "beeld" || soort === "video" || soort === "audio") q = q.eq("soort", soort);
   const maker = p.get("maker");
   if (maker) q = q.eq("maker", maker);
+  const recept = p.get("recept");
+  if (recept) q = q.eq("invoer->>receptId", recept);
   if (p.get("favoriet") === "1") q = q.eq("favoriet", true);
   const map = p.get("map");
   if (map) q = q.eq("map_id", map);

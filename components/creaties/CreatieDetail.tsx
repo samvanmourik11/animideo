@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Creatie, CreatieMap } from "@/lib/creaties/types";
 import { BEWERKINGEN, LICHTRICHTINGEN, beeldCredits, modelNaam } from "@/lib/creaties/makers";
 import { VIDEO_MODELLEN, STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
+import { recept, receptPad } from "@/lib/creaties/recepten";
 import { startMaker, verwijder, zetFavoriet, zetMap } from "./gebruik-creaties";
 import { SCHAAKBORD, isDoorzichtig } from "./CreatieKaart";
 
@@ -32,6 +33,7 @@ export default function CreatieDetail({
 }) {
   const c = creatie;
   const formaat = (c.invoer as { formaat?: string }).formaat;
+  const receptVan = c.maker === "recept" ? recept((c.invoer as { receptId?: string }).receptId) : null;
   const [paneel, setPaneel] = useState<Paneel>(null);
   const [beweging, setBeweging] = useState("");
   const [videoModel, setVideoModel] = useState(STANDAARD_VIDEO_MODEL);
@@ -96,7 +98,7 @@ export default function CreatieDetail({
         <div className="p-5 space-y-5">
           <div className="flex items-start justify-between gap-3">
             <div className="text-xs text-tekst-3">
-              {c.maker === "upload" ? "Eigen foto" : modelNaam(c.fal_endpoint)} ·{" "}
+              {c.maker === "upload" ? "Eigen foto" : receptVan ? receptVan.naam : modelNaam(c.fal_endpoint)} ·{" "}
               {new Date(c.created_at).toLocaleString("nl-NL", { dateStyle: "medium", timeStyle: "short" })}
               {c.credits > 0 && <> · {c.credits} cr.</>}
             </div>
@@ -245,6 +247,11 @@ export default function CreatieDetail({
                 >
                   🔄 Nog eens{c.credits > 0 ? ` · ${c.credits} cr.` : ""}
                 </button>
+              )}
+              {receptVan && (
+                <Link href={receptPad(receptVan)} className="n-knop2 w-full">
+                  {receptVan.icoon} Naar {receptVan.naam}
+                </Link>
               )}
               {c.url && (
                 <a href={c.url} target="_blank" rel="noreferrer" download className="n-knop2 w-full">
