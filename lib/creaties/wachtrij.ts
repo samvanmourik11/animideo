@@ -201,6 +201,16 @@ async function markeerMislukt(c: Creatie, reden: string): Promise<Creatie | null
 
 const EXT: Record<CreatieSoort, string> = { beeld: "jpg", video: "mp4", audio: "mp3" };
 const MIME: Record<CreatieSoort, string> = { beeld: "image/jpeg", video: "video/mp4", audio: "audio/mpeg" };
+// Achtergrond-weg levert een PNG met doorzichtige achtergrond. Als .jpg opgeslagen werd
+// die doorzichtigheid zwart; dus het bestandstype volgen dat het model teruggeeft.
+const EXT_VOOR_MIME: Record<string, string> = {
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/jpeg": "jpg",
+  "video/mp4": "mp4",
+  "audio/mpeg": "mp3",
+  "audio/wav": "wav",
+};
 
 // De fal-link verloopt na een tijd; de bibliotheek moet het bestand blijven tonen.
 // Lukt het kopiëren niet, dan liever de tijdelijke link dan helemaal niets.
@@ -209,17 +219,21 @@ async function bewaarBestand(userId: string, tijdelijk: string, soort: CreatieSo
     const res = await fetch(tijdelijk);
     if (!res.ok) throw new Error(`Download mislukt (HTTP ${res.status})`);
     const buf = Buffer.from(await res.arrayBuffer());
-    const db = createServiceClient();
-    const pad = `${userId}/creaties/${randomUUID()}.${EXT[soort]}`;
-    const { error } = await db.storage
-      .from("scene-assets")
-      .upload(pad, buf, { contentType: MIME[soort], upsert: true });
-    if (error) throw new Error(error.message);
-    return db.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl;
+    const mime = (res.headers.get("content-type") ?? "").split(";")[0].trim();
+    const ext = EXT_VOOR_MIME[mime] ?? EXT[soort];
+    return await uploadNaarOpslag(userId, buf, ext, EXT_VOOR_MIME[mime] ? mime : MIME[soort]);
   } catch (e) {
     console.error("[creaties] bewaren mislukt, val terug op de tijdelijke link:", e);
     return tijdelijk;
   }
+}
+
+export async function uploadNaarOpslag(userId: string, buf: Buffer, ext: string, mime: string): Promise<string> {
+  const db = createServiceClient();
+  const pad = `${userId}/creaties/${randomUUID()}.${ext}`;
+  const { error } = await db.storage.from("scene-assets").upload(pad, buf, { contentType: mime, upsert: true });
+  if (error) throw new Error(error.message);
+  return db.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl;
 }
 
 function falReden(err: unknown): string {

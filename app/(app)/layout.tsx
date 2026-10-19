@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import Zijbalk from "@/components/app-shell/Zijbalk";
+import Inhoud from "@/components/app-shell/Inhoud";
+import { leesThema, THEMA_COOKIE, THEMA_ID } from "@/components/app-shell/thema";
 import { getProfile } from "@/lib/credits";
 import AchterstandBalk from "@/components/AchterstandBalk";
 
@@ -16,20 +19,26 @@ export default async function AppLayout({
 
   if (!user) redirect("/login");
 
-  const profile = await getProfile(user.id);
+  const [profile, cookieStore] = await Promise.all([getProfile(user.id), cookies()]);
+  const thema = leesThema(cookieStore.get(THEMA_COOKIE)?.value);
 
   return (
-    <div className="min-h-screen bg-[#060d1f]">
+    <div id={THEMA_ID} data-thema={thema} className="min-h-screen bg-vlak text-tekst">
       <Zijbalk
         email={user.email ?? ""}
         credits={profile.credits}
         plan={profile.plan}
         creditsResetDate={profile.credits_reset_date}
         hideLeren={profile.hide_leren}
+        thema={thema}
       />
       <div className="md:pl-60">
-        {profile.achterstand_sinds ? <AchterstandBalk userId={user.id} /> : null}
-        <main className="max-w-6xl mx-auto px-4 md:px-8 py-8">{children}</main>
+        {profile.achterstand_sinds ? (
+          <div data-thema="donker">
+            <AchterstandBalk userId={user.id} />
+          </div>
+        ) : null}
+        <Inhoud>{children}</Inhoud>
       </div>
     </div>
   );

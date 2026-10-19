@@ -71,3 +71,57 @@ describe("overig", () => {
     expect(modelNaam(VIDEO_MODELLEN[0].slug)).toBe(VIDEO_MODELLEN[0].naam);
   });
 });
+
+describe("fase 2: bewerkingen en tekst-naar-video", () => {
+  const bron = { bronUrl: "https://x/y.jpg", formaat: "9:16" };
+
+  it("elke bewerking houdt het formaat van het bronbeeld vast en kost het afgesproken tarief", () => {
+    for (const [maker, credits] of [
+      ["upscale", CREDIT_COSTS.UPSCALE],
+      ["achtergrond-weg", CREDIT_COSTS.ENHANCE],
+      ["gezicht", CREDIT_COSTS.ENHANCE],
+      ["belichting", CREDIT_COSTS.ENHANCE],
+    ] as const) {
+      const o = maakOpdracht(maker, bron);
+      expect(o.soort).toBe("beeld");
+      expect(o.credits).toBe(credits);
+      expect(o.invoer.formaat).toBe("9:16");
+      expect(o.falInvoer.image_url).toBe("https://x/y.jpg");
+    }
+  });
+
+  it("bewerkingen weigeren zonder geldig bronbeeld", () => {
+    expect(() => maakOpdracht("upscale", { bronUrl: "file:///etc/passwd" })).toThrow(/Kies eerst een beeld/);
+  });
+
+  it("belichting: staand beeld blijft staand, onbekende richting wordt links", () => {
+    const o = maakOpdracht("belichting", { ...bron, richting: "Achter" });
+    expect(o.falInvoer.image_size).toBe("portrait_16_9");
+    expect(o.falInvoer.initial_latent).toBe("Left");
+  });
+
+  it("aanpassen met tekst gaat naar de bewerk-variant met het bronbeeld", () => {
+    const o = maakOpdracht("bewerk", { ...bron, prompt: "maak de jas rood" });
+    expect(o.endpoint).toBe("fal-ai/nano-banana/edit");
+    expect(o.falInvoer.image_urls).toEqual(["https://x/y.jpg"]);
+    expect(() => maakOpdracht("bewerk", { ...bron, prompt: "" })).toThrow(/Schrijf eerst/);
+  });
+
+  it("beeld met eigen voorbeeldfoto gaat via de bewerk-variant", () => {
+    const o = maakOpdracht("beeld", { prompt: "x", referentieUrl: "https://r/f.jpg" });
+    expect(o.endpoint).toBe("fal-ai/nano-banana/edit");
+    expect(o.falInvoer.image_urls).toEqual(["https://r/f.jpg"]);
+    expect(maakOpdracht("beeld", o.invoer)).toEqual(o);
+  });
+
+  it("tekst-naar-video: standaard liggend, gewone videoprijs", () => {
+    const o = maakOpdracht("tekst-naar-video", { prompt: "zeilboot" });
+    expect(o.soort).toBe("video");
+    expect(o.credits).toBe(CREDIT_COSTS.VIDEO_GENERATION);
+    expect(o.falInvoer.aspect_ratio).toBe("16:9");
+  });
+
+  it("resultaatUrl vindt ook het losse beeld van de bewerkmodellen", () => {
+    expect(resultaatUrl("beeld", { image: { url: "c" } })).toBe("c");
+  });
+});

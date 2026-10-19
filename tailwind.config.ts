@@ -6,9 +6,20 @@ const config: Config = {
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  // Licht/donker in de nieuwe app: de kleuren hangen aan CSS-variabelen onder
+  // [data-thema] (zie globals.css), en "dark:" geldt binnen een donker thema-blok.
+  darkMode: ["variant", "&:is([data-thema=donker] *)"],
   theme: {
     extend: {
       colors: {
+        vlak: "rgb(var(--vlak) / <alpha-value>)",
+        paneel: "rgb(var(--paneel) / <alpha-value>)",
+        "paneel-2": "rgb(var(--paneel-2) / <alpha-value>)",
+        zijbalk: "rgb(var(--zijbalk) / <alpha-value>)",
+        rand: "rgb(var(--rand) / <alpha-value>)",
+        tekst: "rgb(var(--tekst) / <alpha-value>)",
+        "tekst-2": "rgb(var(--tekst-2) / <alpha-value>)",
+        "tekst-3": "rgb(var(--tekst-3) / <alpha-value>)",
         primary: {
           50: "#eff6ff",
           100: "#dbeafe",

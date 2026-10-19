@@ -18,6 +18,8 @@ export interface BeeldInvoer {
   prompt: string;
   formaat: Formaat;
   kwaliteit: "standaard" | "pro";
+  /** Eigen foto als voorbeeld (persoon, product, stijl). Leeg = vrij tekenen. */
+  referentieUrl?: string;
 }
 
 export interface VideoInvoer {
@@ -38,7 +40,30 @@ export interface Opdracht {
   invoer: Record<string, unknown>;
 }
 
-export type MakerId = "beeld" | "beeld-naar-video";
+export type MakerId =
+  | "beeld"
+  | "beeld-naar-video"
+  | "tekst-naar-video"
+  | "bewerk"
+  | "upscale"
+  | "achtergrond-weg"
+  | "gezicht"
+  | "belichting";
+
+/** De bewerkknoppen onder een beeld, in de volgorde waarin ze op het scherm staan. */
+export const BEWERKINGEN: { maker: MakerId; label: string; icoon: string; uitleg: string; credits: number }[] = [
+  { maker: "upscale", label: "Scherper", icoon: "🔍", uitleg: "Twee keer zo groot en scherper", credits: CREDIT_COSTS.UPSCALE },
+  { maker: "achtergrond-weg", label: "Achtergrond weg", icoon: "✂️", uitleg: "Alleen het onderwerp, doorzichtige achtergrond", credits: CREDIT_COSTS.ENHANCE },
+  { maker: "gezicht", label: "Gezicht verbeteren", icoon: "🙂", uitleg: "Scherpere, natuurlijke gezichten", credits: CREDIT_COSTS.ENHANCE },
+  { maker: "belichting", label: "Ander licht", icoon: "💡", uitleg: "Licht van links, rechts, boven of onder", credits: CREDIT_COSTS.ENHANCE },
+];
+
+export const LICHTRICHTINGEN = [
+  { id: "Left", label: "Van links" },
+  { id: "Right", label: "Van rechts" },
+  { id: "Top", label: "Van boven" },
+  { id: "Bottom", label: "Van onder" },
+] as const;
 
 // Zonder bewegingsopdracht maakte Seedance van een stilstaand beeld soms een wilde
 // camerarit; een rustige standaard geeft bij de meeste beelden het mooiste resultaat.
@@ -50,6 +75,16 @@ function tekst(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
+function formaatUit(v: unknown, standaard: Formaat = "1:1"): Formaat {
+  return (FORMATEN as readonly string[]).includes(v as string) ? (v as Formaat) : standaard;
+}
+
+function bron(ruw: Record<string, unknown>): string {
+  const url = tekst(ruw.bronUrl);
+  if (!/^https:\/\//.test(url)) throw new Error("Kies eerst een beeld.");
+  return url;
+}
+
 /**
  * Leest en controleert de invoer van een maker. Gooit met een Nederlandse melding als er
  * iets niet klopt; die gaat zo naar het scherm.
@@ -58,20 +93,24 @@ export function maakOpdracht(maker: string, ruw: Record<string, unknown>): Opdra
   if (maker === "beeld") {
     const prompt = tekst(ruw.prompt).slice(0, MAX_PROMPT);
     if (!prompt) throw new Error("Schrijf eerst wat je wilt zien.");
-    const formaat: Formaat = (FORMATEN as readonly string[]).includes(ruw.formaat as string)
-      ? (ruw.formaat as Formaat)
-      : "1:1";
+    const formaat = formaatUit(ruw.formaat);
     const kwaliteit = ruw.kwaliteit === "pro" ? "pro" : "standaard";
-    const invoer: BeeldInvoer = { prompt, formaat, kwaliteit };
+    const ref = tekst(ruw.referentieUrl);
+    const referentieUrl = /^https:\/\//.test(ref) ? ref : "";
+    const invoer: BeeldInvoer = { prompt, formaat, kwaliteit, ...(referentieUrl ? { referentieUrl } : {}) };
+    // Met een eigen foto erbij gaat het via de bewerk-variant: die neemt het voorbeeld
+    // mee (dezelfde persoon, hetzelfde product), de gewone variant kan dat niet.
+    const basis = kwaliteit === "pro" ? "fal-ai/nano-banana-pro" : "fal-ai/nano-banana";
     return {
       soort: "beeld",
-      endpoint: kwaliteit === "pro" ? "fal-ai/nano-banana-pro" : "fal-ai/nano-banana",
+      endpoint: referentieUrl ? `${basis}/edit` : basis,
       falInvoer: {
         prompt,
         aspect_ratio: formaat,
         num_images: 1,
         output_format: "jpeg",
         ...(kwaliteit === "pro" ? { resolution: "2K" } : {}),
+        ...(referentieUrl ? { image_urls: [referentieUrl] } : {}),
       },
       credits: beeldCredits(kwaliteit),
       prompt,
@@ -85,7 +124,12 @@ export function maakOpdracht(maker: string, ruw: Record<string, unknown>): Opdra
     const modelId = isVideoModel(ruw.model as string) ? (ruw.model as string) : STANDAARD_VIDEO_MODEL;
     const model = videoModel(modelId);
     const prompt = tekst(ruw.prompt).slice(0, MAX_PROMPT);
-    const invoer: VideoInvoer = { bronUrl, prompt, model: model.id };
+    const invoer: VideoInvoer & { formaat?: Formaat } = {
+      bronUrl,
+      prompt,
+      model: model.id,
+      ...(ruw.formaat ? { formaat: formaatUit(ruw.formaat) } : {}),
+    };
     return {
       soort: "video",
       endpoint: model.slug,
@@ -93,6 +137,112 @@ export function maakOpdracht(maker: string, ruw: Record<string, unknown>): Opdra
       credits: model.credits,
       prompt,
       invoer: { ...invoer },
+    };
+  }
+
+  if (maker === "tekst-naar-video") {
+    const prompt = tekst(ruw.prompt).slice(0, MAX_PROMPT);
+    if (!prompt) throw new Error("Schrijf eerst wat er in de video moet gebeuren.");
+    const formaat = formaatUit(ruw.formaat, "16:9");
+    return {
+      soort: "video",
+      endpoint: "fal-ai/bytedance/seedance/v1/lite/text-to-video",
+      falInvoer: { prompt, aspect_ratio: formaat, duration: "5", resolution: "720p" },
+      credits: CREDIT_COSTS.VIDEO_GENERATION,
+      prompt,
+      invoer: { prompt, formaat },
+    };
+  }
+
+  // De bewerkingen hieronder werken op een bestaand beeld. Het formaat van het bronbeeld
+  // gaat mee in de invoer, zodat de tegel in de bibliotheek de goede vorm houdt.
+  if (maker === "bewerk") {
+    const bronUrl = bron(ruw);
+    const prompt = tekst(ruw.prompt).slice(0, MAX_PROMPT);
+    if (!prompt) throw new Error("Schrijf eerst wat er anders moet.");
+    const kwaliteit = ruw.kwaliteit === "pro" ? "pro" : "standaard";
+    const formaat = formaatUit(ruw.formaat);
+    return {
+      soort: "beeld",
+      endpoint: kwaliteit === "pro" ? "fal-ai/nano-banana-pro/edit" : "fal-ai/nano-banana/edit",
+      falInvoer: {
+        // Zonder deze zin tekende het model bij een kleine wijziging soms een heel nieuw beeld.
+        prompt: `${prompt}. Keep everything else in the image exactly the same: composition, people, style and colors.`,
+        image_urls: [bronUrl],
+        num_images: 1,
+        output_format: "jpeg",
+      },
+      credits: beeldCredits(kwaliteit),
+      prompt,
+      invoer: { bronUrl, prompt, kwaliteit, formaat },
+    };
+  }
+
+  if (maker === "upscale") {
+    const bronUrl = bron(ruw);
+    const formaat = formaatUit(ruw.formaat);
+    return {
+      soort: "beeld",
+      endpoint: "fal-ai/clarity-upscaler",
+      falInvoer: {
+        image_url: bronUrl,
+        upscale_factor: 2,
+        creativity: 0.35,
+        resemblance: 1.5,
+        prompt: "masterpiece, best quality, highres",
+      },
+      credits: CREDIT_COSTS.UPSCALE,
+      prompt: "Scherper gemaakt",
+      invoer: { bronUrl, formaat },
+    };
+  }
+
+  if (maker === "achtergrond-weg") {
+    const bronUrl = bron(ruw);
+    const formaat = formaatUit(ruw.formaat);
+    return {
+      soort: "beeld",
+      endpoint: "fal-ai/birefnet",
+      falInvoer: { image_url: bronUrl },
+      credits: CREDIT_COSTS.ENHANCE,
+      prompt: "Achtergrond verwijderd",
+      invoer: { bronUrl, formaat },
+    };
+  }
+
+  if (maker === "gezicht") {
+    const bronUrl = bron(ruw);
+    const formaat = formaatUit(ruw.formaat);
+    return {
+      soort: "beeld",
+      endpoint: "fal-ai/codeformer",
+      falInvoer: { image_url: bronUrl, fidelity: 0.7, upscale_factor: 1, face_upscale: true },
+      credits: CREDIT_COSTS.ENHANCE,
+      prompt: "Gezicht verbeterd",
+      invoer: { bronUrl, formaat },
+    };
+  }
+
+  if (maker === "belichting") {
+    const bronUrl = bron(ruw);
+    const formaat = formaatUit(ruw.formaat);
+    const richting = LICHTRICHTINGEN.some((r) => r.id === ruw.richting) ? (ruw.richting as string) : "Left";
+    const label = LICHTRICHTINGEN.find((r) => r.id === richting)!.label.toLowerCase();
+    return {
+      soort: "beeld",
+      endpoint: "fal-ai/iclight-v2",
+      falInvoer: {
+        image_url: bronUrl,
+        prompt: "same image, same style, natural consistent lighting",
+        initial_latent: richting,
+        // Zonder vaste maat maakt IC-Light er een vierkant van en trekt hij het beeld scheef.
+        image_size: formaat === "9:16" ? "portrait_16_9" : formaat === "16:9" ? "landscape_16_9" : "square_hd",
+        num_images: 1,
+        output_format: "jpeg",
+      },
+      credits: CREDIT_COSTS.ENHANCE,
+      prompt: `Licht ${label}`,
+      invoer: { bronUrl, formaat, richting },
     };
   }
 
@@ -106,7 +256,8 @@ export function beeldCredits(kwaliteit: "standaard" | "pro"): number {
 /** Waar de url van het resultaat in het fal-antwoord staat. */
 export function resultaatUrl(soort: CreatieSoort, data: unknown): string | null {
   const d = data as { images?: { url?: string }[]; video?: { url?: string }; audio?: { url?: string } };
-  if (soort === "beeld") return d?.images?.[0]?.url ?? null;
+  // De meeste beeldmodellen geven een lijst, de bewerkmodellen (upscale, achtergrond) één beeld.
+  if (soort === "beeld") return d?.images?.[0]?.url ?? (d as { image?: { url?: string } })?.image?.url ?? null;
   if (soort === "video") return d?.video?.url ?? null;
   return d?.audio?.url ?? null;
 }
@@ -116,5 +267,15 @@ export function modelNaam(endpoint: string | null | undefined): string {
   if (!endpoint) return "Onbekend";
   if (endpoint === "fal-ai/nano-banana") return "Nano Banana";
   if (endpoint === "fal-ai/nano-banana-pro") return "Nano Banana Pro";
+  const namen: Record<string, string> = {
+    "fal-ai/nano-banana/edit": "Nano Banana (bewerken)",
+    "fal-ai/nano-banana-pro/edit": "Nano Banana Pro (bewerken)",
+    "fal-ai/clarity-upscaler": "Clarity Upscaler",
+    "fal-ai/birefnet": "BiRefNet",
+    "fal-ai/codeformer": "CodeFormer",
+    "fal-ai/iclight-v2": "IC-Light",
+    "fal-ai/bytedance/seedance/v1/lite/text-to-video": "Seedance Lite (tekst)",
+  };
+  if (namen[endpoint]) return namen[endpoint];
   return VIDEO_MODELLEN.find((m) => m.slug === endpoint)?.naam ?? endpoint;
 }

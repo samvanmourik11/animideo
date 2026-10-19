@@ -63,3 +63,53 @@
            transition-all duration-200;
   }
 }
+
+/* ── Nieuwe app: licht en donker ─────────────────────────────────────────
+   De schermen van de nieuwe app (menu, Ontdek, Maak, bibliotheek) gebruiken
+   alleen deze kleuren. De oude tools zijn met vaste donkere kleuren gebouwd;
+   die krijgen altijd een donker blok (zie components/app-shell/Inhoud.tsx). */
+[data-thema="donker"] {
+  --vlak: 6 13 31;
+  --paneel: 12 20 40;
+  --paneel-2: 22 31 54;
+  --zijbalk: 10 18 38;
+  --rand: 32 42 66;
+  --tekst: 255 255 255;
+  --tekst-2: 203 213 225;
+  --tekst-3: 120 134 158;
+  color-scheme: dark;
+}
+[data-thema="licht"] {
+  --vlak: 245 247 251;
+  --paneel: 255 255 255;
+  --paneel-2: 236 241 248;
+  --zijbalk: 255 255 255;
+  --rand: 223 229 239;
+  --tekst: 15 23 42;
+  --tekst-2: 51 65 85;
+  --tekst-3: 100 116 139;
+  color-scheme: light;
+}
+[data-thema="licht"] select option {
+  background: #fff;
+  color: #0f172a;
+}
+
+@layer components {
+  .n-kaart {
+    @apply bg-paneel border border-rand rounded-2xl p-6 shadow-sm;
+  }
+  .n-invoer {
+    @apply w-full bg-vlak border border-rand rounded-xl px-4 py-2.5 text-sm text-tekst
+           placeholder:text-tekst-3 focus:outline-none focus:ring-2 focus:ring-blue-500/40
+           focus:border-blue-500/50 transition-all duration-200;
+  }
+  .n-knop2 {
+    @apply inline-flex items-center justify-center bg-paneel-2 hover:bg-rand/60
+           text-tekst-2 hover:text-tekst font-medium py-2.5 px-5 rounded-xl
+           border border-rand transition-all duration-200;
+  }
+  .n-label {
+    @apply text-xs font-semibold uppercase tracking-wider text-tekst-3;
+  }
+}

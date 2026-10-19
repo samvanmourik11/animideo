@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { zetThema, type Thema } from "./thema";
 
 // Het menu van de nieuwe app. Niet langer "start een project" bovenin, maar links een
 // vaste rij met wat je kunt maken — zoals Higgsfield — met je eigen werk eronder.
@@ -22,7 +23,7 @@ interface Item {
 const MAKEN: Item[] = [
   { href: "/ontdek", label: "Ontdek", icoon: "🏠" },
   { href: "/maak/beeld", label: "Beeld", icoon: "🖼️" },
-  { href: "/maak/video", label: "Video", icoon: "🎬", binnenkort: true },
+  { href: "/maak/video", label: "Video", icoon: "🎬" },
   { href: "/effecten", label: "Effecten", icoon: "⚡", binnenkort: true },
   { href: "/apps", label: "Apps", icoon: "🧩", binnenkort: true },
   { href: "/stem", label: "Stem & Lipsync", icoon: "🗣️", binnenkort: true },
@@ -46,6 +47,7 @@ interface ZijbalkProps {
   plan: string;
   creditsResetDate: string | null;
   hideLeren: boolean;
+  thema: Thema;
 }
 
 const PLAN_LABELS: Record<string, string> = { free: "Gratis", starter: "Starter", pro: "Pro", agency: "Agency" };
@@ -53,10 +55,17 @@ const PLAN_LABELS: Record<string, string> = { free: "Gratis", starter: "Starter"
 /** Seintje van de maakschermen: er is iets gestart, ververs de wachtrij-teller nu. */
 export const CREATIES_GEWIJZIGD = "creaties:gewijzigd";
 
-export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLeren }: ZijbalkProps) {
+export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLeren, thema: beginThema }: ZijbalkProps) {
   const pad = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [thema, setThema] = useState<Thema>(beginThema);
+
+  function wisselThema() {
+    const nieuw: Thema = thema === "licht" ? "donker" : "licht";
+    setThema(nieuw);
+    zetThema(nieuw);
+  }
 
   // Zelfde reden als in de oude NavBar: credit-verbruik gebeurt in losse client-acties
   // die de layout niet herrenderen, dus het saldo houden we hier zelf bij.
@@ -134,10 +143,10 @@ export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLe
   function Regel({ item }: { item: Item }) {
     if (item.binnenkort) {
       return (
-        <div className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-slate-600 cursor-default">
+        <div className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-tekst-3/70 cursor-default">
           <span className="w-5 text-center opacity-60">{item.icoon}</span>
           <span className="flex-1">{item.label}</span>
-          <span className="text-[10px] uppercase tracking-wide bg-white/5 text-slate-500 px-1.5 py-0.5 rounded">
+          <span className="text-[10px] uppercase tracking-wide bg-paneel-2 text-tekst-3 px-1.5 py-0.5 rounded">
             binnenkort
           </span>
         </div>
@@ -148,14 +157,14 @@ export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLe
       <Link
         href={item.href}
         className={`flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-colors ${
-          actief ? "bg-blue-600 text-white font-semibold" : "text-slate-300 hover:bg-white/5 hover:text-white"
+          actief ? "bg-blue-600 text-white font-semibold" : "text-tekst-2 hover:bg-paneel-2 hover:text-tekst"
         }`}
       >
         <span className="w-5 text-center">{item.icoon}</span>
         <span className="flex-1">{item.label}</span>
         {item.href === "/mijn-werk" && bezig > 0 && (
-          <span className="flex items-center gap-1 text-[11px] bg-amber-400/15 text-amber-300 px-1.5 py-0.5 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-300 animate-pulse" />
+          <span className="flex items-center gap-1 text-[11px] bg-amber-400/20 text-amber-600 dark:text-amber-300 px-1.5 py-0.5 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
             {bezig}
           </span>
         )}
@@ -165,42 +174,49 @@ export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLe
 
   const inhoud = (
     <div className="flex flex-col h-full">
-      <Link href="/ontdek" className="block px-3 pt-5 pb-6 font-extrabold text-lg text-white tracking-tight">
-        Animideo<span className="text-blue-400">.</span>
+      <Link href="/ontdek" className="block px-3 pt-5 pb-6 font-extrabold text-lg text-tekst tracking-tight">
+        Animideo<span className="text-blue-500">.</span>
       </Link>
 
       <nav className="space-y-0.5 px-2">
         {MAKEN.map((i) => <Regel key={i.href} item={i} />)}
       </nav>
 
-      <div className="mt-6 px-5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-slate-600">Van jou</div>
+      <div className="mt-6 px-5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-tekst-3">Van jou</div>
       <nav className="space-y-0.5 px-2">
         {MIJN.map((i) => <Regel key={i.href} item={i} />)}
       </nav>
 
       <div className="mt-auto px-3 pb-4 pt-6 space-y-3">
+        <button
+          onClick={wisselThema}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-rand text-sm text-tekst-2 hover:bg-paneel-2"
+        >
+          <span>{thema === "licht" ? "☀️ Licht" : "🌙 Donker"}</span>
+          <span className="text-xs text-tekst-3">wissel</span>
+        </button>
         <Link
           href="/pricing"
           className={`block rounded-2xl border p-3 transition-colors ${
-            laag ? "border-red-500/30 bg-red-500/10 hover:bg-red-500/15" : "border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06]"
+            laag ? "border-red-500/30 bg-red-500/10 hover:bg-red-500/15" : "border-rand bg-paneel-2/60 hover:bg-paneel-2"
           }`}
         >
-          <div className="flex items-center justify-between text-xs text-slate-400">
+          <div className="flex items-center justify-between text-xs text-tekst-3">
             <span>{PLAN_LABELS[plan] ?? plan}</span>
             {resetDatum && <span>reset {resetDatum}</span>}
           </div>
-          <div className={`mt-1 text-lg font-bold ${laag ? "text-red-400" : "text-white"}`}>
-            ⚡ {liveCredits} <span className="text-sm font-medium text-slate-400">credits</span>
+          <div className={`mt-1 text-lg font-bold ${laag ? "text-red-500" : "text-tekst"}`}>
+            ⚡ {liveCredits} <span className="text-sm font-medium text-tekst-3">credits</span>
           </div>
-          <div className="mt-2 text-center text-xs font-semibold text-blue-300">Upgraden →</div>
+          <div className="mt-2 text-center text-xs font-semibold text-blue-500">Upgraden →</div>
         </Link>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 text-xs text-slate-500">
-          {!hideLeren && <Link href="/leren" className="hover:text-slate-200">Leren</Link>}
-          <Link href="/account" className="hover:text-slate-200">Account</Link>
-          <Link href="/support" className="hover:text-slate-200">Hulp</Link>
-          <button onClick={uitloggen} className="hover:text-slate-200">Uitloggen</button>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 text-xs text-tekst-3">
+          {!hideLeren && <Link href="/leren" className="hover:text-tekst">Leren</Link>}
+          <Link href="/account" className="hover:text-tekst">Account</Link>
+          <Link href="/support" className="hover:text-tekst">Hulp</Link>
+          <button onClick={uitloggen} className="hover:text-tekst">Uitloggen</button>
         </div>
-        <div className="px-1 text-[11px] text-slate-600 truncate">{email}</div>
+        <div className="px-1 text-[11px] text-tekst-3/70 truncate">{email}</div>
       </div>
     </div>
   );
@@ -208,22 +224,22 @@ export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLe
   return (
     <>
       {/* Telefoon: balk bovenin met een menuknop */}
-      <div className="md:hidden sticky top-0 z-40 flex items-center justify-between h-14 px-4 border-b border-white/[0.07] bg-[#060d1f]/95 backdrop-blur">
-        <button onClick={() => setOpen(true)} className="text-slate-200 text-xl" aria-label="Menu openen">☰</button>
-        <span className="font-extrabold text-white">Animideo<span className="text-blue-400">.</span></span>
-        <span className={`text-xs font-semibold ${laag ? "text-red-400" : "text-blue-300"}`}>⚡ {liveCredits}</span>
+      <div className="md:hidden sticky top-0 z-40 flex items-center justify-between h-14 px-4 border-b border-rand bg-vlak/95 backdrop-blur">
+        <button onClick={() => setOpen(true)} className="text-tekst text-xl" aria-label="Menu openen">☰</button>
+        <span className="font-extrabold text-tekst">Animideo<span className="text-blue-500">.</span></span>
+        <span className={`text-xs font-semibold ${laag ? "text-red-500" : "text-blue-500"}`}>⚡ {liveCredits}</span>
       </div>
       {open && (
         <div className="md:hidden fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
-          <aside className="absolute left-0 top-0 bottom-0 w-64 bg-[#0a1226] border-r border-white/[0.07] overflow-y-auto">
+          <aside className="absolute left-0 top-0 bottom-0 w-64 bg-zijbalk border-r border-rand overflow-y-auto">
             {inhoud}
           </aside>
         </div>
       )}
 
       {/* Computer: vaste balk links */}
-      <aside className="hidden md:block fixed left-0 top-0 bottom-0 w-60 bg-[#0a1226] border-r border-white/[0.07] overflow-y-auto z-30">
+      <aside className="hidden md:block fixed left-0 top-0 bottom-0 w-60 bg-zijbalk border-r border-rand overflow-y-auto z-30">
         {inhoud}
       </aside>
     </>

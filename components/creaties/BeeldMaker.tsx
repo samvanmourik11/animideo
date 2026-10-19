@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { FORMATEN, beeldCredits, type Formaat } from "@/lib/creaties/makers";
 import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "./CreatieKaart";
 import CreatieDetail from "./CreatieDetail";
+import BeeldKiezer, { type GekozenBeeld } from "./BeeldKiezer";
 import { startMaker, useCreaties, zetFavoriet } from "./gebruik-creaties";
 
 // Het maakscherm voor beelden. Dezelfde opbouw komt straks terug bij Video en de
@@ -22,6 +24,13 @@ const VOORBEELDEN = [
 ];
 
 export default function BeeldMaker() {
+  // "Gebruik als voorbeeld" in de bibliotheek komt hier binnen met ?ref=<url>.
+  const zoek = useSearchParams();
+  const startRef = zoek.get("ref");
+  const [referentie, setReferentie] = useState<GekozenBeeld | null>(
+    startRef && /^https:\/\//.test(startRef) ? { url: startRef } : null,
+  );
+  const [metVoorbeeld, setMetVoorbeeld] = useState(!!startRef);
   const [prompt, setPrompt] = useState("");
   const [formaat, setFormaat] = useState<Formaat>("1:1");
   const [kwaliteit, setKwaliteit] = useState<"standaard" | "pro">("standaard");
@@ -40,7 +49,7 @@ export default function BeeldMaker() {
       // Na elkaar insturen, niet tegelijk: dan houdt de server de grens van het aantal
       // dingen tegelijk in de maak netjes bij, en stopt het bij de eerste fout.
       for (let i = 0; i < aantal; i++) {
-        const c = await startMaker("beeld", { prompt, formaat, kwaliteit });
+        const c = await startMaker("beeld", { prompt, formaat, kwaliteit, referentieUrl: referentie?.url });
         lijst.zetVoor(c);
       }
     } catch (e) {
@@ -52,14 +61,14 @@ export default function BeeldMaker() {
 
   return (
     <div className="grid lg:grid-cols-[360px_1fr] gap-6 items-start">
-      <div className="card space-y-5 lg:sticky lg:top-8">
+      <div className="n-kaart space-y-5 lg:sticky lg:top-8">
         <div>
-          <h1 className="text-xl font-bold text-white">🖼️ Beeld maken</h1>
-          <p className="text-sm text-slate-400 mt-1">Schrijf wat je wilt zien. Alles wat je maakt komt in je bibliotheek.</p>
+          <h1 className="text-xl font-bold text-tekst">🖼️ Beeld maken</h1>
+          <p className="text-sm text-tekst-3 mt-1">Schrijf wat je wilt zien. Alles wat je maakt komt in je bibliotheek.</p>
         </div>
 
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Wat wil je zien?</label>
+          <label className="n-label">Wat wil je zien?</label>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
@@ -68,7 +77,7 @@ export default function BeeldMaker() {
             }}
             rows={5}
             placeholder="Bijvoorbeeld: een bakker in Volendam die verse stroopwafels uit de oven haalt"
-            className="input mt-1.5 resize-none"
+            className="n-invoer mt-1.5 resize-none"
           />
           {!prompt && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -76,7 +85,7 @@ export default function BeeldMaker() {
                 <button
                   key={v}
                   onClick={() => setPrompt(v)}
-                  className="text-[11px] text-slate-400 bg-white/5 hover:bg-white/10 rounded-full px-2.5 py-1 text-left"
+                  className="text-[11px] text-tekst-2 bg-paneel-2 hover:bg-rand rounded-full px-2.5 py-1 text-left"
                 >
                   {v.length > 42 ? v.slice(0, 42) + "…" : v}
                 </button>
@@ -86,38 +95,57 @@ export default function BeeldMaker() {
         </div>
 
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Formaat</label>
+          <label className="n-label">Formaat</label>
           <div className="mt-1.5 grid grid-cols-3 gap-2">
             {FORMATEN.map((f) => (
               <button
                 key={f}
                 onClick={() => setFormaat(f)}
                 className={`rounded-xl border py-2 text-sm transition-colors ${
-                  formaat === f ? "border-blue-500 bg-blue-500/15 text-white" : "border-white/10 text-slate-400 hover:text-white"
+                  formaat === f ? "border-blue-500 bg-blue-500/10 text-tekst" : "border-rand text-tekst-3 hover:text-tekst"
                 }`}
               >
                 {FORMAAT_LABEL[f]}
-                <span className="block text-[10px] text-slate-500">{f}</span>
+                <span className="block text-[10px] text-tekst-3">{f}</span>
               </button>
             ))}
           </div>
         </div>
 
+        <div>
+          <label className="flex items-center gap-2 text-sm text-tekst-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={metVoorbeeld}
+              onChange={(e) => {
+                setMetVoorbeeld(e.target.checked);
+                if (!e.target.checked) setReferentie(null);
+              }}
+            />
+            Eigen foto als voorbeeld <span className="text-tekst-3 text-xs">(persoon, product, stijl)</span>
+          </label>
+          {metVoorbeeld && (
+            <div className="mt-2">
+              <BeeldKiezer waarde={referentie} onKies={setReferentie} leeg="Welke foto moet het model volgen?" />
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Kwaliteit</label>
+            <label className="n-label">Kwaliteit</label>
             <select
               value={kwaliteit}
               onChange={(e) => setKwaliteit(e.target.value as "standaard" | "pro")}
-              className="input mt-1.5"
+              className="n-invoer mt-1.5"
             >
               <option value="standaard">Standaard</option>
               <option value="pro">Pro (scherper)</option>
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-500">Aantal</label>
-            <select value={aantal} onChange={(e) => setAantal(Number(e.target.value))} className="input mt-1.5">
+            <label className="n-label">Aantal</label>
+            <select value={aantal} onChange={(e) => setAantal(Number(e.target.value))} className="n-invoer mt-1.5">
               {[1, 2, 3, 4].map((n) => (
                 <option key={n} value={n}>{n}</option>
               ))}
@@ -129,25 +157,25 @@ export default function BeeldMaker() {
           {bezig ? "Bezig met insturen…" : `Maak · ${prijs} credit${prijs === 1 ? "" : "s"}`}
         </button>
         {fout && (
-          <p className="text-sm text-red-300 bg-red-500/10 rounded-xl px-3 py-2">
+          <p className="text-sm text-red-600 dark:text-red-300 bg-red-500/10 rounded-xl px-3 py-2">
             {fout}
             {fout === "Niet genoeg credits." && (
               <> <Link href="/pricing" className="underline">Credits bijkopen</Link></>
             )}
           </p>
         )}
-        <p className="text-[11px] text-slate-500">Je ziet altijd vóór het klikken wat het kost. Mislukt iets, dan krijg je je credits terug.</p>
+        <p className="text-[11px] text-tekst-3">Je ziet altijd vóór het klikken wat het kost. Mislukt iets, dan krijg je je credits terug.</p>
       </div>
 
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-slate-300">Jouw beelden</h2>
-          <Link href="/mijn-werk" className="text-xs text-blue-300 hover:text-blue-200">Hele bibliotheek →</Link>
+          <h2 className="text-sm font-semibold text-tekst-2">Jouw beelden</h2>
+          <Link href="/mijn-werk" className="text-xs text-blue-500 hover:text-blue-400">Hele bibliotheek →</Link>
         </div>
         {lijst.laden && lijst.creaties.length === 0 ? (
-          <p className="text-sm text-slate-500">Laden…</p>
+          <p className="text-sm text-tekst-3">Laden…</p>
         ) : lijst.creaties.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-white/10 p-12 text-center text-slate-500">
+          <div className="rounded-3xl border border-dashed border-rand p-12 text-center text-tekst-3">
             <div className="text-4xl mb-3">✨</div>
             Hier verschijnen je beelden. Begin links met een opdracht.
           </div>
