@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import NavBar from "@/components/NavBar";
+import Zijbalk from "@/components/app-shell/Zijbalk";
 import { getProfile } from "@/lib/credits";
 import AchterstandBalk from "@/components/AchterstandBalk";
 
@@ -20,15 +20,17 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen bg-[#060d1f]">
-      <NavBar
+      <Zijbalk
         email={user.email ?? ""}
         credits={profile.credits}
         plan={profile.plan}
         creditsResetDate={profile.credits_reset_date}
         hideLeren={profile.hide_leren}
       />
-      {profile.achterstand_sinds ? <AchterstandBalk userId={user.id} /> : null}
-      <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
+      <div className="md:pl-60">
+        {profile.achterstand_sinds ? <AchterstandBalk userId={user.id} /> : null}
+        <main className="max-w-6xl mx-auto px-4 md:px-8 py-8">{children}</main>
+      </div>
     </div>
   );
 }
