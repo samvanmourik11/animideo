@@ -1,0 +1,132 @@
+{
+  "vermeer": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-vrouw.jpg?v=1792447054752",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/vermeer.jpg?v=1792447144883",
+    "soort": "beeld"
+  },
+  "abri": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-advertentie.jpg?v=1792447095230",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/abri.jpg?v=1792447145552",
+    "soort": "beeld"
+  },
+  "billboard": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-advertentie.jpg?v=1792447095230",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/billboard.jpg?v=1792447145768",
+    "soort": "beeld"
+  },
+  "van-gogh": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-volledig.jpg?v=1792447396494",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/van-gogh.jpg?v=1792447440800",
+    "soort": "beeld"
+  },
+  "pakjesavond": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-vrouw.jpg?v=1792447054752",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/pakjesavond.jpg?v=1792447146529",
+    "soort": "beeld"
+  },
+  "koningsdag": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-vrouw.jpg?v=1792447054752",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/koningsdag.jpg?v=1792447146844",
+    "soort": "beeld"
+  },
+  "elfstedentocht": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-man.jpg?v=1792447114318",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/elfstedentocht.jpg?v=1792447147179",
+    "soort": "beeld"
+  },
+  "actiefiguur": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-man.jpg?v=1792447114318",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/actiefiguur.jpg?v=1792447147436",
+    "soort": "beeld"
+  },
+  "rembrandt": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-man.jpg?v=1792447114318",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/rembrandt.jpg?v=1792447147766",
+    "soort": "beeld"
+  },
+  "delfts-blauw": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-hond.jpg?v=1792447132663",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/delfts-blauw.jpg?v=1792447148177",
+    "soort": "beeld"
+  },
+  "knuffel": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-hond.jpg?v=1792447132663",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/knuffel.jpg?v=1792447148802",
+    "soort": "beeld"
+  },
+  "outfit": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-volledig.jpg?v=1792447396494",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/outfit.jpg?v=1792447440324",
+    "soort": "beeld"
+  },
+  "tekenfilm": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-man.jpg?v=1792447114318",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/tekenfilm.jpg?v=1792447153907",
+    "soort": "beeld"
+  },
+  "game": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-volledig.jpg?v=1792447396494",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/game.jpg?v=1792447409034",
+    "soort": "beeld"
+  },
+  "jaren-80": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-vrouw.jpg?v=1792447054752",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/jaren-80.jpg?v=1792447154546",
+    "soort": "beeld"
+  },
+  "huisdier-mens": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-hond.jpg?v=1792447132663",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/huisdier-mens.jpg?v=1792447156604",
+    "soort": "beeld"
+  },
+  "profielfoto": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-man.jpg?v=1792447114318",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/profielfoto.jpg?v=1792447160938",
+    "soort": "beeld"
+  },
+  "product-sfeer": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-product.jpg?v=1792447075606",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/product-sfeer.jpg?v=1792447161608",
+    "soort": "beeld"
+  },
+  "productfoto": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-product.jpg?v=1792447075606",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/productfoto.jpg?v=1792447163690",
+    "soort": "beeld"
+  },
+  "smelten": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-volledig.jpg?v=1792447396494",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/smelten.mp4?v=1792447517123",
+    "soort": "video"
+  },
+  "bullet-time": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-volledig.jpg?v=1792447396494",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bullet-time.mp4?v=1792447529501",
+    "soort": "video"
+  },
+  "product-draai": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-product.jpg?v=1792447075606",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/product-draai.mp4?v=1792447215608",
+    "soort": "video"
+  },
+  "confetti": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-vrouw.jpg?v=1792447054752",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/confetti.mp4?v=1792447220071",
+    "soort": "video"
+  },
+  "verdwijnen": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-volledig.jpg?v=1792447396494",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/verdwijnen.mp4?v=1792447531985",
+    "soort": "video"
+  },
+  "uitzoomen-ruimte": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-volledig.jpg?v=1792447396494",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/uitzoomen-ruimte.mp4?v=1792447524214",
+    "soort": "video"
+  },
+  "tot-leven": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/vermeer.jpg?v=1792447144883",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/tot-leven.mp4?v=1792447333021",
+    "soort": "video"
+  }
+}

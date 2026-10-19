@@ -43,8 +43,10 @@ const BEELD: Record<string, (tekst: string) => string> = {
     `A collectible action figure of the person from the reference photo, inside a blister-pack toy box with a clear plastic window, the figure standing in the box with accessories next to it${t ? `: ${t}` : ""}. Bold printed packaging with a name label. Product photo, studio lighting. ${ZELFDE_PERSOON}`,
   knuffel: () =>
     "Turn the subject from the reference photo into a soft, fluffy plush toy with stitched seams and button-like details, sitting on a bed. Keep its recognizable colors and features. Cute, cozy product photo.",
+  // De eerste versie gaf gewoon de foto terug: het model hield de realistische look aan.
+  // Daarom expliciet "geen foto" en de render-stijl benoemd.
   game: () =>
-    `The person from the reference photo as a stylized 3D video game character in a colorful adventure game, dynamic pose, game-like lighting and environment. ${ZELFDE_PERSOON}`,
+    `Completely restyle the image as a stylized 3D video game render, NOT a photograph: the person from the reference photo as a playable hero character with slightly exaggerated proportions, smooth stylized 3D shading, vibrant saturated colors, standing in a colorful fantasy game world with glowing collectibles, a health bar and score in the corner like an in-game screenshot. ${ZELFDE_PERSOON}`,
   tekenfilm: () =>
     `The person from the reference photo as a cheerful 3D animated movie character with big expressive eyes and soft stylized features, in a bright friendly scene. ${ZELFDE_PERSOON}`,
   outfit: (t) =>

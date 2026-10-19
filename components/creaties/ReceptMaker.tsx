@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { recept as zoekRecept, receptPad, RECEPTEN } from "@/lib/creaties/recepten";
+import { voorbeeld } from "@/lib/creaties/voorbeelden";
 import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "./CreatieKaart";
 import CreatieDetail from "./CreatieDetail";
@@ -14,6 +15,7 @@ import { startMaker, useCreaties, zetFavoriet } from "./gebruik-creaties";
 
 export default function ReceptMaker({ receptId }: { receptId: string }) {
   const r = zoekRecept(receptId)!;
+  const v = voorbeeld(r.id);
   const [foto, setFoto] = useState<GekozenBeeld | null>(null);
   const [tekst, setTekst] = useState("");
   const [toestemming, setToestemming] = useState(false);
@@ -106,10 +108,28 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
           {lijst.laden && lijst.creaties.length === 0 ? (
             <p className="text-sm text-tekst-3">Laden…</p>
           ) : lijst.creaties.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-rand p-12 text-center text-tekst-3">
-              <div className="text-4xl mb-3">{r.icoon}</div>
-              Kies links een foto en klik op Maak.
-            </div>
+            v ? (
+              <div className="n-kaart p-4">
+                <p className="text-sm text-tekst-2 mb-3">Zo ziet het eruit — links de foto die erin ging, rechts het resultaat:</p>
+                <div className="grid grid-cols-[1fr_auto_1.6fr] items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={v.invoer} alt="Voor" className="w-full rounded-2xl border border-rand" />
+                  <span className="text-2xl text-tekst-3">→</span>
+                  {v.soort === "video" ? (
+                    <video src={v.resultaat} autoPlay muted loop playsInline className="w-full rounded-2xl border border-rand" />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={v.resultaat} alt="Na" className="w-full rounded-2xl border border-rand" />
+                  )}
+                </div>
+                <p className="text-xs text-tekst-3 mt-3">Voorbeeld met een door AI bedachte persoon. Kies links je eigen foto en klik op Maak.</p>
+              </div>
+            ) : (
+              <div className="rounded-3xl border border-dashed border-rand p-12 text-center text-tekst-3">
+                <div className="text-4xl mb-3">{r.icoon}</div>
+                Kies links een foto en klik op Maak.
+              </div>
+            )
           ) : (
             <div className="columns-1 sm:columns-2 gap-3 [&>*]:mb-3 [&>*]:break-inside-avoid">
               {lijst.creaties.map((c) => (
@@ -131,7 +151,12 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {meer.map((m) => (
               <Link key={m.id} href={receptPad(m)} className="flex items-center gap-3 rounded-2xl border border-rand bg-paneel p-3 hover:border-blue-500/50">
-                <span className="text-2xl">{m.icoon}</span>
+                {voorbeeld(m.id) ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={voorbeeld(m.id)!.soort === "video" ? voorbeeld(m.id)!.invoer : voorbeeld(m.id)!.resultaat} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                ) : (
+                  <span className="text-2xl">{m.icoon}</span>
+                )}
                 <span className="text-sm font-medium text-tekst">{m.naam}</span>
               </Link>
             ))}
