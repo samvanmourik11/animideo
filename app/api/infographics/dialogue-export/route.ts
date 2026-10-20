@@ -1,4 +1,5 @@
 import { canUseDialoog } from "@/lib/studio/access";
+import { bewaarStudioVideo } from "@/lib/creaties/studio-video";
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { mkdtemp, writeFile, readFile, rm, rename, statfs } from "node:fs/promises";
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     if (!canUseDialoog(user.email)) return NextResponse.json({ error: "Deze tool is nog niet beschikbaar" }, { status: 403 });
 
-    const { spec } = (await req.json()) as { spec?: DialogueSpec };
+    const { spec, projectId } = (await req.json()) as { spec?: DialogueSpec; projectId?: string | null };
     if (!spec || !Array.isArray(spec.scenes) || spec.scenes.length === 0) {
       return NextResponse.json({ error: "Geen dialoog om te exporteren" }, { status: 400 });
     }
@@ -361,6 +362,15 @@ export async function POST(req: NextRequest) {
 
     await rm(dir, { recursive: true, force: true });
     dir = null;
+
+    await bewaarStudioVideo({
+      userId: user.id,
+      maker: "dialoog",
+      url: urlData.publicUrl,
+      titel: spec.title || "Dialoog",
+      formaat: spec.format,
+      projectId: typeof projectId === "string" ? projectId : null,
+    });
 
     return NextResponse.json({ url: urlData.publicUrl, segments: segmenten.length });
   } catch (err: unknown) {

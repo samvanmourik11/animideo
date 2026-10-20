@@ -28,12 +28,14 @@ const MAKEN: Item[] = [
   { href: "/apps", label: "Apps", icoon: "🧩" },
   { href: "/branches", label: "Voor jouw branche", icoon: "💼" },
   { href: "/stem", label: "Stem & Lipsync", icoon: "🗣️", binnenkort: true },
-  {
-    href: "/dashboard",
-    label: "Studio's",
-    icoon: "🏗️",
-    ook: ["/studio", "/infographics", "/explainer", "/playground", "/project"],
-  },
+];
+
+// De grote tools met hun eigen werkwijze. "Overige tools" houdt de oude projecten van
+// klanten bereikbaar (Creator Studio, Explainer, Infographic …).
+const STUDIOS: Item[] = [
+  { href: "/studios/storytelling", label: "Storytelling", icoon: "📖", ook: ["/infographics/story"] },
+  { href: "/studios/dialoog", label: "Dialoog", icoon: "💬", ook: ["/infographics/dialogue"] },
+  { href: "/dashboard", label: "Overige tools", icoon: "🗂️", ook: ["/studio", "/explainer", "/playground", "/project", "/infographics/new"] },
 ];
 
 const MIJN: Item[] = [
@@ -183,6 +185,11 @@ export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLe
 
       <nav className="space-y-0.5 px-2">
         {MAKEN.map((i) => <Regel key={i.href} item={i} />)}
+      </nav>
+
+      <div className="mt-6 px-5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-tekst-3">Studio&apos;s</div>
+      <nav className="space-y-0.5 px-2">
+        {STUDIOS.map((i) => <Regel key={i.href} item={i} />)}
       </nav>
 
       <div className="mt-6 px-5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-tekst-3">Van jou</div>

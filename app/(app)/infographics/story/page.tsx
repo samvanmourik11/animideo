@@ -1001,7 +1001,7 @@ export default function StoryPage() {
       const res = await fetch("/api/infographics/export-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spec, logoUrl: logoEnabled ? logoUrl : null }),
+        body: JSON.stringify({ spec, logoUrl: logoEnabled ? logoUrl : null, projectId }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(apiError(d, "Export mislukt"));

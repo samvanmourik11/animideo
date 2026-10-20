@@ -10,6 +10,8 @@ export function herkomst(c: Pick<Creatie, "maker" | "invoer" | "soort">): { naam
     if (r) return { naam: r.naam, pad: receptPad(r) };
   }
   if (c.maker === "reclame") return { naam: "Link → reclame", pad: "/apps/reclame" };
+  if (c.maker === "storytelling") return { naam: "Storytelling", pad: "/studios/storytelling" };
+  if (c.maker === "dialoog") return { naam: "Dialoog", pad: "/studios/dialoog" };
   if (c.soort === "video") return { naam: "Animideo Video", pad: "/maak/video" };
   return { naam: "Animideo Beeld", pad: "/maak/beeld" };
 }

@@ -8,7 +8,7 @@ import { VIDEO_MODELLEN, STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
 import { recept, receptPad } from "@/lib/creaties/recepten";
 import { startMaker, verwijder, zetFavoriet, zetMap } from "./gebruik-creaties";
 import { SCHAAKBORD, isDoorzichtig } from "./CreatieKaart";
-import { heeftGezicht } from "@/lib/delen/herkomst";
+import { heeftGezicht, herkomst } from "@/lib/delen/herkomst";
 
 // De detailweergave van één creatie — en vooral de vervolgknoppen. Dat is de motor van
 // de nieuwe app: iets is nooit "af", je gaat vanaf hier verder (er een video van maken,
@@ -35,6 +35,10 @@ export default function CreatieDetail({
   const c = creatie;
   const formaat = (c.invoer as { formaat?: string }).formaat;
   const receptVan = c.maker === "recept" ? recept((c.invoer as { receptId?: string }).receptId) : null;
+  // Video's uit de Studio's: die maak je niet "nog eens" met één klik, die open je weer in de tool.
+  const studio = c.maker === "storytelling" || c.maker === "dialoog";
+  const projectId = (c.invoer as { projectId?: string }).projectId;
+  const studioPad = c.maker === "storytelling" ? "/infographics/story" : "/infographics/dialogue";
   const [paneel, setPaneel] = useState<Paneel>(null);
   const [beweging, setBeweging] = useState("");
   const [videoModel, setVideoModel] = useState(STANDAARD_VIDEO_MODEL);
@@ -125,7 +129,7 @@ export default function CreatieDetail({
         <div className="p-5 space-y-5">
           <div className="flex items-start justify-between gap-3">
             <div className="text-xs text-tekst-3">
-              {c.maker === "upload" ? "Eigen foto" : receptVan ? receptVan.naam : modelNaam(c.fal_endpoint)} ·{" "}
+              {c.maker === "upload" ? "Eigen foto" : receptVan ? receptVan.naam : studio ? herkomst(c).naam : modelNaam(c.fal_endpoint)} ·{" "}
               {new Date(c.created_at).toLocaleString("nl-NL", { dateStyle: "medium", timeStyle: "short" })}
               {c.credits > 0 && <> · {c.credits} cr.</>}
             </div>
@@ -135,7 +139,7 @@ export default function CreatieDetail({
           {c.prompt && (
             <div>
               <div className="flex items-center justify-between mb-1">
-                <span className={kop}>{c.maker === "upload" ? "Bestand" : "Opdracht"}</span>
+                <span className={kop}>{c.maker === "upload" ? "Bestand" : studio ? "Titel" : "Opdracht"}</span>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(c.prompt ?? "");
@@ -261,7 +265,12 @@ export default function CreatieDetail({
 
           {c.status === "klaar" && (
             <div className="space-y-2">
-              {c.maker !== "upload" && (
+              {studio && (
+                <Link href={projectId ? `${studioPad}?project=${projectId}` : herkomst(c).pad} className="n-knop2 w-full">
+                  {c.maker === "storytelling" ? "📖" : "💬"} Open in {herkomst(c).naam}
+                </Link>
+              )}
+              {c.maker !== "upload" && !studio && (
                 <button
                   disabled={bezig}
                   onClick={() =>

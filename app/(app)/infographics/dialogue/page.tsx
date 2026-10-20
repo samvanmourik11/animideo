@@ -1352,7 +1352,7 @@ export default function DialoguePage() {
     try {
       const res = await fetch("/api/infographics/dialogue-export", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spec }),
+        body: JSON.stringify({ spec, projectId }),
       });
       // Loopt de server over zijn tijd of geheugen, dan stuurt Vercel een kale
       // tekstpagina ("An error occurred…") in plaats van JSON.

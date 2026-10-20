@@ -29,7 +29,8 @@ const TEGELS: Tegel[] = [
   { href: "/apps", titel: "Apps", uitleg: "Eén klik: productfoto, profielfoto, achtergrond weg.", icoon: "🧩", kleur: "from-emerald-500/20 to-transparent" },
   { href: "/branches", titel: "Voor jouw branche", uitleg: "Sjablonen voor zorg, onderwijs, gemeente, horeca, makelaar en installateur.", icoon: "💼", kleur: "from-sky-500/20 to-transparent" },
   { href: "/stem", titel: "Stem & Lipsync", uitleg: "Nederlandse stemmen en pratende foto's.", icoon: "🗣️", kleur: "from-pink-500/20 to-transparent", binnenkort: true },
-  { href: "/dashboard", titel: "Studio's", uitleg: "De grote videotools: uitleg-, verhaal- en dialoogvideo's.", icoon: "🏗️", kleur: "from-slate-500/20 to-transparent" },
+  { href: "/studios/storytelling", titel: "Storytelling", uitleg: "Een verhaal met illustraties en voice-over, scene voor scene.", icoon: "📖", kleur: "from-indigo-500/20 to-transparent" },
+  { href: "/studios/dialoog", titel: "Dialoog", uitleg: "Personages die met elkaar praten, met echte stemmen.", icoon: "💬", kleur: "from-teal-500/20 to-transparent" },
 ];
 
 export default async function OntdekPagina() {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { bewaarStudioVideo } from "@/lib/creaties/studio-video";
 import { Resvg } from "@resvg/resvg-js";
 import { spawn } from "node:child_process";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = (await req.json()) as { spec?: StorySpec; navy?: string; accent?: string; fontFamily?: string; logoUrl?: string | null };
+    const body = (await req.json()) as { spec?: StorySpec; navy?: string; accent?: string; fontFamily?: string; logoUrl?: string | null; projectId?: string | null };
     const spec = body.spec;
     if (!spec || !Array.isArray(spec.scenes) || spec.scenes.length === 0) {
       return NextResponse.json({ error: "Geen scenes om te exporteren" }, { status: 400 });
@@ -279,6 +280,15 @@ export async function POST(req: NextRequest) {
 
     await rm(dir, { recursive: true, force: true });
     dir = null;
+
+    await bewaarStudioVideo({
+      userId: user.id,
+      maker: "storytelling",
+      url: urlData.publicUrl,
+      titel: spec.title || "Verhaal",
+      formaat: spec.format,
+      projectId: typeof body.projectId === "string" ? body.projectId : null,
+    });
 
     return NextResponse.json({ url: urlData.publicUrl, scenes: N, duration: total });
   } catch (err: unknown) {
