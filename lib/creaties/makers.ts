@@ -10,6 +10,8 @@
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { VIDEO_MODELLEN, videoModel, isVideoModel, STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
 import type { CreatieSoort } from "./types";
+import { portretPrompt } from "@/lib/ugc/creators";
+import { isUgcStem } from "@/lib/ugc/types";
 
 export const FORMATEN = ["1:1", "9:16", "16:9"] as const;
 export type Formaat = (typeof FORMATEN)[number];
@@ -48,7 +50,8 @@ export type MakerId =
   | "upscale"
   | "achtergrond-weg"
   | "gezicht"
-  | "belichting";
+  | "belichting"
+  | "ugc-creator";
 
 /** De bewerkknoppen onder een beeld, in de volgorde waarin ze op het scherm staan. */
 export const BEWERKINGEN: { maker: MakerId; label: string; icoon: string; uitleg: string; credits: number }[] = [
@@ -246,6 +249,30 @@ export function maakOpdracht(maker: string, ruw: Record<string, unknown>): Opdra
     };
   }
 
+  // Een eigen UGC-creator: een portret uit een beschrijving, met een vaste stem erbij.
+  if (maker === "ugc-creator") {
+    const naam = tekst(ruw.naam).slice(0, 30);
+    const beschrijving = tekst(ruw.beschrijving).slice(0, 300);
+    if (!naam) throw new Error("Geef je creator een naam.");
+    if (beschrijving.length < 10) throw new Error("Beschrijf je creator iets uitgebreider (leeftijd, uiterlijk, kleding).");
+    if (!isUgcStem(ruw.stem)) throw new Error("Kies een stem.");
+    return {
+      soort: "beeld",
+      endpoint: "fal-ai/nano-banana-pro",
+      falInvoer: {
+        // Regels vooraf: altijd een verzonnen persoon, nooit een bekend gezicht.
+        prompt: portretPrompt(`a fictional AI-generated person (not resembling any real celebrity or public figure): ${beschrijving}`),
+        aspect_ratio: "9:16",
+        num_images: 1,
+        output_format: "jpeg",
+        resolution: "2K",
+      },
+      credits: CREDIT_COSTS.IMAGE_GENERATION_PRO,
+      prompt: `Creator: ${naam}`,
+      invoer: { naam, beschrijving, stem: ruw.stem, formaat: "9:16" },
+    };
+  }
+
   throw new Error("Onbekende maker.");
 }
 
@@ -276,6 +303,7 @@ export function modelNaam(endpoint: string | null | undefined): string {
     "fal-ai/iclight-v2": "IC-Light",
     "fal-ai/bytedance/seedance/v1/lite/text-to-video": "Seedance Lite (tekst)",
     reclame: "Link → reclame",
+    ugc: "UGC-studio",
   };
   if (namen[endpoint]) return namen[endpoint];
   return VIDEO_MODELLEN.find((m) => m.slug === endpoint)?.naam ?? endpoint;

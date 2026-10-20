@@ -30,6 +30,7 @@ const TEGELS: Tegel[] = [
   { href: "/branches", titel: "Voor jouw branche", uitleg: "Sjablonen voor zorg, onderwijs, gemeente, horeca, makelaar en installateur.", icoon: "💼", kleur: "from-sky-500/20 to-transparent" },
   { href: "/stem", titel: "Stem & Lipsync", uitleg: "Nederlandse stemmen en pratende foto's.", icoon: "🗣️", kleur: "from-pink-500/20 to-transparent", binnenkort: true },
   { href: "/studios/storytelling", titel: "Storytelling", uitleg: "Een verhaal met illustraties en voice-over, scene voor scene.", icoon: "📖", kleur: "from-indigo-500/20 to-transparent" },
+  { href: "/studios/ugc", titel: "UGC-studio", uitleg: "Een AI-creator vertelt over je product of dienst, zoals een echte klant.", icoon: "🤳", kleur: "from-rose-500/20 to-transparent" },
   { href: "/studios/dialoog", titel: "Dialoog", uitleg: "Personages die met elkaar praten, met echte stemmen.", icoon: "💬", kleur: "from-teal-500/20 to-transparent" },
 ];
 

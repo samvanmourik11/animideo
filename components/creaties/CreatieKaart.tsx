@@ -2,6 +2,7 @@
 
 import type { Creatie } from "@/lib/creaties/types";
 import { STAP_LABEL, type ReclameStap } from "@/lib/reclame/types";
+import { UGC_STAP_LABEL, type UgcStap } from "@/lib/ugc/types";
 
 // Eén tegel in de bibliotheek of de resultatenrij: het beeld of de video zelf, met
 // zichtbaar of het nog bezig is of mislukt. Klikken opent de detailweergave.
@@ -28,6 +29,7 @@ function bezigLabel(c: Creatie): string {
   // Een reclame loopt minutenlang door drie stappen; laat zien waar hij is.
   const stap = (c.invoer as { voortgang?: { stap?: ReclameStap } }).voortgang?.stap;
   if (c.maker === "reclame" && stap) return STAP_LABEL[stap];
+  if (c.maker === "ugc" && stap) return UGC_STAP_LABEL[stap as unknown as UgcStap] ?? "Wordt gemaakt…";
   return c.soort === "video" ? "Video wordt gemaakt…" : "Wordt gemaakt…";
 }
 

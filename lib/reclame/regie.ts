@@ -122,7 +122,7 @@ function beeldOpdracht(r: ReclameInvoer, i: number) {
 
 // Een foto van de webwinkel kan elk moment verdwijnen of hotlinken blokkeren; de
 // modellen moeten hem drie keer kunnen ophalen. Dus eerst naar onze eigen opslag.
-async function eigenKopie(userId: string, url: string): Promise<string> {
+export async function eigenKopie(userId: string, url: string): Promise<string> {
   if (url.includes(".supabase.co/storage/")) return url;
   const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; JouwAnimatieVideoBot/1.0)" } });
   const mime = (res.headers.get("content-type") ?? "").split(";")[0].trim();

@@ -5,6 +5,7 @@ import { betaal, betaalTerug } from "@/lib/team/team";
 import { maakOpdracht, resultaatUrl } from "./makers";
 import { receptOpdracht } from "./recepten-opdrachten";
 import { startReclame, verversReclame } from "@/lib/reclame/regie";
+import { startUgc, verversUgc } from "@/lib/ugc/regie";
 import type { Creatie, CreatieSoort } from "./types";
 
 fal.config({ credentials: process.env.FAL_KEY });
@@ -42,6 +43,7 @@ export async function startCreatie(
 ): Promise<Creatie> {
   // Een reclame is geen enkele fal-opdracht maar een reeks stappen; die heeft zijn eigen regie.
   if (maker === "reclame") return startReclame(userId, ruweInvoer, ouderId);
+  if (maker === "ugc") return startUgc(userId, ruweInvoer, ouderId);
 
   let opdracht;
   try {
@@ -133,6 +135,7 @@ export async function startCreatie(
 export async function ververs(c: Creatie): Promise<Creatie> {
   if (c.status !== "bezig") return c;
   if (c.maker === "reclame") return verversReclame(c);
+  if (c.maker === "ugc") return verversUgc(c);
   const leeftijd = Date.now() - new Date(c.created_at).getTime();
 
   if (!c.fal_request_id || !c.fal_endpoint) {
