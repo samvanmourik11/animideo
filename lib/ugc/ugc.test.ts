@@ -46,3 +46,17 @@ test("prijs: lipsync naar lengte, B-roll vast, en de schatting ligt in de buurt"
   const script = { stukjes: [{ soort: "praat" as const, tekst: "woord ".repeat(14), uitleg: "", beeld: "" }, { soort: "broll" as const, tekst: "woord ".repeat(8), uitleg: "", beeld: "" }, { soort: "praat" as const, tekst: "woord ".repeat(14), uitleg: "", beeld: "" }] };
   expect(Math.abs(ugcCredits(script) - geschatteUgcCredits(15, true))).toBeLessThanOrEqual(6);
 });
+
+describe("ondertitels volgen het script", async () => {
+  const { metScriptTekst } = await import("./montage");
+  test("zelfde aantal woorden: script-woorden met Whisper-tijden", () => {
+    const r = metScriptTekst([w("tonyschokolownly", 1, 1.6), w("com", 1.6, 1.9)], "tonyschocolonely.com nu!");
+    expect(r.map((x) => x.word)).toEqual(["tonyschocolonely.com", "nu!"]);
+    expect(r[0].start).toBe(1);
+  });
+  test("ander aantal: evenredig verdeeld, tijden lopen op", () => {
+    const r = metScriptTekst([w("a", 0, 0.5), w("b", 0.5, 1), w("c", 1, 1.5)], "een twee drie vier vijf");
+    expect(r).toHaveLength(5);
+    for (let i = 1; i < r.length; i++) expect(r[i].start).toBeGreaterThanOrEqual(r[i - 1].start);
+  });
+});

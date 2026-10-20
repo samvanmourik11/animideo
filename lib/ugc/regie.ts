@@ -115,7 +115,7 @@ function beeldOpdracht(r: UgcInvoer, i: number) {
   return {
     endpoint: BEELD_MODEL,
     input: {
-      prompt: `The person from the first reference image, filmed as a vertical selfie with the phone's front camera, looking into the camera, mouth closed, about to speak. ${s.beeld}${product} Keep the person's face, hair, age and skin tone exactly the same as in the first reference image. ${echt}`,
+      prompt: `The person from the first reference image, filmed as a vertical selfie with the phone's front camera, looking into the camera, mouth closed, about to speak. ${s.beeld}${product} The mouth stays completely free: not eating, not drinking, nothing near the face; any product is held at chest height so the whole face is visible. Keep the person's face, hair, age and skin tone exactly the same as in the first reference image. ${echt}`,
       image_urls: r.fotoUrl ? [r.creator.portretUrl, r.fotoUrl] : [r.creator.portretUrl],
     },
   };

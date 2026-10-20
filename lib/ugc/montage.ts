@@ -55,6 +55,21 @@ export function ondertitelBlokken(woorden: Woord[], max = 3): Blok[] {
   return uit;
 }
 
+/**
+ * De woorden uit het script, met de tijden van Whisper. Whisper hoort merknamen en
+ * websites verkeerd ("tonyschokolownly com"); wij weten precies wat er gezegd wordt.
+ * Is het aantal woorden gelijk, dan één op één; anders naar evenredige plek in de zin.
+ */
+export function metScriptTekst(gehoord: Woord[], tekst: string): Woord[] {
+  const woorden = tekst.split(/\s+/).filter(Boolean);
+  if (!gehoord.length || !woorden.length) return gehoord;
+  return woorden.map((word, i) => {
+    const j = woorden.length === gehoord.length ? i : Math.round((i * (gehoord.length - 1)) / Math.max(1, woorden.length - 1));
+    const k = woorden.length === gehoord.length ? i : Math.min(gehoord.length - 1, Math.round(((i + 1) * (gehoord.length - 1)) / Math.max(1, woorden.length - 1)));
+    return { word, start: gehoord[j].start, end: Math.max(gehoord[k].end, gehoord[j].start + 0.05) };
+  });
+}
+
 async function duur(bestand: string): Promise<number> {
   const { stderr } = await run(FFMPEG, ["-hide_banner", "-i", bestand], { maxBuffer: 1 << 22 }).catch(
     (e: { stderr?: string }) => ({ stderr: e.stderr ?? "" }),
@@ -90,7 +105,7 @@ export async function monteerUgc(m: { clips: string[]; audio: string[]; teksten:
         console.error("[ugc] woordtijden mislukt, verder met de tekst:", e instanceof Error ? e.message : e);
       }
       const stuk = woorden.length
-        ? ondertitelBlokken(woorden)
+        ? ondertitelBlokken(metScriptTekst(woorden, m.teksten[i]))
         : [{ tekst: m.teksten[i], van: 0, tot: duren[i] }];
       for (const b of stuk) blokken.push({ tekst: b.tekst, van: begin + b.van, tot: begin + Math.min(b.tot, duren[i]) });
       begin += duren[i];
