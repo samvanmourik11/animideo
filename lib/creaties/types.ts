@@ -23,6 +23,10 @@ export interface Creatie {
   favoriet: boolean;
   /** Van wiens saldo het betaald is, als dat niet de maker was (team). Zie 101_teams.sql. */
   betaald_door?: string | null;
+  /** Openbare deelcode (/d/<code>); leeg = niet gedeeld. Zie 102_delen.sql. */
+  deel_code?: string | null;
+  deel_poster?: string | null;
+  gedeeld_op?: string | null;
   created_at: string;
   klaar_op: string | null;
 }

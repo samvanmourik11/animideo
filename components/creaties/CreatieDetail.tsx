@@ -8,6 +8,7 @@ import { VIDEO_MODELLEN, STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
 import { recept, receptPad } from "@/lib/creaties/recepten";
 import { startMaker, verwijder, zetFavoriet, zetMap } from "./gebruik-creaties";
 import { SCHAAKBORD, isDoorzichtig } from "./CreatieKaart";
+import { heeftGezicht } from "@/lib/delen/herkomst";
 
 // De detailweergave van één creatie — en vooral de vervolgknoppen. Dat is de motor van
 // de nieuwe app: iets is nooit "af", je gaat vanaf hier verder (er een video van maken,
@@ -42,6 +43,20 @@ export default function CreatieDetail({
   const [bezig, setBezig] = useState(false);
   const [melding, setMelding] = useState<string | null>(null);
   const [gekopieerd, setGekopieerd] = useState(false);
+  const [deelToestemming, setDeelToestemming] = useState(false);
+  const [linkGekopieerd, setLinkGekopieerd] = useState(false);
+  const deelUrl = c.deel_code && typeof window !== "undefined" ? `${window.location.origin}/d/${c.deel_code}` : null;
+
+  async function delen(aan: boolean) {
+    const res = await fetch(`/api/creaties/${c.id}/delen`, {
+      method: aan ? "POST" : "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: aan ? JSON.stringify({ toestemming: deelToestemming }) : undefined,
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error ?? "Delen mislukt");
+    onGewijzigd(d.creatie);
+  }
 
   async function doe(actie: () => Promise<void>) {
     setBezig(true);
@@ -262,6 +277,64 @@ export default function CreatieDetail({
                 <a href={c.url} target="_blank" rel="noreferrer" download className="n-knop2 w-full">
                   ⬇️ Downloaden
                 </a>
+              )}
+            </div>
+          )}
+
+          {c.status === "klaar" && c.maker !== "upload" && (
+            <div className="space-y-2 rounded-2xl border border-rand p-3">
+              <span className={kop}>Delen</span>
+              {deelUrl ? (
+                <>
+                  <div className="flex gap-2">
+                    <input readOnly value={deelUrl} className="n-invoer flex-1 text-xs" onFocus={(e) => e.target.select()} />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(deelUrl);
+                        setLinkGekopieerd(true);
+                        setTimeout(() => setLinkGekopieerd(false), 1500);
+                      }}
+                      className="n-knop2 shrink-0 text-xs"
+                    >
+                      {linkGekopieerd ? "✓" : "Kopieer"}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    <a href={`https://wa.me/?text=${encodeURIComponent(deelUrl)}`} target="_blank" rel="noreferrer" className="text-emerald-600 dark:text-emerald-400 hover:underline">
+                      WhatsApp
+                    </a>
+                    <a href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(deelUrl)}`} target="_blank" rel="noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
+                      LinkedIn
+                    </a>
+                    <a href={deelUrl} target="_blank" rel="noreferrer" className="text-tekst-3 hover:text-tekst">Bekijk</a>
+                    <button
+                      disabled={bezig}
+                      onClick={() => doe(async () => { await delen(false); setMelding("Gestopt met delen: de link werkt niet meer."); })}
+                      className="ml-auto text-red-500 hover:text-red-400"
+                    >
+                      Stop met delen
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-tekst-3">Krijg een link die iedereen kan openen, ook zonder account.</p>
+                  {heeftGezicht(c) && (
+                    // Iets voor jezelf maken is wat anders dan het openbaar zetten: daarom bij
+                    // gezichten opnieuw vragen, niet achteraf controleren.
+                    <label className="flex items-start gap-2 text-xs text-tekst-2 cursor-pointer">
+                      <input type="checkbox" checked={deelToestemming} onChange={(e) => setDeelToestemming(e.target.checked)} className="mt-0.5" />
+                      <span>Iedereen op dit beeld vindt het goed dat ik het deel.</span>
+                    </label>
+                  )}
+                  <button
+                    disabled={bezig || (heeftGezicht(c) && !deelToestemming)}
+                    onClick={() => doe(async () => delen(true))}
+                    className="n-knop2 w-full disabled:opacity-50"
+                  >
+                    🔗 Maak een deellink
+                  </button>
+                </>
               )}
             </div>
           )}

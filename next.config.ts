@@ -28,6 +28,8 @@ const nextConfig: NextConfig = {
     // doorlopen (lib/reclame/montage.ts), met Poppins voor de tekst in beeld.
     "/api/creaties": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf"],
     "/api/creaties/lopend": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf"],
+    // Delen maakt van een video een voorbeeldplaatje voor WhatsApp en LinkedIn.
+    "/api/creaties/[id]/delen": ["./node_modules/ffmpeg-static/ffmpeg"],
     // Chromium-render-routes: naast ffmpeg ook de VOLLEDIGE playwright-core
     // (incl. browsers.json) en de @sparticuz/chromium-binary meetracen — anders
     // faalt de launch op Vercel met "Cannot find module .../browsers.json".
