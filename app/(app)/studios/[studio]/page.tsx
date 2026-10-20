@@ -3,19 +3,13 @@ import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { studio as zoekStudio } from "@/lib/studios";
 import StudioVideos from "@/components/studios/StudioVideos";
+import StudioProjecten, { type ProjectRij } from "@/components/studios/StudioProjecten";
 
 export async function generateMetadata({ params }: { params: Promise<{ studio: string }> }) {
   const s = zoekStudio((await params).studio);
   return { title: s ? `${s.naam} · Animideo` : "Animideo" };
 }
 
-interface ProjectRij {
-  id: string;
-  title: string | null;
-  updated_at: string | null;
-  created_at: string;
-  thumb: string | null;
-}
 
 // De startpagina van een studio: nieuw beginnen, of verder met een eerder project. Het
 // voorbeeldplaatje komt rechtstreeks uit het opgeslagen verhaal (eerste scene), zonder
@@ -34,7 +28,8 @@ export default async function StudioStart({ params }: { params: Promise<{ studio
     .eq("user_id", user.id)
     .eq("mode", s.mode)
     .order("updated_at", { ascending: false, nullsFirst: false })
-    .limit(48);
+    // Alles: bestaande projecten moeten na de overstap gewoon terug te vinden zijn.
+    .limit(1000);
   const projecten = (data ?? []) as unknown as ProjectRij[];
 
   return (
@@ -50,37 +45,7 @@ export default async function StudioStart({ params }: { params: Promise<{ studio
 
       <section>
         <h2 className="text-sm font-semibold text-tekst-2 mb-3">Je projecten</h2>
-        {projecten.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-rand p-12 text-center text-tekst-3">
-            <div className="text-4xl mb-3">{s.icoon}</div>
-            Nog niets gemaakt. Klik op &ldquo;{s.nieuw}&rdquo; om te beginnen.
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-            {projecten.map((p) => (
-              <Link
-                key={p.id}
-                href={`${s.pad}?project=${p.id}`}
-                className="group rounded-2xl overflow-hidden border border-rand bg-paneel hover:border-blue-500/50 transition-colors"
-              >
-                <div className="aspect-[4/5] bg-paneel-2 overflow-hidden">
-                  {p.thumb ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.thumb} alt="" loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-4xl opacity-60">{s.icoon}</div>
-                  )}
-                </div>
-                <div className="p-3">
-                  <div className="text-sm font-medium text-tekst truncate">{p.title || "Zonder titel"}</div>
-                  <div className="text-[11px] text-tekst-3">
-                    {new Date(p.updated_at ?? p.created_at).toLocaleDateString("nl-NL", { day: "numeric", month: "short", year: "numeric" })}
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+        <StudioProjecten projecten={projecten} pad={s.pad} icoon={s.icoon} nieuw={s.nieuw} />
       </section>
 
       <StudioVideos maker={s.maker} />
