@@ -95,11 +95,14 @@ const BEELD: Record<string, (tekst: string) => string> = {
   "huisdier-koning": () =>
     "A regal 18th-century oil painting portrait of the pet from the reference photo as a king or queen: a gold crown, a red velvet ermine-trimmed royal mantle, a medal, sitting proudly on a throne, dark palace background, ornate golden frame. Keep the pet's breed, fur colors and markings exactly recognizable.",
   tachtig: () =>
-    `Photorealistic portrait of the person from the reference photo aged to about 80 years old: natural wrinkles, grey or white hair, older skin, same face structure, eyes and expression, same clothing style and background. ${ZELFDE_PERSOON.replace("age, ", "")}`,
+    `Photorealistic portrait of the person from the reference photo aged to a very old person of 80+: deep wrinkles and creases all over the face and neck, sagging skin, age spots, thin white hair (or bald with white sides for a man), white eyebrows, slightly hunched; clearly an elderly great-grandparent, not middle-aged. Same face structure, eyes and expression, same clothing style and background. ${ZELFDE_PERSOON.replace("age, ", "")}`,
   stripheld: () =>
-    `The person from the reference photo as the hero of a colorful comic book page: bold ink outlines, halftone dots, dynamic heroic pose, action background, one empty speech bubble. ${ZELFDE_PERSOON}`,
+    `The person from the reference photo as the hero of a colorful comic book page: bold ink outlines, halftone dots, dynamic heroic pose, action background with motion lines, a bold "POW!" sound effect in comic lettering. No other text. ${ZELFDE_PERSOON}`,
   tijdreis: (t) =>
     `An authentic photograph from the ${t} of the person from the reference photo: hairstyle, clothing, setting and the photo technique, colors and grain typical of that decade. ${ZELFDE_PERSOON.replace("age, ", "")}`,
+
+  sneeuw: () =>
+    "The same photo on a cold winter day: fresh snow covers the ground, roofs, trees and bikes, snowflakes are falling, soft grey winter light, breath visible in the cold air, people dressed warmly where it fits. Keep the composition, buildings, the person's face, pose and clothing exactly the same (add only a scarf or snow on the shoulders). Photorealistic.",
 
   // ── Branches ──
   "zorg-vacature": (t) =>
@@ -167,11 +170,9 @@ const VIDEO: Record<string, string> = {
   "makelaar-rondgang":
     "A slow, smooth, steady camera glide through the room, like a real-estate video walkthrough. Nothing in the room changes or moves. Bright natural light.",
   "dag-nacht":
-    "Smooth timelapse from day to night: the sun sets, the sky turns orange and then deep blue, and the lights in the windows and street lamps switch on one by one. Static camera; the building and street stay exactly the same.",
-  sneeuw:
-    "Soft snowflakes start falling gently through the whole scene, a light layer of snow slowly appears on surfaces, peaceful winter atmosphere. Subtle natural motion; everything else stays the same.",
+    "Fast timelapse from day to night within the 5 seconds: the sun sets, the sky turns orange, then deep blue, then fully dark night by the end. All windows light up warm yellow and the street lamps switch on. The last second is clearly night. Static camera; the buildings and street stay exactly the same.",
   superheld:
-    "The person drops from the sky and lands in a powerful superhero landing on one knee and one fist, the ground cracks, dust and debris burst outward in slow motion, then they look up at the camera. Cinematic.",
+    "The person discovers superpowers: glowing blue energy swirls around their hands and grows brighter, their hair and clothes lift as if weightless, sparks and small stones float up from the ground around them, their eyes glow faintly. They stay standing in the same place. Cinematic.",
   wind:
     "A strong cinematic gust of wind blows through the person's hair and clothes, they look into the distance, dramatic slow motion, subtle camera push-in.",
   "logo-video":

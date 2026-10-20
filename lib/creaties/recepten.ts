@@ -99,8 +99,7 @@ export const RECEPTEN: Recept[] = [
   // ── Ronde 2 (21-10-2026) ────────────────────────────────────────────
   // Effecten
   { id: "dag-nacht", naam: "Van dag naar nacht", uitleg: "De zon gaat onder en de lichten gaan aan. Mooi voor een huis, winkel of straat.", icoon: "🌇", kleur: "from-indigo-500/30", groep: "effect", soort: "video", credits: EFFECT, fotoLabel: "Een foto van een gebouw, straat of uitzicht", nieuw: true },
-  { id: "sneeuw", naam: "Het gaat sneeuwen", uitleg: "Zachte sneeuwvlokken dwarrelen door je foto.", icoon: "❄️", kleur: "from-sky-300/30", groep: "effect", soort: "video", credits: EFFECT, fotoLabel: "Een foto buiten, van jezelf of een plek" },
-  { id: "superheld", naam: "Superheld-landing", uitleg: "Je landt met een klap op de grond, stof en scherven vliegen op.", icoon: "🦸", kleur: "from-red-500/30", groep: "effect", soort: "video", credits: EFFECT, fotoLabel: "Een foto van jezelf, van top tot teen", gezicht: true },
+  { id: "superheld", naam: "Superkrachten", uitleg: "Gloeiende energie rond je handen, je haar zweeft en stenen komen los van de grond.", icoon: "🦸", kleur: "from-red-500/30", groep: "effect", soort: "video", credits: EFFECT, fotoLabel: "Een foto van jezelf, van top tot teen", gezicht: true },
   { id: "wind", naam: "Wind door je haar", uitleg: "Een filmische windvlaag door je haar en kleding.", icoon: "🌬️", kleur: "from-teal-400/30", groep: "effect", soort: "video", credits: EFFECT, fotoLabel: "Een portret van jezelf", gezicht: true },
   { id: "logo-video", naam: "Logo komt tot leven", uitleg: "Je logo verschijnt met een filmische onthulling van licht en deeltjes.", icoon: "✴️", kleur: "from-amber-500/30", groep: "effect", soort: "video", credits: EFFECT, fotoLabel: "Je logo (liefst op een effen achtergrond)", nieuw: true },
 
@@ -123,6 +122,7 @@ export const RECEPTEN: Recept[] = [
   { id: "postzegel", naam: "Jij op een postzegel", uitleg: "Jij als gravure op een oude Nederlandse postzegel.", icoon: "📮", kleur: "from-orange-500/30", groep: "nederland", soort: "beeld", credits: BEELD, fotoLabel: "Een duidelijke foto van jezelf", gezicht: true },
 
   // Voor de grap
+  { id: "sneeuw", naam: "Maak het winter", uitleg: "Dezelfde foto, maar dan besneeuwd en winters. Ook mooi voor kerstreclame.", icoon: "❄️", kleur: "from-sky-300/30", groep: "fun", soort: "beeld", credits: BEELD, fotoLabel: "Een foto buiten, van jezelf, je huis of je zaak" },
   { id: "huisdier-koning", naam: "Huisdier als koning", uitleg: "Een vorstelijk olieverfportret van je hond of kat, met kroon en mantel.", icoon: "👑", kleur: "from-yellow-500/30", groep: "fun", soort: "beeld", credits: BEELD, fotoLabel: "Een foto van je huisdier", nieuw: true },
   { id: "tachtig", naam: "Jij op je 80e", uitleg: "Zo zie je eruit als je 80 bent.", icoon: "👵", kleur: "from-stone-300/30", groep: "fun", soort: "beeld", credits: BEELD, fotoLabel: "Een duidelijke foto van jezelf", gezicht: true },
   { id: "stripheld", naam: "Jij als stripheld", uitleg: "Jij als held in een kleurrijke stripplaat, met tekstwolk.", icoon: "💥", kleur: "from-yellow-400/30", groep: "fun", soort: "beeld", credits: BEELD, fotoLabel: "Een foto van jezelf", gezicht: true },

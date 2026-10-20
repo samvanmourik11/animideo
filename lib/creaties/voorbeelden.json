@@ -128,5 +128,110 @@
     "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/vermeer.jpg?v=1792447144883",
     "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/tot-leven.mp4?v=1792447333021",
     "soort": "video"
+  },
+  "postzegel": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-man.jpg?v=1792447114318",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/postzegel.jpg?v=1792537484399",
+    "soort": "beeld"
+  },
+  "klederdracht": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-vrouw.jpg?v=1792447054752",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/klederdracht.jpg?v=1792537484858",
+    "soort": "beeld"
+  },
+  "stripheld": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-volledig.jpg?v=1792447396494",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/stripheld.jpg?v=1792537687704",
+    "soort": "beeld"
+  },
+  "tachtig": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-man.jpg?v=1792447114318",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/tachtig.jpg?v=1792537688183",
+    "soort": "beeld"
+  },
+  "huisdier-koning": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-hond.jpg?v=1792447132663",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/huisdier-koning.jpg?v=1792537486002",
+    "soort": "beeld"
+  },
+  "tijdreis": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-vrouw.jpg?v=1792447054752",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/tijdreis.jpg?v=1792537493307",
+    "soort": "beeld"
+  },
+  "webwinkel-foto": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-product.jpg?v=1792447075606",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/webwinkel-foto.jpg?v=1792537496526",
+    "soort": "beeld"
+  },
+  "logo-3d": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-logo-1792537399615.jpg?v=1792537401162",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/logo-3d.jpg?v=1792537497919",
+    "soort": "beeld"
+  },
+  "merch": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-logo-1792537399615.jpg?v=1792537401162",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/merch.jpg?v=1792537498911",
+    "soort": "beeld"
+  },
+  "oude-foto": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-oudefoto-1792537418083.jpg?v=1792537419806",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/oude-foto.jpg?v=1792537499775",
+    "soort": "beeld"
+  },
+  "product-model": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-product.jpg?v=1792447075606",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/product-model.jpg?v=1792537500162",
+    "soort": "beeld"
+  },
+  "etalage": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-product.jpg?v=1792447075606",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/etalage.jpg?v=1792537501568",
+    "soort": "beeld"
+  },
+  "inkleuren": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-zwartwit-1792537436794.jpg?v=1792537438301",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/inkleuren.jpg?v=1792537502755",
+    "soort": "beeld"
+  },
+  "schets-foto": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-schets-1792537453435.jpg?v=1792537455002",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/schets-foto.jpg?v=1792537503088",
+    "soort": "beeld"
+  },
+  "kamer-stijl": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-kamer-1792537470040.jpg?v=1792537471751",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/kamer-stijl.jpg?v=1792537504259",
+    "soort": "beeld"
+  },
+  "negen-poses": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-vrouw.jpg?v=1792447054752",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/negen-poses.jpg?v=1792537504854",
+    "soort": "beeld"
+  },
+  "superheld": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-volledig.jpg?v=1792447396494",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/superheld.mp4?v=1792537761073",
+    "soort": "video"
+  },
+  "sneeuw": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-volledig.jpg?v=1792447396494",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/sneeuw.jpg?v=1792537929940",
+    "soort": "beeld"
+  },
+  "logo-video": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-logo-1792537399615.jpg?v=1792537401162",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/logo-video.mp4?v=1792537553139",
+    "soort": "video"
+  },
+  "dag-nacht": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-gebouw-1792537383156.jpg?v=1792537384978",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/dag-nacht.mp4?v=1792537778061",
+    "soort": "video"
+  },
+  "wind": {
+    "invoer": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/bron-vrouw.jpg?v=1792447054752",
+    "resultaat": "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/voorbeelden/wind.mp4?v=1792537578814",
+    "soort": "video"
   }
 }
