@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { recept as zoekRecept, receptPad, RECEPTEN } from "@/lib/creaties/recepten";
+import { branche, recept as zoekRecept, receptPad, RECEPTEN } from "@/lib/creaties/recepten";
 import { voorbeeld } from "@/lib/creaties/voorbeelden";
 import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "./CreatieKaart";
@@ -19,24 +19,35 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
   const [foto, setFoto] = useState<GekozenBeeld | null>(null);
   const [tekst, setTekst] = useState("");
   const [toestemming, setToestemming] = useState(false);
+  const [formaat, setFormaat] = useState<string>(r.zonderFoto?.formaat ?? "1:1");
   const [bezig, setBezig] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
   const [open, setOpen] = useState<Creatie | null>(null);
 
   const lijst = useCreaties({ maker: "recept", recept: r.id });
-  const klaar = !!foto && (!r.tekst?.verplicht || !!tekst.trim()) && (!r.gezicht || toestemming);
-  const terug = r.groep === "effect" ? { href: "/effecten", label: "Effecten" } : { href: "/apps", label: "Apps" };
-  const meer = RECEPTEN.filter((x) => x.id !== r.id && (x.groep === "effect") === (r.groep === "effect")).slice(0, 4);
+  const klaar = (!!foto || !!r.zonderFoto) && (!r.tekst?.verplicht || !!tekst.trim()) && (!r.gezicht || toestemming);
+  const b = branche(r.branche);
+  const terug = b
+    ? { href: `/branches/${b.id}`, label: b.naam }
+    : r.groep === "effect"
+      ? { href: "/effecten", label: "Effecten" }
+      : { href: "/apps", label: "Apps" };
+  // "Probeer ook": uit dezelfde hoek (dezelfde branche, of effecten bij effecten).
+  const meer = RECEPTEN.filter((x) =>
+    x.id !== r.id && (b ? x.branche === b.id : x.groep !== "branche" && (x.groep === "effect") === (r.groep === "effect")),
+  ).slice(0, 4);
 
   async function maak() {
     setBezig(true);
     setFout(null);
     try {
-      const c = await startMaker(
-        "recept",
-        { receptId: r.id, fotoUrl: foto!.url, tekst, formaat: foto!.formaat, toestemming },
-        foto!.id ?? null,
-      );
+      const c = r.zonderFoto
+        ? await startMaker("recept", { receptId: r.id, tekst, formaat })
+        : await startMaker(
+            "recept",
+            { receptId: r.id, fotoUrl: foto!.url, tekst, formaat: foto!.formaat, toestemming },
+            foto!.id ?? null,
+          );
       lijst.zetVoor(c);
     } catch (e) {
       setFout(e instanceof Error ? e.message : String(e));
@@ -56,12 +67,14 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
             <p className="text-sm text-tekst-2 mt-1">{r.uitleg}</p>
           </div>
 
-          <div>
-            <label className="n-label">{r.fotoLabel}</label>
-            <div className="mt-1.5">
-              <BeeldKiezer waarde={foto} onKies={setFoto} leeg={r.fotoLabel} />
+          {!r.zonderFoto && (
+            <div>
+              <label className="n-label">{r.fotoLabel}</label>
+              <div className="mt-1.5">
+                <BeeldKiezer waarde={foto} onKies={setFoto} leeg={r.fotoLabel} />
+              </div>
             </div>
-          </div>
+          )}
 
           {r.tekst && (
             <div>
@@ -72,6 +85,28 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
                 placeholder={r.tekst.placeholder}
                 className="n-invoer mt-1.5"
               />
+            </div>
+          )}
+
+          {r.zonderFoto && (
+            <div>
+              <label className="n-label">Formaat</label>
+              <div className="mt-1.5 grid grid-cols-3 gap-2">
+                {[
+                  { id: "1:1", naam: "Vierkant", uitleg: "Feed" },
+                  { id: "9:16", naam: "Staand", uitleg: "Story, poster" },
+                  { id: "16:9", naam: "Liggend", uitleg: "Website" },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setFormaat(f.id)}
+                    className={`rounded-xl border px-2 py-1.5 text-left ${formaat === f.id ? "border-blue-500 bg-blue-500/10" : "border-rand hover:border-blue-500/40"}`}
+                  >
+                    <div className="text-sm font-semibold text-tekst">{f.naam}</div>
+                    <div className="text-[11px] text-tekst-3">{f.uitleg}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -127,7 +162,7 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
             ) : (
               <div className="rounded-3xl border border-dashed border-rand p-12 text-center text-tekst-3">
                 <div className="text-4xl mb-3">{r.icoon}</div>
-                Kies links een foto en klik op Maak.
+                {r.zonderFoto ? "Vul links de tekst in en klik op Maak." : "Kies links een foto en klik op Maak."}
               </div>
             )
           ) : (

@@ -126,7 +126,7 @@ describe("fase 2: bewerkingen en tekst-naar-video", () => {
   });
 });
 
-import { RECEPTEN } from "./recepten";
+import { RECEPTEN, BRANCHES, sjablonen } from "./recepten";
 import { receptOpdracht, heeftOpdracht } from "./recepten-opdrachten";
 
 describe("fase 3: het receptenboek", () => {
@@ -149,8 +149,20 @@ describe("fase 3: het receptenboek", () => {
       });
       expect(o.soort, r.id).toBe(r.soort);
       expect(o.credits, r.id).toBe(r.credits);
-      expect(JSON.stringify(o.falInvoer)).toContain("https://x/f.jpg");
+      if (r.zonderFoto) expect(JSON.stringify(o.falInvoer), r.id).toContain("een rood pak");
+      else expect(JSON.stringify(o.falInvoer), r.id).toContain("https://x/f.jpg");
     }
+  });
+
+  it("fase 4: elke branche heeft sjablonen, en sjablonen zonder foto vragen tekst", () => {
+    for (const b of BRANCHES) expect(sjablonen(b.id).length, b.id).toBeGreaterThanOrEqual(3);
+    for (const r of RECEPTEN.filter((x) => x.zonderFoto)) expect(r.tekst?.verplicht, r.id).toBe(true);
+    expect(() => receptOpdracht({ receptId: "zorg-vacature" })).toThrow(/Vul eerst in/);
+    const o = receptOpdracht({ receptId: "zorg-vacature", tekst: 'Verzorgende "IG"', formaat: "9:16" });
+    expect(o.endpoint).toBe("fal-ai/nano-banana-pro");
+    expect(o.falInvoer.aspect_ratio).toBe("9:16");
+    expect(String(o.falInvoer.prompt)).toContain("Verzorgende 'IG'");
+    expect(receptOpdracht(o.invoer)).toEqual(o);
   });
 
   it("gezichtsrecepten vragen eerst toestemming", () => {

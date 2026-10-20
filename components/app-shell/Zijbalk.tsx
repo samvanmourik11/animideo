@@ -26,6 +26,7 @@ const MAKEN: Item[] = [
   { href: "/maak/video", label: "Video", icoon: "🎬" },
   { href: "/effecten", label: "Effecten", icoon: "⚡" },
   { href: "/apps", label: "Apps", icoon: "🧩" },
+  { href: "/branches", label: "Voor jouw branche", icoon: "💼" },
   { href: "/stem", label: "Stem & Lipsync", icoon: "🗣️", binnenkort: true },
   {
     href: "/dashboard",

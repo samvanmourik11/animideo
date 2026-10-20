@@ -17,7 +17,11 @@ export type ReceptGroep =
   | "bedrijf"
   | "nederland"
   | "personage"
-  | "fun";
+  | "fun"
+  | "branche";
+
+/** De branches met eigen sjablonen (fase 4). Zie BRANCHES onderaan. */
+export type BrancheId = "zorg" | "onderwijs" | "gemeente" | "horeca" | "makelaar" | "installateur";
 
 export interface Recept {
   id: string;
@@ -38,6 +42,13 @@ export interface Recept {
   gezicht?: boolean;
   /** Komt in "Nieuw" op Ontdek. */
   nieuw?: boolean;
+  /** Alleen bij groep "branche": bij welke branche het sjabloon hoort. */
+  branche?: BrancheId;
+  /**
+   * Geen foto nodig: het beeld komt helemaal uit de tekst (een poster, een vacature-post).
+   * Dan is het tekstveld verplicht en kiest de klant zelf het formaat.
+   */
+  zonderFoto?: { formaat: "1:1" | "9:16" | "16:9" };
 }
 
 /** Het videomodel van de effecten: het beste in de beweging van mensen. */
@@ -83,6 +94,43 @@ export const RECEPTEN: Recept[] = [
   // ── Voor de grap ────────────────────────────────────────────────────
   { id: "jaren-80", naam: "Jaren-80-foto", uitleg: "Jij op een verkleurde schoolfoto uit 1985.", icoon: "📼", kleur: "from-lime-500/30", groep: "fun", soort: "beeld", credits: BEELD, fotoLabel: "Een duidelijke foto van jezelf", gezicht: true },
   { id: "huisdier-mens", naam: "Huisdier als mens", uitleg: "Hoe zou je hond of kat eruitzien als mens?", icoon: "🐶", kleur: "from-amber-400/30", groep: "fun", soort: "beeld", credits: BEELD, fotoLabel: "Een foto van je huisdier" },
+
+  // ── Sjablonen per branche (fase 4) ──────────────────────────────────
+  // Zorg & welzijn
+  { id: "zorg-vacature", naam: "Vacature-post", uitleg: "Een warme social-post voor je vacature, met de functie er groot in.", icoon: "📣", kleur: "from-rose-400/30", groep: "branche", branche: "zorg", soort: "beeld", credits: BEELD_PRO, fotoLabel: "", tekst: { label: "Welke functie?", placeholder: "Bijvoorbeeld: Verzorgende IG, 24 uur", verplicht: true }, zonderFoto: { formaat: "1:1" } },
+  { id: "zorg-wachtkamer", naam: "Poster voor de wachtkamer", uitleg: "Een vriendelijke, rustige poster met jouw boodschap.", icoon: "🪧", kleur: "from-teal-400/30", groep: "branche", branche: "zorg", soort: "beeld", credits: BEELD_PRO, fotoLabel: "", tekst: { label: "Wat moet er op de poster?", placeholder: "Bijvoorbeeld: Griepprik halen? Vraag het aan de balie", verplicht: true }, zonderFoto: { formaat: "9:16" } },
+  { id: "zorg-uitleg", naam: "Uitleg-illustratie", uitleg: "Een heldere tekening bij een folder of website: geen ingewikkeld plaatje.", icoon: "🩺", kleur: "from-sky-400/30", groep: "branche", branche: "zorg", soort: "beeld", credits: BEELD, fotoLabel: "", tekst: { label: "Wat moet de tekening laten zien?", placeholder: "Bijvoorbeeld: hoe je een steunkous aantrekt", verplicht: true }, zonderFoto: { formaat: "16:9" } },
+  { id: "zorg-portret", naam: "Teamfoto voor de website", uitleg: "Van een snelle foto naar een nette, warme portretfoto in zorgsetting.", icoon: "🧑‍⚕️", kleur: "from-emerald-400/30", groep: "branche", branche: "zorg", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een duidelijke foto van de medewerker", gezicht: true },
+
+  // Onderwijs
+  { id: "onderwijs-opendag", naam: "Poster open dag", uitleg: "Een vrolijke poster voor je open dag of informatieavond.", icoon: "🏫", kleur: "from-amber-400/30", groep: "branche", branche: "onderwijs", soort: "beeld", credits: BEELD_PRO, fotoLabel: "", tekst: { label: "Naam school, datum en tijd", placeholder: "Bijvoorbeeld: De Regenboog, open dag za 15 maart 10-13 uur", verplicht: true }, zonderFoto: { formaat: "9:16" } },
+  { id: "onderwijs-les", naam: "Plaat bij een les", uitleg: "Een duidelijke, kleurrijke tekening om iets uit te leggen in de klas.", icoon: "📚", kleur: "from-lime-400/30", groep: "branche", branche: "onderwijs", soort: "beeld", credits: BEELD, fotoLabel: "", tekst: { label: "Waar gaat de les over?", placeholder: "Bijvoorbeeld: de kringloop van water", verplicht: true }, zonderFoto: { formaat: "16:9" } },
+  { id: "onderwijs-vacature", naam: "Vacature-post", uitleg: "Een social-post om een leerkracht of medewerker te vinden.", icoon: "📣", kleur: "from-orange-400/30", groep: "branche", branche: "onderwijs", soort: "beeld", credits: BEELD_PRO, fotoLabel: "", tekst: { label: "Welke functie?", placeholder: "Bijvoorbeeld: Leerkracht groep 5, 0,8 fte", verplicht: true }, zonderFoto: { formaat: "1:1" } },
+  { id: "onderwijs-tijdreis", naam: "Klassenfoto als tijdreis", uitleg: "Een groepsfoto alsof hij in 1955 op het schoolplein is genomen.", icoon: "🕰️", kleur: "from-stone-400/30", groep: "branche", branche: "onderwijs", soort: "beeld", credits: BEELD, fotoLabel: "Een groepsfoto (alleen met toestemming van ouders)", gezicht: true },
+
+  // Gemeente
+  { id: "gemeente-plan", naam: "Zo wordt het", uitleg: "Een foto van een straat of plein, en hoe het eruitziet na de verbouwing.", icoon: "🏗️", kleur: "from-green-500/30", groep: "branche", branche: "gemeente", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van de straat, het plein of het park", tekst: { label: "Wat verandert er?", placeholder: "Bijvoorbeeld: meer bomen, een fietspad en bankjes", verplicht: true } },
+  { id: "gemeente-campagne", naam: "Campagneposter", uitleg: "Een opvallende poster voor een campagne: afval scheiden, buurtfeest, verkiezingen.", icoon: "📢", kleur: "from-blue-500/30", groep: "branche", branche: "gemeente", soort: "beeld", credits: BEELD_PRO, fotoLabel: "", tekst: { label: "Wat is de boodschap?", placeholder: "Bijvoorbeeld: Plastic? Gewoon in de oranje bak!", verplicht: true }, zonderFoto: { formaat: "9:16" } },
+  { id: "gemeente-nieuws", naam: "Beeld bij nieuwsbericht", uitleg: "Een passend beeld voor de website of social media, zonder rechtenproblemen.", icoon: "📰", kleur: "from-indigo-400/30", groep: "branche", branche: "gemeente", soort: "beeld", credits: BEELD, fotoLabel: "", tekst: { label: "Waar gaat het bericht over?", placeholder: "Bijvoorbeeld: de nieuwe bibliotheek in het centrum gaat open", verplicht: true }, zonderFoto: { formaat: "16:9" } },
+
+  // Horeca
+  { id: "horeca-gerecht", naam: "Gerecht als menukaartfoto", uitleg: "Een snelle foto van je bord wordt een foto voor de menukaart.", icoon: "🍽️", kleur: "from-orange-500/30", groep: "branche", branche: "horeca", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van het gerecht (mag met je telefoon)" },
+  { id: "horeca-sfeer", naam: "Vol terras, mooi licht", uitleg: "Je zaak of terras op een zonnige avond, gezellig vol.", icoon: "🌅", kleur: "from-amber-500/30", groep: "branche", branche: "horeca", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van je zaak of terras" },
+  { id: "horeca-actie", naam: "Post voor je actie", uitleg: "Dagmenu, happy hour of nieuw op de kaart: een post met de tekst erin.", icoon: "🍹", kleur: "from-pink-500/30", groep: "branche", branche: "horeca", soort: "beeld", credits: BEELD_PRO, fotoLabel: "", tekst: { label: "Wat is de actie?", placeholder: "Bijvoorbeeld: Vrijdag happy hour, 17-19 uur, alle bieren €3", verplicht: true }, zonderFoto: { formaat: "1:1" } },
+  { id: "horeca-dampend", naam: "Gerecht komt tot leven", uitleg: "Je gerecht dampt, de saus loopt eroverheen: een filmpje voor social.", icoon: "♨️", kleur: "from-red-500/30", groep: "branche", branche: "horeca", soort: "video", credits: EFFECT, fotoLabel: "Een foto van het gerecht" },
+
+  // Makelaar
+  { id: "makelaar-inrichten", naam: "Lege kamer inrichten", uitleg: "Een foto van een lege kamer, virtueel ingericht. Kopers zien het meteen voor zich.", icoon: "🛋️", kleur: "from-amber-400/30", groep: "branche", branche: "makelaar", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van de lege kamer", tekst: { label: "Welke stijl? (mag leeg)", placeholder: "Bijvoorbeeld: Scandinavisch, licht hout en wit" } },
+  { id: "makelaar-zonnig", naam: "Woning op z'n mooist", uitleg: "Blauwe lucht, zachte zon, opgeruimde voortuin. Gevel en ramen blijven precies zoals ze zijn.", icoon: "☀️", kleur: "from-sky-400/30", groep: "branche", branche: "makelaar", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van de buitenkant van de woning" },
+  { id: "makelaar-avond", naam: "Avondfoto", uitleg: "De woning in de schemering, met warm licht achter de ramen.", icoon: "🌆", kleur: "from-indigo-500/30", groep: "branche", branche: "makelaar", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van de buitenkant van de woning" },
+  { id: "makelaar-verkocht", naam: "Verkocht-post", uitleg: "De woning met een feestelijk 'Verkocht!' voor op social media.", icoon: "🏷️", kleur: "from-red-400/30", groep: "branche", branche: "makelaar", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van de woning", tekst: { label: "Extra regel (mag leeg)", placeholder: "Bijvoorbeeld: binnen 2 weken!" } },
+  { id: "makelaar-rondgang", naam: "Rustige camerarit", uitleg: "Een foto van een kamer wordt een filmpje: de camera beweegt langzaam door de ruimte.", icoon: "🎥", kleur: "from-violet-400/30", groep: "branche", branche: "makelaar", soort: "video", credits: EFFECT, fotoLabel: "Een foto van een kamer of de tuin" },
+
+  // Installateur
+  { id: "installateur-zonnepanelen", naam: "Zonnepanelen op het dak", uitleg: "Laat een klant zien hoe zijn huis eruitziet met zonnepanelen.", icoon: "🔆", kleur: "from-yellow-400/30", groep: "branche", branche: "installateur", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van het huis, met het dak in beeld" },
+  { id: "installateur-warmtepomp", naam: "Warmtepomp erbij", uitleg: "Een foto van de tuin of gevel, met de buitenunit van een warmtepomp netjes geplaatst.", icoon: "🌡️", kleur: "from-cyan-400/30", groep: "branche", branche: "installateur", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van de gevel of achtertuin" },
+  { id: "installateur-laadpaal", naam: "Laadpaal op de oprit", uitleg: "De oprit of carport met een moderne laadpaal en een auto aan de lader.", icoon: "🔌", kleur: "from-emerald-400/30", groep: "branche", branche: "installateur", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van de oprit of carport" },
+  { id: "installateur-actie", naam: "Post voor je actie", uitleg: "Een post met jouw aanbieding erin, met een vakman aan het werk.", icoon: "🛠️", kleur: "from-orange-400/30", groep: "branche", branche: "installateur", soort: "beeld", credits: BEELD_PRO, fotoLabel: "", tekst: { label: "Wat is de actie?", placeholder: "Bijvoorbeeld: Gratis adviesgesprek over je warmtepomp", verplicht: true }, zonderFoto: { formaat: "1:1" } },
 ];
 
 export const GROEPEN: { id: ReceptGroep; naam: string; uitleg: string }[] = [
@@ -97,9 +145,27 @@ export function recept(id: unknown): Recept | null {
 }
 
 export const EFFECTEN = RECEPTEN.filter((r) => r.groep === "effect");
-export const APPS = RECEPTEN.filter((r) => r.groep !== "effect");
+export const APPS = RECEPTEN.filter((r) => r.groep !== "effect" && r.groep !== "branche");
+
+export const BRANCHES: { id: BrancheId; naam: string; icoon: string; uitleg: string; kleur: string }[] = [
+  { id: "zorg", naam: "Zorg & welzijn", icoon: "🩺", uitleg: "Vacatures, wachtkamerposters en heldere uitleg voor patiënten.", kleur: "from-rose-400/25" },
+  { id: "onderwijs", naam: "Onderwijs", icoon: "🏫", uitleg: "Open dag, platen bij je les en vacatures.", kleur: "from-amber-400/25" },
+  { id: "gemeente", naam: "Gemeente", icoon: "🏛️", uitleg: "Laat bewoners zien hoe het wordt, en campagnes die opvallen.", kleur: "from-green-500/25" },
+  { id: "horeca", naam: "Horeca", icoon: "🍽️", uitleg: "Menukaartfoto's, een vol terras en posts voor je acties.", kleur: "from-orange-500/25" },
+  { id: "makelaar", naam: "Makelaar", icoon: "🏠", uitleg: "Lege kamers inrichten, avondfoto's en verkocht-posts.", kleur: "from-sky-400/25" },
+  { id: "installateur", naam: "Installateur", icoon: "🔧", uitleg: "Laat klanten zien hoe hun huis wordt: zonnepanelen, warmtepomp, laadpaal.", kleur: "from-yellow-400/25" },
+];
+
+export function branche(id: unknown) {
+  return BRANCHES.find((b) => b.id === id) ?? null;
+}
+
+export function sjablonen(id: BrancheId): Recept[] {
+  return RECEPTEN.filter((r) => r.branche === id);
+}
 
 /** Waar de pagina van een recept staat: effecten en apps hebben elk hun eigen plek in het menu. */
 export function receptPad(r: Recept): string {
+  if (r.groep === "branche") return `/branches/${r.branche}/${r.id}`;
   return r.groep === "effect" ? `/effecten/${r.id}` : `/apps/${r.id}`;
 }

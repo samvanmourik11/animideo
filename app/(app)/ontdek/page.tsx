@@ -25,6 +25,7 @@ const TEGELS: Tegel[] = [
   { href: "/maak/video", titel: "Video", uitleg: "Breng een beeld tot leven, of beschrijf wat er gebeurt.", icoon: "🎬", kleur: "from-violet-500/20 to-transparent" },
   { href: "/effecten", titel: "Effecten", uitleg: "Foto erin, viraal filmpje eruit.", icoon: "⚡", kleur: "from-amber-500/20 to-transparent" },
   { href: "/apps", titel: "Apps", uitleg: "Eén klik: productfoto, profielfoto, achtergrond weg.", icoon: "🧩", kleur: "from-emerald-500/20 to-transparent" },
+  { href: "/branches", titel: "Voor jouw branche", uitleg: "Sjablonen voor zorg, onderwijs, gemeente, horeca, makelaar en installateur.", icoon: "💼", kleur: "from-sky-500/20 to-transparent" },
   { href: "/stem", titel: "Stem & Lipsync", uitleg: "Nederlandse stemmen en pratende foto's.", icoon: "🗣️", kleur: "from-pink-500/20 to-transparent", binnenkort: true },
   { href: "/dashboard", titel: "Studio's", uitleg: "De grote videotools: uitleg-, verhaal- en dialoogvideo's.", icoon: "🏗️", kleur: "from-slate-500/20 to-transparent" },
 ];
