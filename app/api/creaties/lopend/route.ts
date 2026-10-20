@@ -4,7 +4,9 @@ import { verversLopende } from "@/lib/creaties/wachtrij";
 import type { Creatie } from "@/lib/creaties/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Een reclame wordt na het antwoord gemonteerd (after() in lib/reclame/regie.ts); die
+// montage valt binnen de tijd van dít verzoek.
+export const maxDuration = 300;
 
 // Voor het wachtrij-teller in het menu: hoeveel is er nog in de maak. Laat de wachtrij
 // meteen doorlopen, zodat iets ook klaarkomt als de klant op een heel andere pagina zit.

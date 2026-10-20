@@ -248,6 +248,11 @@ export default function CreatieDetail({
                   🔄 Nog eens{c.credits > 0 ? ` · ${c.credits} cr.` : ""}
                 </button>
               )}
+              {c.maker === "reclame" && (
+                <Link href="/apps/reclame" className="n-knop2 w-full">
+                  🛍️ Nieuwe reclame maken
+                </Link>
+              )}
               {receptVan && (
                 <Link href={receptPad(receptVan)} className="n-knop2 w-full">
                   {receptVan.icoon} Naar {receptVan.naam}

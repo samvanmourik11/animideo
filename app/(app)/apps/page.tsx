@@ -1,5 +1,6 @@
 import { APPS, GROEPEN } from "@/lib/creaties/recepten";
 import ReceptTegel from "@/components/creaties/ReceptTegel";
+import ReclameTegel from "@/components/reclame/ReclameTegel";
 
 export const metadata = { title: "Apps · Animideo" };
 
@@ -15,6 +16,7 @@ export default function AppsPagina() {
           <h2 className="text-lg font-bold text-tekst">{g.naam}</h2>
           <p className="text-sm text-tekst-3 mb-3">{g.uitleg}</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {g.id === "bedrijf" && <ReclameTegel />}
             {APPS.filter((r) => r.groep === g.id).map((r) => <ReceptTegel key={r.id} recept={r} />)}
           </div>
         </section>

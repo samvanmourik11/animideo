@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Creatie } from "@/lib/creaties/types";
 import { RECEPTEN } from "@/lib/creaties/recepten";
 import ReceptTegel from "@/components/creaties/ReceptTegel";
+import ReclameTegel from "@/components/reclame/ReclameTegel";
 
 export const metadata = { title: "Ontdek · Animideo" };
 
@@ -70,7 +71,8 @@ export default async function OntdekPagina() {
           <Link href="/apps" className="text-xs text-blue-500 hover:text-blue-400">Alle apps →</Link>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {RECEPTEN.filter((r) => r.nieuw).slice(0, 6).map((r) => <ReceptTegel key={r.id} recept={r} />)}
+          <ReclameTegel />
+          {RECEPTEN.filter((r) => r.nieuw).slice(0, 5).map((r) => <ReceptTegel key={r.id} recept={r} />)}
         </div>
       </div>
 

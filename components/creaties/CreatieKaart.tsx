@@ -1,6 +1,7 @@
 "use client";
 
 import type { Creatie } from "@/lib/creaties/types";
+import { STAP_LABEL, type ReclameStap } from "@/lib/reclame/types";
 
 // Eén tegel in de bibliotheek of de resultatenrij: het beeld of de video zelf, met
 // zichtbaar of het nog bezig is of mislukt. Klikken opent de detailweergave.
@@ -21,6 +22,13 @@ export const SCHAAKBORD =
 
 export function isDoorzichtig(c: Creatie): boolean {
   return !!c.url && /\.png($|\?)/i.test(c.url);
+}
+
+function bezigLabel(c: Creatie): string {
+  // Een reclame loopt minutenlang door drie stappen; laat zien waar hij is.
+  const stap = (c.invoer as { voortgang?: { stap?: ReclameStap } }).voortgang?.stap;
+  if (c.maker === "reclame" && stap) return STAP_LABEL[stap];
+  return c.soort === "video" ? "Video wordt gemaakt…" : "Wordt gemaakt…";
 }
 
 export default function CreatieKaart({
@@ -64,7 +72,7 @@ export default function CreatieKaart({
         {c.status === "bezig" && (
           <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-blue-500/10 to-transparent">
             <div className="w-8 h-8 rounded-full border-2 border-blue-500/30 border-t-blue-500 animate-spin" />
-            <span className="text-xs text-tekst-3">{c.soort === "video" ? "Video wordt gemaakt…" : "Wordt gemaakt…"}</span>
+            <span className="text-xs text-tekst-3 px-3 text-center">{bezigLabel(c)}</span>
           </div>
         )}
         {c.status === "mislukt" && (

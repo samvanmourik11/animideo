@@ -4,6 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { addCredits, deductCredits, getCredits } from "@/lib/credits";
 import { maakOpdracht, resultaatUrl } from "./makers";
 import { receptOpdracht } from "./recepten-opdrachten";
+import { startReclame, verversReclame } from "@/lib/reclame/regie";
 import type { Creatie, CreatieSoort } from "./types";
 
 fal.config({ credentials: process.env.FAL_KEY });
@@ -39,6 +40,9 @@ export async function startCreatie(
   ruweInvoer: Record<string, unknown>,
   ouderId?: string | null,
 ): Promise<Creatie> {
+  // Een reclame is geen enkele fal-opdracht maar een reeks stappen; die heeft zijn eigen regie.
+  if (maker === "reclame") return startReclame(userId, ruweInvoer, ouderId);
+
   let opdracht;
   try {
     // Recepten bouwen hun opdracht op de server (de verborgen opdrachten); de rest via het
@@ -127,6 +131,7 @@ export async function startCreatie(
  */
 export async function ververs(c: Creatie): Promise<Creatie> {
   if (c.status !== "bezig") return c;
+  if (c.maker === "reclame") return verversReclame(c);
   const leeftijd = Date.now() - new Date(c.created_at).getTime();
 
   if (!c.fal_request_id || !c.fal_endpoint) {
@@ -184,7 +189,7 @@ export async function verversLopende(lijst: Creatie[]): Promise<Creatie[]> {
 
 // Alleen de aanroep die de rij écht van 'bezig' naar 'mislukt' zet, geeft de credits
 // terug. Twee schermen die tegelijk de stand opvragen, mogen niet twee keer terugboeken.
-async function markeerMislukt(c: Creatie, reden: string): Promise<Creatie | null> {
+export async function markeerMislukt(c: Creatie, reden: string): Promise<Creatie | null> {
   const { data } = await createServiceClient()
     .from("creaties")
     .update({ status: "mislukt", foutmelding: reden.slice(0, 500) })
@@ -239,7 +244,7 @@ export async function uploadNaarOpslag(userId: string, buf: Buffer, ext: string,
   return db.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl;
 }
 
-function falReden(err: unknown): string {
+export function falReden(err: unknown): string {
   const detail = (err as { body?: { detail?: { msg?: string }[] | string } }).body?.detail;
   const reden =
     (Array.isArray(detail) ? detail[0]?.msg : detail) || (err instanceof Error ? err.message : String(err));

@@ -24,6 +24,10 @@ const nextConfig: NextConfig = {
     // het Inter-font; de voice-route meet de audioduur met ffmpeg.
     "/api/infographics/export-story": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Inter-Bold.ttf"],
     "/api/infographics/scene-voice": ["./node_modules/ffmpeg-static/ffmpeg"],
+    // Nieuwe app: de reclame wordt gemonteerd in het verzoek dat de wachtrij laat
+    // doorlopen (lib/reclame/montage.ts), met Poppins voor de tekst in beeld.
+    "/api/creaties": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf"],
+    "/api/creaties/lopend": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf"],
     // Chromium-render-routes: naast ffmpeg ook de VOLLEDIGE playwright-core
     // (incl. browsers.json) en de @sparticuz/chromium-binary meetracen — anders
     // faalt de launch op Vercel met "Cannot find module .../browsers.json".

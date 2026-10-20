@@ -275,6 +275,7 @@ export function modelNaam(endpoint: string | null | undefined): string {
     "fal-ai/codeformer": "CodeFormer",
     "fal-ai/iclight-v2": "IC-Light",
     "fal-ai/bytedance/seedance/v1/lite/text-to-video": "Seedance Lite (tekst)",
+    reclame: "Link → reclame",
   };
   if (namen[endpoint]) return namen[endpoint];
   return VIDEO_MODELLEN.find((m) => m.slug === endpoint)?.naam ?? endpoint;

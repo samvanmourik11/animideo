@@ -35,7 +35,7 @@ export function normalizeBrandUrl(raw: string): URL {
   return parsed;
 }
 
-async function fetchHtml(url: string): Promise<string | null> {
+export async function fetchHtml(url: string): Promise<string | null> {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 12000);
@@ -54,7 +54,7 @@ async function fetchHtml(url: string): Promise<string | null> {
   }
 }
 
-function stripText(html: string): string {
+export function stripText(html: string): string {
   return html
     .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
     .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
@@ -66,7 +66,7 @@ function stripText(html: string): string {
     .trim();
 }
 
-function imageCandidates(html: string, base: URL): string[] {
+export function imageCandidates(html: string, base: URL): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   const push = (raw: string) => {

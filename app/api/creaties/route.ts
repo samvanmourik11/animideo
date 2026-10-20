@@ -6,7 +6,9 @@ import type { Creatie } from "@/lib/creaties/types";
 export const runtime = "nodejs";
 // Afronden betekent het resultaat downloaden en naar onze opslag kopiëren; bij video's
 // van een paar MB, en tot acht tegelijk.
-export const maxDuration = 60;
+// Een reclame wordt na het antwoord gemonteerd (after() in lib/reclame/regie.ts); die
+// montage valt binnen de tijd van dít verzoek.
+export const maxDuration = 300;
 
 const PAGINA = 40;
 
