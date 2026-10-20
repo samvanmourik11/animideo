@@ -67,6 +67,40 @@ const BEELD: Record<string, (tekst: string) => string> = {
   "huisdier-mens": () =>
     "Imagine the pet from the reference photo as a human being: a realistic portrait of a person whose hair color, expression and personality clearly match the pet. Place the original pet next to them. Natural photo.",
 
+  // ── Ronde 2 ──
+  "webwinkel-foto": () =>
+    "E-commerce product photo of exactly the product from the reference photo on a pure white background (#FFFFFF), centered, filling about 85% of the square frame, sharp focus, soft even studio lighting, a very subtle natural shadow underneath, no props, no text, no reflections of the photographer. Keep the product's shape, colors, label and logo exactly the same.",
+  "product-model": (t) =>
+    `Professional fashion/lifestyle photograph of a model ${t ? `(${t}) ` : ""}wearing or holding exactly the product from the reference photo. Keep the product's shape, colors, pattern, label and logo exactly the same; it is clearly visible and the hero of the image. Natural pose, flattering soft light, editorial quality, AI-generated fictional model.`,
+  merch: (t) =>
+    `Realistic product mockup photo of ${t} with exactly the design or logo from the reference image printed on it. Keep the design's shapes, colors and any text exactly the same, printed naturally following the material's folds and curvature. Clean, bright studio or lifestyle setting, commercial quality.`,
+  "logo-3d": () =>
+    "Turn the logo from the reference image into a premium 3D object: thick extruded shapes with glossy materials and soft bevels, keeping the exact shapes, proportions, colors and any letters of the logo. Floating slightly above a clean surface, soft studio lighting, subtle reflections, centered. Spell any text exactly as in the logo.",
+  etalage: () =>
+    "The product from the reference photo beautifully displayed in the shop window of a charming boutique in a Dutch shopping street at dusk, warm spotlights on the product, reflections of the street and bicycles in the glass. Keep the product's shape, colors, label and logo exactly the same. Photorealistic.",
+  "oude-foto": () =>
+    "Restore this old photograph: remove all scratches, tears, creases, dust, stains and fading, repair missing parts, sharpen naturally. Keep the composition, every person's face and identity, and the original character of the photo exactly the same. If it is black and white, keep it black and white.",
+  inkleuren: () =>
+    "Colorize this black-and-white photograph with natural, historically plausible colors: realistic skin tones, clothing, sky and surroundings. Keep everything else exactly the same: composition, faces, details and grain.",
+  "schets-foto": () =>
+    "Turn the sketch or drawing from the reference image into a realistic photograph of the same subject, keeping the composition, shapes, proportions and layout exactly as drawn. Natural lighting and realistic materials and textures.",
+  "kamer-stijl": (t) =>
+    `Redesign the interior of the room in the reference photo in ${t} style: new furniture, colors, textiles, lighting and decoration. Keep the walls, windows, doors, floor plan and camera angle exactly the same. Photorealistic interior design photography.`,
+  "negen-poses": () =>
+    `A 3x3 grid of nine different photos of the person from the reference photo: different poses, angles and expressions (smiling, laughing, profile, looking away, close-up, half body), same outfit and setting, consistent lighting, social-media photoshoot style, thin white lines between the photos. ${ZELFDE_PERSOON}`,
+  klederdracht: () =>
+    `Photorealistic portrait of the person from the reference photo wearing traditional Volendam costume (klederdracht): for a woman the white lace pointed cap and striped skirt with a coral necklace, for a man the black wide trousers, striped shirt and round cap. Standing at the historic harbor of Volendam with wooden boats behind them, soft daylight. ${ZELFDE_PERSOON}`,
+  postzegel: () =>
+    `A vintage Dutch postage stamp with a finely engraved monochrome portrait of the person from the reference photo, perforated edges, the word "NEDERLAND" and a value "1€" in classic typography, slightly aged paper, macro photo of the stamp. ${ZELFDE_PERSOON}`,
+  "huisdier-koning": () =>
+    "A regal 18th-century oil painting portrait of the pet from the reference photo as a king or queen: a gold crown, a red velvet ermine-trimmed royal mantle, a medal, sitting proudly on a throne, dark palace background, ornate golden frame. Keep the pet's breed, fur colors and markings exactly recognizable.",
+  tachtig: () =>
+    `Photorealistic portrait of the person from the reference photo aged to about 80 years old: natural wrinkles, grey or white hair, older skin, same face structure, eyes and expression, same clothing style and background. ${ZELFDE_PERSOON.replace("age, ", "")}`,
+  stripheld: () =>
+    `The person from the reference photo as the hero of a colorful comic book page: bold ink outlines, halftone dots, dynamic heroic pose, action background, one empty speech bubble. ${ZELFDE_PERSOON}`,
+  tijdreis: (t) =>
+    `An authentic photograph from the ${t} of the person from the reference photo: hairstyle, clothing, setting and the photo technique, colors and grain typical of that decade. ${ZELFDE_PERSOON.replace("age, ", "")}`,
+
   // ── Branches ──
   "zorg-vacature": (t) =>
     `A warm, professional square social media job advertisement for a Dutch healthcare organisation. A friendly caregiver in a light-blue uniform smiling while helping an elderly person in a bright, homely care setting, soft natural light. Bold headline at the top reading "Wij zoeken jou!" and below it ${opschrift(t)}. Clean modern layout with plenty of space, soft teal and white colors.`,
@@ -132,6 +166,16 @@ const VIDEO: Record<string, string> = {
     "The dish steams gently, a sauce is slowly poured over it, the camera slowly pushes in. Keep the food and plating exactly the same. Appetizing, warm restaurant light.",
   "makelaar-rondgang":
     "A slow, smooth, steady camera glide through the room, like a real-estate video walkthrough. Nothing in the room changes or moves. Bright natural light.",
+  "dag-nacht":
+    "Smooth timelapse from day to night: the sun sets, the sky turns orange and then deep blue, and the lights in the windows and street lamps switch on one by one. Static camera; the building and street stay exactly the same.",
+  sneeuw:
+    "Soft snowflakes start falling gently through the whole scene, a light layer of snow slowly appears on surfaces, peaceful winter atmosphere. Subtle natural motion; everything else stays the same.",
+  superheld:
+    "The person drops from the sky and lands in a powerful superhero landing on one knee and one fist, the ground cracks, dust and debris burst outward in slow motion, then they look up at the camera. Cinematic.",
+  wind:
+    "A strong cinematic gust of wind blows through the person's hair and clothes, they look into the distance, dramatic slow motion, subtle camera push-in.",
+  "logo-video":
+    "Cinematic logo reveal: particles of light swirl in from the darkness and assemble into exactly the logo from the image, a soft light sweep passes over it, subtle glow. Keep the logo's shapes, colors and text exactly the same at the end.",
   "product-draai":
     "The product slowly rotates 360 degrees on a turntable in a clean minimal studio with soft lighting. The product's shape, colors and label stay exactly the same.",
 };

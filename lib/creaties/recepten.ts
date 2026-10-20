@@ -18,6 +18,7 @@ export type ReceptGroep =
   | "nederland"
   | "personage"
   | "fun"
+  | "opknappen"
   | "branche";
 
 /** De branches met eigen sjablonen (fase 4). Zie BRANCHES onderaan. */
@@ -95,6 +96,38 @@ export const RECEPTEN: Recept[] = [
   { id: "jaren-80", naam: "Jaren-80-foto", uitleg: "Jij op een verkleurde schoolfoto uit 1985.", icoon: "📼", kleur: "from-lime-500/30", groep: "fun", soort: "beeld", credits: BEELD, fotoLabel: "Een duidelijke foto van jezelf", gezicht: true },
   { id: "huisdier-mens", naam: "Huisdier als mens", uitleg: "Hoe zou je hond of kat eruitzien als mens?", icoon: "🐶", kleur: "from-amber-400/30", groep: "fun", soort: "beeld", credits: BEELD, fotoLabel: "Een foto van je huisdier" },
 
+  // ── Ronde 2 (21-10-2026) ────────────────────────────────────────────
+  // Effecten
+  { id: "dag-nacht", naam: "Van dag naar nacht", uitleg: "De zon gaat onder en de lichten gaan aan. Mooi voor een huis, winkel of straat.", icoon: "🌇", kleur: "from-indigo-500/30", groep: "effect", soort: "video", credits: EFFECT, fotoLabel: "Een foto van een gebouw, straat of uitzicht", nieuw: true },
+  { id: "sneeuw", naam: "Het gaat sneeuwen", uitleg: "Zachte sneeuwvlokken dwarrelen door je foto.", icoon: "❄️", kleur: "from-sky-300/30", groep: "effect", soort: "video", credits: EFFECT, fotoLabel: "Een foto buiten, van jezelf of een plek" },
+  { id: "superheld", naam: "Superheld-landing", uitleg: "Je landt met een klap op de grond, stof en scherven vliegen op.", icoon: "🦸", kleur: "from-red-500/30", groep: "effect", soort: "video", credits: EFFECT, fotoLabel: "Een foto van jezelf, van top tot teen", gezicht: true },
+  { id: "wind", naam: "Wind door je haar", uitleg: "Een filmische windvlaag door je haar en kleding.", icoon: "🌬️", kleur: "from-teal-400/30", groep: "effect", soort: "video", credits: EFFECT, fotoLabel: "Een portret van jezelf", gezicht: true },
+  { id: "logo-video", naam: "Logo komt tot leven", uitleg: "Je logo verschijnt met een filmische onthulling van licht en deeltjes.", icoon: "✴️", kleur: "from-amber-500/30", groep: "effect", soort: "video", credits: EFFECT, fotoLabel: "Je logo (liefst op een effen achtergrond)", nieuw: true },
+
+  // Voor je bedrijf
+  { id: "webwinkel-foto", naam: "Productfoto voor webwinkels", uitleg: "Puur witte achtergrond, vierkant en scherp: klaar voor Bol.com, Amazon of je eigen shop.", icoon: "🛒", kleur: "from-slate-300/30", groep: "bedrijf", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van je product", nieuw: true },
+  { id: "product-model", naam: "Je product bij een model", uitleg: "Een model draagt je kleding of houdt je product vast.", icoon: "🧍", kleur: "from-rose-400/30", groep: "bedrijf", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van je product of kledingstuk", tekst: { label: "Wat voor model en waar? (mag leeg)", placeholder: "Bijvoorbeeld: vrouw van 30, buiten in de stad" } },
+  { id: "merch", naam: "Je ontwerp op merchandise", uitleg: "Je logo of ontwerp op een T-shirt, mok, tas of pet.", icoon: "👕", kleur: "from-violet-400/30", groep: "bedrijf", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Je logo of ontwerp", tekst: { label: "Waarop?", placeholder: "Bijvoorbeeld: een zwart T-shirt, een witte mok", verplicht: true } },
+  { id: "logo-3d", naam: "Logo in 3D", uitleg: "Je platte logo als glanzend 3D-object, zoals op een gevel of beurs.", icoon: "🔷", kleur: "from-blue-500/30", groep: "bedrijf", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Je logo" },
+  { id: "etalage", naam: "Je product in een etalage", uitleg: "Je product mooi uitgelicht in een etalage in een Nederlandse winkelstraat.", icoon: "🏬", kleur: "from-amber-400/30", groep: "bedrijf", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van je product" },
+
+  // Foto's opknappen
+  { id: "oude-foto", naam: "Oude foto opknappen", uitleg: "Krassen, scheuren en vlekken weg. Je oude foto weer als nieuw.", icoon: "🖼️", kleur: "from-stone-400/30", groep: "opknappen", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een oude of beschadigde foto (een scan of foto van de foto)", nieuw: true },
+  { id: "inkleuren", naam: "Zwart-wit inkleuren", uitleg: "Een zwart-witfoto in natuurlijke, echte kleuren.", icoon: "🎨", kleur: "from-orange-400/30", groep: "opknappen", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een zwart-witfoto" },
+  { id: "schets-foto", naam: "Van schets naar foto", uitleg: "Een tekening of schets wordt een echte foto.", icoon: "✏️", kleur: "from-zinc-400/30", groep: "opknappen", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van je schets of tekening" },
+  { id: "kamer-stijl", naam: "Je kamer in een nieuwe stijl", uitleg: "Zie je kamer in een andere inrichtingsstijl, met dezelfde ramen en muren.", icoon: "🛋️", kleur: "from-emerald-400/30", groep: "opknappen", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een foto van je kamer", tekst: { label: "Welke stijl?", placeholder: "Bijvoorbeeld: Japandi, landelijk, industrieel, jaren 70", verplicht: true } },
+  { id: "negen-poses", naam: "9 foto's uit 1 foto", uitleg: "Negen verschillende poses en hoeken van jezelf, voor je socials.", icoon: "🔲", kleur: "from-pink-400/30", groep: "opknappen", soort: "beeld", credits: BEELD_PRO, fotoLabel: "Een duidelijke foto van jezelf", gezicht: true },
+
+  // Typisch Nederlands
+  { id: "klederdracht", naam: "Jij in klederdracht", uitleg: "Jij in Volendammer klederdracht, met de haven op de achtergrond.", icoon: "🧑‍🌾", kleur: "from-red-400/30", groep: "nederland", soort: "beeld", credits: BEELD, fotoLabel: "Een duidelijke foto van jezelf", gezicht: true, nieuw: true },
+  { id: "postzegel", naam: "Jij op een postzegel", uitleg: "Jij als gravure op een oude Nederlandse postzegel.", icoon: "📮", kleur: "from-orange-500/30", groep: "nederland", soort: "beeld", credits: BEELD, fotoLabel: "Een duidelijke foto van jezelf", gezicht: true },
+
+  // Voor de grap
+  { id: "huisdier-koning", naam: "Huisdier als koning", uitleg: "Een vorstelijk olieverfportret van je hond of kat, met kroon en mantel.", icoon: "👑", kleur: "from-yellow-500/30", groep: "fun", soort: "beeld", credits: BEELD, fotoLabel: "Een foto van je huisdier", nieuw: true },
+  { id: "tachtig", naam: "Jij op je 80e", uitleg: "Zo zie je eruit als je 80 bent.", icoon: "👵", kleur: "from-stone-300/30", groep: "fun", soort: "beeld", credits: BEELD, fotoLabel: "Een duidelijke foto van jezelf", gezicht: true },
+  { id: "stripheld", naam: "Jij als stripheld", uitleg: "Jij als held in een kleurrijke stripplaat, met tekstwolk.", icoon: "💥", kleur: "from-yellow-400/30", groep: "fun", soort: "beeld", credits: BEELD, fotoLabel: "Een foto van jezelf", gezicht: true },
+  { id: "tijdreis", naam: "Tijdreis", uitleg: "Jij als foto uit een ander decennium.", icoon: "⏳", kleur: "from-amber-600/30", groep: "fun", soort: "beeld", credits: BEELD, fotoLabel: "Een duidelijke foto van jezelf", tekst: { label: "Welk decennium?", placeholder: "Bijvoorbeeld: jaren 20, jaren 50, jaren 70, jaren 90", verplicht: true }, gezicht: true },
+
   // ── Sjablonen per branche (fase 4) ──────────────────────────────────
   // Zorg & welzijn
   { id: "zorg-vacature", naam: "Vacature-post", uitleg: "Een warme social-post voor je vacature, met de functie er groot in.", icoon: "📣", kleur: "from-rose-400/30", groep: "branche", branche: "zorg", soort: "beeld", credits: BEELD_PRO, fotoLabel: "", tekst: { label: "Welke functie?", placeholder: "Bijvoorbeeld: Verzorgende IG, 24 uur", verplicht: true }, zonderFoto: { formaat: "1:1" } },
@@ -135,6 +168,7 @@ export const RECEPTEN: Recept[] = [
 
 export const GROEPEN: { id: ReceptGroep; naam: string; uitleg: string }[] = [
   { id: "bedrijf", naam: "Voor je bedrijf", uitleg: "Productfoto's, reclame en profielfoto's" },
+  { id: "opknappen", naam: "Foto's opknappen", uitleg: "Oude foto's herstellen, inkleuren, en je kamer of schets tot leven" },
   { id: "nederland", naam: "Typisch Nederlands", uitleg: "Hollandse meesters, Koningsdag, Delfts blauw" },
   { id: "personage", naam: "Personage & stijl", uitleg: "Jij als figuur, in een game of in een andere outfit" },
   { id: "fun", naam: "Voor de grap", uitleg: "Om te delen met vrienden en collega's" },

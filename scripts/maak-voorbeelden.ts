@@ -59,6 +59,30 @@ const BRONNEN: Record<string, { prompt: string; formaat: string }> = {
     prompt: "A clean modern advertising poster for a Dutch bakery: big headline text 'VERSE STROOPWAFELS' and smaller text 'Bakkerij De Zoete Zwaan', a stack of golden stroopwafels on a warm orange background, simple flat graphic design.",
     formaat: "9:16",
   },
+  logo: {
+    prompt: "A simple flat vector logo for a Dutch bakery called 'De Zoete Zwaan': a white swan silhouette inside a golden circle with the name below in a clean serif font, centered on a plain off-white background. Graphic design, no mockup.",
+    formaat: "1:1",
+  },
+  oudefoto: {
+    prompt: "A scan of a damaged old black-and-white family photograph from the 1940s: a Dutch couple standing in front of a brick house, visible scratches, a torn corner, creases, dust spots and faded areas. Old paper texture.",
+    formaat: "1:1",
+  },
+  zwartwit: {
+    prompt: "A sharp black-and-white photograph from the 1950s of a Dutch family having a picnic in the dunes, father, mother and two children, sunny day. Authentic vintage photo, no damage.",
+    formaat: "1:1",
+  },
+  schets: {
+    prompt: "A loose pencil sketch on white paper of a cozy cottage with a garden gate and a tree, hand-drawn lines, some shading, photographed from above on a desk.",
+    formaat: "1:1",
+  },
+  kamer: {
+    prompt: "Smartphone photo of an ordinary, slightly dated Dutch living room: beige walls, a grey couch, a wooden coffee table, a large window with daylight. Unstyled, realistic.",
+    formaat: "16:9",
+  },
+  gebouw: {
+    prompt: "Smartphone photo of a row of classic Dutch canal houses with a small shop on the ground floor, on a clear afternoon, seen from across the street.",
+    formaat: "16:9",
+  },
 };
 
 // Welke voorbeeldfoto bij welk recept, en wat er in het tekstveld staat.
@@ -89,6 +113,28 @@ const KOPPELING: Record<string, { bron: string; tekst?: string }> = {
   outfit: { bron: "volledig", tekst: "een elegant donkerrood pak met witte sneakers" },
   "jaren-80": { bron: "vrouw" },
   "huisdier-mens": { bron: "hond" },
+  // Ronde 2 (21-10-2026)
+  "dag-nacht": { bron: "gebouw" },
+  sneeuw: { bron: "volledig" },
+  superheld: { bron: "volledig" },
+  wind: { bron: "vrouw" },
+  "logo-video": { bron: "logo" },
+  "webwinkel-foto": { bron: "product" },
+  "product-model": { bron: "product", tekst: "vrouw van 30, in een lichte keuken" },
+  merch: { bron: "logo", tekst: "een zwart T-shirt" },
+  "logo-3d": { bron: "logo" },
+  etalage: { bron: "product" },
+  "oude-foto": { bron: "oudefoto" },
+  inkleuren: { bron: "zwartwit" },
+  "schets-foto": { bron: "schets" },
+  "kamer-stijl": { bron: "kamer", tekst: "Japandi" },
+  "negen-poses": { bron: "vrouw" },
+  klederdracht: { bron: "vrouw" },
+  postzegel: { bron: "man" },
+  "huisdier-koning": { bron: "hond" },
+  tachtig: { bron: "man" },
+  stripheld: { bron: "volledig" },
+  tijdreis: { bron: "vrouw", tekst: "jaren 50" },
 };
 
 async function bewaar(tijdelijk: string, naam: string): Promise<string> {
