@@ -80,7 +80,7 @@ export default function DialogueBuddy({
           disabled={disabled || bezig}
           rows={compact ? 2 : 3}
           placeholder={plaatshouder}
-          className="flex-1 bg-slate-900/60 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white placeholder:text-slate-600 resize-none disabled:opacity-60"
+          className="flex-1 bg-paneel border border-rand rounded px-2.5 py-1.5 text-xs text-tekst placeholder:text-tekst-3 resize-none disabled:opacity-60"
         />
         <button
           onClick={() => void stuur(instructie)}
@@ -97,7 +97,7 @@ export default function DialogueBuddy({
             <button
               key={v}
               onClick={() => setInstructie(v)}
-              className="text-[10px] text-slate-500 hover:text-slate-300 border border-white/10 rounded-full px-2 py-0.5 transition"
+              className="text-[10px] text-tekst-3 hover:text-tekst-2 border border-rand rounded-full px-2 py-0.5 transition"
             >
               {v}
             </button>
@@ -105,9 +105,9 @@ export default function DialogueBuddy({
         </div>
       )}
 
-      {bezig && <p className="text-[11px] text-slate-500">De assistent kijkt ernaar…</p>}
-      {antwoord && <p className="text-[11px] text-emerald-300">{antwoord}</p>}
-      {fout && <p className="text-[11px] text-red-400">{fout}</p>}
+      {bezig && <p className="text-[11px] text-tekst-3">De assistent kijkt ernaar…</p>}
+      {antwoord && <p className="text-[11px] text-emerald-600 dark:text-emerald-300">{antwoord}</p>}
+      {fout && <p className="text-[11px] text-red-600 dark:text-red-300">{fout}</p>}
     </div>
   );
 }

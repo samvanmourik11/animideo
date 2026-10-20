@@ -53,24 +53,24 @@ export default function StylePicker({
             className={`rounded-lg border overflow-hidden text-left transition disabled:opacity-50 disabled:cursor-not-allowed ${
               s.id === value
                 ? "border-orange-400 ring-1 ring-orange-400/40"
-                : "border-white/10 hover:border-white/30"
+                : "border-rand hover:border-rand"
             }`}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={stylePreviewUrl(s.id)}
               alt={`Voorbeeld van de stijl ${s.name}`}
-              className="w-full aspect-video object-cover bg-slate-800"
+              className="w-full aspect-video object-cover bg-paneel-2"
               loading="lazy"
             />
-            <span className={`block px-2 py-1.5 ${s.id === value ? "bg-orange-500/10" : "bg-slate-900/40"}`}>
-              <span className="block text-xs text-white font-medium">{s.name}</span>
-              <span className="block text-[10px] text-slate-500 leading-tight">{s.tagline}</span>
+            <span className={`block px-2 py-1.5 ${s.id === value ? "bg-orange-500/10" : "bg-paneel"}`}>
+              <span className="block text-xs text-tekst font-medium">{s.name}</span>
+              <span className="block text-[10px] text-tekst-3 leading-tight">{s.tagline}</span>
             </span>
           </button>
         ))}
       </div>
-      {hint && <p className="text-[10px] text-slate-500 mt-1">{hint}</p>}
+      {hint && <p className="text-[10px] text-tekst-3 mt-1">{hint}</p>}
     </div>
   );
 }

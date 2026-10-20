@@ -42,22 +42,22 @@ export default function BibliotheekKiezer({
   const alGekozen = new Set(gekozenUrls ?? []);
 
   return (
-    <div className="mt-2 rounded-lg border border-white/10 bg-slate-900/60 p-2.5 max-w-xl">
+    <div className="mt-2 rounded-lg border border-rand bg-paneel p-2.5 max-w-xl">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[11px] text-slate-300">
+        <span className="text-[11px] text-tekst-2">
           {gekozenUrls ? "Kies personages" : "Kies een personage"}
         </span>
-        <button type="button" onClick={onSluit} className="text-[11px] text-slate-500 hover:text-white">
+        <button type="button" onClick={onSluit} className="text-[11px] text-tekst-3 hover:text-tekst">
           sluiten
         </button>
       </div>
 
-      {fout && <p className="text-[11px] text-red-400">{fout}</p>}
-      {lijst === null && !fout && <p className="text-[11px] text-slate-500">Laden…</p>}
+      {fout && <p className="text-[11px] text-red-600 dark:text-red-300">{fout}</p>}
+      {lijst === null && !fout && <p className="text-[11px] text-tekst-3">Laden…</p>}
       {lijst !== null && metBeeld.length === 0 && (
-        <p className="text-[11px] text-slate-400">
+        <p className="text-[11px] text-tekst-3">
           Je hebt nog geen personages met een afbeelding.{" "}
-          <Link href="/characters" className="text-orange-300 underline hover:text-orange-200">
+          <Link href="/characters" className="text-orange-600 dark:text-orange-300 underline hover:text-orange-200">
             Maak er een aan
           </Link>
           .
@@ -77,24 +77,24 @@ export default function BibliotheekKiezer({
               className={`w-20 rounded-lg border p-1.5 transition text-left ${
                 gekozen
                   ? "border-orange-400/60 bg-orange-400/10 cursor-default"
-                  : "border-white/10 bg-slate-900/40 hover:border-orange-400/60"
+                  : "border-rand bg-paneel hover:border-orange-400/60"
               }`}
             >
               <div className="relative">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={ch.image_url!} alt={ch.name} className={`w-full aspect-square rounded object-cover mb-1 ${gekozen ? "opacity-50" : ""}`} />
                 {gekozen && (
-                  <span className="absolute inset-0 flex items-center justify-center text-orange-200 text-sm">✓</span>
+                  <span className="absolute inset-0 flex items-center justify-center text-orange-600 dark:text-orange-300 text-sm">✓</span>
                 )}
               </div>
-              <span className="block text-[10px] text-slate-300 truncate">{ch.name}</span>
+              <span className="block text-[10px] text-tekst-2 truncate">{ch.name}</span>
             </button>
           );
         })}
       </div>
 
       {metBeeld.length > 0 && (
-        <Link href="/characters" className="inline-block mt-2 text-[10px] text-slate-500 hover:text-white">
+        <Link href="/characters" className="inline-block mt-2 text-[10px] text-tekst-3 hover:text-tekst">
           + nieuw personage maken
         </Link>
       )}

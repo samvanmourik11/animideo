@@ -98,11 +98,11 @@ export default function VasteVoorwerpen({
 
   return (
     <div>
-      <span className="block text-[11px] text-slate-400 mb-1">Voorwerpen die terugkomen</span>
-      <p className="text-[11px] text-slate-500 mb-1.5">
+      <span className="block text-[11px] text-tekst-3 mb-1">Voorwerpen die terugkomen</span>
+      <p className="text-[11px] text-tekst-3 mb-1.5">
         Zo zien ze er in élk beeld uit. Elk voorwerp wordt één keer getekend ({creditTekst(DIALOOG_CREDITS.VOORBEREIDING)}) en dat
         plaatje gaat mee naar de beelden waarin het voorkomt. Uit je{" "}
-        <Link href="/voorwerpen" className="underline hover:text-slate-300">voorwerpenbibliotheek</Link> zijn ze in elke video hetzelfde.
+        <Link href="/voorwerpen" className="underline hover:text-tekst-2">voorwerpenbibliotheek</Link> zijn ze in elke video hetzelfde.
       </p>
       {voorwerpen.length > 0 && (
         <ul className="space-y-2 mb-1.5">
@@ -117,24 +117,24 @@ export default function VasteVoorwerpen({
                       <img
                         src={v.bladUrl}
                         alt={v.naam}
-                        className={`w-24 h-16 object-contain rounded border border-white/10 bg-slate-900 ${bezig ? "opacity-40" : ""}`}
+                        className={`w-24 h-16 object-contain rounded border border-rand bg-paneel ${bezig ? "opacity-40" : ""}`}
                       />
                     </a>
                   ) : (
-                    <div className="w-24 h-16 rounded border border-dashed border-white/15 flex items-center justify-center text-center px-1">
+                    <div className="w-24 h-16 rounded border border-dashed border-rand flex items-center justify-center text-center px-1">
                       {bezig ? (
-                        <span className="text-[10px] text-blue-300">Tekenen…</span>
+                        <span className="text-[10px] text-blue-600 dark:text-blue-300">Tekenen…</span>
                       ) : onTeken && compleet(v) ? (
                         <button
                           type="button"
                           onClick={() => onTeken([i])}
                           disabled={disabled}
-                          className="text-[10px] leading-tight text-slate-400 hover:text-emerald-400 disabled:opacity-40"
+                          className="text-[10px] leading-tight text-tekst-3 hover:text-emerald-400 disabled:opacity-40"
                         >
                           Tekenen<br />({creditTekst(DIALOOG_CREDITS.VOORBEREIDING)})
                         </button>
                       ) : (
-                        <span className="text-[9px] text-slate-600">nog geen plaatje</span>
+                        <span className="text-[9px] text-tekst-3">nog geen plaatje</span>
                       )}
                     </div>
                   )}
@@ -144,7 +144,7 @@ export default function VasteVoorwerpen({
                       onClick={() => onTeken([i])}
                       disabled={disabled || bezig}
                       title={v.bibliotheekId ? "Vervangt ook het plaatje in je bibliotheek" : undefined}
-                      className="text-[10px] text-slate-500 hover:text-orange-300 disabled:opacity-40"
+                      className="text-[10px] text-tekst-3 hover:text-orange-300 disabled:opacity-40"
                     >
                       {bezig ? "Tekenen…" : `↻ opnieuw (${creditTekst(DIALOOG_CREDITS.VOORBEREIDING)})`}
                     </button>
@@ -156,17 +156,17 @@ export default function VasteVoorwerpen({
                     onChange={(e) => zet(i, { naam: e.target.value })}
                     disabled={disabled || bezig}
                     placeholder="naam"
-                    className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder:text-slate-600 disabled:opacity-50"
+                    className="w-full bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst placeholder:text-tekst-3 disabled:opacity-50"
                   />
                   {v.bibliotheekId ? (
-                    <span className="text-[10px] text-emerald-400">uit je bibliotheek</span>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-300">uit je bibliotheek</span>
                   ) : (
                     compleet(v) && (
                       <button
                         type="button"
                         onClick={() => bewaarInBibliotheek(i)}
                         disabled={disabled || bewaartIndex !== null}
-                        className="text-left text-[10px] text-slate-400 hover:text-emerald-400 disabled:opacity-40"
+                        className="text-left text-[10px] text-tekst-3 hover:text-emerald-400 disabled:opacity-40"
                       >
                         {bewaartIndex === i ? "Bewaren…" : "Bewaar in bibliotheek"}
                       </button>
@@ -179,14 +179,14 @@ export default function VasteVoorwerpen({
                   disabled={disabled || bezig}
                   rows={3}
                   placeholder="hoe het eruitziet: vorm, kleuren, materiaal (het liefst in het Engels)"
-                  className="flex-1 min-w-0 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder:text-slate-600 disabled:opacity-50 resize-y"
+                  className="flex-1 min-w-0 bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst placeholder:text-tekst-3 disabled:opacity-50 resize-y"
                 />
                 <button
                   type="button"
                   onClick={() => onChange(voorwerpen.filter((_, x) => x !== i))}
                   disabled={disabled || bezig}
                   title="Voorwerp verwijderen"
-                  className="text-xs text-slate-500 hover:text-red-400 disabled:opacity-30 mt-1"
+                  className="text-xs text-tekst-3 hover:text-red-400 disabled:opacity-30 mt-1"
                 >✕</button>
               </li>
             );
@@ -195,11 +195,11 @@ export default function VasteVoorwerpen({
       )}
 
       {kiezen && (
-        <div className="mb-1.5 rounded border border-white/10 bg-slate-900/60 p-2">
+        <div className="mb-1.5 rounded border border-rand bg-paneel p-2">
           {bibliotheek === null ? (
-            <p className="text-[11px] text-slate-500">Bibliotheek laden…</p>
+            <p className="text-[11px] text-tekst-3">Bibliotheek laden…</p>
           ) : beschikbaar.length === 0 ? (
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-tekst-3">
               {bibliotheek.length ? "Alle voorwerpen uit je bibliotheek staan er al." : "Je bibliotheek heeft nog geen voorwerpen."}
             </p>
           ) : (
@@ -210,7 +210,7 @@ export default function VasteVoorwerpen({
                     type="button"
                     onClick={() => kies(v)}
                     title={v.uiterlijk}
-                    className="text-[11px] rounded-full border border-white/10 px-2 py-0.5 text-slate-300 hover:border-emerald-400/50 hover:text-emerald-300"
+                    className="text-[11px] rounded-full border border-rand px-2 py-0.5 text-tekst-2 hover:border-emerald-400/50 hover:text-emerald-300"
                   >
                     {v.naam}
                   </button>
@@ -218,13 +218,13 @@ export default function VasteVoorwerpen({
               ))}
             </ul>
           )}
-          <button type="button" onClick={() => setKiezen(false)} className="mt-1.5 text-[10px] text-slate-500 hover:text-white">
+          <button type="button" onClick={() => setKiezen(false)} className="mt-1.5 text-[10px] text-tekst-3 hover:text-tekst">
             Sluiten
           </button>
         </div>
       )}
 
-      {melding && <p className="text-[11px] text-amber-300 mb-1">{melding}</p>}
+      {melding && <p className="text-[11px] text-amber-600 dark:text-amber-300 mb-1">{melding}</p>}
 
       <div className="flex flex-wrap items-center gap-3">
         {voorwerpen.length < MAX_VOORWERPEN && (
@@ -233,13 +233,13 @@ export default function VasteVoorwerpen({
               type="button"
               onClick={() => onChange([...voorwerpen, { naam: "", uiterlijk: "", bladUrl: null }])}
               disabled={disabled}
-              className="text-[11px] text-slate-400 hover:text-emerald-400 disabled:opacity-30"
+              className="text-[11px] text-tekst-3 hover:text-emerald-400 disabled:opacity-30"
             >+ nieuw voorwerp</button>
             <button
               type="button"
               onClick={openBibliotheek}
               disabled={disabled}
-              className="text-[11px] text-slate-400 hover:text-emerald-400 disabled:opacity-30"
+              className="text-[11px] text-tekst-3 hover:text-emerald-400 disabled:opacity-30"
             >+ uit je bibliotheek</button>
           </>
         )}
@@ -248,7 +248,7 @@ export default function VasteVoorwerpen({
             type="button"
             onClick={() => onTeken(zonderPlaatje)}
             disabled={disabled}
-            className="text-[11px] text-slate-400 hover:text-emerald-400 disabled:opacity-30"
+            className="text-[11px] text-tekst-3 hover:text-emerald-400 disabled:opacity-30"
           >
             Alle ontbrekende plaatjes tekenen ({creditTekst(zonderPlaatje.length * DIALOOG_CREDITS.VOORBEREIDING)})
           </button>

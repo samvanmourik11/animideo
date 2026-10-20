@@ -99,8 +99,8 @@ function toHex(raw?: string | null): string | null {
 function SceneField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label className="block">
-      <span className="block text-[11px] text-slate-400 mb-0.5">{label}</span>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white" />
+      <span className="block text-[11px] text-tekst-3 mb-0.5">{label}</span>
+      <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst" />
     </label>
   );
 }
@@ -1016,12 +1016,12 @@ export default function StoryPage() {
   return (
     <div className="max-w-[1200px] mx-auto p-6">
       {/* Huisstijl-fonts voor de preview (dezelfde families als de export-TTF's). */}
-      <h1 className="text-xl font-bold text-white mb-1">Storytelling-infographic</h1>
+      <h1 className="text-xl font-bold text-tekst mb-1">Storytelling-infographic</h1>
       {tekstInBeeld && <link rel="stylesheet" href={STORY_FONTS_CSS_HREF} />}
-      <p className="text-sm text-slate-400 mb-6">AI schrijft een verhaalboog en genereert per scene een illustratie die het hele beeld vult. De voice-over vertelt het verhaal; er komt geen tekst in beeld.</p>
-      {loadingProject && <p className="text-sm text-blue-300 mb-4">Verhaal laden…</p>}
+      <p className="text-sm text-tekst-3 mb-6">AI schrijft een verhaalboog en genereert per scene een illustratie die het hele beeld vult. De voice-over vertelt het verhaal; er komt geen tekst in beeld.</p>
+      {loadingProject && <p className="text-sm text-blue-600 dark:text-blue-300 mb-4">Verhaal laden…</p>}
 
-      <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3 mb-8">
+      <div className="bg-paneel-2/60 border border-rand rounded-xl p-4 space-y-3 mb-8">
         {/* Wie schrijft het script? Wie er zelf al een heeft, wil niet dat de AI
             er iets anders van maakt — zie de knipper in story-script.ts. */}
         <div className="flex flex-wrap gap-1.5">
@@ -1035,8 +1035,8 @@ export default function StoryPage() {
               disabled={!!spec}
               className={`text-xs px-3 py-1.5 rounded-full border transition ${
                 scriptModus === waarde
-                  ? "bg-blue-500/20 border-blue-400/40 text-blue-100"
-                  : "bg-slate-900/60 border-white/10 text-slate-300 hover:bg-slate-800"
+                  ? "bg-blue-500/20 border-blue-400/40 text-blue-700 dark:text-blue-100"
+                  : "bg-paneel border-rand text-tekst-2 hover:bg-paneel-2"
               } disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               {label}
@@ -1044,51 +1044,51 @@ export default function StoryPage() {
           ))}
         </div>
         <label className="block">
-          <span className="block text-[11px] text-slate-400 mb-0.5">Onderwerp / titel</span>
-          <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="bijv. De geschiedenis van de VOC" className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white" />
+          <span className="block text-[11px] text-tekst-3 mb-0.5">Onderwerp / titel</span>
+          <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="bijv. De geschiedenis van de VOC" className="w-full bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst" />
         </label>
         {/* De AI schrijft zelf: dan is dit de bron waar zij feiten uit haalt. */}
         {scriptModus === "verzinnen" && (
           <div>
             <div className="flex items-center justify-between mb-0.5 gap-2 flex-wrap">
-              <span className="text-[11px] text-slate-400">Brontekst / data (cijfers worden hier letterlijk uit gehaald)</span>
+              <span className="text-[11px] text-tekst-3">Brontekst / data (cijfers worden hier letterlijk uit gehaald)</span>
               <div className="flex items-center gap-1.5 shrink-0">
                 <input
                   value={pageUrl}
                   onChange={(e) => setPageUrl(e.target.value)}
                   placeholder="https://… (blog/artikel)"
-                  className="w-40 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white"
+                  className="w-40 bg-paneel border border-rand rounded px-2 py-1 text-[11px] text-tekst"
                 />
                 <button
                   onClick={fetchPageText}
                   disabled={pageBusy || !pageUrl.trim()}
                   title="Haal de tekst van deze webpagina op als brontekst"
-                  className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 disabled:opacity-50 shrink-0"
+                  className="text-[11px] px-2 py-1 rounded border border-rand bg-paneel text-tekst hover:bg-paneel-2 disabled:opacity-50 shrink-0"
                 >
                   {pageBusy ? "Ophalen…" : "🌐 Uit webpagina"}
                 </button>
                 <PdfUploadButton onExtracted={(t) => setText(t)} />
               </div>
             </div>
-            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Plak hier je bron: cijfers, feiten en kernpunten. De AI maakt er een verhaalboog van. (Of upload een PDF.)" className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-xs text-white" />
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} placeholder="Plak hier je bron: cijfers, feiten en kernpunten. De AI maakt er een verhaalboog van. (Of upload een PDF.)" className="w-full bg-paneel border border-rand rounded px-2 py-1.5 text-xs text-tekst" />
             {!spec && (
               <div className="mt-1.5">
                 <button
                   onClick={planSeries}
                   disabled={seriesBusy || (!topic.trim() && !text.trim())}
                   title="Splitst je onderwerp in meerdere losse korte video's"
-                  className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                  className="text-[11px] px-2 py-1 rounded border border-rand bg-paneel text-tekst hover:bg-paneel-2 disabled:opacity-50"
                 >
                   {seriesBusy ? "Serie bedenken…" : "🎬 Maak er een serie van"}
                 </button>
                 {episodes.length > 0 && (
                   <div className="mt-2 space-y-1.5">
-                    <p className="text-[11px] text-slate-400">Kies een aflevering — die vult onderwerp + brontekst, daarna genereer je 'm normaal:</p>
+                    <p className="text-[11px] text-tekst-3">Kies een aflevering — die vult onderwerp + brontekst, daarna genereer je 'm normaal:</p>
                     {episodes.map((ep, i) => (
-                      <div key={i} className="flex items-start justify-between gap-3 bg-slate-900/40 border border-white/10 rounded px-2.5 py-2">
+                      <div key={i} className="flex items-start justify-between gap-3 bg-paneel border border-rand rounded px-2.5 py-2">
                         <div className="min-w-0">
-                          <div className="text-xs font-medium text-white">{i + 1}. {ep.title}</div>
-                          <div className="text-[11px] text-slate-400">{ep.angle}</div>
+                          <div className="text-xs font-medium text-tekst">{i + 1}. {ep.title}</div>
+                          <div className="text-[11px] text-tekst-3">{ep.angle}</div>
                         </div>
                         <button onClick={() => planEpisode(ep)} className="shrink-0 text-[11px] px-2 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white">Maak deze →</button>
                       </div>
@@ -1104,7 +1104,7 @@ export default function StoryPage() {
         {scriptModus === "eigen" && (
           <div>
             <div className="flex items-center justify-between mb-0.5 gap-2 flex-wrap">
-              <span className="text-[11px] text-slate-400">Jouw script (dit wordt letterlijk ingesproken)</span>
+              <span className="text-[11px] text-tekst-3">Jouw script (dit wordt letterlijk ingesproken)</span>
               <PdfUploadButton onExtracted={(t) => { setScript(t); setLezing(null); }} label="PDF of Word uploaden" />
             </div>
             <textarea
@@ -1112,24 +1112,24 @@ export default function StoryPage() {
               onChange={(e) => { setScript(e.target.value); setLezing(null); }}
               rows={10}
               placeholder="Plak hier je voice-over script of je hele draaiboek. Elke witregel wordt een nieuwe scene. De AI verandert geen woord; hij bedenkt alleen het beeld erbij."
-              className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-xs text-white"
+              className="w-full bg-paneel border border-rand rounded px-2 py-1.5 text-xs text-tekst"
             />
             {!script.trim() && (
-              <p className="text-[11px] text-slate-500 mt-1">Zet een witregel tussen de stukken die elk hun eigen beeld krijgen. Een compleet draaiboek mag ook.</p>
+              <p className="text-[11px] text-tekst-3 mt-1">Zet een witregel tussen de stukken die elk hun eigen beeld krijgen. Een compleet draaiboek mag ook.</p>
             )}
 
             {/* Draaiboek: eerst uit elkaar trekken, anders wordt de briefing
                 meegelezen als voice-over. */}
             {script.trim() && isDraaiboek && !lezing && (
               <div className="mt-2 bg-amber-500/10 border border-amber-400/30 rounded p-2.5">
-                <p className="text-[11px] text-amber-100">
+                <p className="text-[11px] text-amber-700 dark:text-amber-100">
                   Dit lijkt een draaiboek, geen kale voice-over. Laat het eerst uitlezen: dan wordt per shot de gesproken tekst,
                   het beeld en de beweging eruit gehaald, en blijven de briefing, tijdcodes en tabelkoppen buiten je video.
                 </p>
                 <button
                   onClick={leesDraaiboek}
                   disabled={leesBusy}
-                  className="mt-1.5 text-[11px] px-2 py-1 rounded border border-amber-400/40 bg-amber-500/20 text-amber-50 hover:bg-amber-500/30 disabled:opacity-50"
+                  className="mt-1.5 text-[11px] px-2 py-1 rounded border border-amber-400/40 bg-amber-500/20 text-amber-700 dark:text-amber-100 hover:bg-amber-500/30 disabled:opacity-50"
                 >
                   {leesBusy ? "Draaiboek lezen…" : "📋 Lees mijn draaiboek (gratis)"}
                 </button>
@@ -1137,28 +1137,28 @@ export default function StoryPage() {
             )}
 
             {lezing && (
-              <div className="mt-2 bg-slate-900/50 border border-white/10 rounded p-2.5">
+              <div className="mt-2 bg-paneel border border-rand rounded p-2.5">
                 <div className="flex items-center justify-between gap-2 flex-wrap mb-1.5">
-                  <span className="text-[11px] text-slate-300">
+                  <span className="text-[11px] text-tekst-2">
                     {lezing.scenes.length} shots uit je draaiboek · ongeveer {geschatteDuur(lezing.scenes.map((sc) => sc.voiceover).join(" "))} seconden ·{" "}
                     {lezing.scenes.length * CREDIT_COSTS.STORY_SCENE_IMAGE} credits voor de beelden
                   </span>
-                  <button onClick={() => setLezing(null)} className="text-[11px] text-slate-400 hover:text-white underline">opnieuw lezen</button>
+                  <button onClick={() => setLezing(null)} className="text-[11px] text-tekst-3 hover:text-tekst underline">opnieuw lezen</button>
                 </div>
                 {lezing.opmerkingen.length > 0 && (
-                  <p className="text-[11px] text-slate-500 mb-1.5">Overgeslagen: {lezing.opmerkingen.join(" · ")}</p>
+                  <p className="text-[11px] text-tekst-3 mb-1.5">Overgeslagen: {lezing.opmerkingen.join(" · ")}</p>
                 )}
                 <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
                   {lezing.scenes.map((sc, i) => (
-                    <div key={i} className="text-[11px] border-l-2 border-white/10 pl-2">
-                      <div className="text-white">
-                        {i + 1}. {sc.voiceover || <span className="text-slate-500">(geen gesproken tekst)</span>}
+                    <div key={i} className="text-[11px] border-l-2 border-rand pl-2">
+                      <div className="text-tekst">
+                        {i + 1}. {sc.voiceover || <span className="text-tekst-3">(geen gesproken tekst)</span>}
                         {!sc.letterlijk && sc.voiceover && (
-                          <span className="ml-1 text-amber-300" title="Deze zin staat niet letterlijk in je document; controleer hem.">⚠ afwijkend</span>
+                          <span className="ml-1 text-amber-600 dark:text-amber-300" title="Deze zin staat niet letterlijk in je document; controleer hem.">⚠ afwijkend</span>
                         )}
                       </div>
-                      {sc.beeld && <div className="text-slate-400">beeld: {sc.beeld}</div>}
-                      {sc.beweging && <div className="text-slate-500">beweging: {sc.beweging}</div>}
+                      {sc.beeld && <div className="text-tekst-3">beeld: {sc.beeld}</div>}
+                      {sc.beweging && <div className="text-tekst-3">beweging: {sc.beweging}</div>}
                     </div>
                   ))}
                 </div>
@@ -1166,7 +1166,7 @@ export default function StoryPage() {
             )}
 
             {script.trim() && !isDraaiboek && !lezing && (
-              <p className="text-[11px] text-slate-400 mt-1">
+              <p className="text-[11px] text-tekst-3 mt-1">
                 {scriptScenes.length} {scriptScenes.length === 1 ? "scene" : "scenes"} · ongeveer {geschatteDuur(script)} seconden ·{" "}
                 {scriptScenes.length * CREDIT_COSTS.STORY_SCENE_IMAGE} credits voor de beelden
                 {scriptScenes.length >= MAX_SCENES && " · langere scripts worden samengevoegd tot 20 scenes"}
@@ -1177,43 +1177,43 @@ export default function StoryPage() {
 
         {/* Huisstijl: kies een opgeslagen kit óf haal 'm uit een website; kleuren,
             font en logo worden overgenomen en blijven handmatig overschrijfbaar. */}
-        <div className="rounded-lg border border-white/10 bg-slate-950/40 p-3 space-y-2">
-          <p className="text-[11px] uppercase tracking-wide text-slate-500">Huisstijl</p>
+        <div className="rounded-lg border border-rand bg-vlak p-3 space-y-2">
+          <p className="text-[11px] uppercase tracking-wide text-tekst-3">Huisstijl</p>
           <div className="flex flex-wrap items-end gap-3">
             <label className="block">
-              <span className="block text-[11px] text-slate-400 mb-0.5">Kies huisstijl</span>
+              <span className="block text-[11px] text-tekst-3 mb-0.5">Kies huisstijl</span>
               <select
                 value={brandKitId}
                 onChange={(e) => applyBrandKit(e.target.value)}
                 title="Neemt kleuren, lettertype en logo van je huisstijl over."
-                className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white"
+                className="bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst"
               >
                 <option value="">Geen huisstijl</option>
                 {brandKits.map((k) => (<option key={k.id} value={k.id}>{k.name}</option>))}
               </select>
             </label>
             <label className="block flex-1 min-w-[240px]">
-              <span className="block text-[11px] text-slate-400 mb-0.5">…of haal 'm uit je website</span>
+              <span className="block text-[11px] text-tekst-3 mb-0.5">…of haal 'm uit je website</span>
               <div className="flex gap-2">
                 <input
                   value={brandUrl}
                   onChange={(e) => setBrandUrl(e.target.value)}
                   placeholder="https://www.jouwbedrijf.nl"
-                  className="flex-1 bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white"
+                  className="flex-1 bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst"
                 />
                 <button
                   onClick={extractFromWebsite}
                   disabled={brandBusy || !brandUrl.trim()}
                   title="AI leest je website en neemt kleuren, lettertype en logo over."
-                  className="text-sm bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md disabled:opacity-50 whitespace-nowrap"
+                  className="text-sm bg-paneel-2 hover:bg-rand/70 text-tekst px-3 py-1.5 rounded-md disabled:opacity-50 whitespace-nowrap"
                 >
                   {brandBusy ? "Ophalen…" : "🌐 Uit website"}
                 </button>
               </div>
             </label>
             <div className="flex flex-col gap-1 pb-1.5">
-              <span className="block text-[11px] text-slate-400">Tekst in beeld</span>
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer" title="Zet een korte kop, een accentwoord en een groot getal over de illustratie. Standaard uit: in een volledig ingetekend beeld leidt tekst vaak af.">
+              <span className="block text-[11px] text-tekst-3">Tekst in beeld</span>
+              <label className="flex items-center gap-2 text-xs text-tekst-2 cursor-pointer" title="Zet een korte kop, een accentwoord en een groot getal over de illustratie. Standaard uit: in een volledig ingetekend beeld leidt tekst vaak af.">
                 <input type="checkbox" checked={tekstInBeeld} onChange={(e) => setTekstInBeeld(e.target.checked)} className="accent-blue-500" />
                 Koppen en cijfers tonen
               </label>
@@ -1221,7 +1221,7 @@ export default function StoryPage() {
                 <select
                   value={fontFamily}
                   onChange={(e) => setFontFamily(e.target.value)}
-                  className="mt-1 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white"
+                  className="mt-1 bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst"
                   style={{ fontFamily: `${fontFamily}, system-ui, sans-serif` }}
                 >
                   {STORY_FONTS.map((f) => (<option key={f.id} value={f.family}>{f.label}{f.note ? ` — ${f.note}` : ""}</option>))}
@@ -1230,7 +1230,7 @@ export default function StoryPage() {
             </div>
 
             <div className="flex flex-col gap-1 pb-1.5">
-              <span className="block text-[11px] text-slate-400">Logo</span>
+              <span className="block text-[11px] text-tekst-3">Logo</span>
               <div className="flex items-center gap-2">
                 {logoUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -1248,7 +1248,7 @@ export default function StoryPage() {
                   onClick={() => logoInputRef.current?.click()}
                   disabled={logoBusy}
                   title="Upload je eigen logo (PNG, JPG, WEBP of SVG, max 5 MB). Verschijnt rechtsboven in elke scene."
-                  className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                  className="text-[11px] px-2 py-1 rounded border border-rand bg-paneel text-tekst hover:bg-paneel-2 disabled:opacity-50"
                 >
                   {logoBusy ? "Uploaden…" : logoUrl ? "Vervangen" : "⬆ Logo uploaden"}
                 </button>
@@ -1257,7 +1257,7 @@ export default function StoryPage() {
                     type="button"
                     onClick={() => { setLogoUrl(null); setLogoEnabled(false); }}
                     title="Logo verwijderen"
-                    className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-800"
+                    className="text-[11px] px-2 py-1 rounded border border-rand bg-paneel text-tekst-3 hover:bg-paneel-2"
                   >
                     Verwijderen
                   </button>
@@ -1265,21 +1265,21 @@ export default function StoryPage() {
               </div>
               <label className="flex items-center gap-2 mt-0.5" title={logoUrl ? "Toont het logo rechtsboven in elke scene" : "Upload eerst een logo"}>
                 <input type="checkbox" checked={logoEnabled} disabled={!logoUrl} onChange={(e) => setLogoEnabled(e.target.checked)} className="accent-blue-500" />
-                <span className="text-[11px] text-slate-400">Logo tonen{logoUrl ? "" : " (geen logo)"}</span>
+                <span className="text-[11px] text-tekst-3">Logo tonen{logoUrl ? "" : " (geen logo)"}</span>
               </label>
             </div>
             {/* Het castblad: iedereen die in dit verhaal terugkomt, elk met een
                 eigen rol. De portretten gaan als referentie mee naar het castblad
                 en naar elke scene waarin die persoon voorkomt. */}
             <div className="flex flex-col gap-1.5 pb-1.5">
-              <span className="block text-[11px] text-slate-400">
+              <span className="block text-[11px] text-tekst-3">
                 Vaste personages{castRefs.length > 0 ? ` (${castRefs.length}/${MAX_CAST_REFS})` : ""}
               </span>
 
               {castRefs.length > 0 && (
                 <div className="flex flex-col gap-1.5">
                   {castRefs.map((ref, i) => (
-                    <div key={ref.url} className="flex items-center gap-1.5 rounded border border-white/10 bg-slate-900/40 p-1.5">
+                    <div key={ref.url} className="flex items-center gap-1.5 rounded border border-rand bg-paneel p-1.5">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={ref.url} alt={ref.name || `personage ${i + 1}`} className="h-9 w-9 rounded object-contain bg-white/90 p-0.5 shrink-0" />
                       <input
@@ -1287,20 +1287,20 @@ export default function StoryPage() {
                         onChange={(e) => wijzigCastLid(i, { name: e.target.value })}
                         placeholder="Naam"
                         title="Onder deze naam komt dit personage in de briefings terug."
-                        className="bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white w-24 placeholder:text-slate-600"
+                        className="bg-paneel border border-rand rounded px-2 py-1 text-[11px] text-tekst w-24 placeholder:text-tekst-3"
                       />
                       <input
                         value={ref.role}
                         onChange={(e) => wijzigCastLid(i, { role: e.target.value })}
                         placeholder="bijv. de monteur"
                         title="Wat deze persoon in het verhaal doet. Blijft in elke scene hetzelfde."
-                        className="bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white flex-1 min-w-0 placeholder:text-slate-600"
+                        className="bg-paneel border border-rand rounded px-2 py-1 text-[11px] text-tekst flex-1 min-w-0 placeholder:text-tekst-3"
                       />
                       <button
                         type="button"
                         onClick={() => zetCast(castRefs.filter((_, k) => k !== i))}
                         title="Uit de cast halen"
-                        className="text-[11px] px-1.5 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-800 shrink-0"
+                        className="text-[11px] px-1.5 py-1 rounded border border-rand bg-paneel text-tekst-3 hover:bg-paneel-2 shrink-0"
                       >
                         ×
                       </button>
@@ -1316,12 +1316,12 @@ export default function StoryPage() {
                   type="button"
                   onClick={() => setKiezerOpen((o) => !o)}
                   disabled={castRefs.length >= MAX_CAST_REFS}
-                  className="text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-200 hover:bg-slate-800 disabled:opacity-40 disabled:hover:bg-slate-900/60"
+                  className="text-[11px] px-2 py-1 rounded border border-rand bg-paneel text-tekst hover:bg-paneel-2 disabled:opacity-40 disabled:hover:bg-paneel"
                   title={castRefs.length >= MAX_CAST_REFS ? `Maximaal ${MAX_CAST_REFS} personages` : "Kies personages uit je bibliotheek"}
                 >
                   + Uit bibliotheek
                 </button>
-                <label className={`text-[11px] px-2 py-1 rounded border border-white/10 bg-slate-900/60 text-slate-400 hover:bg-slate-800 cursor-pointer ${characterBusy || castRefs.length >= MAX_CAST_REFS ? "opacity-40 pointer-events-none" : ""}`} title="Of upload een eigen afbeelding (PNG, JPG of WEBP)">
+                <label className={`text-[11px] px-2 py-1 rounded border border-rand bg-paneel text-tekst-3 hover:bg-paneel-2 cursor-pointer ${characterBusy || castRefs.length >= MAX_CAST_REFS ? "opacity-40 pointer-events-none" : ""}`} title="Of upload een eigen afbeelding (PNG, JPG of WEBP)">
                   {characterBusy ? "Uploaden…" : "⬆ Uploaden"}
                   <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadCharacter(f); e.currentTarget.value = ""; }} />
                 </label>
@@ -1346,7 +1346,7 @@ export default function StoryPage() {
                 />
               )}
 
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[10px] text-tekst-3">
                 {castRefs.length === 0
                   ? "Optioneel. Wie je hier vastlegt, ziet er in elke scene hetzelfde uit."
                   : "Deze mensen komen in elke scene hetzelfde terug, elk in hun eigen rol."}
@@ -1375,15 +1375,15 @@ export default function StoryPage() {
             ze niet — een kiezer die niets verandert is erger dan geen kiezer. */}
         {(spec?.mode ?? mode) === "overheid" ? (
           <div className="mb-4">
-            <span className="block text-[11px] text-slate-400 mb-1.5">Stijl</span>
-            <p className="text-xs text-slate-400 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+            <span className="block text-[11px] text-tekst-3 mb-1.5">Stijl</span>
+            <p className="text-xs text-tekst-3 bg-paneel-2/60 border border-rand rounded-lg px-3 py-2">
               De overheidsstijl bepaalt zelf hoe de beelden eruitzien: vlakke diagrammen met iconen en panelen op een
               lichtgrijs vlak, zonder omgevingen. De tekenstijlen hieronder gelden alleen voor Verhaal en Rapport.
             </p>
           </div>
         ) : (
           <div className="mb-4">
-            <span className="block text-[11px] text-slate-400 mb-1.5">
+            <span className="block text-[11px] text-tekst-3 mb-1.5">
               Stijl {spec ? "(vast)" : ""}
             </span>
             <StylePicker
@@ -1399,76 +1399,76 @@ export default function StoryPage() {
 
         <div className="flex flex-wrap items-end gap-4">
           <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Modus</span>
-            <select value={mode} onChange={(e) => setMode(e.target.value as "story" | "report" | "overheid")} className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white">
+            <span className="block text-[11px] text-tekst-3 mb-0.5">Modus</span>
+            <select value={mode} onChange={(e) => setMode(e.target.value as "story" | "report" | "overheid")} className="bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst">
               <option value="story">Verhaal</option>
               <option value="report">Rapport</option>
               {(intern || spec?.mode === "overheid") && <option value="overheid">Overheidsstijl</option>}
             </select>
           </label>
           <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Taal {spec ? "(vast)" : ""}</span>
+            <span className="block text-[11px] text-tekst-3 mb-0.5">Taal {spec ? "(vast)" : ""}</span>
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
               disabled={!!spec}
               title={spec ? "De taal ligt vast voor dit verhaal. Klik 'Nieuw verhaal' voor een andere taal." : "Taal van script en voice-over"}
-              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {LANGUAGES.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </label>
           <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Toon</span>
-            <select value={tone} onChange={(e) => setTone(e.target.value as "zakelijk" | "speels" | "energiek")} className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white">
+            <span className="block text-[11px] text-tekst-3 mb-0.5">Toon</span>
+            <select value={tone} onChange={(e) => setTone(e.target.value as "zakelijk" | "speels" | "energiek")} className="bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst">
               <option value="zakelijk">Zakelijk</option>
               <option value="speels">Speels</option>
               <option value="energiek">Energiek</option>
             </select>
           </label>
           <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Invalshoek</span>
+            <span className="block text-[11px] text-tekst-3 mb-0.5">Invalshoek</span>
             <input
               value={angle}
               onChange={(e) => setAngle(e.target.value)}
               placeholder="optioneel · bijv. vanuit de klant"
               title="Optionele hoek van waaruit het verhaal verteld wordt"
-              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white w-48"
+              className="bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst w-48"
             />
           </label>
           <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Formaat {spec ? "(vast)" : ""}</span>
+            <span className="block text-[11px] text-tekst-3 mb-0.5">Formaat {spec ? "(vast)" : ""}</span>
             <select
               value={format}
               onChange={(e) => setFormat(e.target.value as "16:9" | "9:16")}
               disabled={!!spec}
               title={spec ? "Het formaat ligt vast voor dit verhaal. Klik 'Nieuw verhaal' om een ander formaat te kiezen." : undefined}
-              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              className="bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option value="16:9">16:9 liggend</option>
               <option value="9:16">9:16 staand</option>
             </select>
           </label>
           <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Videolengte{scriptModus === "eigen" ? " (volgt je script)" : ""}</span>
-            <select value={targetSeconds} onChange={(e) => setTargetSeconds(Number(e.target.value))} disabled={scriptModus === "eigen"} title={scriptModus === "eigen" ? "Je eigen script bepaalt de lengte: er wordt niets weggelaten of bijgeschreven." : undefined} className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed">
+            <span className="block text-[11px] text-tekst-3 mb-0.5">Videolengte{scriptModus === "eigen" ? " (volgt je script)" : ""}</span>
+            <select value={targetSeconds} onChange={(e) => setTargetSeconds(Number(e.target.value))} disabled={scriptModus === "eigen"} title={scriptModus === "eigen" ? "Je eigen script bepaalt de lengte: er wordt niets weggelaten of bijgeschreven." : undefined} className="bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst disabled:opacity-50 disabled:cursor-not-allowed">
               <option value={30}>Kort · ~30 sec (±5 scenes)</option>
               <option value={60}>~1 min (±10 scenes)</option>
               <option value={90}>~1,5 min (±15 scenes)</option>
               <option value={120}>~2 min (±20 scenes)</option>
             </select>
-            <span className="block text-[10px] text-slate-500 mt-0.5">elke scene ~{SECS_PER_SCENE} sec</span>
+            <span className="block text-[10px] text-tekst-3 mt-0.5">elke scene ~{SECS_PER_SCENE} sec</span>
           </label>
           <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Hoofdkleur beeld{brandKitId ? " · uit huisstijl" : ""}</span>
-            <input type="color" value={navy} onChange={(e) => { setNavy(e.target.value); setBrandKitId(""); }} className="h-9 w-14 bg-transparent border border-white/10 rounded cursor-pointer" />
+            <span className="block text-[11px] text-tekst-3 mb-0.5">Hoofdkleur beeld{brandKitId ? " · uit huisstijl" : ""}</span>
+            <input type="color" value={navy} onChange={(e) => { setNavy(e.target.value); setBrandKitId(""); }} className="h-9 w-14 bg-transparent border border-rand rounded cursor-pointer" />
           </label>
           <label className="block">
-            <span className="block text-[11px] text-slate-400 mb-0.5">Accent{brandKitId ? " · uit huisstijl" : ""}</span>
-            <input type="color" value={accent} onChange={(e) => { setAccent(e.target.value); setBrandKitId(""); }} className="h-9 w-14 bg-transparent border border-white/10 rounded cursor-pointer" />
+            <span className="block text-[11px] text-tekst-3 mb-0.5">Accent{brandKitId ? " · uit huisstijl" : ""}</span>
+            <input type="color" value={accent} onChange={(e) => { setAccent(e.target.value); setBrandKitId(""); }} className="h-9 w-14 bg-transparent border border-rand rounded cursor-pointer" />
           </label>
           {jouwAnimatieVideoAccount && (
-            <label className="flex items-center gap-1.5 text-xs text-slate-300 cursor-pointer" title="Nano Banana Pro: scherpere, consistentere beelden — kost meer per generatie. Alleen zichtbaar voor onze eigen accounts.">
+            <label className="flex items-center gap-1.5 text-xs text-tekst-2 cursor-pointer" title="Nano Banana Pro: scherpere, consistentere beelden — kost meer per generatie. Alleen zichtbaar voor onze eigen accounts.">
               <input type="checkbox" checked={proBeelden} onChange={(e) => setProBeelden(e.target.checked)} className="h-3.5 w-3.5 accent-cyan-500" />
               Pro-beelden (intern)
             </label>
@@ -1479,41 +1479,41 @@ export default function StoryPage() {
             {loading ? (mode === "overheid" ? "Genereren… (script + scenes)" : "Genereren… (script + beelden)") : "Genereer verhaal"}
             {/* In de overheidsmodus tekent de app de scenes zelf, dus er is geen
                 beeldmodel en geen tarief per scene. */}
-            <span className="text-white/70 ml-1">
+            <span className="text-tekst/70 ml-1">
               {mode === "overheid" ? "· zonder beeldcredits" : `· ${CREDIT_COSTS.STORY_SCENE_IMAGE}/scene cr.`}
             </span>
           </button>
         </div>
-        {err && <p className="text-red-400 text-sm break-words">{err}</p>}
+        {err && <p className="text-red-600 dark:text-red-300 text-sm break-words">{err}</p>}
       </div>
 
-      {loading && <p className="text-slate-400 text-sm">{scriptModus === "eigen" ? "Even geduld, je script staat vast en de AI tekent er per scene een illustratie bij. Dit duurt ongeveer 20 tot 40 seconden." : "Even geduld, de AI schrijft het script en genereert per scene een illustratie. Dit duurt ongeveer 20 tot 40 seconden."}</p>}
+      {loading && <p className="text-tekst-3 text-sm">{scriptModus === "eigen" ? "Even geduld, je script staat vast en de AI tekent er per scene een illustratie bij. Dit duurt ongeveer 20 tot 40 seconden." : "Even geduld, de AI schrijft het script en genereert per scene een illustratie. Dit duurt ongeveer 20 tot 40 seconden."}</p>}
 
       {spec && (
         <div className="space-y-8">
-          <h2 className="text-lg font-semibold text-white">{spec.title}</h2>
+          <h2 className="text-lg font-semibold text-tekst">{spec.title}</h2>
 
           {/* Verborgen audio-element voor de stem-previews (ingebakken mp3's). */}
           <audio ref={previewRef} onEnded={() => setPreviewVoice(null)} className="hidden" />
 
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-4">
+          <div className="bg-paneel-2/60 border border-rand rounded-xl p-4 space-y-4">
             {/* Meta: lengte, formaat en opslagstatus in één rustige regel. */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-tekst-3">
               <span>
                 Geschatte lengte:{" "}
-                <span className="text-slate-200 font-medium">
+                <span className="text-tekst font-medium">
                   ~{Math.round(spec.voiceDuration && spec.voiceDuration > 0 ? spec.voiceDuration : spec.scenes.length * SECS_PER_SCENE)} sec
                 </span>{" "}
                 ({spec.scenes.length} scenes{spec.voiceDuration ? "" : ` × ~${SECS_PER_SCENE}s`})
               </span>
               <span>Formaat: {spec.format}</span>
-              {spec.voiceDuration ? <span className="text-emerald-400">{spec.voiceDuration.toFixed(1)}s ingesproken</span> : null}
-              {savedAt && <span className="text-emerald-400/80">automatisch bewaard om {savedAt}</span>}
+              {spec.voiceDuration ? <span className="text-emerald-600 dark:text-emerald-300">{spec.voiceDuration.toFixed(1)}s ingesproken</span> : null}
+              {savedAt && <span className="text-emerald-600/80 dark:text-emerald-300/80">automatisch bewaard om {savedAt}</span>}
             </div>
 
             {/* Audio: stemkeuze + voice-over + sync + muziek. */}
             <div className="space-y-2">
-              <p className="text-[11px] uppercase tracking-wide text-slate-500">Audio</p>
+              <p className="text-[11px] uppercase tracking-wide text-tekst-3">Audio</p>
               <div className="flex flex-wrap gap-2">
                 {beschikbareStemmen.map((v) => {
                   const active = voice === v.id;
@@ -1521,16 +1521,16 @@ export default function StoryPage() {
                   return (
                     <div
                       key={v.id}
-                      className={`flex items-center rounded-md border overflow-hidden ${active ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/10 bg-slate-900/40"}`}
+                      className={`flex items-center rounded-md border overflow-hidden ${active ? "border-emerald-400/60 bg-emerald-500/10" : "border-rand bg-paneel"}`}
                     >
-                      <button onClick={() => setVoice(v.id)} title={`Kies ${v.label}`} className="pl-2.5 pr-2 py-1.5 text-xs text-white">
-                        <span className={active ? "text-emerald-300" : "text-slate-500"}>{active ? "●" : "○"}</span>{" "}
-                        {v.label} <span className="text-slate-400">· {v.description}</span>
+                      <button onClick={() => setVoice(v.id)} title={`Kies ${v.label}`} className="pl-2.5 pr-2 py-1.5 text-xs text-tekst">
+                        <span className={active ? "text-emerald-600 dark:text-emerald-300" : "text-tekst-3"}>{active ? "●" : "○"}</span>{" "}
+                        {v.label} <span className="text-tekst-3">· {v.description}</span>
                       </button>
                       <button
                         onClick={() => playPreview(v.id)}
                         title="Voorbeeld afspelen (gratis, ingebakken)"
-                        className="px-2 py-1.5 text-slate-300 hover:text-white border-l border-white/10"
+                        className="px-2 py-1.5 text-tekst-2 hover:text-tekst border-l border-rand"
                       >
                         {playing ? "❚❚" : "▶"}
                       </button>
@@ -1539,9 +1539,9 @@ export default function StoryPage() {
                 })}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button onClick={genVoice} disabled={voiceBusy} title={`Kost ${CREDIT_COSTS.VOICE} credits`} className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50">
+                <button onClick={genVoice} disabled={voiceBusy} title={`Kost ${CREDIT_COSTS.VOICE} credits`} className="text-sm bg-paneel-2 hover:bg-rand/70 text-tekst px-4 py-1.5 rounded-md disabled:opacity-50">
                   {voiceBusy ? "Voice-over genereren…" : spec.voiceUrl ? "Voice-over opnieuw" : "Genereer voice-over"}
-                  <span className="text-slate-400 ml-1">· {creditLabel(CREDIT_COSTS.VOICE)}</span>
+                  <span className="text-tekst-3 ml-1">· {creditLabel(CREDIT_COSTS.VOICE)}</span>
                 </button>
                 <input
                   ref={voiceFileRef}
@@ -1554,14 +1554,14 @@ export default function StoryPage() {
                   onClick={() => voiceFileRef.current?.click()}
                   disabled={voiceUploadBusy}
                   title="Gebruik je eigen ingesproken mp3 in plaats van een AI-stem. Max. 25 MB. Kost geen credits."
-                  className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50"
+                  className="text-sm bg-paneel-2 hover:bg-rand/70 text-tekst px-4 py-1.5 rounded-md disabled:opacity-50"
                 >
                   {voiceUploadBusy ? "Uploaden…" : "Eigen mp3 uploaden"}
-                  <span className="text-slate-400 ml-1">· gratis</span>
+                  <span className="text-tekst-3 ml-1">· gratis</span>
                 </button>
                 <label className="flex items-center gap-1.5" title="Spreeksnelheid van de voice-over (0,85–1,2×)">
-                  <span className="text-[11px] text-slate-400">Snelheid</span>
-                  <select value={voiceSpeed} onChange={(e) => setVoiceSpeed(Number(e.target.value))} className="bg-slate-900/60 border border-white/10 rounded px-1.5 py-1 text-xs text-white">
+                  <span className="text-[11px] text-tekst-3">Snelheid</span>
+                  <select value={voiceSpeed} onChange={(e) => setVoiceSpeed(Number(e.target.value))} className="bg-paneel border border-rand rounded px-1.5 py-1 text-xs text-tekst">
                     <option value={0.85}>0,85×</option>
                     <option value={0.9}>0,9×</option>
                     <option value={1}>1× (normaal)</option>
@@ -1573,25 +1573,25 @@ export default function StoryPage() {
                   onClick={() => autoSync()}
                   disabled={syncBusy || !spec.voiceUrl}
                   title="Legt de scenes precies op de gesproken voice-over (Whisper). Werkt ook op een eigen geüploade opname."
-                  className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md disabled:opacity-50"
+                  className="text-sm bg-paneel-2 hover:bg-rand/70 text-tekst px-4 py-1.5 rounded-md disabled:opacity-50"
                 >
                   {syncBusy ? "Autosync…" : "Autosync op voice"}
-                  <span className="text-slate-400 ml-1">· {creditLabel(CREDIT_COSTS.SYNC)}</span>
+                  <span className="text-tekst-3 ml-1">· {creditLabel(CREDIT_COSTS.SYNC)}</span>
                 </button>
-                <span className="w-px self-stretch bg-white/10 mx-1" />
+                <span className="w-px self-stretch bg-paneel-2 mx-1" />
                 <MusicPickerButton
                   value={spec.musicUrl}
                   onChange={(url) => setSpec((prev) => (prev ? { ...prev, musicUrl: url } : prev))}
                   videoDuration={storyWindows(spec.scenes).total}
-                  className="text-sm bg-white/10 hover:bg-white/15 text-white px-4 py-1.5 rounded-md"
+                  className="text-sm bg-paneel-2 hover:bg-rand/70 text-tekst px-4 py-1.5 rounded-md"
                 />
                 {spec.musicUrl ? (
-                  <span className="text-xs text-emerald-400">
+                  <span className="text-xs text-emerald-600 dark:text-emerald-300">
                     {findMusicTrackByUrl(spec.musicUrl)?.title ?? "eigen muziek"} · gratis
                   </span>
                 ) : null}
                 <label className="flex items-center gap-2" title="Volume van het muziekbed onder de voice-over (geldt in de preview en de export)">
-                  <span className="text-[11px] text-slate-400">Muziekvolume</span>
+                  <span className="text-[11px] text-tekst-3">Muziekvolume</span>
                   <input
                     type="range"
                     min={0}
@@ -1604,17 +1604,17 @@ export default function StoryPage() {
                     }}
                     className="w-28 accent-blue-500"
                   />
-                  <span className="text-[11px] text-slate-500 w-9 text-right tabular-nums">{Math.round((spec.musicVolume ?? 0.18) * 100)}%</span>
+                  <span className="text-[11px] text-tekst-3 w-9 text-right tabular-nums">{Math.round((spec.musicVolume ?? 0.18) * 100)}%</span>
                 </label>
               </div>
               {spec.voiceIsCustom && spec.voiceUrl ? (
-                <p className="text-xs text-emerald-400">
-                  Eigen voice-over: <span className="text-emerald-300">{spec.voiceFileName ?? "geüpload bestand"}</span>
-                  {spec.voiceDuration ? <span className="text-slate-400"> · {Math.round(spec.voiceDuration)}s</span> : null}
+                <p className="text-xs text-emerald-600 dark:text-emerald-300">
+                  Eigen voice-over: <span className="text-emerald-600 dark:text-emerald-300">{spec.voiceFileName ?? "geüpload bestand"}</span>
+                  {spec.voiceDuration ? <span className="text-tekst-3"> · {Math.round(spec.voiceDuration)}s</span> : null}
                 </p>
               ) : null}
               {syncNote ? (
-                <p className={`text-xs ${syncNote.waarschuwing ? "text-amber-400" : "text-slate-400"}`}>
+                <p className={`text-xs ${syncNote.waarschuwing ? "text-amber-600 dark:text-amber-300" : "text-tekst-3"}`}>
                   {syncNote.tekst}
                 </p>
               ) : null}
@@ -1622,34 +1622,34 @@ export default function StoryPage() {
 
             {/* Beeld: alle scenes in één keer bewegend maken. */}
             <div className="space-y-2">
-              <p className="text-[11px] uppercase tracking-wide text-slate-500">Beeld</p>
+              <p className="text-[11px] uppercase tracking-wide text-tekst-3">Beeld</p>
               <button
                 onClick={animateAll}
                 disabled={animatingAll || !spec.scenes.some((s) => s.imageUrl)}
-                className="text-sm bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 px-4 py-1.5 rounded-md disabled:opacity-50"
+                className="text-sm bg-blue-500/20 hover:bg-blue-500/30 text-blue-600 dark:text-blue-300 px-4 py-1.5 rounded-md disabled:opacity-50"
               >
                 {animatingAll ? "Alles animeren… (kan enkele minuten duren)" : "Maak alles bewegend"}
-                <span className="text-blue-300/70 ml-1">· {CREDIT_COSTS.VIDEO_GENERATION} cr./scene</span>
+                <span className="text-blue-600/70 dark:text-blue-300/70 ml-1">· {CREDIT_COSTS.VIDEO_GENERATION} cr./scene</span>
               </button>
             </div>
 
             {/* Exporteren + opslaan. */}
-            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-white/10">
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-rand">
               <button onClick={exportVideo} disabled={exporting} className="btn-primary text-sm px-4 disabled:opacity-50">
                 {exporting ? "Video exporteren… (kan even duren)" : "Exporteer video (MP4)"}
               </button>
               {exportUrl && (
-                <a href={exportUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-400 underline">Download video</a>
+                <a href={exportUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-600 dark:text-blue-300 underline">Download video</a>
               )}
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-tekst-3">
                 {savedAt ? `Automatisch bewaard om ${savedAt}` : "Wordt automatisch bewaard"}
               </span>
-              <button onClick={resetStory} className="text-sm text-slate-400 hover:text-white ml-auto">Nieuw verhaal (ander formaat)</button>
+              <button onClick={resetStory} className="text-sm text-tekst-3 hover:text-tekst ml-auto">Nieuw verhaal (ander formaat)</button>
             </div>
           </div>
 
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <p className="text-xs font-semibold text-white mb-3">Voorvertoning (video)</p>
+          <div className="bg-paneel-2/60 border border-rand rounded-xl p-4">
+            <p className="text-xs font-semibold text-tekst mb-3">Voorvertoning (video)</p>
             <StoryPlayer spec={{ ...spec, tekstInBeeld }} logoUrl={logoEnabled ? logoUrl : null} navy={navy} accent={accent} fontFamily={fontFamily} />
           </div>
 
@@ -1657,37 +1657,37 @@ export default function StoryPage() {
               castblad gaat als referentie mee naar elke scene; hem hier tonen maakt
               zichtbaar wie het model als "dezelfde persoon" beschouwt. */}
           {(spec.cast?.length ?? 0) > 0 && (
-            <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
-              <p className="text-xs font-semibold text-white">Personages in dit verhaal</p>
+            <div className="bg-paneel-2/60 border border-rand rounded-xl p-4 space-y-3">
+              <p className="text-xs font-semibold text-tekst">Personages in dit verhaal</p>
               <div className="flex gap-4 items-start">
                 {spec.castSheetUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={spec.castSheetUrl}
                     alt="castblad"
-                    className="w-48 rounded-lg border border-white/10 bg-[#f3f1ec] shrink-0"
+                    className="w-48 rounded-lg border border-rand bg-[#f3f1ec] shrink-0"
                   />
                 )}
-                <ul className="text-xs text-slate-300 space-y-1.5">
+                <ul className="text-xs text-tekst-2 space-y-1.5">
                   {(spec.cast ?? []).map((c) => (
                     <li key={c.name}>
-                      <span className="text-white font-medium">{c.name}</span>
-                      {c.role ? <span className="text-slate-400"> · {c.role}</span> : null}
-                      <span className="block text-slate-500">{c.appearance}</span>
+                      <span className="text-tekst font-medium">{c.name}</span>
+                      {c.role ? <span className="text-tekst-3"> · {c.role}</span> : null}
+                      <span className="block text-tekst-3">{c.appearance}</span>
                     </li>
                   ))}
                 </ul>
               </div>
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[10px] text-tekst-3">
                 Deze mensen horen in elke scene hetzelfde eruit te zien. Klopt er iets niet, dan kun je het per scene in de chat bijsturen.
               </p>
             </div>
           )}
 
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-300">Scenes bewerken</h3>
+            <h3 className="text-sm font-semibold text-tekst-2">Scenes bewerken</h3>
             {spec.format === "9:16" && (
-              <label className="flex items-center gap-1.5 text-[11px] text-slate-400 cursor-pointer" title="Toont waar TikTok/Instagram-knoppen en captions het beeld bedekken, zodat je tekst en logo vrij houdt.">
+              <label className="flex items-center gap-1.5 text-[11px] text-tekst-3 cursor-pointer" title="Toont waar TikTok/Instagram-knoppen en captions het beeld bedekken, zodat je tekst en logo vrij houdt.">
                 <input type="checkbox" checked={showSafeZone} onChange={(e) => setShowSafeZone(e.target.checked)} className="accent-blue-500" />
                 Veilige zone (social) tonen
               </label>
@@ -1695,7 +1695,7 @@ export default function StoryPage() {
           </div>
           {spec.scenes.map((scene, i) => (
             <div key={scene.id} className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4 items-start">
-              <div className="relative rounded-xl overflow-hidden border border-white/10 bg-[#f3f1ec]" style={{ aspectRatio: aspect }}>
+              <div className="relative rounded-xl overflow-hidden border border-rand bg-[#f3f1ec]" style={{ aspectRatio: aspect }}>
                 {scene.layout ? (
                   <OverheidSceneView
                     layout={scene.layout}
@@ -1713,7 +1713,7 @@ export default function StoryPage() {
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={scene.imageUrl} alt="" className="absolute inset-0 w-full h-full object-cover" />
                 ) : (
-                  <div className="absolute inset-0 grid place-items-center text-slate-400 text-xs">geen illustratie</div>
+                  <div className="absolute inset-0 grid place-items-center text-tekst-3 text-xs">geen illustratie</div>
                 )}
                 {tekstInBeeld ? (
                   <EditableStoryScene
@@ -1741,29 +1741,29 @@ export default function StoryPage() {
               </div>
               <div className="text-sm space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Scene {i + 1}</p>
-                  <div className="flex items-center gap-0.5 text-sm text-slate-400">
-                    <button onClick={() => moveScene(i, -1)} disabled={i === 0} title="Scene omhoog" className="px-1.5 hover:text-white disabled:opacity-30">↑</button>
-                    <button onClick={() => moveScene(i, 1)} disabled={i === spec.scenes.length - 1} title="Scene omlaag" className="px-1.5 hover:text-white disabled:opacity-30">↓</button>
-                    <button onClick={() => duplicateScene(i)} title="Scene dupliceren" className="px-1.5 hover:text-white">⧉</button>
-                    <button onClick={() => addScene(i)} title="Nieuwe scene hieronder" className="px-1.5 hover:text-white">＋</button>
+                  <p className="text-[11px] uppercase tracking-wide text-tekst-3">Scene {i + 1}</p>
+                  <div className="flex items-center gap-0.5 text-sm text-tekst-3">
+                    <button onClick={() => moveScene(i, -1)} disabled={i === 0} title="Scene omhoog" className="px-1.5 hover:text-tekst disabled:opacity-30">↑</button>
+                    <button onClick={() => moveScene(i, 1)} disabled={i === spec.scenes.length - 1} title="Scene omlaag" className="px-1.5 hover:text-tekst disabled:opacity-30">↓</button>
+                    <button onClick={() => duplicateScene(i)} title="Scene dupliceren" className="px-1.5 hover:text-tekst">⧉</button>
+                    <button onClick={() => addScene(i)} title="Nieuwe scene hieronder" className="px-1.5 hover:text-tekst">＋</button>
                     <button onClick={() => deleteScene(i)} disabled={spec.scenes.length <= 1} title="Scene verwijderen" className="px-1.5 hover:text-red-300 disabled:opacity-30">🗑</button>
                   </div>
                 </div>
                 <label className="block">
-                  <span className="block text-[11px] text-slate-400 mb-0.5">Voice-over</span>
-                  <textarea value={scene.voiceover} onChange={(e) => updateScene(i, { voiceover: e.target.value })} rows={2} className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-slate-200" />
+                  <span className="block text-[11px] text-tekst-3 mb-0.5">Voice-over</span>
+                  <textarea value={scene.voiceover} onChange={(e) => updateScene(i, { voiceover: e.target.value })} rows={2} className="w-full bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst" />
                 </label>
-                {scene.voiceDuration ? <p className="text-[10px] text-slate-500">scene-tijd: {scene.voiceDuration.toFixed(1)}s</p> : null}
+                {scene.voiceDuration ? <p className="text-[10px] text-tekst-3">scene-tijd: {scene.voiceDuration.toFixed(1)}s</p> : null}
 
                 {tekstInBeeld && (
-                  <div className="pt-2 mt-1 border-t border-white/10 space-y-2">
+                  <div className="pt-2 mt-1 border-t border-rand space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] uppercase tracking-wide text-slate-500">Tekst in beeld</p>
+                      <p className="text-[11px] uppercase tracking-wide text-tekst-3">Tekst in beeld</p>
                       <button
                         onClick={() => updateScene(i, { hx: undefined, hy: undefined, hSize: undefined, nx: undefined, ny: undefined, nSize: undefined })}
                         title="Zet de kop en het getal terug op hun automatische plek"
-                        className="text-[10px] text-slate-500 hover:text-slate-300"
+                        className="text-[10px] text-tekst-3 hover:text-tekst-2"
                       >
                         reset positie
                       </button>
@@ -1774,21 +1774,21 @@ export default function StoryPage() {
                       <SceneField label="Groot getal" value={scene.bigNumber ?? ""} onChange={(v) => updateScene(i, { bigNumber: v || null })} />
                       <SceneField label="Label bij getal" value={scene.numberLabel ?? ""} onChange={(v) => updateScene(i, { numberLabel: v || null })} />
                     </div>
-                    <p className="text-[10px] text-slate-500">Je kunt de kop en het getal in het beeld verslepen en schalen.</p>
+                    <p className="text-[10px] text-tekst-3">Je kunt de kop en het getal in het beeld verslepen en schalen.</p>
                   </div>
                 )}
 
-                <div className="pt-2 mt-1 border-t border-white/10 space-y-2">
-                  <p className="text-[11px] uppercase tracking-wide text-slate-500">Beeld</p>
+                <div className="pt-2 mt-1 border-t border-rand space-y-2">
+                  <p className="text-[11px] uppercase tracking-wide text-tekst-3">Beeld</p>
                   {/* Wat er aan tekst in dit beeld hoort te staan. Zichtbaar maken
                       scheelt zoeken: zie je in het beeld een ander of fout woord,
                       dan is de spellingcontrole eroverheen gegaan en kun je het
                       via de chat rechtzetten. */}
                   {(scene.labels?.length ?? 0) > 0 && (
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[10px] text-tekst-3">
                       Tekst in beeld:{" "}
                       {(scene.labels ?? []).map((l, li) => (
-                        <span key={li} className="text-slate-200">
+                        <span key={li} className="text-tekst">
                           {li > 0 ? " · " : ""}{l}
                         </span>
                       ))}
@@ -1807,39 +1807,39 @@ export default function StoryPage() {
                     // schuiven in op het moment dat de voice-over ze noemt. Hem
                     // door Seedance halen zou precies de glitches terugbrengen
                     // waarvoor deze modus bestaat.
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-[10px] text-tekst-3">
                       Deze scene wordt door de app zelf getekend en beweegt mee met de voice-over: elk element verschijnt op het
                       moment dat het genoemd wordt. Geen AI-animatie, dus geen vervormingen — en de tekst blijft haarscherp.
                     </p>
                   ) : (
                     <>
                   <label className="block">
-                    <span className="block text-[11px] text-slate-400 mb-0.5">Beweging bijsturen (optioneel)</span>
+                    <span className="block text-[11px] text-tekst-3 mb-0.5">Beweging bijsturen (optioneel)</span>
                     <input
                       value={motionInstr[scene.id] ?? ""}
                       onChange={(e) => setMotionInstr((m) => ({ ...m, [scene.id]: e.target.value }))}
                       placeholder="bijv. alleen de mensen laten bewegen, grafiek volledig stil"
-                      className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white"
+                      className="w-full bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst"
                     />
                   </label>
                   <button
                     onClick={() => animateScene(i)}
                     disabled={motionBusy[scene.id] || !scene.imageUrl}
-                    className="text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-200 px-3 py-1.5 rounded-md disabled:opacity-50 w-full"
+                    className="text-xs bg-blue-500/20 hover:bg-blue-500/30 text-blue-600 dark:text-blue-300 px-3 py-1.5 rounded-md disabled:opacity-50 w-full"
                   >
                     {motionBusy[scene.id] ? "Animeren…" : scene.videoUrl ? "Opnieuw animeren" : "Animeer beeld (proef, ~1 min)"}
-                    <span className="text-blue-300/60 ml-1">· {creditLabel(CREDIT_COSTS.VIDEO_GENERATION)}</span>
+                    <span className="text-blue-600/60 dark:text-blue-300/60 ml-1">· {creditLabel(CREDIT_COSTS.VIDEO_GENERATION)}</span>
                   </button>
                   {motionSkipped[scene.id] && (
-                    <div className="text-[10px] text-amber-200/90 bg-amber-500/10 border border-amber-500/25 rounded px-2 py-1.5 space-y-1">
+                    <div className="text-[10px] text-amber-600/90 dark:text-amber-300/90 bg-amber-500/10 border border-amber-500/25 rounded px-2 py-1.5 space-y-1">
                       <p>Elke poging voegde iets toe wat niet in het beeld staat (bijv. een hand of extra object) en is daarom afgekeurd. Dit beeld krijgt in de video een <b>subtiele camerabeweging</b> in plaats van een animatie — je credits zijn teruggestort.</p>
-                      <button onClick={() => animateScene(i)} className="text-amber-200 underline hover:text-amber-100">Opnieuw proberen</button>
+                      <button onClick={() => animateScene(i)} className="text-amber-600 dark:text-amber-300 underline hover:text-amber-100">Opnieuw proberen</button>
                     </div>
                   )}
                   {motionNote[scene.id] && !motionBusy[scene.id] && !motionSkipped[scene.id] && (
-                    <p className="text-[10px] text-emerald-300/90">{motionNote[scene.id]}</p>
+                    <p className="text-[10px] text-emerald-600/90 dark:text-emerald-300/90">{motionNote[scene.id]}</p>
                   )}
-                  <p className="text-[10px] text-slate-500">Vuistregel: het model voegt niks toe wat niet in het beeld staat, het maakt alleen het bestaande bewegend. Een kritisch oog vergelijkt elke poging met het bronbeeld; komt er iets bij (bijv. een hand), dan wordt die poging nooit getoond en volgt automatisch (gratis) een nieuwe, voorzichtiger poging. Ook beelden met tekst worden geanimeerd; verandert de tekst ook maar iets, dan wordt die poging afgekeurd.</p>
+                  <p className="text-[10px] text-tekst-3">Vuistregel: het model voegt niks toe wat niet in het beeld staat, het maakt alleen het bestaande bewegend. Een kritisch oog vergelijkt elke poging met het bronbeeld; komt er iets bij (bijv. een hand), dan wordt die poging nooit getoond en volgt automatisch (gratis) een nieuwe, voorzichtiger poging. Ook beelden met tekst worden geanimeerd; verandert de tekst ook maar iets, dan wordt die poging afgekeurd.</p>
                     </>
                   )}
                 </div>
@@ -1849,7 +1849,7 @@ export default function StoryPage() {
 
           <button
             onClick={() => addScene(spec.scenes.length - 1)}
-            className="text-sm text-slate-300 hover:text-white border border-dashed border-white/15 hover:border-white/30 rounded-lg px-4 py-2.5 w-full"
+            className="text-sm text-tekst-2 hover:text-tekst border border-dashed border-rand hover:border-rand rounded-lg px-4 py-2.5 w-full"
           >
             ＋ Scene toevoegen
           </button>

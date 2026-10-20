@@ -371,7 +371,7 @@ export default function DialoguePlayer({
         style={{ aspectRatio: verhouding, maxWidth: format === "9:16" ? 360 : "100%" }}
       >
         {fragmenten.length === 0 ? (
-          <div className="absolute inset-0 flex items-center justify-center text-slate-500 text-sm">
+          <div className="absolute inset-0 flex items-center justify-center text-tekst-3 text-sm">
             Nog geen fragmenten
           </div>
         ) : (
@@ -436,7 +436,7 @@ export default function DialoguePlayer({
           (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
           if (status !== "speelt") hervat();
         }}
-        className="relative h-2 mt-2 rounded-full bg-white/10 cursor-pointer select-none touch-none"
+        className="relative h-2 mt-2 rounded-full bg-paneel-2 cursor-pointer select-none touch-none"
       >
         <div className="absolute inset-y-0 left-0 rounded-full bg-orange-500" style={{ width: `${percentage}%` }} />
         {starts.slice(1).map((s, i) => (
@@ -460,7 +460,7 @@ export default function DialoguePlayer({
           onClick={() => spoel(-SPOEL_SEC)}
           disabled={fragmenten.length === 0}
           title={`${SPOEL_SEC} seconden terug`}
-          className="text-xs text-slate-400 hover:text-white border border-white/10 rounded px-2 py-1.5 disabled:opacity-30 transition"
+          className="text-xs text-tekst-3 hover:text-tekst border border-rand rounded px-2 py-1.5 disabled:opacity-30 transition"
         >
           ↩ {SPOEL_SEC}s
         </button>
@@ -468,26 +468,26 @@ export default function DialoguePlayer({
           onClick={() => spoel(SPOEL_SEC)}
           disabled={fragmenten.length === 0}
           title={`${SPOEL_SEC} seconden vooruit`}
-          className="text-xs text-slate-400 hover:text-white border border-white/10 rounded px-2 py-1.5 disabled:opacity-30 transition"
+          className="text-xs text-tekst-3 hover:text-tekst border border-rand rounded px-2 py-1.5 disabled:opacity-30 transition"
         >
           {SPOEL_SEC}s ↪
         </button>
         {bezig && (
-          <button onClick={alsStop} className="text-xs text-slate-500 hover:text-white px-2 py-1.5 transition">
+          <button onClick={alsStop} className="text-xs text-tekst-3 hover:text-tekst px-2 py-1.5 transition">
             Stop
           </button>
         )}
 
-        <span className="text-xs text-slate-500 tabular-nums ml-1">
+        <span className="text-xs text-tekst-3 tabular-nums ml-1">
           {tijd(positie)} / {tijd(totaal)}
         </span>
 
         {huidig && (
-          <span className="text-xs text-slate-400 truncate ml-2">
-            <span className="text-slate-600">{idx + 1}/{fragmenten.length}</span>{" "}
+          <span className="text-xs text-tekst-3 truncate ml-2">
+            <span className="text-tekst-3">{idx + 1}/{fragmenten.length}</span>{" "}
             {huidig.spreker
-              ? <><span className="text-orange-300">{huidig.spreker}</span>: {huidig.tekst}</>
-              : <span className="text-sky-300">🎬 {huidig.tekst}</span>}
+              ? <><span className="text-orange-600 dark:text-orange-300">{huidig.spreker}</span>: {huidig.tekst}</>
+              : <span className="text-sky-600 dark:text-sky-300">🎬 {huidig.tekst}</span>}
           </span>
         )}
       </div>

@@ -70,12 +70,12 @@ export default function PdfUploadButton({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={loading}
-        className="text-xs bg-white/10 hover:bg-white/15 text-white px-3 py-1.5 rounded-md disabled:opacity-50"
+        className="text-xs bg-paneel-2 hover:bg-rand/70 text-tekst px-3 py-1.5 rounded-md disabled:opacity-50"
       >
         {loading ? "Document lezen…" : label}
       </button>
-      {error && <p className="text-xs text-red-400 mt-1.5">{error}</p>}
-      {note && !error && <p className="text-xs text-emerald-400 mt-1.5">{note}</p>}
+      {error && <p className="text-xs text-red-600 dark:text-red-300 mt-1.5">{error}</p>}
+      {note && !error && <p className="text-xs text-emerald-600 dark:text-emerald-300 mt-1.5">{note}</p>}
     </div>
   );
 }

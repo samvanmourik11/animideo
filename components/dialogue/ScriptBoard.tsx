@@ -61,7 +61,7 @@ function KaderKeuze({
       onChange={(e) => onChange(e.target.value as Kader)}
       disabled={disabled}
       title={kaderUitleg(waarde)}
-      className="bg-slate-900/60 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 disabled:opacity-50"
+      className="bg-paneel border border-rand rounded px-1 py-0.5 text-[10px] text-tekst-2 disabled:opacity-50"
     >
       {KADERS.map((k) => (
         <option key={k} value={k}>{kaderLabel(k)}</option>
@@ -181,27 +181,27 @@ export default function ScriptBoard({
   return (
     <div className="space-y-5">
       {/* Overzicht */}
-      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 bg-slate-900/40 border border-white/10 rounded-lg px-3 py-2">
-        <span><span className="text-white font-medium">{spec.scenes.length}</span> scènes</span>
-        <span><span className="text-white font-medium">{regelAantal}</span> regels</span>
-        <span>≈ <span className="text-white font-medium">{Math.round(duur)}s</span> video</span>
+      <div className="flex flex-wrap items-center gap-4 text-xs text-tekst-3 bg-paneel border border-rand rounded-lg px-3 py-2">
+        <span><span className="text-tekst font-medium">{spec.scenes.length}</span> scènes</span>
+        <span><span className="text-tekst font-medium">{regelAantal}</span> regels</span>
+        <span>≈ <span className="text-tekst font-medium">{Math.round(duur)}s</span> video</span>
         <span className="ml-auto">
-          nog te maken: <span className="text-orange-300 font-medium">{creditTekst(credits)}</span>
-          {teDoen > 0 && <> · ongeveer <span className="text-white font-medium">{wachtMinuten} min</span></>}
+          nog te maken: <span className="text-orange-600 dark:text-orange-300 font-medium">{creditTekst(credits)}</span>
+          {teDoen > 0 && <> · ongeveer <span className="text-tekst font-medium">{wachtMinuten} min</span></>}
         </span>
       </div>
 
       {spec.scenes.map((scene, si) => (
-        <div key={scene.id} className="rounded-lg border border-white/10 bg-white/[0.02] p-3">
+        <div key={scene.id} className="rounded-lg border border-rand bg-paneel-2/60 p-3">
           <div className="flex items-start gap-2 mb-2">
             <div className="mt-2 shrink-0 flex flex-col items-start gap-0.5">
-              <span className="text-[11px] uppercase tracking-wide text-slate-500">Scène {si + 1}</span>
+              <span className="text-[11px] uppercase tracking-wide text-tekst-3">Scène {si + 1}</span>
               {/* Bij welk deel van het verhaal deze scène hoort. Zo zie je in het
                   draaiboek waar de omslag valt, en of er iets te vroeg opgelost wordt. */}
               {!!scene.deel && !!spec.verhaallijn?.[scene.deel - 1] && (
                 <span
                   title={spec.verhaallijn?.[scene.deel - 1]?.wat}
-                  className="text-[10px] rounded-full bg-orange-500/15 text-orange-300 px-1.5 py-0.5 max-w-[7rem] truncate"
+                  className="text-[10px] rounded-full bg-orange-500/15 text-orange-600 dark:text-orange-300 px-1.5 py-0.5 max-w-[7rem] truncate"
                 >
                   {deelLabel(spec.verhaallijn?.[scene.deel - 1], scene.deel - 1)}
                 </span>
@@ -213,7 +213,7 @@ export default function ScriptBoard({
                 onChange={(e) => wijzigScene(si, { setting: e.target.value, twoShotUrl: null })}
                 disabled={disabled}
                 placeholder="omgeving in het Engels, bijv. a modern office with a desk and a laptop"
-                className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder:text-slate-600 disabled:opacity-60"
+                className="w-full bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst placeholder:text-tekst-3 disabled:opacity-60"
               />
               <div className="flex items-center gap-2 mt-1">
                 {/* Het licht hoort bij de scene, niet bij het shot: binnen één plek
@@ -224,26 +224,26 @@ export default function ScriptBoard({
                   onChange={(e) => wijzigScene(si, { licht: e.target.value as Lichtsoort, twoShotUrl: null })}
                   disabled={disabled}
                   title={lichtUitleg(scene.licht)}
-                  className="bg-slate-900/60 border border-white/10 rounded px-1 py-0.5 text-[10px] text-slate-300 disabled:opacity-50"
+                  className="bg-paneel border border-rand rounded px-1 py-0.5 text-[10px] text-tekst-2 disabled:opacity-50"
                 >
                   {LICHTSOORTEN.map((l) => (
                     <option key={l} value={l}>{lichtLabel(l)}</option>
                   ))}
                 </select>
-                <p className="text-[10px] text-slate-600">
+                <p className="text-[10px] text-tekst-3">
                   Alleen de plek. Wie er staat en hoe, bepaalt de cast.
                 </p>
               </div>
             </div>
             {scene.twoShotUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={scene.twoShotUrl} alt="" className="w-20 rounded border border-white/10 shrink-0" />
+              <img src={scene.twoShotUrl} alt="" className="w-20 rounded border border-rand shrink-0" />
             )}
             {!disabled && scene.lines.some((l) => regelKlaar(l)) && (
               <button
                 onClick={() => sceneOpnieuw(si)}
                 title="Deze hele scène opnieuw laten maken: nieuw twee-shot en alle clips"
-                className="text-[11px] text-slate-500 hover:text-orange-300 rounded px-1.5 py-0.5 mt-2 shrink-0 transition"
+                className="text-[11px] text-tekst-3 hover:text-orange-300 rounded px-1.5 py-0.5 mt-2 shrink-0 transition"
               >↻ scène</button>
             )}
             {!disabled && (
@@ -251,14 +251,14 @@ export default function ScriptBoard({
                 onClick={() => setBuddyBij(buddyBij === si ? null : si)}
                 title="Laat de assistent deze scène aanpassen"
                 className={`text-[11px] rounded px-1.5 py-0.5 mt-2 shrink-0 transition ${
-                  buddyBij === si ? "bg-orange-500/20 text-orange-300" : "text-slate-500 hover:text-orange-300"
+                  buddyBij === si ? "bg-orange-500/20 text-orange-600 dark:text-orange-300" : "text-tekst-3 hover:text-orange-300"
                 }`}
               >
                 ✨ AI
               </button>
             )}
             {!disabled && spec.scenes.length > 1 && (
-              <button onClick={() => verwijderScene(si)} className="text-[11px] text-slate-600 hover:text-red-400 mt-2">✕</button>
+              <button onClick={() => verwijderScene(si)} className="text-[11px] text-tekst-3 hover:text-red-400 mt-2">✕</button>
             )}
           </div>
 
@@ -281,11 +281,11 @@ export default function ScriptBoard({
               const waarschuwingen = l.beeldWaarschuwingen ?? [];
               const status = klaar ? (
                 waarschuwingen.length > 0 ? (
-                  <span className="text-amber-400 text-xs mt-1.5 shrink-0" title={`Beeldcontrole: ${waarschuwingen.join("; ")} — maak deze clip opnieuw`}>⚠</span>
+                  <span className="text-amber-600 dark:text-amber-300 text-xs mt-1.5 shrink-0" title={`Beeldcontrole: ${waarschuwingen.join("; ")} — maak deze clip opnieuw`}>⚠</span>
                 ) : l.sprekerZeker === false ? (
-                  <span className="text-amber-400 text-xs mt-1.5 shrink-0" title="Niet zeker of de juiste persoon praat — maak deze regel opnieuw">⚠</span>
+                  <span className="text-amber-600 dark:text-amber-300 text-xs mt-1.5 shrink-0" title="Niet zeker of de juiste persoon praat — maak deze regel opnieuw">⚠</span>
                 ) : (
-                  <span className="text-emerald-400 text-xs mt-1.5 shrink-0" title="clip staat klaar">✓</span>
+                  <span className="text-emerald-600 dark:text-emerald-300 text-xs mt-1.5 shrink-0" title="clip staat klaar">✓</span>
                 )
               ) : null;
 
@@ -297,15 +297,15 @@ export default function ScriptBoard({
                   {klaar && (
                     <button
                       onClick={() => wijzigRegel(si, li, { shotImageUrl: null, videoUrl: null, mouthStart: null, sprekerZeker: null, beeldWaarschuwingen: null })}
-                      className="text-[10px] text-slate-600 hover:text-orange-300 px-0.5"
+                      className="text-[10px] text-tekst-3 hover:text-orange-300 px-0.5"
                       title="Alleen deze clip opnieuw maken"
                     >↻</button>
                   )}
-                  <button onClick={() => verplaatsRegel(si, li, -1)} disabled={li === 0} className="text-[10px] text-slate-600 hover:text-white disabled:opacity-25 px-0.5" title="omhoog">▲</button>
-                  <button onClick={() => verplaatsRegel(si, li, 1)} disabled={li === scene.lines.length - 1} className="text-[10px] text-slate-600 hover:text-white disabled:opacity-25 px-0.5" title="omlaag">▼</button>
-                  <button onClick={() => voegRegelToe(si, li)} className="text-[10px] text-slate-600 hover:text-emerald-400 px-0.5" title="dialoogregel eronder">+</button>
-                  <button onClick={() => voegActieToe(si, li)} className="text-[10px] text-slate-600 hover:text-sky-400 px-0.5" title="actiebeeld eronder">🎬</button>
-                  <button onClick={() => verwijderRegel(si, li)} className="text-[10px] text-slate-600 hover:text-red-400 px-0.5" title="verwijderen">✕</button>
+                  <button onClick={() => verplaatsRegel(si, li, -1)} disabled={li === 0} className="text-[10px] text-tekst-3 hover:text-tekst disabled:opacity-25 px-0.5" title="omhoog">▲</button>
+                  <button onClick={() => verplaatsRegel(si, li, 1)} disabled={li === scene.lines.length - 1} className="text-[10px] text-tekst-3 hover:text-tekst disabled:opacity-25 px-0.5" title="omlaag">▼</button>
+                  <button onClick={() => voegRegelToe(si, li)} className="text-[10px] text-tekst-3 hover:text-emerald-400 px-0.5" title="dialoogregel eronder">+</button>
+                  <button onClick={() => voegActieToe(si, li)} className="text-[10px] text-tekst-3 hover:text-sky-400 px-0.5" title="actiebeeld eronder">🎬</button>
+                  <button onClick={() => verwijderRegel(si, li)} className="text-[10px] text-tekst-3 hover:text-red-400 px-0.5" title="verwijderen">✕</button>
                 </div>
               ) : null;
 
@@ -317,7 +317,7 @@ export default function ScriptBoard({
                 return (
                   <div key={li} className="bg-sky-500/[0.07] border border-sky-400/20 rounded px-1.5 py-1 space-y-1">
                   <div className="flex items-start gap-1.5">
-                    <span className="text-[11px] text-sky-300 w-28 shrink-0 mt-1 flex items-center gap-1">
+                    <span className="text-[11px] text-sky-600 dark:text-sky-300 w-28 shrink-0 mt-1 flex items-center gap-1">
                       🎬
                       <KaderKeuze
                         waarde={l.kader}
@@ -331,7 +331,7 @@ export default function ScriptBoard({
                       disabled={disabled}
                       rows={1}
                       placeholder="wat gebeurt er? in het Engels, bijv. the two of them drive along a country road"
-                      className="flex-1 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white resize-y min-h-[28px] placeholder:text-slate-600 disabled:opacity-60"
+                      className="flex-1 bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst resize-y min-h-[28px] placeholder:text-tekst-3 disabled:opacity-60"
                     />
                     {/* Zonder stem bepaalt dit veld de lengte; met voice-over doet de
                         zin dat, dus dan is het getal betekenisloos en verbergen we het. */}
@@ -344,7 +344,7 @@ export default function ScriptBoard({
                         onChange={(e) => wijzigInhoud(si, li, { seconden: Number(e.target.value) })}
                         disabled={disabled}
                         title="lengte in seconden"
-                        className="bg-slate-800 border border-white/10 rounded px-1 py-1 text-[10px] text-slate-400 w-12 shrink-0 disabled:opacity-60"
+                        className="bg-paneel-2 border border-rand rounded px-1 py-1 text-[10px] text-tekst-3 w-12 shrink-0 disabled:opacity-60"
                       />
                     )}
                     {status}
@@ -355,7 +355,7 @@ export default function ScriptBoard({
                       Dat is levendiger dan twee pratende poppetjes, en het is dezelfde
                       regel — alleen zie je iets anders dan de sprekers. */}
                   <div className="flex items-start gap-1.5">
-                    <span className="text-[11px] text-sky-300/70 w-28 shrink-0 mt-1">
+                    <span className="text-[11px] text-sky-600/70 dark:text-sky-300/70 w-28 shrink-0 mt-1">
                       {!metStem ? "🎵 je hoort" : l.characterId === VERTELLER_ID ? "🎙 verteller" : "🔊 je hoort"}
                     </span>
                     {metStem ? (
@@ -363,8 +363,8 @@ export default function ScriptBoard({
                         value={l.characterId}
                         onChange={(e) => wijzigInhoud(si, li, { characterId: e.target.value })}
                         disabled={disabled}
-                        className={`bg-slate-800 border border-white/10 rounded px-1.5 py-1 text-[11px] w-28 shrink-0 disabled:opacity-60 ${
-                          l.characterId === VERTELLER_ID ? "text-violet-300" : "text-orange-300"
+                        className={`bg-paneel-2 border border-rand rounded px-1.5 py-1 text-[11px] w-28 shrink-0 disabled:opacity-60 ${
+                          l.characterId === VERTELLER_ID ? "text-violet-600 dark:text-violet-300" : "text-orange-600 dark:text-orange-300"
                         }`}
                       >
                         {spec.cast.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -379,14 +379,14 @@ export default function ScriptBoard({
                       disabled={disabled}
                       rows={1}
                       placeholder="leeg = alleen muziek; typ hier een zin voor een voice-over over dit beeld"
-                      className="flex-1 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white resize-y min-h-[28px] placeholder:text-slate-600 disabled:opacity-60"
+                      className="flex-1 bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst resize-y min-h-[28px] placeholder:text-tekst-3 disabled:opacity-60"
                     />
                   </div>
 
                   {/* Waarom dit beeld er staat. De assistent moet dat opschrijven;
                       klopt de redenering niet, dan hoort het beeld er niet. */}
                   {(l.verband ?? "").trim() && (
-                    <p className="text-[10px] text-sky-300/70 ml-[7.25rem]">↳ {l.verband}</p>
+                    <p className="text-[10px] text-sky-600/70 dark:text-sky-300/70 ml-[7.25rem]">↳ {l.verband}</p>
                   )}
                   </div>
                 );
@@ -398,7 +398,7 @@ export default function ScriptBoard({
                     value={l.characterId}
                     onChange={(e) => wijzigInhoud(si, li, { characterId: e.target.value })}
                     disabled={disabled}
-                    className="bg-slate-800 border border-white/10 rounded px-1.5 py-1 text-[11px] text-orange-300 w-28 shrink-0 disabled:opacity-60"
+                    className="bg-paneel-2 border border-rand rounded px-1.5 py-1 text-[11px] text-orange-600 dark:text-orange-300 w-28 shrink-0 disabled:opacity-60"
                   >
                     {spec.cast.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                     {!spec.cast.some((c) => c.id === l.characterId) && (
@@ -412,14 +412,14 @@ export default function ScriptBoard({
                     disabled={disabled}
                     rows={1}
                     placeholder="wat zegt dit personage?"
-                    className="flex-1 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white resize-y min-h-[28px] placeholder:text-slate-600 disabled:opacity-60"
+                    className="flex-1 bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst resize-y min-h-[28px] placeholder:text-tekst-3 disabled:opacity-60"
                   />
 
                   <select
                     value={l.emotion}
                     onChange={(e) => wijzigRegel(si, li, { emotion: e.target.value })}
                     disabled={disabled}
-                    className="bg-slate-800 border border-white/10 rounded px-1 py-1 text-[10px] text-slate-400 w-24 shrink-0 disabled:opacity-60"
+                    className="bg-paneel-2 border border-rand rounded px-1 py-1 text-[10px] text-tekst-3 w-24 shrink-0 disabled:opacity-60"
                   >
                     {[...new Set([l.emotion, ...EMOTIES])].filter(Boolean).map((e) => <option key={e} value={e}>{e}</option>)}
                   </select>
@@ -442,7 +442,7 @@ export default function ScriptBoard({
       ))}
 
       {!disabled && (
-        <button onClick={voegSceneToe} className="text-xs text-slate-400 hover:text-white border border-dashed border-white/15 rounded-lg px-3 py-2 w-full transition">
+        <button onClick={voegSceneToe} className="text-xs text-tekst-3 hover:text-tekst border border-dashed border-rand rounded-lg px-3 py-2 w-full transition">
           + scène toevoegen
         </button>
       )}

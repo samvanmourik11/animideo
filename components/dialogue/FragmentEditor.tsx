@@ -101,7 +101,7 @@ export default function FragmentEditor({
         const heleScene = regelsVanScene.length > 0 && regelsVanScene.every((k) => gekozen.has(k));
         return (
           <div key={si} className="space-y-2">
-            <label className="flex items-center gap-2 text-[11px] text-slate-400 cursor-pointer select-none">
+            <label className="flex items-center gap-2 text-[11px] text-tekst-3 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={heleScene}
@@ -109,8 +109,8 @@ export default function FragmentEditor({
                 disabled={disabled || bezigIets}
                 className="accent-orange-500"
               />
-              <span className="font-medium text-slate-300">Scène {si + 1}</span>
-              <span className="text-slate-600">— hele scène kiezen</span>
+              <span className="font-medium text-tekst-2">Scène {si + 1}</span>
+              <span className="text-tekst-3">— hele scène kiezen</span>
             </label>
 
             {scene.lines.map((l, li) => {
@@ -128,7 +128,7 @@ export default function FragmentEditor({
                       ? "border-orange-400/50 bg-orange-500/[0.06]"
                       : waarschuwingen.length || l.sprekerZeker === false
                         ? "border-amber-400/40 bg-amber-500/[0.05]"
-                        : "border-white/10 bg-white/[0.02]"
+                        : "border-rand bg-paneel-2/60"
                   }`}
                 >
                   <div className="flex gap-3">
@@ -144,7 +144,7 @@ export default function FragmentEditor({
                     {/* Het bronbeeld: waar de clip uit gemaakt is. Tijdens opnieuw
                         maken alleen een laadteken, niet het oude beeld. */}
                     {bezig ? (
-                      <div className="w-24 sm:w-28 aspect-video rounded border border-orange-400/30 shrink-0 flex items-center justify-center text-[10px] text-orange-300 animate-pulse">
+                      <div className="w-24 sm:w-28 aspect-video rounded border border-orange-400/30 shrink-0 flex items-center justify-center text-[10px] text-orange-600 dark:text-orange-300 animate-pulse">
                         opnieuw…
                       </div>
                     ) : l.shotImageUrl ? (
@@ -152,10 +152,10 @@ export default function FragmentEditor({
                       <img
                         src={l.shotImageUrl}
                         alt=""
-                        className="w-24 sm:w-28 aspect-video object-cover rounded border border-white/10 shrink-0"
+                        className="w-24 sm:w-28 aspect-video object-cover rounded border border-rand shrink-0"
                       />
                     ) : (
-                      <div className="w-24 sm:w-28 aspect-video rounded border border-dashed border-white/15 shrink-0 flex items-center justify-center text-[10px] text-slate-600">
+                      <div className="w-24 sm:w-28 aspect-video rounded border border-dashed border-rand shrink-0 flex items-center justify-center text-[10px] text-tekst-3">
                         nog geen beeld
                       </div>
                     )}
@@ -163,15 +163,15 @@ export default function FragmentEditor({
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         {actie ? (
-                          <span className="text-[10px] text-sky-300">🎬 actiebeeld</span>
+                          <span className="text-[10px] text-sky-600 dark:text-sky-300">🎬 actiebeeld</span>
                         ) : (
-                          <span className="text-[11px] text-orange-300">{naam(l.characterId)}</span>
+                          <span className="text-[11px] text-orange-600 dark:text-orange-300">{naam(l.characterId)}</span>
                         )}
                         {klaar && !bezig && waarschuwingen.length === 0 && l.sprekerZeker !== false && (
-                          <span className="text-emerald-400 text-xs">✓</span>
+                          <span className="text-emerald-600 dark:text-emerald-300 text-xs">✓</span>
                         )}
                         {!bezig && (waarschuwingen.length > 0 || l.sprekerZeker === false) && (
-                          <span className="text-[10px] text-amber-300">
+                          <span className="text-[10px] text-amber-600 dark:text-amber-300">
                             ⚠ {waarschuwingen.length ? waarschuwingen.join("; ") : "spreker onzeker"}
                           </span>
                         )}
@@ -187,7 +187,7 @@ export default function FragmentEditor({
                           disabled={disabled || bezig}
                           rows={1}
                           placeholder="wat gebeurt er? (Engels)"
-                          className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white resize-y mb-1 disabled:opacity-60"
+                          className="w-full bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst resize-y mb-1 disabled:opacity-60"
                         />
                       )}
 
@@ -207,7 +207,7 @@ export default function FragmentEditor({
                           disabled={disabled || bezig}
                           rows={1}
                           placeholder={actie ? "voice-over over dit beeld" : "wat zegt dit personage?"}
-                          className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white resize-y disabled:opacity-60"
+                          className="w-full bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst resize-y disabled:opacity-60"
                         />
                       )}
 
@@ -215,11 +215,11 @@ export default function FragmentEditor({
                         <button
                           onClick={() => opnieuw([{ si, li }])}
                           disabled={disabled || bezigIets}
-                          className="text-[10px] text-slate-300 hover:text-white border border-white/15 rounded px-2 py-0.5 disabled:opacity-30 transition"
+                          className="text-[10px] text-tekst-2 hover:text-tekst border border-rand rounded px-2 py-0.5 disabled:opacity-30 transition"
                         >
-                          ↻ opnieuw <span className="text-slate-600">{MIN}–{MAX} cr.</span>
+                          ↻ opnieuw <span className="text-tekst-3">{MIN}–{MAX} cr.</span>
                         </button>
-                        {bezig && <span className="text-[10px] text-orange-300">bezig…</span>}
+                        {bezig && <span className="text-[10px] text-orange-600 dark:text-orange-300">bezig…</span>}
                       </div>
                     </div>
                   </div>
@@ -232,11 +232,11 @@ export default function FragmentEditor({
 
       {/* Meerdere tegelijk. Blijft onderin beeld staan terwijl je door de lijst scrolt. */}
       {gekozenPlekken.length > 0 && (
-        <div className="sticky bottom-2 z-10 rounded-lg border border-orange-400/40 bg-slate-900/95 p-2.5 flex flex-wrap items-center gap-2 shadow-lg">
-          <span className="text-[11px] text-white font-medium">
+        <div className="sticky bottom-2 z-10 rounded-lg border border-orange-400/40 bg-paneel p-2.5 flex flex-wrap items-center gap-2 shadow-lg">
+          <span className="text-[11px] text-tekst font-medium">
             {gekozenPlekken.length} {gekozenPlekken.length === 1 ? "regel" : "regels"} gekozen
           </span>
-          <button onClick={() => setGekozen(new Set())} className="text-[11px] text-slate-500 hover:text-white underline">
+          <button onClick={() => setGekozen(new Set())} className="text-[11px] text-tekst-3 hover:text-tekst underline">
             keuze wissen
           </button>
           <button

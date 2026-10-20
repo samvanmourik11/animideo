@@ -53,7 +53,7 @@ function ShotTegel({
   const tekst = (regel.text ?? "").trim();
 
   return (
-    <div className="rounded border border-white/10 bg-slate-900/40 p-1.5 flex flex-col gap-1 min-w-0">
+    <div className="rounded border border-rand bg-paneel p-1.5 flex flex-col gap-1 min-w-0">
       {regel.shotImageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -62,33 +62,33 @@ function ShotTegel({
           className={`w-full max-w-full ${vorm} object-cover rounded ${bezig ? "opacity-40" : ""}`}
         />
       ) : (
-        <div className={`w-full max-w-full ${vorm} rounded border border-dashed border-white/15 flex items-center justify-center text-center px-2 text-[10px] text-slate-500`}>
+        <div className={`w-full max-w-full ${vorm} rounded border border-dashed border-rand flex items-center justify-center text-center px-2 text-[10px] text-tekst-3`}>
           {bezig ? "Beeld maken…" : heeftPlek ? "Nog geen beeld" : "Eerst het beeld van de plek"}
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-1 text-[10px] text-slate-500">
+      <div className="flex items-center justify-between gap-1 text-[10px] text-tekst-3">
         <span>{li + 1}. {kaderLabel(regel.kader)}</span>
         {waarschuwingen.length > 0 && (
-          <span className="text-amber-400" title={`Beeldcontrole: ${waarschuwingen.join("; ")}`}>⚠ bekijk dit beeld</span>
+          <span className="text-amber-600 dark:text-amber-300" title={`Beeldcontrole: ${waarschuwingen.join("; ")}`}>⚠ bekijk dit beeld</span>
         )}
       </div>
 
-      <p className="text-[11px] leading-snug text-slate-400 max-h-[2.6rem] overflow-hidden">
-        {isActie(regel) && <span className="text-sky-300">🎬 </span>}
+      <p className="text-[11px] leading-snug text-tekst-3 max-h-[2.6rem] overflow-hidden">
+        {isActie(regel) && <span className="text-sky-600 dark:text-sky-300">🎬 </span>}
         {tekst ? (
           <>
-            <span className={regel.characterId === VERTELLER_ID ? "text-violet-300" : "text-orange-300"}>{naam(regel.characterId)}</span>
+            <span className={regel.characterId === VERTELLER_ID ? "text-violet-600 dark:text-violet-300" : "text-orange-600 dark:text-orange-300"}>{naam(regel.characterId)}</span>
             : {tekst}
           </>
         ) : (
-          <span className="text-sky-300">{regel.actie}</span>
+          <span className="text-sky-600 dark:text-sky-300">{regel.actie}</span>
         )}
       </p>
 
       {regel.beeldAanwijzingUitleg && (
         <p
-          className={`text-[10px] leading-snug ${regel.beeldAanwijzingGelukt === false ? "text-amber-300/90" : "text-emerald-300/80"}`}
+          className={`text-[10px] leading-snug ${regel.beeldAanwijzingGelukt === false ? "text-amber-600/90 dark:text-amber-300/90" : "text-emerald-600/80 dark:text-emerald-300/80"}`}
           title={regel.beeldAanwijzing ?? undefined}
         >
           Begrepen: {regel.beeldAanwijzingUitleg}
@@ -97,7 +97,7 @@ function ShotTegel({
       {/* Eerlijk zijn als het niet gelukt is. "Aangepast" melden bij een beeld waarin
           niets veranderd was, kostte deze knop zijn vertrouwen (Sam, 19-09-2026). */}
       {regel.beeldAanwijzingGelukt === false && (
-        <p className="text-[10px] leading-snug text-amber-400">
+        <p className="text-[10px] leading-snug text-amber-600 dark:text-amber-300">
           Dit is twee keer geprobeerd en staat er nog niet. Zeg het anders — noem het ding en waar het moet komen.
         </p>
       )}
@@ -110,20 +110,20 @@ function ShotTegel({
             disabled={geblokkeerd}
             rows={3}
             placeholder="Wat moet er anders? Je mag naar andere beelden verwijzen, bijv. ‘Lilly's haar zoals in shot 1’"
-            className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white placeholder:text-slate-600 disabled:opacity-50 resize-y"
+            className="w-full bg-paneel border border-rand rounded px-2 py-1 text-[11px] text-tekst placeholder:text-tekst-3 disabled:opacity-50 resize-y"
           />
           {regel.videoUrl && (
-            <p className="text-[10px] text-slate-500">De clip van dit shot wordt daarna opnieuw gemaakt.</p>
+            <p className="text-[10px] text-tekst-3">De clip van dit shot wordt daarna opnieuw gemaakt.</p>
           )}
           <div className="flex items-center gap-2">
             <button
               onClick={() => { onOpnieuw(li, aanwijzing); setOpen(false); }}
               disabled={geblokkeerd}
-              className="text-[11px] rounded px-2 py-1 bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 disabled:opacity-40 transition"
+              className="text-[11px] rounded px-2 py-1 bg-paneel-2/60 text-tekst hover:bg-paneel-2 border border-rand disabled:opacity-40 transition"
             >
               ↻ Opnieuw maken ({creditTekst(DIALOOG_CREDITS.LOS_BEELD)})
             </button>
-            <button onClick={() => setOpen(false)} className="text-[10px] text-slate-500 hover:text-white">
+            <button onClick={() => setOpen(false)} className="text-[10px] text-tekst-3 hover:text-tekst">
               Annuleren
             </button>
           </div>
@@ -132,7 +132,7 @@ function ShotTegel({
         <button
           onClick={() => setOpen(true)}
           disabled={geblokkeerd}
-          className="text-[10px] text-slate-500 hover:text-orange-300 self-start disabled:opacity-40"
+          className="text-[10px] text-tekst-3 hover:text-orange-300 self-start disabled:opacity-40"
         >
           {bezig ? "Bezig…" : "✎ Aanpassen"}
         </button>
@@ -140,7 +140,7 @@ function ShotTegel({
         <button
           onClick={() => onOpnieuw(li, aanwijzing)}
           disabled={geblokkeerd || !heeftPlek}
-          className="text-[10px] text-slate-400 hover:text-orange-300 self-start disabled:opacity-40"
+          className="text-[10px] text-tekst-3 hover:text-orange-300 self-start disabled:opacity-40"
         >
           {bezig ? "Bezig…" : `Beeld maken (${creditTekst(DIALOOG_CREDITS.LOS_BEELD)})`}
         </button>
@@ -187,11 +187,11 @@ function SceneKaart({
   const eigenBezig = regelsBezig.some((k) => k.startsWith(`${si}-`));
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 min-w-0">
+    <div className="rounded-lg border border-rand bg-paneel-2/60 p-3 min-w-0">
       <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="text-[11px] uppercase tracking-wide text-slate-500">Scène {si + 1}</span>
+        <span className="text-[11px] uppercase tracking-wide text-tekst-3">Scène {si + 1}</span>
         {regels.length > 0 && (
-          <span className="text-[10px] text-slate-600">
+          <span className="text-[10px] text-tekst-3">
             {beelden}/{regels.length} {regels.length === 1 ? "beeld" : "beelden"}
           </span>
         )}
@@ -200,20 +200,20 @@ function SceneKaart({
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         {/* De plek: het beeld waar elk shot van deze scène op voortbouwt. */}
         <div className="flex flex-col gap-2 min-w-0">
-          <p className="text-[10px] uppercase tracking-wide text-slate-600">De plek</p>
+          <p className="text-[10px] uppercase tracking-wide text-tekst-3">De plek</p>
           {scene.twoShotUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={scene.twoShotUrl}
               alt={`De plek van scène ${si + 1}`}
-              className={`w-full max-w-full h-auto rounded border border-white/10 ${bezig ? "opacity-40" : ""} ${spec.format === "9:16" ? "max-h-[320px] object-contain" : ""}`}
+              className={`w-full max-w-full h-auto rounded border border-rand ${bezig ? "opacity-40" : ""} ${spec.format === "9:16" ? "max-h-[320px] object-contain" : ""}`}
             />
           ) : (
-            <div className={`w-full max-w-full rounded border border-dashed border-white/15 bg-slate-900/40 flex items-center justify-center text-[11px] text-slate-500 ${spec.format === "9:16" ? "aspect-[9/16] max-h-[320px]" : "aspect-video"}`}>
+            <div className={`w-full max-w-full rounded border border-dashed border-rand bg-paneel flex items-center justify-center text-[11px] text-tekst-3 ${spec.format === "9:16" ? "aspect-[9/16] max-h-[320px]" : "aspect-video"}`}>
               {bezig ? "Beeld maken…" : "Nog geen beeld"}
             </div>
           )}
-          {bezig && scene.twoShotUrl && <p className="text-[11px] text-blue-300">Nieuw beeld maken…</p>}
+          {bezig && scene.twoShotUrl && <p className="text-[11px] text-blue-600 dark:text-blue-300">Nieuw beeld maken…</p>}
 
           <div className="flex flex-wrap items-center gap-1.5">
             <input
@@ -221,13 +221,13 @@ function SceneKaart({
               onChange={(e) => setSetting(e.target.value)}
               disabled={geblokkeerd}
               title="De omgeving, in het Engels"
-              className="flex-1 min-w-0 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white disabled:opacity-50"
+              className="flex-1 min-w-0 bg-paneel border border-rand rounded px-2 py-1 text-[11px] text-tekst disabled:opacity-50"
             />
             <select
               value={licht}
               onChange={(e) => setLicht(e.target.value as Lichtsoort)}
               disabled={geblokkeerd}
-              className="bg-slate-900/60 border border-white/10 rounded px-1 py-1 text-[10px] text-slate-300 disabled:opacity-50"
+              className="bg-paneel border border-rand rounded px-1 py-1 text-[10px] text-tekst-2 disabled:opacity-50"
             >
               {LICHTSOORTEN.map((ls) => <option key={ls} value={ls}>{lichtLabel(ls)}</option>)}
             </select>
@@ -251,22 +251,22 @@ function SceneKaart({
             disabled={geblokkeerd}
             rows={2}
             placeholder="Wat moet er anders aan deze plek? Bijv. ‘een beekje op de achtergrond’"
-            className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white placeholder:text-slate-600 disabled:opacity-50 resize-y"
+            className="w-full bg-paneel border border-rand rounded px-2 py-1 text-[11px] text-tekst placeholder:text-tekst-3 disabled:opacity-50 resize-y"
           />
 
           {gewijzigd && scene.twoShotUrl && (
-            <p className="text-[10px] text-amber-300">Omgeving of licht aangepast. Maak het beeld opnieuw om het te zien.</p>
+            <p className="text-[10px] text-amber-600 dark:text-amber-300">Omgeving of licht aangepast. Maak het beeld opnieuw om het te zien.</p>
           )}
 
           <button
             onClick={() => onOpnieuw(si, { setting, licht, aanwijzing })}
             disabled={geblokkeerd || eigenBezig}
-            className="self-start text-xs rounded px-3 py-1.5 bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 disabled:opacity-40 transition"
+            className="self-start text-xs rounded px-3 py-1.5 bg-paneel-2/60 text-tekst hover:bg-paneel-2 border border-rand disabled:opacity-40 transition"
           >
             {bezig ? "Bezig…" : scene.twoShotUrl ? `↻ Plek opnieuw maken (${creditTekst(DIALOOG_CREDITS.SCENE)})` : `Beeld maken (${creditTekst(DIALOOG_CREDITS.SCENE)})`}
           </button>
           {scene.twoShotUrl && (beelden > 0 || clips > 0) && (
-            <p className="text-[10px] text-slate-500">
+            <p className="text-[10px] text-tekst-3">
               De beelden per zin horen bij deze plek en moeten daarna opnieuw
               {clips > 0 ? `, net als ${clips === 1 ? "de clip" : `de ${clips} clips`}` : ""}.
             </p>
@@ -330,10 +330,10 @@ export default function Storyboard({
           <Fragment key={scene.id}>
             {nieuwDeel && !!scene.deel && (
               <div className="pt-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-orange-300">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-orange-600 dark:text-orange-300">
                   {scene.deel}. {deelLabel(deel, scene.deel - 1)}
                 </h3>
-                {deel?.wat && <p className="text-[11px] text-slate-500 mt-0.5">{deel.wat}</p>}
+                {deel?.wat && <p className="text-[11px] text-tekst-3 mt-0.5">{deel.wat}</p>}
               </div>
             )}
             <SceneKaart

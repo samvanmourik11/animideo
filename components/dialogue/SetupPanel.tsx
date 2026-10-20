@@ -35,11 +35,11 @@ function Groep({
   children: React.ReactNode;
 }) {
   return (
-    <details open={open} className="bg-white/5 border border-white/10 rounded-xl p-4 group">
-      <summary className="text-sm font-medium text-white cursor-pointer list-none flex items-center gap-2">
-        <span className="text-slate-500 text-xs group-open:rotate-90 transition-transform">▶</span>
+    <details open={open} className="bg-paneel-2/60 border border-rand rounded-xl p-4 group">
+      <summary className="text-sm font-medium text-tekst cursor-pointer list-none flex items-center gap-2">
+        <span className="text-tekst-3 text-xs group-open:rotate-90 transition-transform">▶</span>
         {titel}
-        {samenvatting && <span className="text-[11px] font-normal text-slate-500 truncate">— {samenvatting}</span>}
+        {samenvatting && <span className="text-[11px] font-normal text-tekst-3 truncate">— {samenvatting}</span>}
       </summary>
       <div className="mt-3 space-y-3">{children}</div>
     </details>
@@ -65,16 +65,16 @@ function Veld({
 }) {
   return (
     <label className="block">
-      <span className="block text-[11px] text-slate-400 mb-0.5">{label}</span>
+      <span className="block text-[11px] text-tekst-3 mb-0.5">{label}</span>
       <textarea
         value={waarde}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
         disabled={disabled}
         placeholder={placeholder}
-        className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder:text-slate-600 disabled:opacity-50"
+        className="w-full bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst placeholder:text-tekst-3 disabled:opacity-50"
       />
-      {uitleg && <span className="block text-[10px] text-slate-600 mt-0.5">{uitleg}</span>}
+      {uitleg && <span className="block text-[10px] text-tekst-3 mt-0.5">{uitleg}</span>}
     </label>
   );
 }
@@ -97,16 +97,16 @@ function Termen({
 }) {
   return (
     <label className="block">
-      <span className="block text-[11px] text-slate-400 mb-0.5">{label}</span>
+      <span className="block text-[11px] text-tekst-3 mb-0.5">{label}</span>
       <input
         type="text"
         value={waarden.join(", ")}
         onChange={(e) => onChange(e.target.value.split(",").map((t) => t.trim()).filter(Boolean))}
         disabled={disabled}
         placeholder={placeholder}
-        className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder:text-slate-600 disabled:opacity-50"
+        className="w-full bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst placeholder:text-tekst-3 disabled:opacity-50"
       />
-      <span className="block text-[10px] text-slate-600 mt-0.5">{uitleg}</span>
+      <span className="block text-[10px] text-tekst-3 mt-0.5">{uitleg}</span>
     </label>
   );
 }
@@ -162,8 +162,8 @@ function Verhaallijn({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-white/5 border border-white/10 px-3 py-2">
-        <p className="text-[11px] text-slate-300 min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-paneel-2/60 border border-rand px-3 py-2">
+        <p className="text-[11px] text-tekst-2 min-w-0">
           {volg
             ? "Je gaf een uitgewerkt verhaal. De assistent volgt het moment voor moment en verzint er niets bij."
             : "Je gaf een idee. De assistent bedacht er een verhaal omheen, met een begin, een probleem, een tegenslag en een omslag."}
@@ -172,14 +172,14 @@ function Verhaallijn({
           type="button"
           onClick={() => onWissel(volg ? "verzinnen" : "volgen")}
           disabled={disabled}
-          className="text-[11px] text-orange-300 hover:text-orange-200 underline disabled:opacity-40"
+          className="text-[11px] text-orange-600 dark:text-orange-300 hover:text-orange-200 underline disabled:opacity-40"
         >
           {volg ? "Liever er een nieuw verhaal van laten maken" : "Volg liever precies mijn tekst"}
         </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] text-slate-400 mr-1">Lengte</span>
+        <span className="text-[11px] text-tekst-3 mr-1">Lengte</span>
         {LENGTES.map((s) => (
           <button
             key={s}
@@ -187,7 +187,7 @@ function Verhaallijn({
             onClick={() => onLengte(s)}
             disabled={disabled}
             className={`text-[11px] px-2.5 py-1 rounded-full transition disabled:opacity-40 ${
-              lengte === s ? "bg-orange-500 text-white" : "bg-white/5 text-slate-300 hover:bg-white/10"
+              lengte === s ? "bg-orange-500 text-white" : "bg-paneel-2/60 text-tekst-2 hover:bg-paneel-2"
             }`}
           >
             {lengteLabel(s)}
@@ -195,7 +195,7 @@ function Verhaallijn({
         ))}
       </div>
       {teKort && (
-        <p className="text-[11px] text-amber-300">
+        <p className="text-[11px] text-amber-600 dark:text-amber-300">
           ⚠ Je verhaal heeft {lijn.length} momenten. In {lengteLabel(lengte)} krijgt elk moment maar zo&apos;n{" "}
           {Math.max(1, Math.round(lengte / lijn.length))} seconden.{" "}
           {passend > lengte && (
@@ -207,25 +207,25 @@ function Verhaallijn({
       )}
 
       {lijn.length === 0 ? (
-        <p className="text-[11px] text-slate-500">
+        <p className="text-[11px] text-tekst-3">
           Deze opzet heeft nog geen verhaallijn. Klik op “Ander voorstel” om er een te laten maken.
         </p>
       ) : (
       <>
       {problemen.length > 0 && (
-        <ul className="text-[11px] text-amber-300 space-y-0.5">
+        <ul className="text-[11px] text-amber-600 dark:text-amber-300 space-y-0.5">
           {problemen.map((p) => <li key={p}>⚠ {p}</li>)}
         </ul>
       )}
       <ol className="space-y-2">
         {lijn.map((d, i) => (
-          <li key={d.fase ?? `moment-${i}`} className="rounded-lg border border-white/10 bg-slate-900/40 p-3">
+          <li key={d.fase ?? `moment-${i}`} className="rounded-lg border border-rand bg-paneel p-3">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-orange-300">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-orange-600 dark:text-orange-300">
                 {i + 1}.{d.fase ? ` ${FASE_INFO[d.fase].label}` : ""}
               </span>
               {d.fase ? (
-                <span className="text-[10px] text-slate-500">{FASE_INFO[d.fase].uitleg}</span>
+                <span className="text-[10px] text-tekst-3">{FASE_INFO[d.fase].uitleg}</span>
               ) : (
                 <>
                   <input
@@ -233,7 +233,7 @@ function Verhaallijn({
                     onChange={(e) => zetDeel(i, { titel: e.target.value })}
                     disabled={disabled}
                     placeholder="naam van dit moment"
-                    className="flex-1 min-w-0 bg-transparent text-[11px] font-semibold uppercase tracking-wide text-orange-300 placeholder:normal-case placeholder:font-normal placeholder:text-slate-600 outline-none focus:bg-slate-900/60 rounded px-1 disabled:opacity-50"
+                    className="flex-1 min-w-0 bg-transparent text-[11px] font-semibold uppercase tracking-wide text-orange-600 dark:text-orange-300 placeholder:normal-case placeholder:font-normal placeholder:text-tekst-3 outline-none focus:bg-paneel rounded px-1 disabled:opacity-50"
                   />
                   <span className="flex gap-1.5">
                     <button
@@ -241,14 +241,14 @@ function Verhaallijn({
                       onClick={() => voegToe(i)}
                       disabled={disabled || lijn.length >= MAX_DELEN}
                       title="Moment eronder toevoegen"
-                      className="text-xs text-slate-500 hover:text-emerald-400 disabled:opacity-30"
+                      className="text-xs text-tekst-3 hover:text-emerald-400 disabled:opacity-30"
                     >+</button>
                     <button
                       type="button"
                       onClick={() => verwijder(i)}
                       disabled={disabled || lijn.length <= 1}
                       title="Moment verwijderen"
-                      className="text-xs text-slate-500 hover:text-red-400 disabled:opacity-30"
+                      className="text-xs text-tekst-3 hover:text-red-400 disabled:opacity-30"
                     >✕</button>
                   </span>
                 </>
@@ -260,7 +260,7 @@ function Verhaallijn({
               disabled={disabled}
               rows={2}
               placeholder="Wat gebeurt er in dit deel?"
-              className="w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white placeholder:text-slate-600 disabled:opacity-50 resize-y"
+              className="w-full bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst placeholder:text-tekst-3 disabled:opacity-50 resize-y"
             />
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
               <input
@@ -268,7 +268,7 @@ function Verhaallijn({
                 onChange={(e) => zetDeel(i, { plek: e.target.value })}
                 disabled={disabled}
                 placeholder="waar"
-                className="w-full sm:w-56 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white placeholder:text-slate-600 disabled:opacity-50"
+                className="w-full sm:w-56 bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst placeholder:text-tekst-3 disabled:opacity-50"
               />
               {/* Wie er in beeld is. Meer dan drie past niet in één beeld. */}
               <div className="flex flex-wrap gap-1">
@@ -285,7 +285,7 @@ function Verhaallijn({
                       disabled={disabled || vol}
                       title={vol ? `Hooguit ${MAX_PER_SCENE} personages tegelijk in beeld` : undefined}
                       className={`text-[11px] px-2 py-0.5 rounded-full transition disabled:opacity-40 ${
-                        aan ? "bg-orange-500 text-white" : "bg-white/5 text-slate-400 hover:bg-white/10"
+                        aan ? "bg-orange-500 text-white" : "bg-paneel-2/60 text-tekst-3 hover:bg-paneel-2"
                       }`}
                     >
                       {c.name}
@@ -299,23 +299,23 @@ function Verhaallijn({
               onChange={(e) => zetDeel(i, { verteller: e.target.value })}
               disabled={disabled}
               placeholder="🎙 vertellerzin die dit deel opent (mag leeg)"
-              className="mt-1.5 w-full bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs italic text-violet-200 placeholder:not-italic placeholder:text-slate-600 disabled:opacity-50"
+              className="mt-1.5 w-full bg-paneel border border-rand rounded px-2 py-1 text-xs italic text-violet-600 dark:text-violet-300 placeholder:not-italic placeholder:text-tekst-3 disabled:opacity-50"
             />
             {/* De zinnen die de gebruiker zelf schreef. Die komen er letterlijk in,
                 bij deze persoon. Wegklikken = de scenarist mag hem zelf verwoorden. */}
             {(d.citaten ?? []).length > 0 && (
               <ul className="mt-1.5 space-y-0.5">
                 {(d.citaten ?? []).map((c, k) => (
-                  <li key={k} className="flex items-start gap-1.5 text-[11px] text-slate-300">
-                    <span className="shrink-0 text-slate-500">💬 letterlijk</span>
-                    <span className="shrink-0 text-orange-300">{cast.find((p) => p.characterId === c.wie)?.name ?? "?"}:</span>
+                  <li key={k} className="flex items-start gap-1.5 text-[11px] text-tekst-2">
+                    <span className="shrink-0 text-tekst-3">💬 letterlijk</span>
+                    <span className="shrink-0 text-orange-600 dark:text-orange-300">{cast.find((p) => p.characterId === c.wie)?.name ?? "?"}:</span>
                     <span className="min-w-0 italic">“{c.tekst}”</span>
                     <button
                       type="button"
                       onClick={() => zetDeel(i, { citaten: (d.citaten ?? []).filter((_, x) => x !== k) })}
                       disabled={disabled}
                       title="Deze zin niet letterlijk overnemen"
-                      className="ml-auto shrink-0 text-slate-600 hover:text-red-400 disabled:opacity-30"
+                      className="ml-auto shrink-0 text-tekst-3 hover:text-red-400 disabled:opacity-30"
                     >✕</button>
                   </li>
                 ))}
@@ -373,9 +373,9 @@ export default function SetupPanel({
             value={setup.title}
             onChange={(e) => zet("title", e.target.value)}
             disabled={uit}
-            className="bg-transparent text-lg font-semibold text-white w-full outline-none focus:bg-slate-900/60 rounded px-1 -ml-1 disabled:opacity-50"
+            className="bg-transparent text-lg font-semibold text-tekst w-full outline-none focus:bg-paneel rounded px-1 -ml-1 disabled:opacity-50"
           />
-          <p className="text-[11px] text-slate-500 px-1">
+          <p className="text-[11px] text-tekst-3 px-1">
             {setup.modus === "volgen"
               ? "De assistent knipte je verhaal op in momenten en koos wie erin speelt. Pas aan wat niet klopt — pas daarna worden de scènes geschreven."
               : "De assistent bedacht een verhaal en wie erin speelt. Pas aan wat niet klopt — pas daarna worden de scènes geschreven."}
@@ -386,7 +386,7 @@ export default function SetupPanel({
             onClick={() => onOpnieuwVoorstellen()}
             disabled={uit}
             title="Laat de assistent een nieuw voorstel doen. Wat jij zelf hebt ingevuld bij de rolverdeling blijft staan."
-            className="text-xs px-3 py-2 rounded bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10 disabled:opacity-40"
+            className="text-xs px-3 py-2 rounded bg-paneel-2/60 text-tekst-2 hover:bg-paneel-2 border border-rand disabled:opacity-40"
           >
             {voorstelBezig ? "Bezig…" : "Ander voorstel"}
           </button>
@@ -401,7 +401,7 @@ export default function SetupPanel({
         </div>
       </div>
 
-      {reden && <p className="text-[11px] text-amber-300">{reden}</p>}
+      {reden && <p className="text-[11px] text-amber-600 dark:text-amber-300">{reden}</p>}
 
       <Groep
         titel="Verhaallijn"
@@ -467,7 +467,7 @@ export default function SetupPanel({
         open
         samenvatting={setup.cast.length ? setup.cast.map((c) => c.name).join(" en ") : "nog niemand gekozen"}
       >
-        <p className="text-[11px] text-slate-500">
+        <p className="text-[11px] text-tekst-3">
           Wie jij hier kiest, ligt vast. Vraag je een ander voorstel, dan blijven deze personages en jouw rollen staan.
         </p>
         <CastPicker cast={setup.cast} onChange={(nieuw) => zet("cast", nieuw)} disabled={uit} />
@@ -475,7 +475,7 @@ export default function SetupPanel({
 
       <Groep titel="Toon en taal" samenvatting={`${TONEN.find((t) => t.id === setup.tone)?.label ?? "Zakelijk"} · ${setup.language}`}>
         <div>
-          <span className="block text-[11px] text-slate-400 mb-1.5">Verteltoon</span>
+          <span className="block text-[11px] text-tekst-3 mb-1.5">Verteltoon</span>
           <div className="flex flex-wrap gap-1.5">
             {TONEN.map((t) => (
               <button
@@ -485,7 +485,7 @@ export default function SetupPanel({
                 disabled={uit}
                 title={t.uitleg}
                 className={`text-[11px] px-2.5 py-1 rounded-full transition disabled:opacity-40 ${
-                  setup.tone === t.id ? "bg-orange-500 text-white" : "bg-white/5 text-slate-300 hover:bg-white/10"
+                  setup.tone === t.id ? "bg-orange-500 text-white" : "bg-paneel-2/60 text-tekst-2 hover:bg-paneel-2"
                 }`}
               >
                 {t.label}
@@ -494,13 +494,13 @@ export default function SetupPanel({
           </div>
         </div>
         <label className="block">
-          <span className="block text-[11px] text-slate-400 mb-0.5">Taal van de video</span>
+          <span className="block text-[11px] text-tekst-3 mb-0.5">Taal van de video</span>
           <input
             type="text"
             value={setup.language}
             onChange={(e) => zet("language", e.target.value)}
             disabled={uit}
-            className="bg-slate-900/60 border border-white/10 rounded px-2 py-1.5 text-sm text-white w-48 disabled:opacity-50"
+            className="bg-paneel border border-rand rounded px-2 py-1.5 text-sm text-tekst w-48 disabled:opacity-50"
           />
         </label>
         <Termen
@@ -533,7 +533,7 @@ export default function SetupPanel({
         ].join(" · ")}
       >
         <div>
-          <span className="block text-[11px] text-slate-400 mb-1.5">Formaat</span>
+          <span className="block text-[11px] text-tekst-3 mb-1.5">Formaat</span>
           <div className="flex gap-1.5">
             {(["16:9", "9:16"] as const).map((f) => (
               <button
@@ -542,7 +542,7 @@ export default function SetupPanel({
                 onClick={() => zet("format", f)}
                 disabled={uit}
                 className={`text-[11px] px-2.5 py-1 rounded-full transition disabled:opacity-40 ${
-                  setup.format === f ? "bg-orange-500 text-white" : "bg-white/5 text-slate-300 hover:bg-white/10"
+                  setup.format === f ? "bg-orange-500 text-white" : "bg-paneel-2/60 text-tekst-2 hover:bg-paneel-2"
                 }`}
               >
                 {f === "16:9" ? "16:9 liggend" : "9:16 staand"}

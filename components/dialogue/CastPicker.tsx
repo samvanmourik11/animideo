@@ -114,37 +114,37 @@ export default function CastPicker({
       {cast.length > 0 && (
         <div className="flex flex-wrap gap-3">
           {cast.map((c) => (
-            <div key={c.id} className="w-64 rounded-lg border border-white/10 bg-slate-900/60 p-3">
+            <div key={c.id} className="w-64 rounded-lg border border-rand bg-paneel p-3">
               <div className="flex gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={c.portraitUrl} alt={c.name} className="w-16 h-16 rounded-md object-cover border border-white/10 shrink-0" />
+                <img src={c.portraitUrl} alt={c.name} className="w-16 h-16 rounded-md object-cover border border-rand shrink-0" />
                 <div className="min-w-0 flex-1">
                   <input
                     value={c.name}
                     onChange={(e) => wijzig(c.id, { name: e.target.value })}
                     disabled={disabled}
-                    className="w-full bg-transparent text-sm text-white font-medium border-b border-white/10 focus:border-orange-400 outline-none disabled:opacity-60"
+                    className="w-full bg-transparent text-sm text-tekst font-medium border-b border-rand focus:border-orange-400 outline-none disabled:opacity-60"
                   />
                   <input
                     value={c.role}
                     onChange={(e) => wijzig(c.id, { role: e.target.value })}
                     disabled={disabled}
                     placeholder="rol, bijv. de expert"
-                    className="w-full mt-1 bg-transparent text-[11px] text-slate-400 outline-none placeholder:text-slate-600 disabled:opacity-60"
+                    className="w-full mt-1 bg-transparent text-[11px] text-tekst-3 outline-none placeholder:text-tekst-3 disabled:opacity-60"
                   />
                 </div>
               </div>
 
               {c.nieuw && (
                 <div className="mt-2 flex items-center justify-between gap-2 text-[10px]">
-                  <span className="text-sky-300">✨ door AI getekend</span>
+                  <span className="text-sky-600 dark:text-sky-300">✨ door AI getekend</span>
                   {c.bibliotheekId ? (
-                    <span className="text-emerald-400">✓ in je bibliotheek</span>
+                    <span className="text-emerald-600 dark:text-emerald-300">✓ in je bibliotheek</span>
                   ) : (
                     <button
                       onClick={() => bewaar(c)}
                       disabled={bewaarBezig === c.id || !c.portraitUrl}
-                      className="text-orange-300 hover:text-orange-200 disabled:opacity-40"
+                      className="text-orange-600 dark:text-orange-300 hover:text-orange-200 disabled:opacity-40"
                     >
                       {bewaarBezig === c.id ? "bewaren…" : "＋ in bibliotheek bewaren"}
                     </button>
@@ -154,12 +154,12 @@ export default function CastPicker({
 
               <div className="mt-2 grid grid-cols-2 gap-2">
                 <label className="block">
-                  <span className="block text-[10px] text-slate-500 mb-0.5">Stem</span>
+                  <span className="block text-[10px] text-tekst-3 mb-0.5">Stem</span>
                   <select
                     value={c.voice}
                     onChange={(e) => wijzig(c.id, { voice: e.target.value })}
                     disabled={disabled}
-                    className="w-full bg-slate-800 border border-white/10 rounded px-1.5 py-1 text-[11px] text-white disabled:opacity-60"
+                    className="w-full bg-paneel-2 border border-rand rounded px-1.5 py-1 text-[11px] text-tekst disabled:opacity-60"
                   >
                     {groupVoices(STORY_VOICES).map((g) => (
                       <optgroup key={g.category} label={g.label}>
@@ -171,12 +171,12 @@ export default function CastPicker({
                   </select>
                 </label>
                 <label className="block">
-                  <span className="block text-[10px] text-slate-500 mb-0.5">Plek in beeld</span>
+                  <span className="block text-[10px] text-tekst-3 mb-0.5">Plek in beeld</span>
                   <select
                     value={c.position}
                     onChange={(e) => wijzig(c.id, { position: e.target.value as CastPosition })}
                     disabled={disabled}
-                    className="w-full bg-slate-800 border border-white/10 rounded px-1.5 py-1 text-[11px] text-white disabled:opacity-60"
+                    className="w-full bg-paneel-2 border border-rand rounded px-1.5 py-1 text-[11px] text-tekst disabled:opacity-60"
                   >
                     {POSITIES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
                   </select>
@@ -187,12 +187,12 @@ export default function CastPicker({
                 {/* Voorbeluisteren kost niets: vooraf gegenereerde mp3 uit /public. */}
                 <button
                   onClick={() => new Audio(voicePreviewUrl(c.voice)).play().catch(() => {})}
-                  className="text-[11px] text-slate-400 hover:text-white"
+                  className="text-[11px] text-tekst-3 hover:text-tekst"
                 >
                   ♪ stem beluisteren
                 </button>
                 {!disabled && (
-                  <button onClick={() => verwijder(c.id)} className="text-[11px] text-slate-500 hover:text-red-400">
+                  <button onClick={() => verwijder(c.id)} className="text-[11px] text-tekst-3 hover:text-red-400">
                     verwijderen
                   </button>
                 )}
@@ -205,15 +205,15 @@ export default function CastPicker({
       {/* Bibliotheek */}
       {!disabled && cast.length < MAX_CAST && (
         <div>
-          <div className="text-[11px] text-slate-500 mb-2">
+          <div className="text-[11px] text-tekst-3 mb-2">
             Kies uit je personages {cast.length > 0 && `(nog ${MAX_CAST - cast.length} mogelijk)`}
           </div>
-          {fout && <p className="text-xs text-red-400 mb-2">{fout}</p>}
-          {bibliotheek === null && !fout && <p className="text-xs text-slate-500">Laden…</p>}
+          {fout && <p className="text-xs text-red-600 dark:text-red-300 mb-2">{fout}</p>}
+          {bibliotheek === null && !fout && <p className="text-xs text-tekst-3">Laden…</p>}
           {bibliotheek?.length === 0 && (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-tekst-3">
               Je hebt nog geen personages.{" "}
-              <Link href="/characters" className="text-orange-300 underline hover:text-orange-200">
+              <Link href="/characters" className="text-orange-600 dark:text-orange-300 underline hover:text-orange-200">
                 Maak er een aan
               </Link>{" "}
               — je kunt een foto uploaden of er een laten tekenen.
@@ -226,16 +226,16 @@ export default function CastPicker({
                 <button
                   key={ch.id}
                   onClick={() => voegToe(ch)}
-                  className="w-24 rounded-lg border border-white/10 bg-slate-900/40 p-1.5 hover:border-orange-400/60 transition text-left"
+                  className="w-24 rounded-lg border border-rand bg-paneel p-1.5 hover:border-orange-400/60 transition text-left"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={ch.image_url!} alt={ch.name} className="w-full aspect-square rounded object-cover mb-1" />
-                  <span className="block text-[10px] text-slate-300 truncate">{ch.name}</span>
+                  <span className="block text-[10px] text-tekst-2 truncate">{ch.name}</span>
                 </button>
               ))}
           </div>
           {(bibliotheek?.length ?? 0) > 0 && (
-            <Link href="/characters" className="inline-block mt-2 text-[11px] text-slate-500 hover:text-white">
+            <Link href="/characters" className="inline-block mt-2 text-[11px] text-tekst-3 hover:text-tekst">
               + nieuw personage maken
             </Link>
           )}
@@ -243,7 +243,7 @@ export default function CastPicker({
       )}
 
       {cast.length < 2 && (
-        <p className="text-[11px] text-amber-300">Kies minstens twee personages — een gesprek heeft twee kanten.</p>
+        <p className="text-[11px] text-amber-600 dark:text-amber-300">Kies minstens twee personages — een gesprek heeft twee kanten.</p>
       )}
     </div>
   );

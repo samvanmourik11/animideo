@@ -57,38 +57,38 @@ export default function SceneChat({
   return (
     <div className="space-y-2">
       {messages.length > 0 && (
-        <div className="max-h-72 overflow-y-auto space-y-2 rounded-lg border border-white/10 bg-slate-900/40 p-2">
+        <div className="max-h-72 overflow-y-auto space-y-2 rounded-lg border border-rand bg-paneel p-2">
           {messages.map((m, i) => {
             const dag = dagLabel(m.at);
             const vorigeDag = dagLabel(messages[i - 1]?.at);
             return (
               <div key={m.id}>
                 {dag && dag !== vorigeDag && (
-                  <p className="text-center text-[10px] text-slate-600 py-0.5">{dag}</p>
+                  <p className="text-center text-[10px] text-tekst-3 py-0.5">{dag}</p>
                 )}
                 {m.role === "user" ? (
                   <div className="flex justify-end">
-                    <div className="max-w-[85%] rounded-lg rounded-br-sm bg-blue-500/20 text-blue-50 px-2 py-1 text-xs">
+                    <div className="max-w-[85%] rounded-lg rounded-br-sm bg-blue-500/20 text-blue-700 dark:text-blue-100 px-2 py-1 text-xs">
                       <p className="whitespace-pre-wrap break-words">{m.text}</p>
                       {m.photoUrl && (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={m.photoUrl} alt="meegestuurde foto" className="mt-1 h-12 w-auto rounded border border-white/20" />
+                        <img src={m.photoUrl} alt="meegestuurde foto" className="mt-1 h-12 w-auto rounded border border-rand" />
                       )}
                     </div>
                   </div>
                 ) : (
                   <div className="flex justify-start">
-                    <div className="max-w-[85%] rounded-lg rounded-bl-sm bg-white/5 text-slate-200 px-2 py-1 text-xs">
+                    <div className="max-w-[85%] rounded-lg rounded-bl-sm bg-paneel-2/60 text-tekst px-2 py-1 text-xs">
                       <p className="whitespace-pre-wrap break-words">{m.text}</p>
                       {(m.imageUrl || m.previousLayout) && (
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-[10px] text-emerald-300/90">✓ beeld bijgewerkt</span>
+                          <span className="text-[10px] text-emerald-600/90 dark:text-emerald-300/90">✓ beeld bijgewerkt</span>
                           {(m.previousImageUrl || m.previousLayout) && (
                             <button
                               onClick={() => onRevert(m)}
                               disabled={busy}
                               title="Zet het beeld terug naar vóór deze wijziging"
-                              className="text-[10px] text-slate-400 hover:text-white underline disabled:opacity-40"
+                              className="text-[10px] text-tekst-3 hover:text-tekst underline disabled:opacity-40"
                             >
                               ↩ terug
                             </button>
@@ -101,14 +101,14 @@ export default function SceneChat({
               </div>
             );
           })}
-          {busy && <p className="text-[10px] text-slate-400 pl-1">beeld wordt bijgewerkt…</p>}
+          {busy && <p className="text-[10px] text-tekst-3 pl-1">beeld wordt bijgewerkt…</p>}
         </div>
       )}
 
       {file && (
-        <div className="flex items-center gap-2 text-[10px] text-emerald-300">
+        <div className="flex items-center gap-2 text-[10px] text-emerald-600 dark:text-emerald-300">
           <span className="truncate">📎 {file.name}</span>
-          <button onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = ""; }} className="text-slate-400 hover:text-white">
+          <button onClick={() => { setFile(null); if (fileRef.current) fileRef.current.value = ""; }} className="text-tekst-3 hover:text-tekst">
             verwijderen
           </button>
         </div>
@@ -124,11 +124,11 @@ export default function SceneChat({
           }}
           rows={2}
           placeholder={messages.length ? "En nu…?" : "Wat moet er anders aan dit beeld?"}
-          className="flex-1 bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-slate-200 resize-none"
+          className="flex-1 bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst resize-none"
         />
         {!gratis && <label
           title="Foto meesturen (echt logo, product of object)"
-          className={`shrink-0 cursor-pointer rounded px-2 py-1.5 text-xs ${file ? "bg-emerald-500/20 text-emerald-200" : "bg-white/10 hover:bg-white/15 text-slate-300"} ${busy ? "opacity-50 pointer-events-none" : ""}`}
+          className={`shrink-0 cursor-pointer rounded px-2 py-1.5 text-xs ${file ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-300" : "bg-paneel-2 hover:bg-rand/70 text-tekst-2"} ${busy ? "opacity-50 pointer-events-none" : ""}`}
         >
           📎
           <input
@@ -143,12 +143,12 @@ export default function SceneChat({
           onClick={send}
           disabled={busy || !draft.trim()}
           title={gratis ? "Aanpassen kost niets" : `Een beeldwijziging kost ${creditLabel}`}
-          className="shrink-0 bg-blue-500/20 hover:bg-blue-500/30 text-blue-100 rounded px-2.5 py-1.5 text-xs disabled:opacity-40"
+          className="shrink-0 bg-blue-500/20 hover:bg-blue-500/30 text-blue-700 dark:text-blue-100 rounded px-2.5 py-1.5 text-xs disabled:opacity-40"
         >
           ↵
         </button>
       </div>
-      <p className="text-[10px] text-slate-500">
+      <p className="text-[10px] text-tekst-3">
         {gratis
           ? "Beschrijf wat er anders moet (\u201czet er een huis bij\u201d, \u201cmaak er een vergelijking van\u201d). Deze scene wordt door de app zelf getekend, dus aanpassen kost geen credits."
           : `Beschrijf wat er anders moet ("zet het logo van de foto op de auto"). Een wijziging van het beeld kost ${creditLabel}; een vraag die niet over het beeld gaat is gratis.`}

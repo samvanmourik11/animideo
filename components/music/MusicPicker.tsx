@@ -93,7 +93,7 @@ export function MusicPicker({
               className={`flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${
                 isSelected
                   ? "border-cyan-400/60 bg-cyan-500/10"
-                  : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]"
+                  : "border-rand bg-paneel-2/60 hover:bg-paneel-2/60"
               }`}
             >
               <button
@@ -101,14 +101,14 @@ export function MusicPicker({
                 onClick={() => togglePreview(t.slug)}
                 title={isPlaying ? "Stop met luisteren" : "Luister naar dit nummer"}
                 aria-label={isPlaying ? `Stop ${t.title}` : `Beluister ${t.title}`}
-                className="w-8 h-8 shrink-0 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-xs"
+                className="w-8 h-8 shrink-0 rounded-full bg-paneel-2 hover:bg-rand/70 text-tekst flex items-center justify-center text-xs"
               >
                 {isPlaying ? "❚❚" : "▶"}
               </button>
 
               <button type="button" onClick={() => pick(t.slug)} className="flex-1 min-w-0 text-left">
-                <span className="block text-sm text-white truncate">{t.title}</span>
-                <span className="block text-[11px] text-slate-400">
+                <span className="block text-sm text-tekst truncate">{t.title}</span>
+                <span className="block text-[11px] text-tekst-3">
                   {MUSIC_CATEGORIES.find((c) => c.id === t.category)?.label} · {formatMusicDuration(t.duration)}
                   {videoDuration ? ` · ${fitLabel(t.duration, videoDuration)}` : ""}
                 </span>
@@ -119,8 +119,8 @@ export function MusicPicker({
                 onClick={() => pick(t.slug)}
                 className={`shrink-0 text-xs px-2.5 py-1 rounded-md ${
                   isSelected
-                    ? "bg-cyan-500/20 text-cyan-300"
-                    : "bg-white/10 text-slate-300 hover:bg-white/20"
+                    ? "bg-cyan-500/20 text-cyan-600 dark:text-cyan-300"
+                    : "bg-paneel-2 text-tekst-2 hover:bg-rand/70"
                 }`}
               >
                 {isSelected ? "Gekozen" : "Kies"}
@@ -130,8 +130,8 @@ export function MusicPicker({
         })}
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2">
-        <p className="text-[11px] text-slate-500">
+      <div className="flex items-center justify-between gap-3 border-t border-rand pt-2">
+        <p className="text-[11px] text-tekst-3">
           {videoDuration
             ? `Het gekozen nummer wordt automatisch op de videolengte (${formatMusicDuration(videoDuration)}) gezet.`
             : "Het gekozen nummer wordt automatisch op de videolengte gezet."}
@@ -140,7 +140,7 @@ export function MusicPicker({
           <button
             type="button"
             onClick={() => onChange(null)}
-            className="shrink-0 text-xs px-2.5 py-1 rounded-md bg-white/5 text-slate-400 hover:bg-white/10"
+            className="shrink-0 text-xs px-2.5 py-1 rounded-md bg-paneel-2/60 text-tekst-3 hover:bg-paneel-2"
           >
             Geen muziek
           </button>
@@ -148,7 +148,7 @@ export function MusicPicker({
       </div>
 
       {value && !selected ? (
-        <p className="text-[11px] text-amber-300/80">
+        <p className="text-[11px] text-amber-600/80 dark:text-amber-300/80">
           Dit project gebruikt nu eigen muziek (geen bibliotheeknummer). Kies hierboven een nummer om het te vervangen.
         </p>
       ) : null}
@@ -193,7 +193,7 @@ export function MusicPickerButton({
               ? "Dit project heeft eigen muziek — klik om een nummer uit de bibliotheek te kiezen"
               : "Kies achtergrondmuziek uit de bibliotheek"
         }
-        className={className ?? "px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-sm text-white"}
+        className={className ?? "px-3 py-1.5 rounded-md bg-paneel-2 hover:bg-rand/70 text-sm text-tekst"}
       >
         🎵 {track ? track.title : "Muziek kiezen"}
       </button>
@@ -204,16 +204,16 @@ export function MusicPickerButton({
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-xl rounded-2xl border border-white/10 bg-slate-900 p-4 shadow-2xl"
+            className="w-full max-w-xl rounded-2xl border border-rand bg-paneel p-4 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-white font-semibold">Achtergrondmuziek</h3>
+              <h3 className="text-tekst font-semibold">Achtergrondmuziek</h3>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Sluiten"
-                className="w-7 h-7 rounded-md bg-white/10 hover:bg-white/20 text-slate-300"
+                className="w-7 h-7 rounded-md bg-paneel-2 hover:bg-rand/70 text-tekst-2"
               >
                 ✕
               </button>
@@ -236,8 +236,8 @@ function CategoryChip({
       title={title}
       className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
         active
-          ? "border-cyan-400/60 bg-cyan-500/15 text-cyan-200"
-          : "border-white/10 bg-white/5 text-slate-400 hover:text-slate-200"
+          ? "border-cyan-400/60 bg-cyan-500/15 text-cyan-600 dark:text-cyan-300"
+          : "border-rand bg-paneel-2/60 text-tekst-3 hover:text-tekst"
       }`}
     >
       {label}

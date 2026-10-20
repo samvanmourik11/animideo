@@ -1493,9 +1493,9 @@ export default function DialoguePage() {
   if (toegang === false) {
     return (
       <div className="max-w-[980px] mx-auto p-6">
-        <h1 className="text-xl font-bold text-white mb-2">Dialoogmodus</h1>
-        <p className="text-sm text-slate-400">
-          Deze tool is nog niet beschikbaar. <Link href="/dashboard" className="underline hover:text-white">Terug naar je projecten</Link>
+        <h1 className="text-xl font-bold text-tekst mb-2">Dialoogmodus</h1>
+        <p className="text-sm text-tekst-3">
+          Deze tool is nog niet beschikbaar. <Link href="/dashboard" className="underline hover:text-tekst">Terug naar je projecten</Link>
         </p>
       </div>
     );
@@ -1504,20 +1504,20 @@ export default function DialoguePage() {
   return (
     <div className="max-w-[980px] mx-auto p-6">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl font-bold text-white">
-          Dialoogmodus <span className="text-[11px] align-middle rounded-full bg-amber-500/20 text-amber-300 px-2 py-0.5">bèta</span>
+        <h1 className="text-xl font-bold text-tekst">
+          Dialoogmodus <span className="text-[11px] align-middle rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-300 px-2 py-0.5">bèta</span>
         </h1>
         <div className="flex items-center gap-3">
-          {projectId && <span className="text-[11px] text-emerald-400">bewaard</span>}
-          <Link href="/infographics/story" className="text-xs text-slate-400 hover:text-white">← Storytelling</Link>
+          {projectId && <span className="text-[11px] text-emerald-600 dark:text-emerald-300">bewaard</span>}
+          <Link href="/infographics/story" className="text-xs text-tekst-3 hover:text-tekst">← Storytelling</Link>
         </div>
       </div>
-      <p className="text-sm text-slate-400 mb-5">
+      <p className="text-sm text-tekst-3 mb-5">
         Twee of drie personages voeren samen een gesprek, tegenover elkaar in beeld. Vertel wat je wilt — de assistent werkt het draaiboek uit.
       </p>
-      {projectLaden && <p className="text-sm text-blue-300 mb-4">Dialoog laden…</p>}
-      {fout && <p className="text-sm text-red-400 mb-4">{fout}</p>}
-      {bewaarFout && <p className="text-[11px] text-amber-300 mb-4">{bewaarFout}</p>}
+      {projectLaden && <p className="text-sm text-blue-600 dark:text-blue-300 mb-4">Dialoog laden…</p>}
+      {fout && <p className="text-sm text-red-600 dark:text-red-300 mb-4">{fout}</p>}
+      {bewaarFout && <p className="text-[11px] text-amber-600 dark:text-amber-300 mb-4">{bewaarFout}</p>}
 
       <div className="flex items-center gap-2 mb-6 text-[11px]">
         {([[1, "Idee"], [2, "Opzet"], [3, "Draaiboek"], [4, "Storyboard"], [5, "Video"]] as const).map(([n, label]) => (
@@ -1526,7 +1526,7 @@ export default function DialoguePage() {
             onClick={() => { if (n === 1 || (n === 2 ? setup : spec)) setStap(n as Stap); }}
             disabled={n === 2 ? !setup : n !== 1 && !spec}
             className={`px-3 py-1.5 rounded-full transition disabled:opacity-30 ${
-              stap === n ? "bg-orange-500 text-white" : "bg-white/5 text-slate-400 hover:text-white"
+              stap === n ? "bg-orange-500 text-white" : "bg-paneel-2/60 text-tekst-3 hover:text-white"
             }`}
           >
             {n}. {label}
@@ -1544,8 +1544,8 @@ export default function DialoguePage() {
             lengte={lengte}
             onLengte={setLengte}
           />
-          <p className="text-[11px] text-slate-600">
-            De assistent stelt een complete opzet voor: personages uit je <Link href="/characters" className="text-slate-500 underline hover:text-slate-300">bibliotheek</Link> met hun rollen — en past daar niemand bij het verhaal, dan tekent hij ze zelf —
+          <p className="text-[11px] text-tekst-3">
+            De assistent stelt een complete opzet voor: personages uit je <Link href="/characters" className="text-tekst-3 underline hover:text-tekst-2">bibliotheek</Link> met hun rollen — en past daar niemand bij het verhaal, dan tekent hij ze zelf —
             de kernboodschap, de wending, toon en tekenstijl. Die opzet stel je zelf bij vóór er één regel geschreven wordt. Denken kost vrijwel niets; pas bij het maken van de video gaat er geld op.
           </p>
         </div>
@@ -1571,8 +1571,8 @@ export default function DialoguePage() {
         <div className="space-y-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-white">{spec.title}</h2>
-              <p className="text-[11px] text-slate-500">
+              <h2 className="text-lg font-semibold text-tekst">{spec.title}</h2>
+              <p className="text-[11px] text-tekst-3">
                 Pas aan wat je wilt. Verander je een zin of de spreker, dan wordt die clip opnieuw gemaakt.
               </p>
             </div>
@@ -1591,18 +1591,18 @@ export default function DialoguePage() {
                 </button>
               )}
               <button onClick={maakVideo} disabled={renderBezig}
-                className="text-[11px] text-slate-400 hover:text-white underline disabled:opacity-40">
+                className="text-[11px] text-tekst-3 hover:text-tekst underline disabled:opacity-40">
                 of meteen de hele video ({creditTekst(schatCredits(spec))})
               </button>
             </div>
           </div>
 
           {/* Wie er meespelen — de assistent koos ze, jij mag wisselen. */}
-          <details className="bg-white/5 border border-white/10 rounded-xl p-4 group">
-            <summary className="text-sm font-medium text-white cursor-pointer list-none flex items-center gap-2">
-              <span className="text-slate-500 text-xs group-open:rotate-90 transition-transform">▶</span>
+          <details className="bg-paneel-2/60 border border-rand rounded-xl p-4 group">
+            <summary className="text-sm font-medium text-tekst cursor-pointer list-none flex items-center gap-2">
+              <span className="text-tekst-3 text-xs group-open:rotate-90 transition-transform">▶</span>
               Rolverdeling
-              <span className="text-[11px] font-normal text-slate-500">— {spec.cast.map((c) => c.name).join(" en ")}</span>
+              <span className="text-[11px] font-normal text-tekst-3">— {spec.cast.map((c) => c.name).join(" en ")}</span>
             </summary>
             <div className="mt-3">
               <CastPicker
@@ -1613,11 +1613,11 @@ export default function DialoguePage() {
             </div>
           </details>
 
-          <details className="bg-white/5 border border-white/10 rounded-xl p-4 group">
-            <summary className="text-sm font-medium text-white cursor-pointer list-none flex items-center gap-2">
-              <span className="text-slate-500 text-xs group-open:rotate-90 transition-transform">▶</span>
+          <details className="bg-paneel-2/60 border border-rand rounded-xl p-4 group">
+            <summary className="text-sm font-medium text-tekst cursor-pointer list-none flex items-center gap-2">
+              <span className="text-tekst-3 text-xs group-open:rotate-90 transition-transform">▶</span>
               Beeldregie
-              <span className="text-[11px] font-normal text-slate-500">
+              <span className="text-[11px] font-normal text-tekst-3">
                 — {STORY_STYLE_PRESETS.find((s) => s.id === spec.styleId)?.name ?? "Flat vector"}
                 {spec.illustrationBrief ? " · met briefing" : ""}
               </span>
@@ -1650,18 +1650,18 @@ export default function DialoguePage() {
 
           {/* De voorwerpen stonden onder de dichtgeklapte beeldregie, en daar zag niemand
               dat de lijst leeg was — ook niet in een verhaal over een bloem en een grote boom. */}
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+          <div className="bg-paneel-2/60 border border-rand rounded-xl p-4">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <h3 className="text-sm font-medium text-white">Voorwerpen</h3>
+              <h3 className="text-sm font-medium text-tekst">Voorwerpen</h3>
               <button
                 onClick={() => void zoekVoorwerpen()}
                 disabled={renderBezig || voorwerpenBezig || (spec.voorwerpen?.length ?? 0) >= MAX_VOORWERPEN}
-                className="text-[11px] rounded px-2.5 py-1 bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10 disabled:opacity-40 transition"
+                className="text-[11px] rounded px-2.5 py-1 bg-paneel-2/60 text-tekst-2 hover:bg-paneel-2 border border-rand disabled:opacity-40 transition"
               >
                 {voorwerpenBezig ? "Zoeken…" : "Voorwerpen uit het draaiboek halen"}
               </button>
             </div>
-            {voorwerpenMelding && <p className="text-[11px] text-slate-400 mb-1.5">{voorwerpenMelding}</p>}
+            {voorwerpenMelding && <p className="text-[11px] text-tekst-3 mb-1.5">{voorwerpenMelding}</p>}
             <VasteVoorwerpen
               voorwerpen={spec.voorwerpen ?? []}
               onChange={(v) => setSpec({ ...spec, voorwerpen: v.length ? v : null })}
@@ -1677,9 +1677,9 @@ export default function DialoguePage() {
           {/* Aanpassen in gewone taal. Dit is bewust GEEN nieuwe chat: de assistent
               krijgt het huidige draaiboek mee en past aan wat je vraagt, zodat clips
               van ongewijzigde regels blijven staan. */}
-          <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-            <h3 className="text-sm font-medium text-white mb-1">Iets laten aanpassen</h3>
-            <p className="text-[11px] text-slate-500 mb-2.5">
+          <div className="bg-paneel-2/60 border border-rand rounded-xl p-4">
+            <h3 className="text-sm font-medium text-tekst mb-1">Iets laten aanpassen</h3>
+            <p className="text-[11px] text-tekst-3 mb-2.5">
               Zeg in gewone taal wat er anders moet. De assistent kent je draaiboek en verandert alleen wat je vraagt — clips van regels die hetzelfde blijven, blijven staan.
             </p>
             <DialogueBuddy spec={spec} onSpec={setSpec} disabled={renderBezig} />
@@ -1692,8 +1692,8 @@ export default function DialoguePage() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="text-lg font-semibold text-white">Storyboard</h2>
-              <p className="text-[11px] text-slate-500">
+              <h2 className="text-lg font-semibold text-tekst">Storyboard</h2>
+              <p className="text-[11px] text-tekst-3">
                 Per scène het beeld van de plek, met daarnaast één beeld per zin: dat is precies wat er straks beweegt.
                 Klopt een beeld niet, geef dan een aanwijzing en maak alleen dat beeld opnieuw. Pas als het bord klopt, maak je de clips.
               </p>
@@ -1701,7 +1701,7 @@ export default function DialoguePage() {
             <div className="flex flex-wrap items-center gap-2">
               {spec.scenes.some((s) => !s.twoShotUrl || s.lines.some((l) => bruikbareRegel(l) && !l.shotImageUrl)) && (
                 <button onClick={() => void maakStoryboard()} disabled={renderBezig || hertekenBezig !== null || regelsBezig.length > 0}
-                  className="text-sm rounded px-4 py-2 bg-white/5 text-slate-200 hover:bg-white/10 border border-white/10 disabled:opacity-40 transition">
+                  className="text-sm rounded px-4 py-2 bg-paneel-2/60 text-tekst hover:bg-paneel-2 border border-rand disabled:opacity-40 transition">
                   {renderBezig ? "Bezig…" : `Ontbrekende beelden maken (${creditTekst(schatStoryboardCredits(spec))})`}
                 </button>
               )}
@@ -1709,7 +1709,7 @@ export default function DialoguePage() {
                   met eerdere beelden als voorbeeld, en dan zijn ze overbelicht. */}
               {spec.scenes.some((s) => s.twoShotUrl) && !spec.scenes.some((s) => s.twoShotUrl && !s.geregisseerd) && (
                 <button onClick={storyboardOpnieuwOpzetten} disabled={renderBezig || hertekenBezig !== null || regelsBezig.length > 0}
-                  className="text-sm rounded px-4 py-2 bg-white/5 text-slate-300 hover:bg-white/10 border border-white/10 disabled:opacity-40 transition">
+                  className="text-sm rounded px-4 py-2 bg-paneel-2/60 text-tekst-2 hover:bg-paneel-2 border border-rand disabled:opacity-40 transition">
                   Opnieuw opzetten
                 </button>
               )}
@@ -1729,8 +1729,8 @@ export default function DialoguePage() {
             && !(spec.cast.some((c) => c.modelSheetUrl) && !spec.bladenAkkoord) && (
             <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/[0.06] px-4 py-4 space-y-3">
               <div>
-                <h3 className="text-sm font-semibold text-white">Waar speelt het?</h3>
-                <p className="text-[11px] text-slate-300 mt-0.5">
+                <h3 className="text-sm font-semibold text-tekst">Waar speelt het?</h3>
+                <p className="text-[11px] text-tekst-2 mt-0.5">
                   Leg de plekken vast vóórdat de beelden gemaakt worden. Een vastgelegde plek wordt drie keer getekend
                   (veraf, halverwege, dichtbij) en gaat als voorbeeld mee naar élk beeld van die scène — zo staan
                   overal dezelfde bomen, muren en meubels. Kost niets, en je houdt de plek voor je volgende video.
@@ -1738,8 +1738,8 @@ export default function DialoguePage() {
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
                 {plekGroepen(spec).map((g) => (
-                  <div key={g.sleutel} className="rounded-lg border border-white/10 bg-slate-900/40 p-2.5">
-                    <p className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+                  <div key={g.sleutel} className="rounded-lg border border-rand bg-paneel p-2.5">
+                    <p className="text-[11px] uppercase tracking-wide text-tekst-3 mb-1">
                       {g.naam}
                       {g.scenes.length > 1 && <span className="normal-case tracking-normal"> · {g.scenes.length} scènes</span>}
                     </p>
@@ -1755,7 +1755,7 @@ export default function DialoguePage() {
                   </div>
                 ))}
               </div>
-              {renderFout && <p className="text-xs text-red-400">{renderFout}</p>}
+              {renderFout && <p className="text-xs text-red-600 dark:text-red-300">{renderFout}</p>}
               <div className="flex flex-wrap items-center gap-3">
                 <button
                   onClick={() => {
@@ -1771,7 +1771,7 @@ export default function DialoguePage() {
                     ? "Deze plekken kloppen — maak het storyboard"
                     : "Zonder vaste plek verder — maak het storyboard"}
                 </button>
-                <span className="text-[11px] text-slate-400">
+                <span className="text-[11px] text-tekst-3">
                   Je kunt een plek later nog wisselen, maar dan moeten de beelden opnieuw.
                 </span>
               </div>
@@ -1781,8 +1781,8 @@ export default function DialoguePage() {
           {!renderBezig && spec.cast.some((c) => c.modelSheetUrl) && !spec.bladenAkkoord && (
             <div className="rounded-xl border border-orange-400/40 bg-orange-500/[0.07] px-4 py-4 space-y-3">
               <div>
-                <h3 className="text-sm font-semibold text-white">Kloppen je personages?</h3>
-                <p className="text-[11px] text-slate-300 mt-0.5">
+                <h3 className="text-sm font-semibold text-tekst">Kloppen je personages?</h3>
+                <p className="text-[11px] text-tekst-2 mt-0.5">
                   Zo gaan ze in élk beeld van je video. Let op de ogen, de kleding en dingen als een rugnummer of een pet.
                   Klopt er iets niet, maak dat personage dan nu opnieuw (gratis). Pas daarna maken we de beelden.
                 </p>
@@ -1791,19 +1791,19 @@ export default function DialoguePage() {
                 {spec.cast.filter((c) => c.modelSheetUrl).map((c) => (
                   <div key={c.id} className="w-72">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={c.modelSheetUrl ?? ""} alt={c.name} className="w-full rounded border border-white/10 bg-slate-900/60" />
+                    <img src={c.modelSheetUrl ?? ""} alt={c.name} className="w-full rounded border border-rand bg-paneel" />
                     <div className="flex items-center justify-between gap-2 mt-1">
-                      <span className="text-[11px] text-slate-200 truncate">{c.name}</span>
+                      <span className="text-[11px] text-tekst truncate">{c.name}</span>
                       <button
                         onClick={() => void bladOpnieuw(c.id)}
                         disabled={bladBezig !== null}
-                        className="text-[11px] text-orange-300 hover:text-orange-200 underline disabled:opacity-40"
+                        className="text-[11px] text-orange-600 dark:text-orange-300 hover:text-orange-200 underline disabled:opacity-40"
                       >
                         {bladBezig === c.id ? "Bezig…" : "↻ Opnieuw"}
                       </button>
                     </div>
                     {bladOordeel[c.id] && (
-                      <p className="text-[11px] text-amber-300 mt-0.5">
+                      <p className="text-[11px] text-amber-600 dark:text-amber-300 mt-0.5">
                         {[
                           bladOordeel[c.id].ogenDicht ? "ogen dicht" : "",
                           bladOordeel[c.id].ontbreekt.length ? `ontbreekt: ${bladOordeel[c.id].ontbreekt.join(", ")}` : "",
@@ -1832,21 +1832,21 @@ export default function DialoguePage() {
               rugnummer, een verkeerde pet), maak hem dan opnieuw: dan is hij in het hele
               storyboard goed. */}
           {spec.bladenAkkoord && spec.cast.some((c) => c.modelSheetUrl) && (
-            <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-3">
-              <p className="text-[11px] text-slate-400 mb-2">
+            <div className="rounded-lg border border-rand bg-paneel-2/60 px-3 py-3">
+              <p className="text-[11px] text-tekst-3 mb-2">
                 Zo staan je personages in elk beeld. Klopt er iets niet? Maak het blad opnieuw (gratis); daarna maak je de beelden opnieuw.
               </p>
               <div className="flex flex-wrap gap-3">
                 {spec.cast.filter((c) => c.modelSheetUrl).map((c) => (
                   <div key={c.id} className="w-64">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={c.modelSheetUrl ?? ""} alt={c.name} className="w-full rounded border border-white/10 bg-slate-900/60" />
+                    <img src={c.modelSheetUrl ?? ""} alt={c.name} className="w-full rounded border border-rand bg-paneel" />
                     <div className="flex items-center justify-between gap-2 mt-1">
-                      <span className="text-[11px] text-slate-300 truncate">{c.name}</span>
+                      <span className="text-[11px] text-tekst-2 truncate">{c.name}</span>
                       <button
                         onClick={() => void bladOpnieuw(c.id)}
                         disabled={bladBezig !== null || renderBezig || regelsBezig.length > 0}
-                        className="text-[11px] text-slate-400 hover:text-white underline disabled:opacity-40"
+                        className="text-[11px] text-tekst-3 hover:text-tekst underline disabled:opacity-40"
                       >
                         {bladBezig === c.id ? "Bezig…" : "↻ Opnieuw"}
                       </button>
@@ -1861,26 +1861,26 @@ export default function DialoguePage() {
               geen beeld per zin. Aanvullen zou de oude plekken laten staan. */}
           {spec.scenes.some((s) => s.twoShotUrl && !s.geregisseerd) && (
             <div className="rounded-lg border border-amber-400/30 bg-amber-500/[0.06] px-3 py-2 flex flex-wrap items-center gap-2">
-              <p className="text-[11px] text-amber-200 flex-1 min-w-0">
+              <p className="text-[11px] text-amber-600 dark:text-amber-300 flex-1 min-w-0">
                 Dit storyboard is gemaakt vóór de plekken en beelden per zin. Zet je het opnieuw op, dan krijgt elke scène een eigen plek en zie je per zin wat er in beeld komt.
               </p>
               <button onClick={storyboardOpnieuwOpzetten} disabled={renderBezig || hertekenBezig !== null || regelsBezig.length > 0}
-                className="text-xs rounded px-3 py-1.5 bg-amber-500/20 text-amber-100 hover:bg-amber-500/30 border border-amber-400/30 disabled:opacity-40 transition">
+                className="text-xs rounded px-3 py-1.5 bg-amber-500/20 text-amber-700 dark:text-amber-100 hover:bg-amber-500/30 border border-amber-400/30 disabled:opacity-40 transition">
                 Storyboard opnieuw opzetten
               </button>
             </div>
           )}
-          {renderFout && <p className="text-xs text-red-400">{renderFout}</p>}
+          {renderFout && <p className="text-xs text-red-600 dark:text-red-300">{renderFout}</p>}
           {renderBezig ? (
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-5 space-y-2">
-              <p className="text-sm text-white">{voortgang || "Storyboard wordt gemaakt…"}</p>
-              <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+            <div className="rounded-xl border border-rand bg-paneel-2/60 px-4 py-5 space-y-2">
+              <p className="text-sm text-tekst">{voortgang || "Storyboard wordt gemaakt…"}</p>
+              <div className="h-2 w-full rounded-full bg-paneel-2 overflow-hidden">
                 <div
                   className="h-full rounded-full bg-orange-500 transition-all duration-500"
                   style={{ width: `${vordering && vordering.totaal > 0 ? Math.round((vordering.af / vordering.totaal) * 100) : 8}%` }}
                 />
               </div>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-tekst-3">
                 {vordering && vordering.totaal > 0
                   ? `${vordering.af} van de ${vordering.totaal} beelden klaar. `
                   : ""}
@@ -1888,9 +1888,9 @@ export default function DialoguePage() {
               </p>
             </div>
           ) : (
-            voortgang && <p className="text-xs text-slate-400">{voortgang}</p>
+            voortgang && <p className="text-xs text-tekst-3">{voortgang}</p>
           )}
-          <button onClick={() => setStap(3)} className="text-xs text-orange-300 hover:text-orange-200 underline">
+          <button onClick={() => setStap(3)} className="text-xs text-orange-600 dark:text-orange-300 hover:text-orange-200 underline">
             ← Terug naar het draaiboek
           </button>
           {!renderBezig && <Storyboard
@@ -1915,27 +1915,27 @@ export default function DialoguePage() {
               className="bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition">
               {renderBezig ? "Bezig…" : klaarAantal === alleRegels.length ? "Alles staat klaar" : `Verder maken (${creditTekst(schatCredits(spec))})`}
             </button>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-tekst-3">
               {klaarAantal}/{alleRegels.length} regels klaar {voortgang && `· ${voortgang}`}
             </span>
           </div>
-          {renderFout && <p className="text-xs text-red-400">{renderFout}</p>}
-          <p className="text-[11px] text-slate-500">
+          {renderFout && <p className="text-xs text-red-600 dark:text-red-300">{renderFout}</p>}
+          <p className="text-[11px] text-tekst-3">
             Per regel brengen we het beeld uit het storyboard in beweging, met de stem erbij. Ontbreekt dat beeld nog, dan wordt het eerst gemaakt. Reken op een halve minuut per regel.
           </p>
 
           {/* Er gaat altijd wel iets mis bij AI-beeld. Vanuit de video moet je in
               één klik terug kunnen naar het draaiboek om één regel of één hele
               scène opnieuw te laten maken. */}
-          <div className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-400">Iets verkeerd uitgepakt?</span>
-            <button onClick={() => setStap(3)} className="text-xs text-orange-300 hover:text-orange-200 underline">
+          <div className="bg-paneel-2/60 border border-rand rounded-lg px-3 py-2 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-tekst-3">Iets verkeerd uitgepakt?</span>
+            <button onClick={() => setStap(3)} className="text-xs text-orange-600 dark:text-orange-300 hover:text-orange-200 underline">
               Terug naar het draaiboek
             </button>
-            <button onClick={() => setStap(4)} className="text-xs text-orange-300 hover:text-orange-200 underline">
+            <button onClick={() => setStap(4)} className="text-xs text-orange-600 dark:text-orange-300 hover:text-orange-200 underline">
               naar het storyboard
             </button>
-            <span className="text-[11px] text-slate-600">
+            <span className="text-[11px] text-tekst-3">
               — daar zet je met ↻ één regel of een hele scène opnieuw klaar, of laat je de assistent hem herschrijven. Daarna klik je hier weer op “Verder maken”.
             </span>
           </div>
@@ -1951,9 +1951,9 @@ export default function DialoguePage() {
 
               {/* Per moment ingrijpen, direct onder de video: je ziet het bronbeeld
                   waar de clip uit komt, en kiest wat er precies opnieuw moet. */}
-              <div className="border-t border-white/10 pt-4">
-                <h3 className="text-sm font-medium text-white mb-1">Scènes aanpassen</h3>
-                <p className="text-[11px] text-slate-500 mb-2.5">
+              <div className="border-t border-rand pt-4">
+                <h3 className="text-sm font-medium text-tekst mb-1">Scènes aanpassen</h3>
+                <p className="text-[11px] text-tekst-3 mb-2.5">
                   Klopt er iets niet? Druk op opnieuw: er wordt eerst gekeken wat er mis is, en alleen dat deel wordt opnieuw gemaakt. Vink meerdere regels of een hele scène aan om ze in één keer opnieuw te maken. Het beeld van een hele scène pas je aan in het storyboard.
                 </p>
                 <FragmentEditor
@@ -1965,7 +1965,7 @@ export default function DialoguePage() {
                 />
               </div>
 
-              <div className="border-t border-white/10 pt-4 flex flex-wrap items-center gap-3">
+              <div className="border-t border-rand pt-4 flex flex-wrap items-center gap-3">
                 <MusicPickerButton
                   value={spec.musicUrl}
                   onChange={(url) => { setSpec((p) => (p ? { ...p, musicUrl: url, musicVolume: p.musicVolume ?? 0.45 } : p)); setExportUrl(null); }}
@@ -1973,10 +1973,10 @@ export default function DialoguePage() {
                     (a, s) => a + s.lines.reduce((b, l) => b + (l.kind === "actie" ? (l.seconden ?? 4) : (l.audioDuration ?? 4)), 0),
                     0
                   )}
-                  className="bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium rounded px-3 py-1.5 transition"
+                  className="bg-paneel-2 hover:bg-rand text-tekst text-xs font-medium rounded px-3 py-1.5 transition"
                 />
                 {spec.musicUrl && (
-                  <span className="text-xs text-emerald-300">
+                  <span className="text-xs text-emerald-600 dark:text-emerald-300">
                     {findMusicTrackByUrl(spec.musicUrl)?.title ?? "Eigen muziek"} zit in de download
                   </span>
                 )}
@@ -1984,9 +1984,9 @@ export default function DialoguePage() {
                   className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-sm font-medium rounded px-4 py-2 transition ml-auto">
                   {exportBezig ? "Samenvoegen…" : "Exporteren (MP4)"}
                 </button>
-                {exportUrl && <a href={exportUrl} className="text-sm text-emerald-300 underline hover:text-emerald-200">⬇ Download</a>}
+                {exportUrl && <a href={exportUrl} className="text-sm text-emerald-600 dark:text-emerald-300 underline hover:text-emerald-200">⬇ Download</a>}
               </div>
-              {exportFout && <p className="text-xs text-red-400">{exportFout}</p>}
+              {exportFout && <p className="text-xs text-red-600 dark:text-red-300">{exportFout}</p>}
             </>
           )}
         </div>

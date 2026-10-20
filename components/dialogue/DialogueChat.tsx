@@ -134,24 +134,24 @@ export default function DialogueChat({
   const minuten = Math.max(1, Math.round(((regels * SEC_PER_CLIP) / PARALLEL + scenes * 12) / 60));
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">
-      <div className="border-b border-white/10 p-3">
+    <div className="bg-paneel-2/60 border border-rand rounded-xl overflow-hidden">
+      <div className="border-b border-rand p-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] text-slate-400 mr-1">Lengte</span>
+          <span className="text-[11px] text-tekst-3 mr-1">Lengte</span>
           {LENGTES.map((l) => (
             <button
               key={l.sec}
               onClick={() => onLengte(l.sec)}
               className={`text-xs rounded-full px-3 py-1 transition ${
-                lengte === l.sec ? "bg-orange-500 text-white" : "bg-white/5 text-slate-400 hover:text-white"
+                lengte === l.sec ? "bg-orange-500 text-white" : "bg-paneel-2/60 text-tekst-3 hover:text-white"
               }`}
             >
               {l.label}
             </button>
           ))}
         </div>
-        <p className="text-[11px] text-slate-500 mt-1.5">
-          ≈ {scenes} scènes, {regels} regels · <span className="text-orange-300">{creditTekst(credits)}</span> ·
+        <p className="text-[11px] text-tekst-3 mt-1.5">
+          ≈ {scenes} scènes, {regels} regels · <span className="text-orange-600 dark:text-orange-300">{creditTekst(credits)}</span> ·
           {" "}ongeveer {minuten} {minuten === 1 ? "minuut" : "minuten"} genereren
         </p>
       </div>
@@ -163,7 +163,7 @@ export default function DialogueChat({
               className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm whitespace-pre-wrap ${
                 m.role === "user"
                   ? "bg-orange-500 text-white rounded-br-sm"
-                  : "bg-slate-800 text-slate-100 rounded-bl-sm"
+                  : "bg-paneel-2 text-tekst rounded-bl-sm"
               }`}
             >
               {m.content}
@@ -173,7 +173,7 @@ export default function DialogueChat({
 
         {bezig && (
           <div className="flex justify-start">
-            <div className="bg-slate-800 text-slate-400 rounded-2xl rounded-bl-sm px-3.5 py-2 text-sm">
+            <div className="bg-paneel-2 text-tekst-3 rounded-2xl rounded-bl-sm px-3.5 py-2 text-sm">
               <span className="inline-flex gap-1">
                 <span className="animate-pulse">●</span>
                 <span className="animate-pulse [animation-delay:150ms]">●</span>
@@ -199,7 +199,7 @@ export default function DialogueChat({
             <button
               key={v}
               onClick={() => stuur(v)}
-              className="text-[11px] text-slate-400 hover:text-white border border-white/10 hover:border-white/25 rounded-full px-2.5 py-1 transition text-left"
+              className="text-[11px] text-tekst-3 hover:text-tekst border border-rand hover:border-rand rounded-full px-2.5 py-1 transition text-left"
             >
               {v}
             </button>
@@ -207,9 +207,9 @@ export default function DialogueChat({
         </div>
       )}
 
-      {fout && <p className="px-4 pb-2 text-xs text-red-400">{fout}</p>}
+      {fout && <p className="px-4 pb-2 text-xs text-red-600 dark:text-red-300">{fout}</p>}
 
-      <div className="border-t border-white/10 p-3 flex gap-2">
+      <div className="border-t border-rand p-3 flex gap-2">
         <textarea
           value={invoer}
           onChange={(e) => setInvoer(e.target.value)}
@@ -224,7 +224,7 @@ export default function DialogueChat({
           disabled={bezig}
           rows={2}
           placeholder="Beschrijf je video, of plak je tekst en cijfers erbij…"
-          className="flex-1 bg-slate-900/60 border border-white/10 rounded px-3 py-2 text-sm text-white placeholder:text-slate-600 resize-none disabled:opacity-60"
+          className="flex-1 bg-paneel border border-rand rounded px-3 py-2 text-sm text-tekst placeholder:text-tekst-3 resize-none disabled:opacity-60"
         />
         <button
           onClick={() => void stuur(invoer)}
