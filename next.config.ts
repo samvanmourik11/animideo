@@ -26,8 +26,10 @@ const nextConfig: NextConfig = {
     "/api/infographics/scene-voice": ["./node_modules/ffmpeg-static/ffmpeg"],
     // Nieuwe app: de reclame wordt gemonteerd in het verzoek dat de wachtrij laat
     // doorlopen (lib/reclame/montage.ts), met Poppins voor de tekst in beeld.
-    "/api/creaties": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf"],
-    "/api/creaties/lopend": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf"],
+    "/api/creaties": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf"],
+    "/api/creaties/lopend": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf"],
+    // De trailer wordt geschreven met het regelboek van het genre als opdracht.
+    "/api/trailer/plan": ["./lib/trailer/regels/**"],
     // Delen maakt van een video een voorbeeldplaatje voor WhatsApp en LinkedIn.
     "/api/creaties/[id]/delen": ["./node_modules/ffmpeg-static/ffmpeg"],
     "/api/creaties/[id]/profiel": ["./node_modules/ffmpeg-static/ffmpeg"],

@@ -304,6 +304,7 @@ export function modelNaam(endpoint: string | null | undefined): string {
     "fal-ai/bytedance/seedance/v1/lite/text-to-video": "Seedance Lite (tekst)",
     reclame: "Link → reclame",
     ugc: "UGC-studio",
+    trailer: "Trailerstudio",
   };
   if (namen[endpoint]) return namen[endpoint];
   return VIDEO_MODELLEN.find((m) => m.slug === endpoint)?.naam ?? endpoint;
