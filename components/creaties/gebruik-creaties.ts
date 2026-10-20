@@ -14,6 +14,8 @@ export interface CreatieFilter {
   favoriet?: boolean;
   map?: string;
   zoek?: string;
+  /** Het werk van het hele team in plaats van alleen dat van jezelf. */
+  team?: boolean;
 }
 
 function query(f: CreatieFilter, voor?: string) {
@@ -24,6 +26,7 @@ function query(f: CreatieFilter, voor?: string) {
   if (f.favoriet) p.set("favoriet", "1");
   if (f.map) p.set("map", f.map);
   if (f.zoek) p.set("zoek", f.zoek);
+  if (f.team) p.set("team", "1");
   if (voor) p.set("voor", voor);
   return p.toString();
 }

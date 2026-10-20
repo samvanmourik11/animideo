@@ -21,6 +21,8 @@ export interface Creatie {
   ouder_id: string | null;
   map_id: string | null;
   favoriet: boolean;
+  /** Van wiens saldo het betaald is, als dat niet de maker was (team). Zie 101_teams.sql. */
+  betaald_door?: string | null;
   created_at: string;
   klaar_op: string | null;
 }

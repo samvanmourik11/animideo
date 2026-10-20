@@ -5,6 +5,7 @@ import Zijbalk from "@/components/app-shell/Zijbalk";
 import Inhoud from "@/components/app-shell/Inhoud";
 import { leesThema, THEMA_COOKIE, THEMA_ID } from "@/components/app-shell/thema";
 import { getProfile } from "@/lib/credits";
+import { betalerVan } from "@/lib/team/team";
 import AchterstandBalk from "@/components/AchterstandBalk";
 
 export default async function AppLayout({
@@ -19,16 +20,18 @@ export default async function AppLayout({
 
   if (!user) redirect("/login");
 
-  const [profile, cookieStore] = await Promise.all([getProfile(user.id), cookies()]);
+  const [profile, cookieStore, betaler] = await Promise.all([getProfile(user.id), cookies(), betalerVan(user.id)]);
+  // Teamlid: in het menu staat de gedeelde pot (en het plan) van de eigenaar.
+  const pot = betaler === user.id ? profile : await getProfile(betaler, { service: true });
   const thema = leesThema(cookieStore.get(THEMA_COOKIE)?.value);
 
   return (
     <div id={THEMA_ID} data-thema={thema} className="min-h-screen bg-vlak text-tekst">
       <Zijbalk
         email={user.email ?? ""}
-        credits={profile.credits}
-        plan={profile.plan}
-        creditsResetDate={profile.credits_reset_date}
+        credits={pot.credits}
+        plan={pot.plan}
+        creditsResetDate={pot.credits_reset_date}
         hideLeren={profile.hide_leren}
         thema={thema}
       />

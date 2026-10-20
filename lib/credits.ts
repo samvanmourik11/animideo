@@ -65,9 +65,18 @@ export interface Profile {
   created_at: string;
 }
 
+// Normaal werkt alles met de sessie van wie er ingelogd is: die mag alleen zijn eigen
+// profiel lezen en bijwerken. In een team (nieuwe app) betaalt een collega van het saldo
+// van de eigenaar; dat kan alleen met de service-client. `{ service: true }` is daarvoor.
+type CreditOpties = { service?: boolean };
+
+async function db(opties?: CreditOpties) {
+  return opties?.service ? createServiceClient() : await createClient();
+}
+
 /** Fetch (or auto-create) the profile for a user. */
-export async function getProfile(userId: string): Promise<Profile> {
-  const supabase = await createClient();
+export async function getProfile(userId: string, opties?: CreditOpties): Promise<Profile> {
+  const supabase = await db(opties);
 
   const { data } = await supabase
     .from("profiles")
@@ -91,8 +100,8 @@ export async function getProfile(userId: string): Promise<Profile> {
 }
 
 /** Return current credit balance. */
-export async function getCredits(userId: string): Promise<number> {
-  const profile = await getProfile(userId);
+export async function getCredits(userId: string, opties?: CreditOpties): Promise<number> {
+  const profile = await getProfile(userId, opties);
   return profile.credits;
 }
 
@@ -103,16 +112,17 @@ export async function getCredits(userId: string): Promise<number> {
 export async function deductCredits(
   userId: string,
   amount: number,
-  reason: string
+  reason: string,
+  opties?: CreditOpties
 ): Promise<{ success: boolean; credits: number }> {
   // Moet vóór de eerste await: zo erft de rest van dit verzoek wie het is, en komt
   // elke fal-aanroep daarna op naam in het kostenlogboek — ook bij de accounts die
   // hieronder niets afschrijven, want daar zit juist het meeste verbruik.
   zetKostenContext(userId, reason);
 
-  const supabase = await createClient();
+  const supabase = await db(opties);
 
-  const profile = await getProfile(userId);
+  const profile = await getProfile(userId, opties);
 
   // Gratis stappen (tarief 0): niets afschrijven, niets loggen.
   if (amount <= 0) return { success: true, credits: profile.credits };
@@ -150,11 +160,12 @@ export async function deductCredits(
 export async function addCredits(
   userId: string,
   amount: number,
-  reason: string
+  reason: string,
+  opties?: CreditOpties
 ): Promise<void> {
-  const supabase = await createClient();
+  const supabase = await db(opties);
 
-  const profile = await getProfile(userId);
+  const profile = await getProfile(userId, opties);
   const newCredits = profile.credits + amount;
 
   await supabase

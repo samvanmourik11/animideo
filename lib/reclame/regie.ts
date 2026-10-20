@@ -15,7 +15,7 @@ import { after } from "next/server";
 import { fal } from "@/lib/fal";
 import { zetKostenContext } from "@/lib/provider-kosten";
 import { createServiceClient } from "@/lib/supabase/service";
-import { deductCredits, getCredits, addCredits } from "@/lib/credits";
+import { betaal, betaalTerug } from "@/lib/team/team";
 import { videoModel } from "@/lib/video-modellen";
 import { musicTrackUrl } from "@/lib/music/library";
 import { MAX_TEGELIJK, WachtrijFout, falReden, markeerMislukt, uploadNaarOpslag } from "@/lib/creaties/wachtrij";
@@ -157,10 +157,8 @@ export async function startReclame(
 
   invoer.fotoUrl = await eigenKopie(userId, invoer.fotoUrl);
 
-  const saldoVoor = await getCredits(userId);
-  const afschrijving = await deductCredits(userId, RECLAME_CREDITS, "Nieuwe app: reclame");
-  if (!afschrijving.success) throw new WachtrijFout("Niet genoeg credits.", 402);
-  const betaald = Math.max(0, saldoVoor - afschrijving.credits);
+  const { ok, betaald, betalerId } = await betaal(userId, RECLAME_CREDITS, "Nieuwe app: reclame");
+  if (!ok) throw new WachtrijFout("Niet genoeg credits.", 402);
 
   const voortgang: Voortgang = { stap: "beelden", sinds: new Date().toISOString(), beelden: [] };
   const { data: rij, error } = await db
@@ -176,11 +174,12 @@ export async function startReclame(
       credits: betaald,
       fal_endpoint: "reclame",
       ouder_id: ouderId ?? null,
+      ...(betalerId !== userId ? { betaald_door: betalerId } : {}),
     })
     .select("*")
     .single();
   if (error || !rij) {
-    if (betaald > 0) await addCredits(userId, betaald, "Terug: reclame niet gestart");
+    await betaalTerug({ user_id: userId, betaald_door: betalerId, credits: betaald }, "Terug: reclame niet gestart");
     throw new WachtrijFout("Kon de opdracht niet opslaan. Probeer het opnieuw.", 500);
   }
 

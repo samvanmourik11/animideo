@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+import { ledenVan, mijnTeam } from "@/lib/team/team";
 import { startCreatie, verversLopende, WachtrijFout } from "@/lib/creaties/wachtrij";
 import type { Creatie } from "@/lib/creaties/types";
 
@@ -20,10 +22,14 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
 
   const p = req.nextUrl.searchParams;
-  let q = supabase
+  // "Hele team": het werk van alle teamgenoten. De leesregel van creaties kent alleen
+  // eigen rijen, dus dat gaat via de service-client, ná de controle wie er in het team zit.
+  const team = p.get("team") === "1" ? await mijnTeam(user.id) : null;
+  const ids = team ? (await ledenVan(team.id)).map((l) => l.user_id) : [user.id];
+  let q = (team ? createServiceClient() : supabase)
     .from("creaties")
     .select("*")
-    .eq("user_id", user.id)
+    .in("user_id", ids)
     .order("created_at", { ascending: false })
     .limit(PAGINA);
 

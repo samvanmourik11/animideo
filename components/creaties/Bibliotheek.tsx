@@ -28,6 +28,8 @@ export default function Bibliotheek() {
   const [nieuweMap, setNieuweMap] = useState("");
   const [uploaden, setUploaden] = useState(false);
   const [uploadFout, setUploadFout] = useState<string | null>(null);
+  const [teamNaam, setTeamNaam] = useState<string | null>(null);
+  const [heelTeam, setHeelTeam] = useState(false);
 
   // Pas zoeken als er even niet getypt wordt; anders een verzoek per toetsaanslag.
   useEffect(() => {
@@ -35,8 +37,18 @@ export default function Bibliotheek() {
     return () => clearTimeout(t);
   }, [zoekInvoer]);
 
-  const filter: CreatieFilter = { soort: soort || undefined, favoriet, map: map || undefined, zoek: zoek || undefined };
+  // Favorieten en mappen zijn persoonlijk; bij "hele team" tellen alleen soort en zoeken.
+  const filter: CreatieFilter = heelTeam
+    ? { soort: soort || undefined, zoek: zoek || undefined, team: true }
+    : { soort: soort || undefined, favoriet, map: map || undefined, zoek: zoek || undefined };
   const lijst = useCreaties(filter);
+
+  useEffect(() => {
+    fetch("/api/team")
+      .then((r) => r.json())
+      .then((d) => setTeamNaam(d.team?.naam ?? null))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/creaties/mappen")
@@ -76,6 +88,23 @@ export default function Bibliotheek() {
     <div className="grid md:grid-cols-[200px_1fr] gap-6 items-start">
       <aside className="space-y-5 md:sticky md:top-8">
         <h1 className="text-xl font-bold text-tekst">📚 Mijn bibliotheek</h1>
+        {teamNaam && (
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-paneel-2 p-1 text-xs">
+            <button
+              onClick={() => setHeelTeam(false)}
+              className={`rounded-lg py-1.5 ${!heelTeam ? "bg-paneel text-tekst font-semibold shadow-sm" : "text-tekst-3"}`}
+            >
+              Van mij
+            </button>
+            <button
+              onClick={() => { setHeelTeam(true); setFavoriet(false); setMap(""); }}
+              className={`rounded-lg py-1.5 ${heelTeam ? "bg-paneel text-tekst font-semibold shadow-sm" : "text-tekst-3"}`}
+              title={teamNaam}
+            >
+              👥 Hele team
+            </button>
+          </div>
+        )}
         <div className="space-y-0.5">
           {SOORTEN.map((s) => (
             <button key={s.id} onClick={() => { setSoort(s.id); setFavoriet(false); setMap(""); }} className={knop(soort === s.id && !favoriet && !map)}>

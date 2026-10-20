@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { fal } from "@/lib/fal";
 import { createServiceClient } from "@/lib/supabase/service";
-import { addCredits, deductCredits, getCredits } from "@/lib/credits";
+import { betaal, betaalTerug } from "@/lib/team/team";
 import { maakOpdracht, resultaatUrl } from "./makers";
 import { receptOpdracht } from "./recepten-opdrachten";
 import { startReclame, verversReclame } from "@/lib/reclame/regie";
@@ -78,12 +78,11 @@ export async function startCreatie(
 
   // Wat er écht is afgeschreven, niet het tarief: de interne accounts schrijven niets af,
   // en zouden bij een mislukte poging anders credits "terug" krijgen die ze nooit betaalden.
-  const saldoVoor = await getCredits(userId);
-  const afschrijving = await deductCredits(userId, opdracht.credits, `Nieuwe app: ${maker}`);
-  if (!afschrijving.success) {
+  // In een team gaat het van de pot van de eigenaar (lib/team/team.ts).
+  const { ok, betaald, betalerId } = await betaal(userId, opdracht.credits, `Nieuwe app: ${maker}`);
+  if (!ok) {
     throw new WachtrijFout("Niet genoeg credits.", 402);
   }
-  const betaald = Math.max(0, saldoVoor - afschrijving.credits);
 
   const { data: rij, error } = await db
     .from("creaties")
@@ -98,11 +97,13 @@ export async function startCreatie(
       credits: betaald,
       fal_endpoint: opdracht.endpoint,
       ouder_id: ouderId ?? null,
+      // Alleen als het iemand anders is: zo werkt het insturen ook nog vóór migratie 101.
+      ...(betalerId !== userId ? { betaald_door: betalerId } : {}),
     })
     .select("*")
     .single();
   if (error || !rij) {
-    if (betaald > 0) await addCredits(userId, betaald, `Terug: nieuwe app ${maker} niet gestart`);
+    await betaalTerug({ user_id: userId, betaald_door: betalerId, credits: betaald }, `Terug: nieuwe app ${maker} niet gestart`);
     throw new WachtrijFout("Kon de opdracht niet opslaan. Probeer het opnieuw.", 500);
   }
 
@@ -199,7 +200,7 @@ export async function markeerMislukt(c: Creatie, reden: string): Promise<Creatie
     .maybeSingle();
   if (data && c.credits > 0) {
     try {
-      await addCredits(c.user_id, c.credits, `Terug: nieuwe app ${c.maker} mislukt`);
+      await betaalTerug(c, `Terug: nieuwe app ${c.maker} mislukt`);
     } catch (e) {
       console.error("[creaties] credits terugzetten mislukt:", e);
     }
