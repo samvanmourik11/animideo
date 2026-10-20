@@ -16,7 +16,7 @@ export function zetThema(thema: Thema) {
 }
 
 /** De pagina's van de nieuwe app; alles daarbuiten is een oude tool in vaste donkere kleuren. */
-export const NIEUWE_PADEN = ["/ontdek", "/maak", "/mijn-werk", "/effecten", "/apps", "/branches", "/team", "/stem"];
+export const NIEUWE_PADEN = ["/ontdek", "/maak", "/mijn-werk", "/effecten", "/apps", "/branches", "/team", "/profiel", "/admin/voorpagina", "/stem"];
 
 export function isNieuwePagina(pad: string): boolean {
   return NIEUWE_PADEN.some((p) => pad === p || pad.startsWith(p + "/"));

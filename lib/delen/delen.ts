@@ -90,7 +90,9 @@ export async function stopDelen(userId: string, id: string): Promise<Creatie> {
   await eigenCreatie(userId, id);
   const { data } = await createServiceClient()
     .from("creaties")
-    .update({ deel_code: null, gedeeld_op: null })
+    // Niet meer gedeeld = ook niet meer op het profiel of de voorpagina: die tonen alleen
+    // werk met een eigen link.
+    .update({ deel_code: null, gedeeld_op: null, op_profiel: false, voorpagina: null, voorpagina_op: null })
     .eq("id", id)
     .eq("user_id", userId)
     .select("*")
@@ -99,18 +101,28 @@ export async function stopDelen(userId: string, id: string): Promise<Creatie> {
 }
 
 /** Voor de openbare pagina: alleen wat gedeeld is, en alleen wat een bezoeker mag zien. */
-export async function gedeeld(code: string): Promise<Pick<Creatie, "soort" | "maker" | "invoer" | "url" | "deel_poster" | "gedeeld_op"> | null> {
+export async function gedeeld(
+  code: string,
+): Promise<(Pick<Creatie, "soort" | "maker" | "invoer" | "url" | "deel_poster" | "gedeeld_op"> & { handle: string | null }) | null> {
   if (!/^[A-Za-z0-9]{6,16}$/.test(code)) return null;
   const { data } = await createServiceClient()
     .from("creaties")
-    .select("soort, maker, invoer, url, deel_poster, gedeeld_op, status")
+    .select("soort, maker, invoer, url, deel_poster, gedeeld_op, status, op_profiel, user_id")
     .eq("deel_code", code)
     .maybeSingle();
   if (!data || data.status !== "klaar" || !data.url) return null;
   // Alleen de velden die de pagina nodig heeft om te zeggen waarmee het gemaakt is; de
   // rest van de invoer (eigen teksten, bronfoto's) blijft privé.
   const invoer = data.invoer as Record<string, unknown>;
+  // De maker noemen we alleen als hij het werk zelf op zijn profiel zette: een losse
+  // deellink is niet hetzelfde als je naam eraan hangen.
+  let handle: string | null = null;
+  if (data.op_profiel) {
+    const { data: p } = await createServiceClient().from("maker_profielen").select("handle").eq("user_id", data.user_id).maybeSingle();
+    handle = (p as { handle: string } | null)?.handle ?? null;
+  }
   return {
+    handle,
     soort: data.soort,
     maker: data.maker,
     invoer: { receptId: invoer.receptId, formaat: invoer.formaat },

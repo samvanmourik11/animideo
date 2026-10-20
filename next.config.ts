@@ -30,6 +30,8 @@ const nextConfig: NextConfig = {
     "/api/creaties/lopend": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf"],
     // Delen maakt van een video een voorbeeldplaatje voor WhatsApp en LinkedIn.
     "/api/creaties/[id]/delen": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/api/creaties/[id]/profiel": ["./node_modules/ffmpeg-static/ffmpeg"],
+    "/api/creaties/[id]/voorpagina": ["./node_modules/ffmpeg-static/ffmpeg"],
     // Chromium-render-routes: naast ffmpeg ook de VOLLEDIGE playwright-core
     // (incl. browsers.json) en de @sparticuz/chromium-binary meetracen — anders
     // faalt de launch op Vercel met "Cannot find module .../browsers.json".
@@ -62,6 +64,11 @@ const nextConfig: NextConfig = {
       "./node_modules/playwright-core/**",
       "./node_modules/@sparticuz/chromium/**",
     ],
+  },
+  // animideo.nl/@bakkerijjansen → de openbare profielpagina. Een map met een @ in de
+  // naam kent de router niet, vandaar een herschrijving.
+  async rewrites() {
+    return [{ source: "/@:handle", destination: "/maker/:handle" }];
   },
   turbopack: {},
 };

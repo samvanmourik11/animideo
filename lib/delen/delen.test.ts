@@ -31,3 +31,25 @@ test("toestemming bij delen: alleen waar een gezicht op staat", () => {
   expect(heeftGezicht({ maker: "gezicht", invoer: {} })).toBe(true);
   expect(heeftGezicht({ maker: "reclame", invoer: {} })).toBe(false);
 });
+
+import { controleerHandle, websiteNetjes } from "./profiel-regels";
+
+describe("profielnaam", () => {
+  test("netjes gemaakt: kleine letters, zonder @", () => {
+    expect(controleerHandle("@BakkerijJansen")).toEqual({ handle: "bakkerijjansen", fout: null });
+    expect(controleerHandle("bakkerij-jansen").fout).toBeNull();
+  });
+  test("geweigerd: te kort, rare tekens, streepjes aan de rand, gereserveerd", () => {
+    expect(controleerHandle("ab").fout).toMatch(/Minstens/);
+    expect(controleerHandle("bakkerij jansen").fout).toMatch(/Alleen/);
+    expect(controleerHandle("-jansen").fout).toMatch(/streepje/);
+    expect(controleerHandle("jan--sen").fout).toMatch(/streepje/);
+    expect(controleerHandle("animideo").fout).toMatch(/niet beschikbaar/);
+    expect(controleerHandle("Admin").fout).toMatch(/niet beschikbaar/);
+  });
+  test("website krijgt https erbij", () => {
+    expect(websiteNetjes("jansen.nl")).toBe("https://jansen.nl");
+    expect(websiteNetjes("http://jansen.nl")).toBe("http://jansen.nl");
+    expect(websiteNetjes("  ")).toBe("");
+  });
+});

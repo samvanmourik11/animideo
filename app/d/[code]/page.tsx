@@ -67,6 +67,12 @@ export default async function DeelPagina({ params }: { params: Promise<{ code: s
         <div className="text-center space-y-3">
           <p className="text-slate-400 text-sm">
             Gemaakt met <span className="text-white font-semibold">{h.naam}</span> op Animideo
+            {c.handle && (
+              <>
+                {" "}door{" "}
+                <a href={`/@${c.handle}`} className="text-white font-semibold hover:underline">@{c.handle}</a>
+              </>
+            )}
           </p>
           <a
             href={h.pad}

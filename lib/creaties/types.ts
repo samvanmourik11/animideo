@@ -27,6 +27,11 @@ export interface Creatie {
   deel_code?: string | null;
   deel_poster?: string | null;
   gedeeld_op?: string | null;
+  /** Staat op het openbare profiel van de maker. Zie 103_profielen_voorpagina.sql. */
+  op_profiel?: boolean;
+  /** null | 'ingestuurd' | 'goedgekeurd' | 'afgewezen' */
+  voorpagina?: string | null;
+  hartjes?: number;
   created_at: string;
   klaar_op: string | null;
 }

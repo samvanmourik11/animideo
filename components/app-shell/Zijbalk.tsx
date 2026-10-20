@@ -40,6 +40,7 @@ const MIJN: Item[] = [
   { href: "/mijn-werk", label: "Mijn bibliotheek", icoon: "📚" },
   { href: "/bibliotheek", label: "Personages & decors", icoon: "👤", ook: ["/characters", "/voorwerpen", "/omgevingen"] },
   { href: "/brand", label: "Huisstijlen", icoon: "🎨" },
+  { href: "/profiel", label: "Mijn profiel", icoon: "🌐" },
   { href: "/team", label: "Team", icoon: "👥" },
 ];
 

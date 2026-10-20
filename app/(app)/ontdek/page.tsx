@@ -5,6 +5,8 @@ import type { Creatie } from "@/lib/creaties/types";
 import { RECEPTEN } from "@/lib/creaties/recepten";
 import ReceptTegel from "@/components/creaties/ReceptTegel";
 import ReclameTegel from "@/components/reclame/ReclameTegel";
+import WerkTegel from "@/components/delen/WerkTegel";
+import { mijnHartjes, uitgelicht } from "@/lib/delen/profiel";
 
 export const metadata = { title: "Ontdek · Animideo" };
 
@@ -42,6 +44,9 @@ export default async function OntdekPagina() {
     .order("created_at", { ascending: false })
     .limit(8);
   const recent = (data ?? []) as Creatie[];
+  // Werk van anderen, door Sam goedgekeurd. Zonder migratie 103 is dit gewoon leeg.
+  const uitgelichtWerk = await uitgelicht(12).catch(() => []);
+  const harten = await mijnHartjes(user.id, uitgelichtWerk.map((w) => w.id)).catch(() => new Set<string>());
 
   return (
     <div className="space-y-10">
@@ -65,6 +70,18 @@ export default async function OntdekPagina() {
           return t.binnenkort ? <div key={t.titel}>{inhoud}</div> : <Link key={t.titel} href={t.href}>{inhoud}</Link>;
         })}
       </div>
+
+      {uitgelichtWerk.length > 0 && (
+        <div>
+          <div className="mb-3">
+            <h2 className="text-lg font-bold text-tekst">⭐ Uitgelicht</h2>
+            <p className="text-sm text-tekst-3">Gemaakt door andere Animideo-gebruikers. Klik erop en maak het zelf ook.</p>
+          </div>
+          <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 [&>*]:mb-3 [&>*]:break-inside-avoid">
+            {uitgelichtWerk.map((w) => <WerkTegel key={w.id} werk={w} hartAan={harten.has(w.id)} />)}
+          </div>
+        </div>
+      )}
 
       <div>
         <div className="flex items-center justify-between mb-3">

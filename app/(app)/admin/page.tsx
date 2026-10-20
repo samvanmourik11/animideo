@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminAccount } from "@/lib/studio/access";
@@ -27,6 +28,12 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-5">
+      <Link
+        href="/admin/voorpagina"
+        className="block rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200 hover:bg-amber-500/15"
+      >
+        ⭐ Nieuwe app: ingestuurd werk voor de voorpagina beoordelen →
+      </Link>
       <AdminDashboard />
       <Achterstanden />
       <ProviderKosten />

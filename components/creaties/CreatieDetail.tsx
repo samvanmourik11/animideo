@@ -58,6 +58,18 @@ export default function CreatieDetail({
     onGewijzigd(d.creatie);
   }
 
+  // Op het profiel / insturen voor de voorpagina. Allebei delen ze het werk ook.
+  async function zet(soort: "profiel" | "voorpagina", aan: boolean) {
+    const res = await fetch(`/api/creaties/${c.id}/${soort}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ aan, toestemming: deelToestemming }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error ?? "Dat lukte niet");
+    onGewijzigd(d.creatie);
+  }
+
   async function doe(actie: () => Promise<void>) {
     setBezig(true);
     setMelding(null);
@@ -319,14 +331,6 @@ export default function CreatieDetail({
               ) : (
                 <>
                   <p className="text-xs text-tekst-3">Krijg een link die iedereen kan openen, ook zonder account.</p>
-                  {heeftGezicht(c) && (
-                    // Iets voor jezelf maken is wat anders dan het openbaar zetten: daarom bij
-                    // gezichten opnieuw vragen, niet achteraf controleren.
-                    <label className="flex items-start gap-2 text-xs text-tekst-2 cursor-pointer">
-                      <input type="checkbox" checked={deelToestemming} onChange={(e) => setDeelToestemming(e.target.checked)} className="mt-0.5" />
-                      <span>Iedereen op dit beeld vindt het goed dat ik het deel.</span>
-                    </label>
-                  )}
                   <button
                     disabled={bezig || (heeftGezicht(c) && !deelToestemming)}
                     onClick={() => doe(async () => delen(true))}
@@ -336,6 +340,57 @@ export default function CreatieDetail({
                   </button>
                 </>
               )}
+
+              {!deelUrl && heeftGezicht(c) && (
+                // Iets voor jezelf maken is wat anders dan het openbaar zetten: daarom bij
+                // gezichten opnieuw vragen, niet achteraf controleren.
+                <label className="flex items-start gap-2 text-xs text-tekst-2 cursor-pointer">
+                  <input type="checkbox" checked={deelToestemming} onChange={(e) => setDeelToestemming(e.target.checked)} className="mt-0.5" />
+                  <span>Iedereen op dit beeld vindt het goed dat ik het deel.</span>
+                </label>
+              )}
+
+              <div className="pt-2 border-t border-rand space-y-1.5">
+                <label className="flex items-center justify-between gap-2 text-sm text-tekst-2 cursor-pointer">
+                  <span>🌐 Op mijn profiel</span>
+                  <input
+                    type="checkbox"
+                    checked={!!c.op_profiel}
+                    disabled={bezig || (!deelUrl && heeftGezicht(c) && !deelToestemming)}
+                    onChange={(e) => doe(async () => zet("profiel", e.target.checked))}
+                  />
+                </label>
+                {c.voorpagina === "ingestuurd" ? (
+                  <div className="flex items-center justify-between text-xs text-tekst-3">
+                    <span>⏳ Ingestuurd voor de voorpagina</span>
+                    <button disabled={bezig} onClick={() => doe(async () => zet("voorpagina", false))} className="text-red-500 hover:text-red-400">
+                      Intrekken
+                    </button>
+                  </div>
+                ) : c.voorpagina === "goedgekeurd" ? (
+                  <div className="flex items-center justify-between text-xs text-emerald-600 dark:text-emerald-400">
+                    <span>⭐ Staat op de voorpagina · {c.hartjes ?? 0} ❤️</span>
+                    <button disabled={bezig} onClick={() => doe(async () => zet("voorpagina", false))} className="text-tekst-3 hover:text-tekst">
+                      Weghalen
+                    </button>
+                  </div>
+                ) : c.voorpagina === "afgewezen" ? (
+                  <p className="text-xs text-tekst-3">Deze keer niet gekozen voor de voorpagina.</p>
+                ) : (
+                  <button
+                    disabled={bezig || (!deelUrl && heeftGezicht(c) && !deelToestemming)}
+                    onClick={() =>
+                      doe(async () => {
+                        await zet("voorpagina", true);
+                        setMelding("Ingestuurd! We bekijken het; goedgekeurd werk komt op de voorpagina van Animideo.");
+                      })
+                    }
+                    className="text-xs text-blue-500 hover:text-blue-400 disabled:opacity-50"
+                  >
+                    ⭐ Insturen voor de voorpagina
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -355,7 +410,12 @@ export default function CreatieDetail({
           )}
 
           {melding && (
-            <p className="text-sm text-amber-700 dark:text-amber-200 bg-amber-400/15 rounded-xl px-3 py-2">{melding}</p>
+            <p className="text-sm text-amber-700 dark:text-amber-200 bg-amber-400/15 rounded-xl px-3 py-2">
+              {melding}
+              {melding.includes("profiel aan") && (
+                <> <Link href="/profiel" className="underline">Profiel aanmaken</Link></>
+              )}
+            </p>
           )}
 
           <div className="space-y-2 pt-3 border-t border-rand">
