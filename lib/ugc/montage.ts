@@ -128,8 +128,10 @@ export async function monteerUgc(m: { clips: string[]; audio: string[]; teksten:
       const f = path.join(map, `t${i}.txt`);
       // Elke regel als eigen bestand: geen gedoe met apostrofs ("'s ochtends") in het filter.
       await writeFile(f, blokken[i].tekst);
+      // Een website of lang woord past anders niet in de breedte: dan kleinere letters.
+      const grootte = Math.min(60, Math.floor((W * 0.9) / (blokken[i].tekst.length * 0.62)));
       teksten.push(
-        `drawtext=fontfile='${LETTER}':textfile='${f}':expansion=none:fontsize=60:fontcolor=white:borderw=6:bordercolor=black@0.9:` +
+        `drawtext=fontfile='${LETTER}':textfile='${f}':expansion=none:fontsize=${grootte}:fontcolor=white:borderw=6:bordercolor=black@0.9:` +
           `x=(w-text_w)/2:y=h*0.7-text_h/2:enable='between(t,${blokken[i].van.toFixed(2)},${blokken[i].tot.toFixed(2)})'`,
       );
     }
