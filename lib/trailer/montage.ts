@@ -67,7 +67,7 @@ export function muziekVolume(t: Element[], stemmen: Plaatsing[]): string {
   const stem = stemmen.map((s) => tussen(s.start - 0.1, s.start + s.duur + 0.1));
   const eindOpening = t.reduce((m, e, i) => (e.deel === "opening" ? starts[i] + e.duur : m), 0);
   const of = (lijst: string[]) => (lijst.length ? `gt(${lijst.join("+")},0)` : "0");
-  return `if(${of(stil)},0,if(${of(stem)},0.22,if(lt(t,${eindOpening.toFixed(2)}),0.32,0.6)))`;
+  return `if(${of(stil)},0,if(${of(stem)},0.35,if(lt(t,${eindOpening.toFixed(2)}),0.45,0.9)))`;
 }
 
 async function duur(bestand: string): Promise<number> {
@@ -116,8 +116,10 @@ export async function monteerTrailer(m: {
       inputs.push("-i", bestand);
       return n++;
     };
-    const tekstFilter = async (t: string, grootte: number, d: number) => {
+    const tekstFilter = async (t: string, maxGrootte: number, d: number) => {
       const f = path.join(map, `t${segmenten.length}.txt`);
+      // Een lange titel ("Het Fluisteren van de Draken") liep in de proef buiten beeld.
+      const grootte = Math.min(maxGrootte, Math.floor((W * 0.86) / (t.length * 0.66)));
       await writeFile(f, t.toUpperCase());
       const fade = `alpha='if(lt(t,0.4),t/0.4,if(gt(t,${(d - 0.4).toFixed(2)}),max(0,(${d.toFixed(2)}-t)/0.4),1))'`;
       return `drawtext=fontfile='${LETTER}':textfile='${f}':expansion=none:fontsize=${grootte}:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:${fade}`;
