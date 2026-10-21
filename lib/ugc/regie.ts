@@ -130,7 +130,8 @@ export async function startUgc(userId: string, ruw: Record<string, unknown>, oud
     invoer = {
       onderwerp: leesOnderwerp(ruw.onderwerp, /^https:\/\//.test(foto)),
       fotoUrl: /^https:\/\//.test(foto) ? foto : null,
-      creator: await leesCreator(userId, ruw.creator),
+      // Een andere stem dan de vaste van de creator mag (de Regisseur laat de gebruiker kiezen).
+      creator: { ...(await leesCreator(userId, ruw.creator)), ...(isUgcStem(ruw.stem) ? { stem: ruw.stem } : {}) },
       sec,
       broll,
       script: controleerUgcScript(ruw.script, broll),

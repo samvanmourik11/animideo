@@ -211,7 +211,7 @@ describe("keuzemenu's", () => {
     antwoorden.push(zegt({ type: "text", text: "Top." }));
     await beantwoord(db.project as never, chantal.label, [], chantal.waarde);
     const res = (db.project!.berichten as { content: { content: string }[] }[])[2].content[0];
-    expect(res.content).toBe("Antwoord van de gebruiker: Chantal [waarde: Chantal (creator-id chantal)]");
+    expect(res.content).toBe("Antwoord van de gebruiker: Chantal [waarde: Chantal (creator-id chantal, vaste stem Mia)]");
   });
   test("stem: alle stemmen met een luistervoorbeeld", async () => {
     antwoorden.push(zegt(tool("v", "vraag_keuze", { vraag: "Welke stem?", soort: "stem" })));

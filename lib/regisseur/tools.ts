@@ -135,6 +135,7 @@ export const TOOLS: Tool[] = [
         website: { type: "string" },
         foto_id: { type: "string", description: "Productfoto (creatie-id of https); leeg bij een dienst." },
         creator_id: { type: "string" },
+        stem: { type: "string", description: "Naam of id van een stem uit het stemmenmenu; leeg = de vaste stem van de creator." },
         sec: { type: "integer", enum: UGC_LENGTES.map((l) => l.sec) },
         broll: { type: "boolean", description: "Productbeelden tussendoor." },
       },
@@ -236,7 +237,7 @@ export async function bouwOpties(userId: string, input: Record<string, unknown>)
     const lijst = JSON.parse(await gratis(userId, { name: "ugc_creators", input: {} } as Anthropic.Beta.BetaToolUseBlock)) as { id: string; naam: string; omschrijving?: string; portret: string; eigen?: boolean }[];
     return lijst.map((c) => ({
       label: c.naam,
-      waarde: `${c.naam} (creator-id ${c.id})`,
+      waarde: `${c.naam} (creator-id ${c.id}${(c as { stem?: string }).stem ? `, vaste stem ${(c as { stem?: string }).stem}` : ""})`,
       uitleg: c.eigen ? "Eigen creator" : CREATORS.find((x) => x.id === c.id)?.omschrijving,
       beeld: c.portret,
     }));
@@ -301,16 +302,17 @@ export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUs
   if (blok.name === "maak_ugc_video") {
     const foto = i.foto_id ? await naarUrl(userId, i.foto_id) : "";
     const onderwerp = leesOnderwerp({ naam: i.naam, omschrijving: i.omschrijving, voordelen: i.voordelen, website: i.website }, !!foto);
-    const creator = await leesCreator(userId, i.creator_id);
+    const gekozen = UGC_STEMMEN.find((x) => x.id === i.stem || x.naam.toLowerCase() === String(i.stem ?? "").replace(/^stem\s+/i, "").toLowerCase());
+    const creator = { ...(await leesCreator(userId, i.creator_id)), ...(gekozen ? { stem: gekozen.id } : {}) };
     const sec = (UGC_LENGTES.some((l) => l.sec === i.sec) ? i.sec : 15) as UgcLengte;
     const broll = i.broll === true;
     // Het script nu al schrijven: de prijs hangt ervan af, en de gebruiker ziet bij de
     // bevestiging waar hij voor betaalt.
     const script = await schrijfUgcScript(onderwerp, { ...creator, omschrijving: "" }, sec, broll);
-    const invoer = { onderwerp, fotoUrl: foto, creator: creator.id, sec, broll, script };
+    const invoer = { onderwerp, fotoUrl: foto, creator: creator.id, stem: creator.stem, sec, broll, script };
     return {
       ...basis, maker: "ugc", invoer, credits: ugcCredits(script),
-      omschrijving: `UGC-video (${sec} s) door ${creator.naam}`,
+      omschrijving: `UGC-video (${sec} s) door ${creator.naam}, stem ${UGC_STEMMEN.find((x) => x.id === creator.stem)?.naam ?? "eigen"}`,
       details: { beelden: [creator.portretUrl, ...(foto ? [foto] : [])], regels: script.stukjes.map((x) => (x.soort === "broll" ? `🎬 ${x.tekst}` : x.tekst)) },
     };
   }
@@ -407,7 +409,11 @@ export async function gratis(userId: string, blok: Anthropic.Beta.BetaToolUseBlo
       .eq("status", "klaar")
       .limit(20);
     const eigen = (data ?? []).map((c) => ({ id: c.id, naam: (c.invoer as { naam?: string }).naam, omschrijving: (c.invoer as { beschrijving?: string }).beschrijving, portret: c.url, eigen: true }));
-    return JSON.stringify([...eigen, ...CREATORS.map((c) => ({ id: c.id, naam: c.naam, omschrijving: `${c.omschrijving}. ${c.persona}`, portret: c.portretUrl }))]);
+    const stemNaam = (id?: string) => UGC_STEMMEN.find((x) => x.id === id)?.naam;
+    return JSON.stringify([
+      ...eigen.map((c, n) => ({ ...c, stem: stemNaam(((data ?? [])[n]?.invoer as { stem?: string }).stem) })),
+      ...CREATORS.map((c) => ({ id: c.id, naam: c.naam, omschrijving: `${c.omschrijving}. ${c.persona}`, portret: c.portretUrl, stem: stemNaam(c.stem) })),
+    ]);
   }
   if (blok.name === "onthoud") {
     const feit = String(i.feit ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
