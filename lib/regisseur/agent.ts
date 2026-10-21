@@ -1,0 +1,281 @@
+// DE REGISSEUR — Claude als regisseur die de gereedschappen van de app aanstuurt.
+//
+// Een eigen lus in plaats van de tool runner van de SDK: het gesprek moet kunnen pauzeren
+// (een vraag met knoppen, een bevestiging voor credits, wachten op video's die minuten
+// duren) en later in een ánder verzoek verdergaan. Daarom staat alles in de database
+// (regie_projecten) en draait elke ronde in een serverfunctie.
+//
+// Twee regels van de API die we bewaken:
+//   - alle tool-resultaten van één antwoord gaan samen terug in één bericht, in volgorde;
+//   - het gesprek wordt alleen aangevuld, nooit herschreven (het meedenken van het model
+//     is aan de geschiedenis gebonden).
+
+import Anthropic from "@anthropic-ai/sdk";
+import { createServiceClient } from "@/lib/supabase/service";
+import { verversLopende } from "@/lib/creaties/wachtrij";
+import type { Creatie } from "@/lib/creaties/types";
+import { BETAALDE_TOOLS, TOOLS, bereidVoor, gratis, voerUit, type Stap } from "./tools";
+
+const MODEL = "claude-opus-5-5";
+const MAX_RONDES = 12;
+
+// Opus 5.5, per miljoen tokens (stand 06-10-2026): in $4, uit $20, cache lezen $0,20, schrijven $5.
+const PRIJS = { in: 4, uit: 20, cacheLezen: 0.2, cacheSchrijven: 5 };
+
+type Bericht = Anthropic.Beta.BetaMessageParam;
+type Resultaat = Anthropic.Beta.BetaToolResultBlockParam;
+
+export type Wachtend =
+  | { soort: "antwoord"; toolUseId: string; vraag: string; opties: string[]; volgorde: string[]; klaar: Record<string, Resultaat> }
+  | { soort: "bevestiging"; stappen: Stap[]; totaal: number; volgorde: string[]; klaar: Record<string, Resultaat>; wachtId?: string; wachtIds?: string[] }
+  | { soort: "maken"; toolUseId: string; ids: string[]; volgorde: string[]; klaar: Record<string, Resultaat> };
+
+export interface RegieProject {
+  id: string;
+  user_id: string;
+  titel: string;
+  berichten: Bericht[];
+  status: string;
+  wachtend: Wachtend | null;
+  foutmelding: string | null;
+  galerij: string[];
+  automatisch: boolean;
+  gebruik: { input?: number; output?: number; cacheLezen?: number; cacheSchrijven?: number; usd?: number };
+}
+
+const SYSTEEM = `Je bent de Regisseur van Animideo, een Nederlandse app om beelden en video's met AI te maken. Je praat Nederlands, kort en hartelijk, zonder jargon, en je regelt het werk voor de gebruiker met je gereedschappen.
+
+Werkwijze:
+- Begrijp eerst wat de gebruiker wil. Ontbreekt er iets wezenlijks (doel, stijl, lengte, formaat), stel dan één vraag met vraag_keuze in plaats van te gokken. Vraag niet meer dan nodig.
+- Maak een kort plan (welke beelden, welke clips, welke montage) en voer het uit. Elke betaalde stap wordt de gebruiker vooraf voorgelegd; je hoeft niet zelf om toestemming te vragen.
+- Houd personages, gezichten en producten gelijk door steeds dezelfde voorbeelden (creatie-ids of foto-adressen) mee te geven aan maak_beeld.
+- Start wat tegelijk kan in één keer (bijvoorbeeld alle beelden), en gebruik daarna wacht_op. Bekijk de resultaten kritisch; is iets mislukt of klopt het niet, maak alleen dat opnieuw.
+- Werk zuinig: niet meer beelden of video's dan nodig. Een korte film of reclame: meestal 3-6 clips, dan monteer.
+- Sluit af met een korte samenvatting van wat er gemaakt is en wat de gebruiker nog kan laten aanpassen.
+- Geen echte bestaande personen, geen merken van anderen namaken, niets misleidends.`;
+
+let client: Anthropic | null = null;
+function claude(): Anthropic {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error("De Claude-sleutel (ANTHROPIC_API_KEY) ontbreekt nog.");
+  return (client ??= new Anthropic());
+}
+
+async function laad(id: string): Promise<RegieProject> {
+  const { data } = await createServiceClient().from("regie_projecten").select("*").eq("id", id).single();
+  if (!data) throw new Error("Project niet gevonden.");
+  return data as RegieProject;
+}
+
+async function bewaar(id: string, wijziging: Partial<RegieProject>) {
+  await createServiceClient()
+    .from("regie_projecten")
+    .update({ ...wijziging, updated_at: new Date().toISOString() })
+    .eq("id", id);
+}
+
+/** Neemt het project over voor een ronde, alleen als het nu in een van deze toestanden staat. */
+export async function neemOver(id: string, van: string[]): Promise<boolean> {
+  const { data } = await createServiceClient()
+    .from("regie_projecten")
+    .update({ status: "denkt", foutmelding: null, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .in("status", van)
+    .select("id");
+  return !!data?.length;
+}
+
+function resultaatTekst(id: string, tekst: string, fout = false): Resultaat {
+  return { type: "tool_result", tool_use_id: id, content: tekst, ...(fout ? { is_error: true } : {}) };
+}
+
+/** De tool-resultaten in de volgorde van de aanroepen, als één gebruikersbericht. */
+function resultatenBericht(volgorde: string[], klaar: Record<string, Resultaat>): Bericht {
+  return { role: "user", content: volgorde.map((id) => klaar[id] ?? resultaatTekst(id, "Niet uitgevoerd.", true)) };
+}
+
+/**
+ * Laat Claude verder werken tot hij klaar is of moet pauzeren. Wordt aangeroepen nadat
+ * het project is overgenomen (status 'denkt').
+ */
+export async function draai(id: string): Promise<void> {
+  const p = await laad(id);
+  const berichten = [...p.berichten];
+  const gebruik = { ...p.gebruik };
+  const galerij = [...p.galerij];
+  try {
+    for (let ronde = 0; ronde < MAX_RONDES; ronde++) {
+      const antwoord = await claude()
+        .beta.messages.stream({
+          model: MODEL,
+          max_tokens: 16000,
+          system: [{ type: "text", text: SYSTEEM, cache_control: { type: "ephemeral" } }],
+          tools: TOOLS,
+          messages: berichten,
+          output_config: { effort: "medium" },
+          // Weigert het model iets op een beleidsgrond, dan neemt een passend model het over.
+          betas: ["server-side-fallback-2026-07-01"],
+          fallbacks: "default",
+        })
+        .finalMessage();
+
+      const u = antwoord.usage;
+      gebruik.input = (gebruik.input ?? 0) + u.input_tokens;
+      gebruik.output = (gebruik.output ?? 0) + u.output_tokens;
+      gebruik.cacheLezen = (gebruik.cacheLezen ?? 0) + (u.cache_read_input_tokens ?? 0);
+      gebruik.cacheSchrijven = (gebruik.cacheSchrijven ?? 0) + (u.cache_creation_input_tokens ?? 0);
+      gebruik.usd =
+        ((gebruik.input ?? 0) * PRIJS.in + (gebruik.output ?? 0) * PRIJS.uit + (gebruik.cacheLezen ?? 0) * PRIJS.cacheLezen + (gebruik.cacheSchrijven ?? 0) * PRIJS.cacheSchrijven) / 1e6;
+
+      berichten.push({ role: "assistant", content: antwoord.content });
+
+      if (antwoord.stop_reason === "refusal") {
+        await bewaar(id, { berichten, gebruik, status: "fout", foutmelding: "Dit verzoek kan de Regisseur niet uitvoeren.", wachtend: null });
+        return;
+      }
+      if (antwoord.stop_reason === "pause_turn") continue;
+
+      const aanroepen = antwoord.content.filter((b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use");
+      if (!aanroepen.length) {
+        await bewaar(id, { berichten, gebruik, galerij, status: "klaar", wachtend: null });
+        return;
+      }
+
+      const volgorde = aanroepen.map((b) => b.id);
+      const klaar: Record<string, Resultaat> = {};
+      for (const b of aanroepen.filter((x) => x.name === "lees_webpagina" || x.name === "mijn_werk")) {
+        try {
+          klaar[b.id] = resultaatTekst(b.id, await gratis(p.user_id, b));
+        } catch (e) {
+          klaar[b.id] = resultaatTekst(b.id, e instanceof Error ? e.message : String(e), true);
+        }
+      }
+
+      const vraag = aanroepen.find((b) => b.name === "vraag_keuze");
+      if (vraag) {
+        for (const b of aanroepen) if (b.id !== vraag.id && !klaar[b.id]) klaar[b.id] = resultaatTekst(b.id, "Uitgesteld: eerst het antwoord op je vraag.", true);
+        const i = vraag.input as { vraag?: string; opties?: string[] };
+        await bewaar(id, {
+          berichten, gebruik, galerij, status: "wacht_op_antwoord",
+          wachtend: { soort: "antwoord", toolUseId: vraag.id, vraag: String(i.vraag ?? ""), opties: (i.opties ?? []).map(String).slice(0, 5), volgorde, klaar },
+        });
+        return;
+      }
+
+      const stappen: Stap[] = [];
+      for (const b of aanroepen.filter((x) => BETAALDE_TOOLS.has(x.name))) {
+        try {
+          stappen.push(await bereidVoor(p.user_id, b));
+        } catch (e) {
+          klaar[b.id] = resultaatTekst(b.id, e instanceof Error ? e.message : String(e), true);
+        }
+      }
+      const wacht = aanroepen.find((b) => b.name === "wacht_op");
+
+      if (stappen.length && !p.automatisch) {
+        await bewaar(id, {
+          berichten, gebruik, galerij, status: "wacht_op_bevestiging",
+          wachtend: {
+            soort: "bevestiging", stappen, totaal: stappen.reduce((s, x) => s + x.credits, 0), volgorde, klaar,
+            ...(wacht ? { wachtId: wacht.id, wachtIds: ((wacht.input as { creatie_ids?: string[] }).creatie_ids ?? []).map(String) } : {}),
+          },
+        });
+        return;
+      }
+      for (const s of stappen) {
+        try {
+          const cid = await voerUit(p.user_id, s);
+          galerij.push(cid);
+          klaar[s.toolUseId] = resultaatTekst(s.toolUseId, `Gestart: creatie ${cid}. Gebruik wacht_op om het resultaat te zien.`);
+        } catch (e) {
+          klaar[s.toolUseId] = resultaatTekst(s.toolUseId, e instanceof Error ? e.message : String(e), true);
+        }
+      }
+
+      if (wacht) {
+        const ids = ((wacht.input as { creatie_ids?: string[] }).creatie_ids ?? []).map(String);
+        await bewaar(id, { berichten, gebruik, galerij, status: "wacht_op_maken", wachtend: { soort: "maken", toolUseId: wacht.id, ids, volgorde, klaar } });
+        return;
+      }
+      berichten.push(resultatenBericht(volgorde, klaar));
+    }
+    await bewaar(id, { berichten, gebruik, galerij, status: "klaar", wachtend: null });
+  } catch (e) {
+    console.error("[regisseur]", e);
+    await bewaar(id, {
+      berichten, gebruik, galerij, status: "fout", wachtend: null,
+      foutmelding: e instanceof Anthropic.APIError ? `Claude gaf een fout (${e.status}). Probeer het opnieuw.` : e instanceof Error ? e.message : String(e),
+    });
+  }
+}
+
+// ── Verder na een pauze ──────────────────────────────────────────────────
+
+/** Een nieuw bericht van de gebruiker. Tijdens een pauze telt het als antwoord of als nee. */
+export async function nieuwBericht(p: RegieProject, tekst: string): Promise<void> {
+  const w = p.wachtend;
+  if (w?.soort === "antwoord") return beantwoord(p, tekst);
+  if (w?.soort === "bevestiging") return bevestig(p, false, tekst);
+  await bewaar(p.id, { berichten: [...p.berichten, { role: "user", content: tekst }], wachtend: null });
+  await draai(p.id);
+}
+
+export async function beantwoord(p: RegieProject, antwoord: string): Promise<void> {
+  const w = p.wachtend;
+  if (w?.soort !== "antwoord") return draai(p.id);
+  const klaar = { ...w.klaar, [w.toolUseId]: resultaatTekst(w.toolUseId, `Antwoord van de gebruiker: ${antwoord}`) };
+  await bewaar(p.id, { berichten: [...p.berichten, resultatenBericht(w.volgorde, klaar)], wachtend: null });
+  await draai(p.id);
+}
+
+export async function bevestig(p: RegieProject, ja: boolean, reden?: string): Promise<void> {
+  const w = p.wachtend;
+  if (w?.soort !== "bevestiging") return draai(p.id);
+  const klaar = { ...w.klaar };
+  const galerij = [...p.galerij];
+  for (const s of w.stappen) {
+    if (!ja) {
+      klaar[s.toolUseId] = resultaatTekst(s.toolUseId, `De gebruiker wilde dit niet${reden ? `: ${reden}` : ""}.`, true);
+      continue;
+    }
+    try {
+      const cid = await voerUit(p.user_id, s);
+      galerij.push(cid);
+      klaar[s.toolUseId] = resultaatTekst(s.toolUseId, `Gestart: creatie ${cid}. Gebruik wacht_op om het resultaat te zien.`);
+    } catch (e) {
+      klaar[s.toolUseId] = resultaatTekst(s.toolUseId, e instanceof Error ? e.message : String(e), true);
+    }
+  }
+  // Wachten op ids die pas net bestaan, kan niet in hetzelfde antwoord; dat zegt het resultaat.
+  if (w.wachtId) klaar[w.wachtId] = resultaatTekst(w.wachtId, "Wachten kan pas als de stappen gestart zijn: roep wacht_op opnieuw aan met de nieuwe ids.", true);
+  await bewaar(p.id, { berichten: [...p.berichten, resultatenBericht(w.volgorde, klaar)], galerij, wachtend: null });
+  await draai(p.id);
+}
+
+/**
+ * Bij wachten op creaties: de wachtrij laten doorlopen en, als alles klaar is, Claude de
+ * resultaten laten zien (beelden ook als plaatje). Geeft true als er een ronde start.
+ */
+export async function controleerMaken(p: RegieProject): Promise<boolean> {
+  const w = p.wachtend;
+  if (p.status !== "wacht_op_maken" || w?.soort !== "maken") return false;
+  const { data } = await createServiceClient().from("creaties").select("*").eq("user_id", p.user_id).in("id", w.ids);
+  const lijst = await verversLopende((data ?? []) as Creatie[]);
+  if (lijst.some((c) => c.status === "bezig")) return false;
+  if (!(await neemOver(p.id, ["wacht_op_maken"]))) return false;
+
+  const inhoud: Anthropic.Beta.BetaToolResultBlockParam["content"] = [];
+  const tekst = w.ids.map((cid) => {
+    const c = lijst.find((x) => x.id === cid);
+    if (!c) return `${cid}: niet gevonden`;
+    return c.status === "klaar" ? `${cid}: klaar (${c.soort}) ${c.url}` : `${cid}: mislukt — ${c.foutmelding ?? "onbekend"}`;
+  });
+  inhoud.push({ type: "text", text: tekst.join("\n") });
+  for (const c of lijst.filter((x) => x.status === "klaar" && x.soort === "beeld" && x.url).slice(0, 8)) {
+    inhoud.push({ type: "text", text: `Beeld ${c.id}:` });
+    inhoud.push({ type: "image", source: { type: "url", url: c.url! } });
+  }
+  const klaar = { ...w.klaar, [w.toolUseId]: { type: "tool_result" as const, tool_use_id: w.toolUseId, content: inhoud } };
+  await bewaar(p.id, { berichten: [...p.berichten, resultatenBericht(w.volgorde, klaar)], wachtend: null });
+  await draai(p.id);
+  return true;
+}

@@ -7,6 +7,7 @@ import { receptOpdracht } from "./recepten-opdrachten";
 import { startReclame, verversReclame } from "@/lib/reclame/regie";
 import { startUgc, verversUgc } from "@/lib/ugc/regie";
 import { startTrailer, verversTrailer } from "@/lib/trailer/regie";
+import { startMontage, verversMontage } from "@/lib/regisseur/montage";
 import type { Creatie, CreatieSoort } from "./types";
 
 fal.config({ credentials: process.env.FAL_KEY });
@@ -46,6 +47,7 @@ export async function startCreatie(
   if (maker === "reclame") return startReclame(userId, ruweInvoer, ouderId);
   if (maker === "ugc") return startUgc(userId, ruweInvoer, ouderId);
   if (maker === "trailer") return startTrailer(userId, ruweInvoer, ouderId);
+  if (maker === "montage") return startMontage(userId, ruweInvoer);
 
   let opdracht;
   try {
@@ -139,6 +141,7 @@ export async function ververs(c: Creatie): Promise<Creatie> {
   if (c.maker === "reclame") return verversReclame(c);
   if (c.maker === "ugc") return verversUgc(c);
   if (c.maker === "trailer") return verversTrailer(c);
+  if (c.maker === "montage") return verversMontage(c);
   const leeftijd = Date.now() - new Date(c.created_at).getTime();
 
   if (!c.fal_request_id || !c.fal_endpoint) {

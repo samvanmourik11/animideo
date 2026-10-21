@@ -28,6 +28,9 @@ const nextConfig: NextConfig = {
     // doorlopen (lib/reclame/montage.ts), met Poppins voor de tekst in beeld.
     "/api/creaties": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf"],
     "/api/creaties/lopend": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf"],
+    // De Regisseur start makers (ook de montage) vanuit zijn eigen routes.
+    "/api/regisseur": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf"],
+    "/api/regisseur/[id]": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf"],
     // De trailer wordt geschreven met het regelboek van het genre als opdracht.
     "/api/trailer/plan": ["./lib/trailer/regels/**"],
     // Delen maakt van een video een voorbeeldplaatje voor WhatsApp en LinkedIn.

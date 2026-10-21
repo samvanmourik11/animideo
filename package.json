@@ -12,6 +12,7 @@
     "assets": "node scripts/build-assets.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.137.0",
     "@fal-ai/client": "^1.9.5",
     "@mollie/api-client": "^4.5.0",
     "@resvg/resvg-js": "^2.6.2",

@@ -22,6 +22,7 @@ interface Item {
 
 const MAKEN: Item[] = [
   { href: "/ontdek", label: "Ontdek", icoon: "🏠" },
+  { href: "/regisseur", label: "Regisseur", icoon: "🎬" },
   { href: "/maak/beeld", label: "Beeld", icoon: "🖼️" },
   { href: "/maak/video", label: "Video", icoon: "🎬" },
   { href: "/effecten", label: "Effecten", icoon: "⚡" },

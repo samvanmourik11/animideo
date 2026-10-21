@@ -22,6 +22,8 @@ export interface BeeldInvoer {
   kwaliteit: "standaard" | "pro";
   /** Eigen foto als voorbeeld (persoon, product, stijl). Leeg = vrij tekenen. */
   referentieUrl?: string;
+  /** Meerdere voorbeelden tegelijk (de Regisseur: personage + product in één shot). */
+  referentieUrls?: string[];
 }
 
 export interface VideoInvoer {
@@ -100,20 +102,22 @@ export function maakOpdracht(maker: string, ruw: Record<string, unknown>): Opdra
     const kwaliteit = ruw.kwaliteit === "pro" ? "pro" : "standaard";
     const ref = tekst(ruw.referentieUrl);
     const referentieUrl = /^https:\/\//.test(ref) ? ref : "";
-    const invoer: BeeldInvoer = { prompt, formaat, kwaliteit, ...(referentieUrl ? { referentieUrl } : {}) };
+    const extra = (Array.isArray(ruw.referentieUrls) ? ruw.referentieUrls : []).map(tekst).filter((u) => /^https:\/\//.test(u));
+    const refs = [...new Set([referentieUrl, ...extra].filter(Boolean))].slice(0, 4);
+    const invoer: BeeldInvoer = { prompt, formaat, kwaliteit, ...(referentieUrl ? { referentieUrl } : {}), ...(extra.length ? { referentieUrls: refs } : {}) };
     // Met een eigen foto erbij gaat het via de bewerk-variant: die neemt het voorbeeld
     // mee (dezelfde persoon, hetzelfde product), de gewone variant kan dat niet.
     const basis = kwaliteit === "pro" ? "fal-ai/nano-banana-pro" : "fal-ai/nano-banana";
     return {
       soort: "beeld",
-      endpoint: referentieUrl ? `${basis}/edit` : basis,
+      endpoint: refs.length ? `${basis}/edit` : basis,
       falInvoer: {
         prompt,
         aspect_ratio: formaat,
         num_images: 1,
         output_format: "jpeg",
         ...(kwaliteit === "pro" ? { resolution: "2K" } : {}),
-        ...(referentieUrl ? { image_urls: [referentieUrl] } : {}),
+        ...(refs.length ? { image_urls: refs } : {}),
       },
       credits: beeldCredits(kwaliteit),
       prompt,
@@ -305,6 +309,7 @@ export function modelNaam(endpoint: string | null | undefined): string {
     reclame: "Link → reclame",
     ugc: "UGC-studio",
     trailer: "Trailerstudio",
+    montage: "Montage (Regisseur)",
   };
   if (namen[endpoint]) return namen[endpoint];
   return VIDEO_MODELLEN.find((m) => m.slug === endpoint)?.naam ?? endpoint;
