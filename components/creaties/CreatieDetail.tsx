@@ -111,6 +111,13 @@ export default function CreatieDetail({
           {c.status === "klaar" && c.url && c.soort === "video" && (
             <video src={c.url} controls autoPlay loop playsInline className="max-h-[80vh] w-auto rounded-xl" />
           )}
+          {c.status === "klaar" && c.url && c.soort === "audio" && (
+            <div className="w-full max-w-md text-center space-y-4 text-slate-200">
+              <div className="text-5xl">🎙️</div>
+              <p className="text-sm whitespace-pre-wrap max-h-60 overflow-y-auto">{(c.invoer as { tekst?: string }).tekst ?? c.prompt}</p>
+              <audio src={c.url} controls autoPlay className="w-full" />
+            </div>
+          )}
           {c.status === "bezig" && (
             <div className="flex flex-col items-center gap-3 text-slate-300">
               <div className="w-10 h-10 rounded-full border-2 border-blue-400/30 border-t-blue-400 animate-spin" />

@@ -12,6 +12,8 @@ import { VIDEO_MODELLEN, videoModel, isVideoModel, STANDAARD_VIDEO_MODEL } from 
 import type { CreatieSoort } from "./types";
 import { portretPrompt } from "@/lib/ugc/creators";
 import { isUgcStem } from "@/lib/ugc/types";
+import { EIGEN, KLOON_CREDITS, voiceOverCredits } from "@/lib/stem/types";
+import { LIPSYNC_MODEL, LIPSYNC_MAX_SEC, lipsyncCredits } from "@/lib/lipsync";
 
 export const FORMATEN = ["1:1", "9:16", "16:9"] as const;
 export type Formaat = (typeof FORMATEN)[number];
@@ -53,7 +55,10 @@ export type MakerId =
   | "achtergrond-weg"
   | "gezicht"
   | "belichting"
-  | "ugc-creator";
+  | "ugc-creator"
+  | "voice-over"
+  | "stem-kloon"
+  | "pratende-foto";
 
 /** De bewerkknoppen onder een beeld, in de volgorde waarin ze op het scherm staan. */
 export const BEWERKINGEN: { maker: MakerId; label: string; icoon: string; uitleg: string; credits: number }[] = [
@@ -277,6 +282,86 @@ export function maakOpdracht(maker: string, ruw: Record<string, unknown>): Opdra
     };
   }
 
+  // Voice-over: een bibliotheekstem (ElevenLabs via fal) of een eigen stem (MiniMax). Een
+  // eigen stem heeft de wachtrij al opgezocht (minimaxVoiceId), nooit uit de browser.
+  if (maker === "voice-over") {
+    const tekstIn = tekst(ruw.tekst).slice(0, 5000);
+    if (!tekstIn) throw new Error("Typ eerst wat er gezegd moet worden.");
+    const stemId = tekst(ruw.stemId);
+    if (!stemId) throw new Error("Kies eerst een stem.");
+    const snelheid = Math.min(1.5, Math.max(0.7, Number(ruw.snelheid) || 1));
+    const naam = tekst(ruw.stemNaam).slice(0, 40);
+    const taal = ["nl", "en", "de"].includes(String(ruw.taal)) ? String(ruw.taal) : "nl";
+    const invoer = { tekst: tekstIn, stemId, stemNaam: naam, snelheid, taal };
+    const prompt = `${naam ? `${naam}: ` : ""}${tekstIn.slice(0, 140)}`;
+    if (stemId.startsWith(EIGEN)) {
+      const voiceId = tekst(ruw.minimaxVoiceId);
+      if (!voiceId) throw new Error("Deze eigen stem is niet (meer) beschikbaar.");
+      return {
+        soort: "audio",
+        endpoint: "fal-ai/minimax/speech-02-hd",
+        falInvoer: { text: tekstIn, voice_setting: { voice_id: voiceId, speed: snelheid }, language_boost: taal === "nl" ? "Dutch" : taal === "de" ? "German" : "English", output_format: "url" },
+        credits: voiceOverCredits(tekstIn),
+        prompt,
+        invoer,
+      };
+    }
+    return {
+      soort: "audio",
+      endpoint: "fal-ai/elevenlabs/tts/eleven-v3",
+      falInvoer: { text: tekstIn, voice: stemId, language_code: taal, stability: 0.5, similarity_boost: 0.75, speed: snelheid },
+      credits: voiceOverCredits(tekstIn),
+      prompt,
+      invoer,
+    };
+  }
+
+  // Je eigen stem trainen. De gebruiker bevestigt dat het zijn eigen stem is (of dat hij
+  // toestemming heeft): regels vooraf, geen controle achteraf.
+  if (maker === "stem-kloon") {
+    const naam = tekst(ruw.naam).slice(0, 40);
+    const audioUrl = tekst(ruw.audioUrl);
+    if (!naam) throw new Error("Geef je stem een naam.");
+    if (!/^https:\/\//.test(audioUrl)) throw new Error("Neem eerst iets op of upload een opname.");
+    if (ruw.toestemming !== true) throw new Error("Bevestig eerst dat dit je eigen stem is, of dat je toestemming hebt.");
+    return {
+      soort: "audio",
+      endpoint: "fal-ai/minimax/voice-clone",
+      falInvoer: {
+        audio_url: audioUrl,
+        noise_reduction: true,
+        need_volume_normalization: true,
+        model: "speech-02-hd",
+        text: "Hallo! Dit is mijn eigen stem, gemaakt met Animideo. Klinkt goed, toch?",
+      },
+      credits: KLOON_CREDITS,
+      prompt: `Eigen stem: ${naam}`,
+      invoer: { naam, audioUrl, toestemming: true },
+    };
+  }
+
+  // Pratende foto: foto + geluid → lipsync. De duur van het geluid heeft de wachtrij al
+  // gemeten (de prijs hangt ervan af); de browser mag die niet opgeven.
+  if (maker === "pratende-foto") {
+    const fotoUrl = tekst(ruw.fotoUrl);
+    const audioUrl = tekst(ruw.audioUrl);
+    if (!/^https:\/\//.test(fotoUrl)) throw new Error("Kies eerst een foto.");
+    if (!/^https:\/\//.test(audioUrl)) throw new Error("Kies eerst een voice-over of opname.");
+    if (ruw.toestemming !== true) throw new Error("Bevestig eerst dat je toestemming hebt van wie er op de foto staat.");
+    const sec = Number(ruw.audioSec);
+    if (!(sec > 0)) throw new Error("De lengte van het geluid kon niet worden bepaald.");
+    if (sec > LIPSYNC_MAX_SEC) throw new Error(`Het geluid is te lang: maximaal ${LIPSYNC_MAX_SEC} seconden.`);
+    const aanwijzing = tekst(ruw.aanwijzing).slice(0, 300);
+    return {
+      soort: "video",
+      endpoint: LIPSYNC_MODEL,
+      falInvoer: { image_url: fotoUrl, audio_url: audioUrl, ...(aanwijzing ? { prompt: aanwijzing } : {}) },
+      credits: lipsyncCredits(sec),
+      prompt: `Pratende foto (${Math.round(sec)} s)`,
+      invoer: { fotoUrl, audioUrl, audioSec: sec, toestemming: true, formaat: tekst(ruw.formaat) || "9:16", ...(aanwijzing ? { aanwijzing } : {}) },
+    };
+  }
+
   throw new Error("Onbekende maker.");
 }
 
@@ -310,6 +395,10 @@ export function modelNaam(endpoint: string | null | undefined): string {
     ugc: "UGC-studio",
     trailer: "Trailerstudio",
     montage: "Montage (Regisseur)",
+    "fal-ai/elevenlabs/tts/eleven-v3": "ElevenLabs v3",
+    "fal-ai/minimax/speech-02-hd": "Eigen stem (MiniMax)",
+    "fal-ai/minimax/voice-clone": "Stem trainen (MiniMax)",
+    "fal-ai/kling-video/ai-avatar/v2/standard": "Kling Avatar (lipsync)",
   };
   if (namen[endpoint]) return namen[endpoint];
   return VIDEO_MODELLEN.find((m) => m.slug === endpoint)?.naam ?? endpoint;

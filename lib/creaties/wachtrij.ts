@@ -8,6 +8,7 @@ import { startReclame, verversReclame } from "@/lib/reclame/regie";
 import { startUgc, verversUgc } from "@/lib/ugc/regie";
 import { startTrailer, verversTrailer } from "@/lib/trailer/regie";
 import { startMontage, verversMontage } from "@/lib/regisseur/montage";
+import { EIGEN } from "@/lib/stem/types";
 import type { Creatie, CreatieSoort } from "./types";
 
 fal.config({ credentials: process.env.FAL_KEY });
@@ -51,6 +52,7 @@ export async function startCreatie(
 
   let opdracht;
   try {
+    ruweInvoer = await vulAanOpServer(userId, maker, ruweInvoer);
     // Recepten bouwen hun opdracht op de server (de verborgen opdrachten); de rest via het
     // client-veilige makers-register.
     opdracht = maker === "recept" ? receptOpdracht(ruweInvoer) : maakOpdracht(maker, ruweInvoer);
@@ -173,10 +175,17 @@ export async function ververs(c: Creatie): Promise<Creatie> {
     const result = await fal.queue.result(c.fal_endpoint, { requestId: c.fal_request_id });
     const tijdelijk = resultaatUrl(c.soort, result.data);
     if (!tijdelijk) return (await markeerMislukt(c, "Er kwam geen resultaat terug.")) ?? c;
+    let invoer = c.invoer;
+    if (c.maker === "stem-kloon") {
+      const voiceId = (result.data as { custom_voice_id?: string }).custom_voice_id;
+      if (!voiceId) return (await markeerMislukt(c, "Het trainen van de stem lukte niet.")) ?? c;
+      invoer = { ...c.invoer, voiceId };
+      await houdKloonVast(voiceId);
+    }
     const url = await bewaarBestand(c.user_id, tijdelijk, c.soort);
     const { data } = await createServiceClient()
       .from("creaties")
-      .update({ status: "klaar", url, klaar_op: new Date().toISOString() })
+      .update({ status: "klaar", url, invoer, klaar_op: new Date().toISOString() })
       .eq("id", c.id)
       .eq("status", "bezig")
       .select("*")
@@ -186,6 +195,54 @@ export async function ververs(c: Creatie): Promise<Creatie> {
     // Een afgekeurde opdracht (bv. door het inhoudsfilter van het model) staat als
     // COMPLETED in de wachtrij; result() gooit dan met de reden in body.detail.
     return (await markeerMislukt(c, falReden(e))) ?? c;
+  }
+}
+
+/**
+ * Wat de browser niet mag opgeven, vullen we hier aan: het MiniMax-id van een eigen stem
+ * (alleen van de gebruiker zelf) en de echte lengte van het geluid voor een pratende foto
+ * (daar hangt de prijs van af).
+ */
+async function vulAanOpServer(userId: string, maker: string, ruw: Record<string, unknown>): Promise<Record<string, unknown>> {
+  if (maker === "voice-over" && String(ruw.stemId ?? "").startsWith(EIGEN)) {
+    const id = String(ruw.stemId).slice(EIGEN.length);
+    const { data } = await createServiceClient()
+      .from("creaties")
+      .select("invoer, status")
+      .eq("id", id)
+      .eq("user_id", userId)
+      .eq("maker", "stem-kloon")
+      .maybeSingle();
+    const inv = (data?.invoer ?? {}) as { voiceId?: string; naam?: string };
+    if (data?.status !== "klaar" || !inv.voiceId) throw new Error("Deze eigen stem is niet (meer) beschikbaar.");
+    return { ...ruw, minimaxVoiceId: inv.voiceId, stemNaam: inv.naam ?? ruw.stemNaam };
+  }
+  if (maker === "pratende-foto") {
+    const { minimaxVoiceId: _, ...rest } = ruw;
+    return { ...rest, audioSec: await audioDuur(String(ruw.audioUrl ?? "")) };
+  }
+  // Nooit een voice-id uit de browser overnemen.
+  const { minimaxVoiceId: _m, audioSec: _a, ...schoon } = ruw;
+  return maker === "voice-over" || maker === "pratende-foto" ? schoon : ruw;
+}
+
+async function audioDuur(url: string): Promise<number> {
+  if (!/^https:\/\//.test(url)) return 0;
+  const ff = (await import("ffmpeg-static")).default as unknown as string;
+  const { execFile } = await import("node:child_process");
+  const stderr: string = await new Promise((ok) => execFile(ff, ["-hide_banner", "-i", url], { maxBuffer: 1 << 22, timeout: 30000 }, (_e, _o, err) => ok(String(err))));
+  const m = stderr.match(/Duration: (\d+):(\d+):([\d.]+)/);
+  return m ? +m[1] * 3600 + +m[2] * 60 + parseFloat(m[3]) : 0;
+}
+
+/** MiniMax wist een gekloonde stem die 7 dagen niet gebruikt is: meteen één keer gebruiken. */
+async function houdKloonVast(voiceId: string) {
+  try {
+    await fal.subscribe("fal-ai/minimax/speech-02-hd", {
+      input: { text: "Hallo.", voice_setting: { voice_id: voiceId }, language_boost: "Dutch", output_format: "url" } as never,
+    });
+  } catch (e) {
+    console.error("[stem-kloon] vasthouden mislukt:", falReden(e));
   }
 }
 

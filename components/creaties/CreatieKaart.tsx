@@ -15,6 +15,7 @@ export function verhouding(c: Creatie): string {
   if (f === "9:16") return "9 / 16";
   if (f === "16:9") return "16 / 9";
   if (c.soort === "video") return "16 / 9";
+  if (c.soort === "audio") return "4 / 3";
   return "1 / 1";
 }
 
@@ -60,6 +61,17 @@ export default function CreatieKaart({
             className={`w-full h-full ${isDoorzichtig(c) ? "object-contain" : "object-cover"}`}
             loading="lazy"
           />
+        )}
+        {c.status === "klaar" && c.url && c.soort === "audio" && (
+          // Geen speler in de tegel (die is zelf een knop); afspelen gaat in het detailvenster.
+          <div className="w-full h-full flex flex-col justify-between p-3 bg-gradient-to-br from-violet-500/20 via-blue-500/10 to-transparent">
+            <div className="flex items-end gap-0.5 h-8 opacity-70">
+              {[3, 6, 4, 8, 5, 7, 3, 6, 9, 4, 6, 3, 7, 5].map((h, i) => (
+                <span key={i} className="w-1 rounded-full bg-blue-500" style={{ height: `${h * 10}%` }} />
+              ))}
+            </div>
+            <div className="text-xs text-tekst-2 line-clamp-3">{c.prompt}</div>
+          </div>
         )}
         {c.status === "klaar" && c.url && c.soort === "video" && (
           <video

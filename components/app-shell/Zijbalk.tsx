@@ -28,7 +28,7 @@ const MAKEN: Item[] = [
   { href: "/effecten", label: "Effecten", icoon: "⚡" },
   { href: "/apps", label: "Apps", icoon: "🧩" },
   { href: "/branches", label: "Voor jouw branche", icoon: "💼" },
-  { href: "/stem", label: "Stem & Lipsync", icoon: "🗣️", binnenkort: true },
+  { href: "/stem", label: "Stem & Lipsync", icoon: "🗣️" },
 ];
 
 // De grote tools met hun eigen werkwijze. "Overige tools" houdt de oude projecten van

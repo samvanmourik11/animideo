@@ -181,3 +181,47 @@ describe("fase 3: het receptenboek", () => {
     expect(receptOpdracht(o.invoer)).toEqual(o);
   });
 });
+
+describe("maakOpdracht: stem & lipsync", () => {
+  it("voice-over met een bibliotheekstem gaat naar ElevenLabs v3", () => {
+    const o = maakOpdracht("voice-over", { tekst: " Hallo daar ", stemId: "abc123", stemNaam: "Marco", snelheid: 1.1, taal: "nl" });
+    expect(o.soort).toBe("audio");
+    expect(o.endpoint).toBe("fal-ai/elevenlabs/tts/eleven-v3");
+    expect(o.falInvoer).toMatchObject({ text: "Hallo daar", voice: "abc123", language_code: "nl", speed: 1.1 });
+    expect(o.credits).toBeGreaterThanOrEqual(1);
+  });
+
+  it("voice-over met een eigen stem gaat naar MiniMax, maar alleen met een door de server opgezochte stem", () => {
+    expect(() => maakOpdracht("voice-over", { tekst: "x", stemId: "eigen:123" })).toThrow(/niet \(meer\) beschikbaar/);
+    const o = maakOpdracht("voice-over", { tekst: "x", stemId: "eigen:123", minimaxVoiceId: "vm_1" });
+    expect(o.endpoint).toBe("fal-ai/minimax/speech-02-hd");
+    expect(o.falInvoer).toMatchObject({ voice_setting: { voice_id: "vm_1" }, language_boost: "Dutch" });
+    // De MiniMax-id hoort niet in de opgeslagen invoer: "Nog eens" moet hem opnieuw opzoeken.
+    expect(o.invoer).not.toHaveProperty("minimaxVoiceId");
+  });
+
+  it("voice-over weigert zonder tekst of stem en klemt de snelheid", () => {
+    expect(() => maakOpdracht("voice-over", { tekst: " ", stemId: "a" })).toThrow(/Typ eerst/);
+    expect(() => maakOpdracht("voice-over", { tekst: "x" })).toThrow(/Kies eerst een stem/);
+    expect(maakOpdracht("voice-over", { tekst: "x", stemId: "a", snelheid: 9 }).falInvoer.speed).toBe(1.5);
+  });
+
+  it("stem trainen vraagt naam, opname en toestemming en kost 20 credits", () => {
+    const basis = { naam: "Sam", audioUrl: "https://x.nl/a.mp3", toestemming: true };
+    expect(maakOpdracht("stem-kloon", basis).credits).toBe(20);
+    expect(() => maakOpdracht("stem-kloon", { ...basis, toestemming: "true" })).toThrow(/Bevestig/);
+    expect(() => maakOpdracht("stem-kloon", { ...basis, audioUrl: "file:///a" })).toThrow(/Neem eerst/);
+    expect(() => maakOpdracht("stem-kloon", { ...basis, naam: "" })).toThrow(/naam/);
+  });
+
+  it("pratende foto rekent naar de gemeten lengte en weigert te lang geluid", () => {
+    const basis = { fotoUrl: "https://x.nl/f.png", audioUrl: "https://x.nl/a.mp3", toestemming: true };
+    expect(() => maakOpdracht("pratende-foto", basis)).toThrow(/lengte/);
+    const kort = maakOpdracht("pratende-foto", { ...basis, audioSec: 4 });
+    const lang = maakOpdracht("pratende-foto", { ...basis, audioSec: 14 });
+    expect(kort.soort).toBe("video");
+    expect(lang.credits).toBeGreaterThan(kort.credits);
+    expect(() => maakOpdracht("pratende-foto", { ...basis, audioSec: 9999 })).toThrow(/te lang/);
+    expect(() => maakOpdracht("pratende-foto", { ...basis, audioSec: 4, toestemming: false })).toThrow(/toestemming/);
+  });
+});

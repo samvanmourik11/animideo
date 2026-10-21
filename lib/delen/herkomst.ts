@@ -10,6 +10,7 @@ export function herkomst(c: Pick<Creatie, "maker" | "invoer" | "soort">): { naam
     if (r) return { naam: r.naam, pad: receptPad(r) };
   }
   if (c.maker === "reclame") return { naam: "Link → reclame", pad: "/apps/reclame" };
+  if (c.maker === "voice-over" || c.maker === "stem-kloon" || c.maker === "pratende-foto") return { naam: "Stem & Lipsync", pad: "/stem" };
   if (c.maker === "montage") return { naam: "Regisseur", pad: "/regisseur" };
   if (c.maker === "trailer") return { naam: "Trailerstudio", pad: "/studios/trailer" };
   if (c.maker === "ugc") return { naam: "UGC-studio", pad: "/studios/ugc" };
