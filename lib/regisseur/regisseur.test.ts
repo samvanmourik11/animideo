@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 // Een nep-database (één regieproject + creaties) en een nep-Claude met vooraf
 // klaargezette antwoorden. Zo testen we de lus: pauzeren, bevestigen, volgorde.
-const db = { project: null as Record<string, unknown> | null, creaties: [] as Record<string, unknown>[] };
+const db = { project: null as Record<string, unknown> | null, creaties: [] as Record<string, unknown>[], geheugen: "" };
 const antwoorden: Record<string, unknown>[] = [];
 const verzoeken: Record<string, unknown>[] = [];
 const gestart: { maker: string; invoer: Record<string, unknown> }[] = [];
@@ -15,6 +15,7 @@ vi.mock("@/lib/supabase/service", () => ({
       const keten = {
         select: () => keten,
         update: (w: Record<string, unknown>) => ((wijziging = w), keten),
+        upsert: async (rij: { tekst: string }) => ((db.geheugen = rij.tekst), { error: null }),
         eq: (k: string, v: unknown) => (filters.push([k, v]), keten),
         in: (k: string, v: unknown[]) => (filters.push([k + ":in", v]), keten),
         single: async () => resultaat(),
@@ -22,6 +23,7 @@ vi.mock("@/lib/supabase/service", () => ({
         then: (ok: (r: unknown) => void) => ok(resultaat()),
       };
       function resultaat() {
+        if (tabel === "regie_geheugen") return { data: db.geheugen ? { tekst: db.geheugen } : null };
         if (tabel === "creaties") {
           const ids = filters.find(([k]) => k === "id:in")?.[1] as string[] | undefined;
           return { data: db.creaties.filter((c) => !ids || ids.includes(c.id as string)) };
@@ -48,6 +50,8 @@ vi.mock("@/lib/creaties/wachtrij", () => ({
 vi.mock("@/lib/reclame/pagina", () => ({ leesProductpagina: async () => ({ naam: "Mok", fotos: [] }) }));
 vi.mock("./montage", () => ({ montageCredits: () => 0, leesMontage: (x: { clipIds: string[] }) => ({ ...x, clipIds: x.clipIds }) }));
 vi.mock("next/server", () => ({ after: () => {} }));
+vi.mock("@/lib/openai", () => ({ openai: {}, transcribeWords: async () => ({ words: [] }) }));
+vi.mock("@/lib/team/team", () => ({}));
 vi.mock("@anthropic-ai/sdk", () => {
   class APIError extends Error { status = 500; }
   class Anthropic {
@@ -67,6 +71,7 @@ const zegt = (...content: unknown[]) => ({ stop_reason: content.some((c) => (c a
 beforeEach(() => {
   db.project = { id: "p1", user_id: "u1", titel: "t", berichten: [{ role: "user", content: "Maak een reclame" }], status: "denkt", wachtend: null, galerij: [], automatisch: false, gebruik: {} };
   db.creaties = [];
+  db.geheugen = "";
   antwoorden.length = 0;
   verzoeken.length = 0;
   gestart.length = 0;
@@ -178,5 +183,18 @@ describe("bijlagen", () => {
   });
   test("zonder bijlagen blijft het gewoon tekst", async () => {
     expect((await maakInhoud("u1", "hoi")).inhoud).toBe("hoi");
+  });
+});
+
+describe("geheugen", () => {
+  test("onthoud gebeurt meteen (gratis) en gaat bij de volgende ronde mee naar Claude, met caching", async () => {
+    antwoorden.push(zegt(tool("o", "onthoud", { feit: "Bakkerij De Zoete Zwaan, huisstijl goud en crème" })));
+    antwoorden.push(zegt({ type: "text", text: "Genoteerd." }));
+    await draai("p1");
+    expect(db.geheugen).toBe("- Bakkerij De Zoete Zwaan, huisstijl goud en crème");
+    expect(db.project!.status).toBe("klaar");
+    const systeem = verzoeken[1].system as { text: string }[];
+    expect(systeem[1].text).toContain("De Zoete Zwaan");
+    expect(verzoeken[1].cache_control).toEqual({ type: "ephemeral" });
   });
 });

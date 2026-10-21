@@ -15,10 +15,20 @@ import { UGC_STEMMEN } from "@/lib/ugc/types";
 import { startCreatie } from "@/lib/creaties/wachtrij";
 import { leesProductpagina } from "@/lib/reclame/pagina";
 import { montageCredits, leesMontage } from "./montage";
+import { schrijfUgcScript } from "@/lib/ugc/script";
+import { leesCreator, leesOnderwerp } from "@/lib/ugc/regie";
+import { CREATORS } from "@/lib/ugc/creators";
+import { UGC_LENGTES, ugcCredits, type UgcLengte } from "@/lib/ugc/types";
+import { schrijfPlan } from "@/lib/reclame/plan";
+import { RECLAME_CREDITS, RECLAME_FORMATEN, STIJLEN, type Product, type ReclameFormaat, type StijlId } from "@/lib/reclame/types";
+import { schrijfTrailer } from "@/lib/trailer/plan";
+import { TRAILER_LENGTES, trailerCredits, type TrailerLengte } from "@/lib/trailer/types";
 
 type Tool = Anthropic.Beta.BetaTool;
 
-export const BETAALDE_TOOLS = new Set(["maak_beeld", "maak_video", "gebruik_app", "monteer"]);
+export const BETAALDE_TOOLS = new Set(["maak_beeld", "maak_video", "gebruik_app", "monteer", "maak_ugc_video", "maak_reclame", "maak_trailer"]);
+/** Gratis, meteen uitgevoerd. */
+export const GRATIS_TOOLS = new Set(["lees_webpagina", "mijn_werk", "ugc_creators", "onthoud"]);
 
 // De lijst apps staat in de omschrijving van het gereedschap. Die verandert alleen als we
 // apps toevoegen, dus de cache van het verzoek blijft gewoon geldig.
@@ -101,6 +111,65 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: "ugc_creators",
+    description: "Bekijk de AI-creators voor UGC-video's (gratis): de vaste set en de eigen creators van de gebruiker, met id, omschrijving en portret.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "maak_ugc_video",
+    description: `Maak een UGC-video (kost credits): een AI-creator praat in de camera over een product of dienst, met lipsync, Nederlandse stem en meelopende ondertitels, staand formaat. Kies eerst een creator met ugc_creators. Zonder script schrijft de UGC-studio er zelf een. Lengtes: ${UGC_LENGTES.map((l) => l.sec).join(", ")} s. Duurt 5-8 min.`,
+    input_schema: {
+      type: "object",
+      properties: {
+        naam: { type: "string", description: "Product of dienst." },
+        omschrijving: { type: "string" },
+        voordelen: { type: "array", items: { type: "string" }, maxItems: 3 },
+        website: { type: "string" },
+        foto_id: { type: "string", description: "Productfoto (creatie-id of https); leeg bij een dienst." },
+        creator_id: { type: "string" },
+        sec: { type: "integer", enum: UGC_LENGTES.map((l) => l.sec) },
+        broll: { type: "boolean", description: "Productbeelden tussendoor." },
+      },
+      required: ["naam", "creator_id"],
+    },
+  },
+  {
+    name: "maak_reclame",
+    description: `Maak een productreclame van ±17 s (kost ${RECLAME_CREDITS} credits): drie filmische shots met het echte product, voice-over door Hugo, muziek en eindkaart in de merkkleur. Werkt het best met een productlink (de pagina wordt gelezen) of met naam + foto. Stijlen: ${STIJLEN.map((s) => s.id).join(", ")}. Duurt 3-6 min.`,
+    input_schema: {
+      type: "object",
+      properties: {
+        link: { type: "string" },
+        naam: { type: "string" },
+        omschrijving: { type: "string" },
+        foto_id: { type: "string" },
+        kleur: { type: "string", description: "#rrggbb" },
+        stijl: { type: "string", enum: STIJLEN.map((s) => s.id) },
+        formaat: { type: "string", enum: RECLAME_FORMATEN.map((f) => f.id) },
+      },
+      required: ["stijl"],
+    },
+  },
+  {
+    name: "maak_trailer",
+    description: `Maak een filmtrailer (fantasy) van ${TRAILER_LENGTES.map((l) => l.sec).join(" of ")} s volgens het trailer-regelboek: personages, filmbeelden, clips, verteller en montage (kost veel credits, ~70 voor 60 s). Duurt 10-20 min.`,
+    input_schema: {
+      type: "object",
+      properties: {
+        titel: { type: "string" },
+        verhaal: { type: "string" },
+        personages: { type: "array", items: { type: "object", properties: { naam: { type: "string" }, omschrijving: { type: "string" } }, required: ["naam"] }, maxItems: 3 },
+        sec: { type: "integer", enum: TRAILER_LENGTES.map((l) => l.sec) },
+      },
+      required: ["verhaal"],
+    },
+  },
+  {
+    name: "onthoud",
+    description: "Sla iets blijvends op over de gebruiker of het bedrijf (gratis), voor alle volgende projecten: bedrijfsnaam, huisstijl, doelgroep, voorkeuren. Alleen dingen die over dit project heen gelden, kort.",
+    input_schema: { type: "object", properties: { feit: { type: "string" } }, required: ["feit"] },
+  },
+  {
     name: "wacht_op",
     description: "Wacht tot creaties klaar zijn (beelden duren ~20 s, video's 1-3 min, een montage ~1 min). Je krijgt daarna de resultaten te zien, beelden ook als plaatje, zodat je ze kunt beoordelen. Gebruik dit na het starten van stappen waarop je wilt verder bouwen.",
     input_schema: { type: "object", properties: { creatie_ids: { type: "array", items: { type: "string" }, minItems: 1 } }, required: ["creatie_ids"] },
@@ -173,7 +242,61 @@ export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUs
     const m = leesMontage(invoer);
     return { ...basis, maker: "montage", invoer, credits: montageCredits(m), omschrijving: `Montage van ${m.clipIds.length} stukken${m.titel ? ` — "${m.titel}"` : ""}${m.voiceover ? " met voice-over" : ""}` };
   }
+  if (blok.name === "maak_ugc_video") {
+    const foto = i.foto_id ? await naarUrl(userId, i.foto_id) : "";
+    const onderwerp = leesOnderwerp({ naam: i.naam, omschrijving: i.omschrijving, voordelen: i.voordelen, website: i.website }, !!foto);
+    const creator = await leesCreator(userId, i.creator_id);
+    const sec = (UGC_LENGTES.some((l) => l.sec === i.sec) ? i.sec : 15) as UgcLengte;
+    const broll = i.broll === true;
+    // Het script nu al schrijven: de prijs hangt ervan af, en de gebruiker ziet bij de
+    // bevestiging waar hij voor betaalt.
+    const script = await schrijfUgcScript(onderwerp, { ...creator, omschrijving: "" }, sec, broll);
+    const invoer = { onderwerp, fotoUrl: foto, creator: creator.id, sec, broll, script };
+    return { ...basis, maker: "ugc", invoer, credits: ugcCredits(script), omschrijving: `UGC-video (${sec} s) door ${creator.naam}: "${script.stukjes[0]?.tekst.slice(0, 70)}…"` };
+  }
+  if (blok.name === "maak_reclame") {
+    let product: Product = { naam: String(i.naam ?? ""), merk: "", omschrijving: String(i.omschrijving ?? ""), voordelen: [], prijs: "", kleur: String(i.kleur ?? "#1c72ed"), website: "", fotos: [] };
+    if (typeof i.link === "string" && i.link.trim()) product = { ...(await leesProductpagina(i.link)), ...(i.naam ? { naam: String(i.naam) } : {}), ...(i.kleur ? { kleur: String(i.kleur) } : {}) };
+    const fotoUrl = i.foto_id ? await naarUrl(userId, i.foto_id) : product.fotos[0];
+    if (!fotoUrl) throw new Error("Voor een reclame is een productfoto nodig: geef foto_id mee.");
+    if (!product.naam) throw new Error("Geef de naam van het product mee.");
+    const stijl = (STIJLEN.some((s) => s.id === i.stijl) ? i.stijl : "strak") as StijlId;
+    const formaat = (RECLAME_FORMATEN.some((f) => f.id === i.formaat) ? i.formaat : "9:16") as ReclameFormaat;
+    const plan = await schrijfPlan(product, stijl);
+    const invoer = { product, fotoUrl, stijl, formaat, plan };
+    return { ...basis, maker: "reclame", invoer, credits: RECLAME_CREDITS, omschrijving: `Reclame voor ${product.naam} (${stijl}, ${formaat}): "${plan.voiceover.slice(0, 70)}…"` };
+  }
+  if (blok.name === "maak_trailer") {
+    const sec = (TRAILER_LENGTES.some((l) => l.sec === i.sec) ? i.sec : 60) as TrailerLengte;
+    const personages = (Array.isArray(i.personages) ? i.personages : [])
+      .map((p) => ({ naam: String((p as { naam?: unknown }).naam ?? ""), omschrijving: String((p as { omschrijving?: unknown }).omschrijving ?? "") }))
+      .filter((p) => p.naam)
+      .slice(0, 3);
+    const plan = await schrijfTrailer({ titel: String(i.titel ?? ""), verhaal: String(i.verhaal ?? ""), personages, genre: "fantasy", sec });
+    const invoer = { genre: "fantasy", sec, plan };
+    return { ...basis, maker: "trailer", invoer, credits: trailerCredits(plan), omschrijving: `Trailer "${plan.titel}" (${sec} s, ${plan.clips.length} filmclips)` };
+  }
   throw new Error(`Onbekend gereedschap: ${blok.name}`);
+}
+
+// ── Geheugen ─────────────────────────────────────────────────────────────
+
+const MAX_GEHEUGEN = 3000;
+
+export async function leesGeheugen(userId: string): Promise<string> {
+  const { data } = await createServiceClient().from("regie_geheugen").select("tekst").eq("user_id", userId).maybeSingle();
+  return (data?.tekst as string | undefined) ?? "";
+}
+
+/** Een regel erbij. Wordt het te lang, dan vallen de oudste regels eraf. */
+async function onthoud(userId: string, feit: string) {
+  const regels = (await leesGeheugen(userId)).split("\n").filter(Boolean);
+  regels.push(`- ${feit}`);
+  while (regels.join("\n").length > MAX_GEHEUGEN) regels.shift();
+  const { error } = await createServiceClient()
+    .from("regie_geheugen")
+    .upsert({ user_id: userId, tekst: regels.join("\n"), updated_at: new Date().toISOString() });
+  if (error) throw new Error("Onthouden lukte niet.");
 }
 
 /** Voert een stap uit: de creatie start in de wachtrij. Geeft het id terug. */
@@ -201,6 +324,23 @@ export async function gratis(userId: string, blok: Anthropic.Beta.BetaToolUseBlo
     if (i.soort === "beeld" || i.soort === "video") q = q.eq("soort", i.soort);
     const { data } = await q;
     return JSON.stringify(data ?? []);
+  }
+  if (blok.name === "ugc_creators") {
+    const { data } = await createServiceClient()
+      .from("creaties")
+      .select("id, url, invoer")
+      .eq("user_id", userId)
+      .eq("maker", "ugc-creator")
+      .eq("status", "klaar")
+      .limit(20);
+    const eigen = (data ?? []).map((c) => ({ id: c.id, naam: (c.invoer as { naam?: string }).naam, omschrijving: (c.invoer as { beschrijving?: string }).beschrijving, portret: c.url, eigen: true }));
+    return JSON.stringify([...eigen, ...CREATORS.map((c) => ({ id: c.id, naam: c.naam, omschrijving: `${c.omschrijving}. ${c.persona}`, portret: c.portretUrl }))]);
+  }
+  if (blok.name === "onthoud") {
+    const feit = String(i.feit ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
+    if (!feit) throw new Error("Niets om te onthouden.");
+    await onthoud(userId, feit);
+    return "Onthouden.";
   }
   throw new Error(`Onbekend gereedschap: ${blok.name}`);
 }

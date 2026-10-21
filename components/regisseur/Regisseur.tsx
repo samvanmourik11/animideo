@@ -6,6 +6,7 @@ import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { CREATIES_GEWIJZIGD } from "@/components/app-shell/Zijbalk";
+import { useCreaties } from "@/components/creaties/gebruik-creaties";
 
 // De Regisseur: één chat waarin Claude het werk plant en de gereedschappen van de app
 // aanstuurt. Het gesprek komt uit de database (precies wat Claude ziet); hier maken we
@@ -133,6 +134,22 @@ export default function Regisseur() {
   const [slepen, setSlepen] = useState(false);
   const onder = useRef<HTMLDivElement>(null);
   const kiezer = useRef<HTMLInputElement>(null);
+  const [kiesUitWerk, setKiesUitWerk] = useState(false);
+  const [geheugenOpen, setGeheugenOpen] = useState(false);
+  const [geheugen, setGeheugen] = useState("");
+  const [geheugenStatus, setGeheugenStatus] = useState<string | null>(null);
+  const werk = useCreaties({ soort: "beeld" });
+
+  async function openGeheugen() {
+    setGeheugenOpen((x) => !x);
+    const d = await fetch("/api/regisseur/geheugen", { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
+    setGeheugen(d.tekst ?? "");
+    setGeheugenStatus(null);
+  }
+  async function bewaarGeheugen() {
+    const res = await fetch("/api/regisseur/geheugen", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tekst: geheugen }) });
+    setGeheugenStatus(res.ok ? "Opgeslagen." : "Opslaan mislukt.");
+  }
 
   async function voegToe(bestanden: FileList | File[]) {
     const lijst = Array.from(bestanden).slice(0, 8 - bijlagen.length);
@@ -236,6 +253,21 @@ export default function Regisseur() {
       {/* Projecten */}
       <aside className="space-y-2 lg:sticky lg:top-6">
         <button onClick={() => { setActief(null); setFout(null); }} className="btn-primary w-full">＋ Nieuw project</button>
+        <button onClick={openGeheugen} className="n-knop2 w-full text-sm">🧠 Geheugen</button>
+        {geheugenOpen && (
+          <div className="n-kaart !p-3 space-y-2">
+            <p className="text-[11px] text-tekst-3">Wat de Regisseur over jou en je bedrijf onthoudt, in al je projecten. Pas gerust aan.</p>
+            <textarea
+              value={geheugen}
+              onChange={(e) => setGeheugen(e.target.value)}
+              rows={7}
+              placeholder={"Bijvoorbeeld:\n- Bakkerij De Zoete Zwaan in Utrecht\n- Huisstijl goud en crème\n- Liever staand formaat"}
+              className="n-invoer resize-none text-xs"
+            />
+            <button onClick={bewaarGeheugen} className="btn-primary w-full text-sm">Opslaan</button>
+            {geheugenStatus && <p className="text-[11px] text-tekst-3">{geheugenStatus}</p>}
+          </div>
+        )}
         <div className="space-y-0.5 max-h-[70vh] overflow-y-auto">
           {projecten.map((p) => (
             <button
@@ -434,6 +466,37 @@ export default function Regisseur() {
               )}
             </div>
           )}
+          {kiesUitWerk && (
+            <div className="mb-2 n-kaart !p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-tekst-2">Kies uit je werk</span>
+                <button onClick={() => setKiesUitWerk(false)} className="text-tekst-3 hover:text-tekst text-sm" aria-label="Sluiten">✕</button>
+              </div>
+              <div className="grid grid-cols-5 sm:grid-cols-8 gap-1.5 max-h-56 overflow-y-auto">
+                {werk.creaties
+                  .filter((c) => c.status === "klaar" && c.url)
+                  .map((c) => {
+                    const gekozen = bijlagen.some((b) => b.id === c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() =>
+                          setBijlagen((x) =>
+                            gekozen ? x.filter((b) => b.id !== c.id) : x.length >= 8 ? x : [...x, { soort: "beeld", id: c.id, url: c.url!, naam: (c.prompt ?? "beeld").slice(0, 60) }],
+                          )
+                        }
+                        className={`aspect-square rounded-lg overflow-hidden border-2 ${gekozen ? "border-blue-500" : "border-transparent hover:border-rand"}`}
+                        title={c.prompt ?? ""}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={c.url!} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    );
+                  })}
+              </div>
+              {werk.creaties.length === 0 && <p className="text-xs text-tekst-3">Nog geen beelden in je bibliotheek.</p>}
+            </div>
+          )}
           <div className="flex gap-2 rounded-2xl border border-rand bg-paneel p-2 shadow-sm">
             <input
               ref={kiezer}
@@ -455,6 +518,14 @@ export default function Regisseur() {
             >
               📎
             </button>
+            <button
+              onClick={() => setKiesUitWerk((x) => !x)}
+              className={`self-end shrink-0 w-9 h-9 rounded-xl text-base font-bold hover:bg-paneel-2 ${kiesUitWerk ? "text-blue-500" : "text-tekst-3 hover:text-tekst"}`}
+              title="Kies een beeld uit je bibliotheek (of typ @)"
+              aria-label="Kies uit je werk"
+            >
+              @
+            </button>
             <textarea
               onPaste={(e) => {
                 const f = Array.from(e.clipboardData.files);
@@ -464,7 +535,15 @@ export default function Regisseur() {
                 }
               }}
               value={invoer}
-              onChange={(e) => setInvoer(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                // Een losse @ (aan het begin of na een spatie) opent de kiezer; de @ zelf
+                // halen we weg, de bijlage komt als plaatje boven het invoervak.
+                if (/(^|\s)@$/.test(v)) {
+                  setKiesUitWerk(true);
+                  setInvoer(v.slice(0, -1));
+                } else setInvoer(v);
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();

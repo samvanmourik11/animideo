@@ -14,7 +14,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/service";
 import { verversLopende } from "@/lib/creaties/wachtrij";
 import type { Creatie } from "@/lib/creaties/types";
-import { BETAALDE_TOOLS, TOOLS, bereidVoor, gratis, voerUit, type Stap } from "./tools";
+import { BETAALDE_TOOLS, GRATIS_TOOLS, TOOLS, bereidVoor, gratis, leesGeheugen, voerUit, type Stap } from "./tools";
 
 const MODEL = "claude-opus-5-5";
 const MAX_RONDES = 12;
@@ -51,6 +51,8 @@ Werkwijze:
 - Houd personages, gezichten en producten gelijk door steeds dezelfde voorbeelden (creatie-ids of foto-adressen) mee te geven aan maak_beeld.
 - Start wat tegelijk kan in één keer (bijvoorbeeld alle beelden), en gebruik daarna wacht_op. Bekijk de resultaten kritisch; is iets mislukt of klopt het niet, maak alleen dat opnieuw.
 - Werk zuinig: niet meer beelden of video's dan nodig. Een korte film of reclame: meestal 3-6 clips, dan monteer.
+- Voor een complete productreclame, een UGC-video (een creator die over een product of dienst praat) of een filmtrailer zijn er kant-en-klare studio's: maak_reclame, maak_ugc_video (kies eerst een creator met ugc_creators) en maak_trailer. Die leveren in één stap een afgemonteerde video en zijn meestal beter dan zelf losse clips aan elkaar zetten.
+- Je hebt een geheugen over deze gebruiker (onderaan). Gebruik het: huisstijl, bedrijfsnaam, voorkeuren. Vertelt de gebruiker iets dat ook voor volgende projecten geldt, sla het dan op met onthoud (kort), zonder erover te zeuren.
 - Sluit af met een korte samenvatting van wat er gemaakt is en wat de gebruiker nog kan laten aanpassen.
 - Geen echte bestaande personen, geen merken van anderen namaken, niets misleidends.`;
 
@@ -104,11 +106,20 @@ export async function draai(id: string): Promise<void> {
   const galerij = [...p.galerij];
   try {
     for (let ronde = 0; ronde < MAX_RONDES; ronde++) {
+      const geheugen = await leesGeheugen(p.user_id);
       const antwoord = await claude()
         .beta.messages.stream({
           model: MODEL,
           max_tokens: 16000,
-          system: [{ type: "text", text: SYSTEEM, cache_control: { type: "ephemeral" } }],
+          // De vaste tekst (en de gereedschappen ervoor) is voor iedereen gelijk en wordt
+          // gecachet; het geheugen verschilt per gebruiker en staat erachter. De cache
+          // bovenaan het verzoek neemt daarnaast het hele gesprek tot nu toe mee, zodat
+          // elke volgende ronde de geschiedenis voor ~een tiende van de prijs leest.
+          system: [
+            { type: "text", text: SYSTEEM, cache_control: { type: "ephemeral" } },
+            { type: "text", text: geheugen ? `Wat je blijvend over deze gebruiker weet:\n${geheugen}` : "Je weet nog niets blijvends over deze gebruiker." },
+          ],
+          cache_control: { type: "ephemeral" },
           tools: TOOLS,
           messages: berichten,
           output_config: { effort: "medium" },
@@ -142,7 +153,7 @@ export async function draai(id: string): Promise<void> {
 
       const volgorde = aanroepen.map((b) => b.id);
       const klaar: Record<string, Resultaat> = {};
-      for (const b of aanroepen.filter((x) => x.name === "lees_webpagina" || x.name === "mijn_werk")) {
+      for (const b of aanroepen.filter((x) => GRATIS_TOOLS.has(x.name))) {
         try {
           klaar[b.id] = resultaatTekst(b.id, await gratis(p.user_id, b));
         } catch (e) {
