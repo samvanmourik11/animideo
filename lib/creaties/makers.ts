@@ -291,7 +291,8 @@ export function maakOpdracht(maker: string, ruw: Record<string, unknown>): Opdra
     if (!stemId) throw new Error("Kies eerst een stem.");
     const snelheid = Math.min(1.5, Math.max(0.7, Number(ruw.snelheid) || 1));
     const naam = tekst(ruw.stemNaam).slice(0, 40);
-    const taal = ["nl", "en", "de"].includes(String(ruw.taal)) ? String(ruw.taal) : "nl";
+    // Elke taalcode die ElevenLabs kent (de stemkiezer biedt alleen de gecontroleerde talen aan).
+    const taal = /^[a-z]{2,3}$/.test(String(ruw.taal)) ? String(ruw.taal) : "nl";
     const invoer = { tekst: tekstIn, stemId, stemNaam: naam, snelheid, taal };
     const prompt = `${naam ? `${naam}: ` : ""}${tekstIn.slice(0, 140)}`;
     if (stemId.startsWith(EIGEN)) {
@@ -300,7 +301,7 @@ export function maakOpdracht(maker: string, ruw: Record<string, unknown>): Opdra
       return {
         soort: "audio",
         endpoint: "fal-ai/minimax/speech-02-hd",
-        falInvoer: { text: tekstIn, voice_setting: { voice_id: voiceId, speed: snelheid }, language_boost: taal === "nl" ? "Dutch" : taal === "de" ? "German" : "English", output_format: "url" },
+        falInvoer: { text: tekstIn, voice_setting: { voice_id: voiceId, speed: snelheid }, language_boost: ({ nl: "Dutch", en: "English", de: "German", fr: "French", es: "Spanish" } as Record<string, string>)[taal] ?? "auto", output_format: "url" },
         credits: voiceOverCredits(tekstIn),
         prompt,
         invoer,

@@ -7,21 +7,35 @@ import BeeldKiezer, { type GekozenBeeld } from "@/components/creaties/BeeldKieze
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { startMaker, useCreaties } from "@/components/creaties/gebruik-creaties";
 import { CREATIES_GEWIJZIGD } from "@/components/app-shell/Zijbalk";
-import { EIGEN, GEBRUIK_LABEL, KLOON_CREDITS, MIN_OPNAME_SEC, voiceOverCredits, type BibliotheekStem } from "@/lib/stem/types";
+import { EIGEN, GEBRUIK_LABEL, KLOON_CREDITS, MIN_OPNAME_SEC, TAAL, voiceOverCredits, type BibliotheekStem } from "@/lib/stem/types";
 import { lipsyncCredits } from "@/lib/lipsync";
 
-// STEM & LIPSYNC: de stemmenbibliotheek (1.000+ Nederlandse stemmen), losse voice-overs
+// STEM & LIPSYNC: de 100 beste stemmen voor Nederlands, losse voice-overs
 // om te downloaden, je eigen stem trainen en een foto laten praten.
 
 type Tab = "stemmen" | "voice-over" | "eigen" | "lipsync";
-export interface GekozenStem { id: string; naam: string; taal: string; omschrijving: string; voorbeeld?: string }
+export interface GekozenStem { id: string; naam: string; taal: string; omschrijving: string; voorbeeld?: string; talen?: string[] }
 
+/** Vlaggetjes van de talen die een stem goed spreekt, zoals ElevenLabs ze toont. */
+function Vlaggen({ talen, max = 7 }: { talen: string[]; max?: number }) {
+  const bekend = talen.filter((t) => TAAL[t]);
+  const titel = bekend.map((t) => TAAL[t].naam).join(", ");
+  return (
+    <span className="inline-flex items-center gap-0.5 text-[13px] leading-none" title={`Spreekt goed: ${titel}`}>
+      {bekend.slice(0, max).map((t) => <span key={t}>{TAAL[t].vlag}</span>)}
+      {bekend.length > max && <span className="ml-1 text-[10px] text-tekst-3">+{bekend.length - max}</span>}
+    </span>
+  );
+}
+
+/** Ophogen na een nieuwe sync: de lijst staat een uur in de browsercache. */
+const BIBLIOTHEEK_VERSIE = 3;
 let cache: BibliotheekStem[] | null = null;
 function useBibliotheek() {
   const [lijst, setLijst] = useState<BibliotheekStem[]>(cache ?? []);
   useEffect(() => {
     if (cache) return;
-    fetch("/api/stem/bibliotheek").then((r) => r.json()).then((d: BibliotheekStem[]) => {
+    fetch(`/api/stem/bibliotheek?v=${BIBLIOTHEEK_VERSIE}`).then((r) => r.json()).then((d: BibliotheekStem[]) => {
       cache = d;
       setLijst(d);
     }).catch(() => {});
@@ -40,7 +54,8 @@ function speel(url?: string) {
 
 function StemKiezer({ eigen, onKies, gekozenId }: { eigen: Creatie[]; onKies: (s: GekozenStem) => void; gekozenId?: string }) {
   const lijst = useBibliotheek();
-  const [categorie, setCategorie] = useState<"nl" | "vlaams" | "internationaal" | "eigen">("nl");
+  const [categorie, setCategorie] = useState<"alle" | "nl" | "vlaams" | "internationaal" | "eigen">("alle");
+  const [ookTaal, setOokTaal] = useState("");
   const [geslacht, setGeslacht] = useState("");
   const [leeftijd, setLeeftijd] = useState("");
   const [gebruik, setGebruik] = useState("");
@@ -50,13 +65,24 @@ function StemKiezer({ eigen, onKies, gekozenId }: { eigen: Creatie[]; onKies: (s
   const gefilterd = useMemo(() => {
     const z = zoek.trim().toLowerCase();
     return lijst
-      .filter((s) => (categorie === "nl" ? s.taal === "nl" && s.accent === "Nederlands" : categorie === "vlaams" ? s.taal === "nl" && s.accent !== "Nederlands" : s.taal !== "nl"))
+      .filter((s) =>
+        categorie === "nl" ? s.moedertaal && s.accent === "Nederlands"
+        : categorie === "vlaams" ? s.accent !== "Nederlands"
+        : categorie === "internationaal" ? !s.moedertaal
+        : true,
+      )
+      .filter((s) => !ookTaal || s.talen.includes(ookTaal))
       .filter((s) => !geslacht || s.geslacht === geslacht)
       .filter((s) => !leeftijd || s.leeftijd === leeftijd)
       .filter((s) => !gebruik || s.gebruik === gebruik)
-      .filter((s) => !z || `${s.naam} ${s.typering} ${s.beschrijving}`.toLowerCase().includes(z))
-      .sort((a, b) => b.populariteit - a.populariteit);
-  }, [lijst, categorie, geslacht, leeftijd, gebruik, zoek]);
+      .filter((s) => !z || `${s.naam} ${s.typering} ${s.beschrijving}`.toLowerCase().includes(z));
+    // Volgorde komt uit de bibliotheek: Nederlandstalig eerst, dan op recent gebruik.
+  }, [lijst, categorie, geslacht, leeftijd, gebruik, zoek, ookTaal]);
+  const andereTalen = useMemo(() => {
+    const tel = new Map<string, number>();
+    lijst.forEach((s) => s.talen.forEach((t) => t !== "nl" && TAAL[t] && tel.set(t, (tel.get(t) ?? 0) + 1)));
+    return [...tel.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+  }, [lijst]);
 
   const tabKnop = (actief: boolean) => `px-3 py-1.5 rounded-full text-sm ${actief ? "bg-blue-600 text-white" : "bg-paneel-2 text-tekst-2 hover:text-tekst"}`;
   const eigenKlaar = eigen.filter((c) => c.status === "klaar");
@@ -64,9 +90,10 @@ function StemKiezer({ eigen, onKies, gekozenId }: { eigen: Creatie[]; onKies: (s
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
+        <button onClick={() => setCategorie("alle")} className={tabKnop(categorie === "alle")}>Alle 100</button>
         <button onClick={() => setCategorie("nl")} className={tabKnop(categorie === "nl")}>🇳🇱 Nederlands</button>
         <button onClick={() => setCategorie("vlaams")} className={tabKnop(categorie === "vlaams")}>🇧🇪 Vlaams & Brabants</button>
-        <button onClick={() => setCategorie("internationaal")} className={tabKnop(categorie === "internationaal")}>🌍 Internationaal</button>
+        <button onClick={() => setCategorie("internationaal")} className={tabKnop(categorie === "internationaal")} title="Internationale topstemmen die ook goed Nederlands spreken">🌍 Internationaal</button>
         <button onClick={() => setCategorie("eigen")} className={tabKnop(categorie === "eigen")}>⭐ Eigen stemmen ({eigenKlaar.length})</button>
       </div>
 
@@ -110,6 +137,10 @@ function StemKiezer({ eigen, onKies, gekozenId }: { eigen: Creatie[]; onKies: (s
               <option value="">Alle soorten</option>
               {Object.entries(GEBRUIK_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
+            <select value={ookTaal} onChange={(e) => setOokTaal(e.target.value)} className="n-invoer !w-auto !py-1.5">
+              <option value="">Spreekt ook…</option>
+              {andereTalen.map((t) => <option key={t} value={t}>{TAAL[t].vlag} {TAAL[t].naam}</option>)}
+            </select>
           </div>
           <p className="text-[11px] text-tekst-3">{lijst.length ? `${gefilterd.length} stemmen` : "Stemmen laden…"}</p>
           <div className="grid sm:grid-cols-2 gap-2">
@@ -121,11 +152,13 @@ function StemKiezer({ eigen, onKies, gekozenId }: { eigen: Creatie[]; onKies: (s
                     {s.naam} {s.typering && <span className="font-normal text-tekst-3">· {s.typering}</span>}
                   </div>
                   <div className="text-[11px] text-tekst-3 truncate">
-                    {s.geslacht} · {s.leeftijd} · {GEBRUIK_LABEL[s.gebruik] ?? s.gebruik}{s.taal !== "nl" ? ` · ${s.taal.toUpperCase()}` : ""}
+                    {s.geslacht} · {s.leeftijd}{s.gebruik ? ` · ${GEBRUIK_LABEL[s.gebruik] ?? s.gebruik}` : ""}
+                    {s.accent !== "Nederlands" ? ` · ${s.accent}` : ""}{!s.moedertaal ? " · internationaal" : ""}
                   </div>
+                  <div className="mt-0.5"><Vlaggen talen={s.talen} /></div>
                 </div>
                 <button
-                  onClick={() => onKies({ id: s.id, naam: s.naam, taal: s.taal, omschrijving: `${s.geslacht}, ${s.leeftijd}, ${GEBRUIK_LABEL[s.gebruik] ?? s.gebruik}`, voorbeeld: s.voorbeeld })}
+                  onClick={() => onKies({ id: s.id, naam: s.naam, taal: "nl", talen: s.talen, omschrijving: `${s.geslacht}, ${s.leeftijd}${s.gebruik ? `, ${GEBRUIK_LABEL[s.gebruik] ?? s.gebruik}` : ""}`, voorbeeld: s.voorbeeld })}
                   className="n-knop2 !py-1 !px-3 text-xs"
                 >
                   Kies
@@ -293,7 +326,7 @@ export default function StemStudio() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-extrabold text-tekst tracking-tight">🗣️ Stem & Lipsync</h1>
-        <p className="text-tekst-3 mt-1">Meer dan 1.000 Nederlandse stemmen, losse voice-overs om te downloaden, je eigen stem, en foto&apos;s die praten.</p>
+        <p className="text-tekst-3 mt-1">De 100 beste stemmen voor Nederlands, losse voice-overs om te downloaden, je eigen stem, en foto&apos;s die praten.</p>
       </div>
 
       <div className="flex flex-wrap gap-1 rounded-2xl bg-paneel border border-rand p-1 w-fit">
@@ -327,6 +360,7 @@ export default function StemStudio() {
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold text-tekst">{stem.naam}</div>
                       <div className="text-[11px] text-tekst-3">{stem.omschrijving}</div>
+                      {stem.talen && <Vlaggen talen={stem.talen} max={12} />}
                     </div>
                   </>
                 ) : (
@@ -340,6 +374,14 @@ export default function StemStudio() {
                 </div>
               )}
             </div>
+            {stem && (stem.talen?.length ?? 0) > 1 && (
+              <div>
+                <label className="n-label">Taal van je tekst</label>
+                <select value={stem.taal} onChange={(e) => setStem({ ...stem, taal: e.target.value })} className="n-invoer mt-1.5">
+                  {stem.talen!.filter((t) => TAAL[t]).map((t) => <option key={t} value={t}>{TAAL[t].vlag} {TAAL[t].naam}</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label className="n-label">Tekst</label>
               <textarea
