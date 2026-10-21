@@ -38,7 +38,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { user, p } = await eigen(id);
   if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
   if (!p) return NextResponse.json({ error: "Niet gevonden" }, { status: 404 });
-  const b = (await req.json().catch(() => ({}))) as { actie?: string; tekst?: unknown; ja?: unknown; aan?: unknown; bijlagen?: unknown };
+  const b = (await req.json().catch(() => ({}))) as { actie?: string; tekst?: unknown; ja?: unknown; aan?: unknown; bijlagen?: unknown; waarde?: unknown };
+  const waarde = typeof b.waarde === "string" ? b.waarde.slice(0, 600) : undefined;
   const bijlagen = (Array.isArray(b.bijlagen) ? b.bijlagen : []) as BijlageInvoer[];
   const tekst = typeof b.tekst === "string" ? b.tekst.trim().slice(0, 4000) : "";
 
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     after(() => nieuwBericht(p, tekst, bijlagen));
   } else if (b.actie === "antwoord") {
     if (!(await neemOver(id, ["wacht_op_antwoord"]))) return NextResponse.json({ error: "Er staat geen vraag open." }, { status: 409 });
-    after(() => beantwoord(p, tekst, bijlagen));
+    after(() => beantwoord(p, tekst, bijlagen, waarde));
   } else if (b.actie === "bevestig") {
     if (!(await neemOver(id, ["wacht_op_bevestiging"]))) return NextResponse.json({ error: "Er staat niets klaar om te bevestigen." }, { status: 409 });
     after(() => bevestig(p, b.ja === true, tekst || undefined));

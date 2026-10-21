@@ -18,6 +18,7 @@ vi.mock("@/lib/supabase/service", () => ({
         upsert: async (rij: { tekst: string }) => ((db.geheugen = rij.tekst), { error: null }),
         eq: (k: string, v: unknown) => (filters.push([k, v]), keten),
         in: (k: string, v: unknown[]) => (filters.push([k + ":in", v]), keten),
+        limit: () => keten,
         single: async () => resultaat(),
         maybeSingle: async () => resultaat(),
         then: (ok: (r: unknown) => void) => ok(resultaat()),
@@ -82,7 +83,7 @@ describe("de Regisseur", () => {
     antwoorden.push(zegt({ type: "text", text: "Even checken." }, tool("v1", "vraag_keuze", { vraag: "Welke stijl?", opties: ["Strak", "Vrolijk"] })));
     await draai("p1");
     expect(db.project!.status).toBe("wacht_op_antwoord");
-    expect((db.project!.wachtend as { opties: string[] }).opties).toEqual(["Strak", "Vrolijk"]);
+    expect((db.project!.wachtend as { opties: { label: string }[] }).opties.map((o) => o.label)).toEqual(["Strak", "Vrolijk"]);
 
     antwoorden.push(zegt({ type: "text", text: "Top, strak dus." }));
     await beantwoord(db.project as never, "Strak");
@@ -196,5 +197,26 @@ describe("geheugen", () => {
     const systeem = verzoeken[1].system as { text: string }[];
     expect(systeem[1].text).toContain("De Zoete Zwaan");
     expect(verzoeken[1].cache_control).toEqual({ type: "ephemeral" });
+  });
+});
+
+describe("keuzemenu's", () => {
+  test("creator: de app vult zelf alle creators met portret; het antwoord gaat met id naar Claude", async () => {
+    antwoorden.push(zegt(tool("v", "vraag_keuze", { vraag: "Welke creator?", soort: "creator" })));
+    await draai("p1");
+    const opties = (db.project!.wachtend as { opties: { label: string; waarde: string; beeld?: string }[] }).opties;
+    expect(opties.length).toBeGreaterThanOrEqual(10);
+    expect(opties.every((o) => o.beeld)).toBe(true);
+    const chantal = opties.find((o) => o.label === "Chantal")!;
+    antwoorden.push(zegt({ type: "text", text: "Top." }));
+    await beantwoord(db.project as never, chantal.label, [], chantal.waarde);
+    const res = (db.project!.berichten as { content: { content: string }[] }[])[2].content[0];
+    expect(res.content).toBe("Antwoord van de gebruiker: Chantal [waarde: Chantal (creator-id chantal)]");
+  });
+  test("stem: alle stemmen met een luistervoorbeeld", async () => {
+    antwoorden.push(zegt(tool("v", "vraag_keuze", { vraag: "Welke stem?", soort: "stem" })));
+    await draai("p1");
+    const opties = (db.project!.wachtend as { opties: { geluid?: string }[] }).opties;
+    expect(opties.every((o) => o.geluid?.startsWith("/voice-previews/"))).toBe(true);
   });
 });

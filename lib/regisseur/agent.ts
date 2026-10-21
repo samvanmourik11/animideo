@@ -14,7 +14,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/service";
 import { verversLopende } from "@/lib/creaties/wachtrij";
 import type { Creatie } from "@/lib/creaties/types";
-import { BETAALDE_TOOLS, GRATIS_TOOLS, TOOLS, bereidVoor, gratis, leesGeheugen, voerUit, type Stap } from "./tools";
+import { BETAALDE_TOOLS, GRATIS_TOOLS, TOOLS, bereidVoor, bouwOpties, gratis, leesGeheugen, voerUit, type Optie, type Stap } from "./tools";
 
 const MODEL = "claude-opus-5-5";
 const MAX_RONDES = 12;
@@ -26,7 +26,7 @@ type Bericht = Anthropic.Beta.BetaMessageParam;
 type Resultaat = Anthropic.Beta.BetaToolResultBlockParam;
 
 export type Wachtend =
-  | { soort: "antwoord"; toolUseId: string; vraag: string; opties: string[]; volgorde: string[]; klaar: Record<string, Resultaat> }
+  | { soort: "antwoord"; toolUseId: string; vraag: string; opties: Optie[]; meerdere: boolean; volgorde: string[]; klaar: Record<string, Resultaat> }
   | { soort: "bevestiging"; stappen: Stap[]; totaal: number; volgorde: string[]; klaar: Record<string, Resultaat>; wachtId?: string; wachtIds?: string[] }
   | { soort: "maken"; toolUseId: string; ids: string[]; volgorde: string[]; klaar: Record<string, Resultaat> };
 
@@ -47,6 +47,7 @@ const SYSTEEM = `Je bent de Regisseur van Animideo, een Nederlandse app om beeld
 
 Werkwijze:
 - Begrijp eerst wat de gebruiker wil. Ontbreekt er iets wezenlijks (doel, stijl, lengte, formaat), stel dan één vraag met vraag_keuze in plaats van te gokken. Vraag niet meer dan nodig.
+- Laat de gebruiker zelf kiezen bij persoonlijke smaakkeuzes, met het menu van vraag_keuze: welke creator (soort 'creator'), welke stem (soort 'stem'), welke versie van een beeld (soort 'beeld'), welke stijl of richting (soort 'tekst', met korte uitleg per optie). Kies dat niet zelf, tenzij de gebruiker zegt dat jij mag kiezen of het al in het geheugen staat. Eén vraag per keer. Zet de vraag alleen in vraag_keuze, niet ook nog eens in je tekst (die verschijnen allebei op het scherm).
 - Maak een kort plan (welke beelden, welke clips, welke montage) en voer het uit. Elke betaalde stap wordt de gebruiker vooraf voorgelegd; je hoeft niet zelf om toestemming te vragen.
 - Houd personages, gezichten en producten gelijk door steeds dezelfde voorbeelden (creatie-ids of foto-adressen) mee te geven aan maak_beeld.
 - Start wat tegelijk kan in één keer (bijvoorbeeld alle beelden), en gebruik daarna wacht_op. Bekijk de resultaten kritisch; is iets mislukt of klopt het niet, maak alleen dat opnieuw.
@@ -164,10 +165,10 @@ export async function draai(id: string): Promise<void> {
       const vraag = aanroepen.find((b) => b.name === "vraag_keuze");
       if (vraag) {
         for (const b of aanroepen) if (b.id !== vraag.id && !klaar[b.id]) klaar[b.id] = resultaatTekst(b.id, "Uitgesteld: eerst het antwoord op je vraag.", true);
-        const i = vraag.input as { vraag?: string; opties?: string[] };
+        const i = vraag.input as Record<string, unknown>;
         await bewaar(id, {
           berichten, gebruik, galerij, status: "wacht_op_antwoord",
-          wachtend: { soort: "antwoord", toolUseId: vraag.id, vraag: String(i.vraag ?? ""), opties: (i.opties ?? []).map(String).slice(0, 5), volgorde, klaar },
+          wachtend: { soort: "antwoord", toolUseId: vraag.id, vraag: String(i.vraag ?? ""), opties: await bouwOpties(p.user_id, i), meerdere: i.meerdere === true, volgorde, klaar },
         });
         return;
       }
@@ -285,10 +286,13 @@ export async function nieuwBericht(p: RegieProject, tekst: string, bijlagen: Bij
   await draai(p.id);
 }
 
-export async function beantwoord(p: RegieProject, antwoord: string, bijlagen: BijlageInvoer[] = []): Promise<void> {
+export async function beantwoord(p: RegieProject, antwoord: string, bijlagen: BijlageInvoer[] = [], waarde?: string): Promise<void> {
   const w = p.wachtend;
   if (w?.soort !== "antwoord") return draai(p.id);
-  const klaar = { ...w.klaar, [w.toolUseId]: resultaatTekst(w.toolUseId, `Antwoord van de gebruiker: ${antwoord}`) };
+  // Op het scherm staat wat de gebruiker koos ("Chantal"); Claude krijgt er de precieze
+  // waarde bij ("creator-id chantal") tussen haakjes, die de weergave weer weglaat.
+  const extra = waarde && waarde !== antwoord ? ` [waarde: ${waarde}]` : "";
+  const klaar = { ...w.klaar, [w.toolUseId]: resultaatTekst(w.toolUseId, `Antwoord van de gebruiker: ${antwoord}${extra}`) };
   const berichten = [...p.berichten, resultatenBericht(w.volgorde, klaar)];
   // Stuurt de gebruiker bij zijn antwoord een bestand mee, dan komt dat er als gewoon
   // bericht achteraan (twee gebruikersbeurten na elkaar voegt de API samen).

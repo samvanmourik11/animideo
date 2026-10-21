@@ -16,9 +16,10 @@ import { useCreaties } from "@/components/creaties/gebruik-creaties";
 type Blok = { type: string; text?: string; name?: string; input?: Record<string, unknown>; content?: unknown; tool_use_id?: string; source?: { url?: string }; title?: string };
 interface Bijlage { soort: "beeld" | "document"; url: string; naam: string; id?: string }
 type Bericht = { role: "user" | "assistant"; content: string | Blok[] };
-interface Stap { toolUseId: string; naam: string; credits: number; omschrijving: string }
+interface Stap { toolUseId: string; naam: string; credits: number; omschrijving: string; details?: { beelden?: string[]; regels?: string[] } }
+interface Optie { label: string; waarde: string; uitleg?: string; beeld?: string; geluid?: string }
 type Wachtend =
-  | { soort: "antwoord"; vraag: string; opties: string[] }
+  | { soort: "antwoord"; vraag: string; opties: (Optie | string)[]; meerdere?: boolean }
   | { soort: "bevestiging"; stappen: Stap[]; totaal: number }
   | { soort: "maken"; ids: string[] };
 interface Project {
@@ -50,7 +51,7 @@ const ICOON: Record<string, string> = {
 };
 
 /** Het gesprek in leesbare regels: tekst van beide kanten, en wat de Regisseur deed. */
-function regels(berichten: Bericht[]) {
+function regels(berichten: Bericht[], openVraag = false) {
   const uit: { wie: "jij" | "regisseur" | "actie" | "bijlage"; tekst: string; url?: string }[] = [];
   for (const b of berichten) {
     if (typeof b.content === "string") {
@@ -64,14 +65,19 @@ function regels(berichten: Bericht[]) {
       if (blok.type === "text" && blok.text?.startsWith("(Bijlage: ")) continue;
       if (blok.type === "text" && blok.text === "(Zie de bijlage.)") continue;
       if (blok.type === "text" && blok.text?.trim()) uit.push({ wie: b.role === "user" ? "jij" : "regisseur", tekst: blok.text });
-      if (blok.type === "tool_use" && blok.name === "vraag_keuze") uit.push({ wie: "regisseur", tekst: String(blok.input?.vraag ?? "") });
+      // De vraag die nu openstaat, staat al boven het keuzemenu; niet nog eens als ballon.
+      const laatste = b === berichten[berichten.length - 1];
+      if (blok.type === "tool_use" && blok.name === "vraag_keuze") {
+        if (!(openVraag && laatste)) uit.push({ wie: "regisseur", tekst: String(blok.input?.vraag ?? "") });
+      }
       else if (blok.type === "tool_use" && blok.name && ICOON[blok.name]) {
         const i = blok.input ?? {};
         const extra = String(i.prompt ?? i.beweging ?? i.url ?? i.titel ?? i.app_id ?? "").slice(0, 80);
         uit.push({ wie: "actie", tekst: `${ICOON[blok.name]}${extra ? `: ${extra}` : ""}` });
       }
       if (blok.type === "tool_result" && typeof blok.content === "string" && blok.content.startsWith("Antwoord van de gebruiker: ")) {
-        uit.push({ wie: "jij", tekst: blok.content.slice("Antwoord van de gebruiker: ".length) });
+        // De precieze waarde voor Claude ("(creator-id chantal)") hoort niet in beeld.
+        uit.push({ wie: "jij", tekst: blok.content.slice("Antwoord van de gebruiker: ".length).replace(/ \[waarde: [\s\S]*\]$/, "") });
       }
     }
   }
@@ -112,6 +118,91 @@ async function uploadBijlage(f: File): Promise<Bijlage> {
   const d = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(d.error ?? "Uploaden mislukt.");
   return d.bijlage;
+}
+
+/**
+ * Het keuzemenu van de Regisseur: kaarten met portret of beeld (creators, versies),
+ * stemmen met een luisterknop, of gewone knoppen. Eén keuze verstuurt meteen; bij
+ * "meerdere" eerst aanvinken en dan op Kies.
+ */
+function KeuzeMenu({ vraag, opties, meerdere, onKies }: { vraag: string; opties: Optie[]; meerdere: boolean; onKies: (gekozen: Optie[]) => void }) {
+  const [gekozen, setGekozen] = useState<string[]>([]);
+  const speler = useRef<HTMLAudioElement | null>(null);
+  const metBeeld = opties.some((o) => o.beeld);
+  const metGeluid = opties.some((o) => o.geluid);
+  const kies = (o: Optie) => {
+    if (!meerdere) return onKies([o]);
+    setGekozen((g) => (g.includes(o.waarde) ? g.filter((x) => x !== o.waarde) : [...g, o.waarde]));
+  };
+  const luister = (e: React.MouseEvent, url: string) => {
+    e.stopPropagation();
+    speler.current?.pause();
+    speler.current = new Audio(url);
+    speler.current.play().catch(() => {});
+  };
+  return (
+    <div className="n-kaart !p-4 space-y-3">
+      <div className="text-sm font-semibold text-tekst">{vraag}</div>
+      {metBeeld ? (
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+          {opties.map((o) => (
+            <button
+              key={o.waarde}
+              onClick={() => kies(o)}
+              className={`text-left rounded-xl overflow-hidden border-2 bg-paneel-2 transition-colors ${gekozen.includes(o.waarde) ? "border-blue-500" : "border-transparent hover:border-blue-500/50"}`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={o.beeld} alt={o.label} className="w-full aspect-[3/4] object-cover" />
+              <div className="px-2 py-1.5">
+                <div className="text-xs font-semibold text-tekst truncate">{o.label}</div>
+                {o.uitleg && <div className="text-[10px] text-tekst-3 truncate">{o.uitleg}</div>}
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : metGeluid ? (
+        <div className="grid sm:grid-cols-2 gap-2">
+          {opties.map((o) => (
+            <div
+              key={o.waarde}
+              role="button"
+              tabIndex={0}
+              onClick={() => kies(o)}
+              onKeyDown={(e) => e.key === "Enter" && kies(o)}
+              className={`flex items-center gap-3 rounded-xl border px-3 py-2 cursor-pointer ${gekozen.includes(o.waarde) ? "border-blue-500 bg-blue-500/10" : "border-rand hover:border-blue-500/50"}`}
+            >
+              <button onClick={(e) => luister(e, o.geluid!)} className="w-8 h-8 shrink-0 rounded-full bg-blue-600 text-white text-xs" aria-label={`Luister naar ${o.label}`}>▶</button>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-tekst">{o.label}</div>
+                {o.uitleg && <div className="text-[11px] text-tekst-3 truncate">{o.uitleg}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid sm:grid-cols-2 gap-2">
+          {opties.map((o) => (
+            <button
+              key={o.waarde}
+              onClick={() => kies(o)}
+              className={`text-left rounded-xl border px-3 py-2 ${gekozen.includes(o.waarde) ? "border-blue-500 bg-blue-500/10" : "border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10"}`}
+            >
+              <div className="text-sm font-semibold text-tekst">{o.label}</div>
+              {o.uitleg && <div className="text-[11px] text-tekst-3">{o.uitleg}</div>}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] text-tekst-3">{meerdere ? "Kies er één of meer. " : ""}Of typ hieronder je eigen antwoord.</p>
+        {meerdere && (
+          <button onClick={() => onKies(opties.filter((o) => gekozen.includes(o.waarde)))} disabled={!gekozen.length} className="btn-primary text-sm disabled:opacity-50">
+            Kies ({gekozen.length})
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 async function stuur(pad: string, body: unknown) {
@@ -316,7 +407,7 @@ export default function Regisseur() {
         ) : (
           <div className="flex-1 space-y-3 pb-4">
             <h1 className="text-lg font-bold text-tekst">{project.titel}</h1>
-            {regels(project.berichten).map((r, i) =>
+            {regels(project.berichten, project.status === "wacht_op_antwoord").map((r, i) =>
               r.wie === "actie" ? (
                 <div key={i} className="text-xs text-tekst-3 pl-1">{r.tekst}</div>
               ) : r.wie === "bijlage" ? (
@@ -348,37 +439,48 @@ export default function Regisseur() {
             )}
 
             {w?.soort === "antwoord" && project.status === "wacht_op_antwoord" && (
-              <div className="n-kaart !p-4 space-y-2">
-                <div className="text-sm font-semibold text-tekst">{w.vraag}</div>
-                <div className="flex flex-wrap gap-2">
-                  {w.opties.map((o) => (
-                    <button
-                      key={o}
-                      onClick={() =>
-                        doe(async () => {
-                          await stuur(`/api/regisseur/${project.id}`, { actie: "antwoord", tekst: o });
-                          setProject({ ...project, status: "denkt", wachtend: null });
-                          laadProject(project.id);
-                        })
-                      }
-                      className="rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-sm text-blue-700 dark:text-blue-200 hover:bg-blue-500/20"
-                    >
-                      {o}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[11px] text-tekst-3">Of typ hieronder je eigen antwoord.</p>
-              </div>
+              <KeuzeMenu
+                vraag={w.vraag}
+                // Projecten van vóór de menu's bewaarden de opties als losse tekst.
+                opties={w.opties.map((o) => (typeof o === "string" ? { label: o, waarde: o } : o))}
+                meerdere={!!w.meerdere}
+                onKies={(lijst) =>
+                  doe(async () => {
+                    await stuur(`/api/regisseur/${project.id}`, {
+                      actie: "antwoord",
+                      tekst: lijst.map((o) => o.label).join(", "),
+                      waarde: lijst.map((o) => o.waarde).join("; "),
+                    });
+                    setProject({ ...project, status: "denkt", wachtend: null });
+                    laadProject(project.id);
+                  })
+                }
+              />
             )}
 
             {w?.soort === "bevestiging" && project.status === "wacht_op_bevestiging" && (
               <div className="n-kaart !p-4 space-y-3">
                 <div className="text-sm font-semibold text-tekst">De Regisseur wil dit maken:</div>
-                <ul className="space-y-1">
+                <ul className="space-y-3">
                   {w.stappen.map((s) => (
-                    <li key={s.toolUseId} className="flex justify-between gap-3 text-sm text-tekst-2">
-                      <span className="truncate">{s.omschrijving}</span>
-                      <span className="shrink-0 text-tekst-3">{s.credits ? `${s.credits} cr.` : "gratis"}</span>
+                    <li key={s.toolUseId} className="space-y-2">
+                      <div className="flex justify-between gap-3 text-sm text-tekst-2">
+                        <span className="truncate font-medium text-tekst">{s.omschrijving}</span>
+                        <span className="shrink-0 text-tekst-3">{s.credits ? `${s.credits} cr.` : "gratis"}</span>
+                      </div>
+                      {s.details && (
+                        <div className="flex gap-3">
+                          {(s.details.beelden ?? []).map((b) => (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img key={b} src={b} alt="" className="w-16 h-20 shrink-0 rounded-lg object-cover border border-rand" />
+                          ))}
+                          {s.details.regels && (
+                            <ol className="text-xs text-tekst-2 space-y-1 max-h-48 overflow-y-auto list-decimal pl-4">
+                              {s.details.regels.map((r, n) => <li key={n}>{r}</li>)}
+                            </ol>
+                          )}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>

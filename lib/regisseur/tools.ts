@@ -38,14 +38,22 @@ export const TOOLS: Tool[] = [
   {
     name: "vraag_keuze",
     description:
-      "Stel de gebruiker één vraag met 2-5 klikbare antwoorden (de gebruiker kan ook zelf iets typen). Gebruik dit voor echte keuzes (stijl, richting, welke versie) in plaats van in je tekst te vragen. Het gesprek pauzeert tot er antwoord is.",
+      "Laat de gebruiker kiezen via een klikbaar menu; het gesprek pauzeert tot er antwoord is (de gebruiker kan ook zelf iets typen). Soorten: 'creator' toont alle UGC-creators met portret (geen opties nodig), 'stem' toont alle Nederlandse stemmen met luisterknop (geen opties nodig), 'beeld' toont de beelden uit beeld_ids naast elkaar (bijv. versies om uit te kiezen; met meerdere: true mag de gebruiker er meer kiezen), 'tekst' toont de opties als knoppen (2-6, eventueel met korte uitleg). Gebruik dit voor alle echte keuzes in plaats van in je tekst te vragen of zelf te kiezen.",
     input_schema: {
       type: "object",
       properties: {
         vraag: { type: "string", description: "De vraag, kort, in het Nederlands." },
-        opties: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 5, description: "Korte antwoorden." },
+        soort: { type: "string", enum: ["tekst", "creator", "stem", "beeld"] },
+        opties: {
+          type: "array",
+          maxItems: 6,
+          items: { type: "object", properties: { label: { type: "string" }, uitleg: { type: "string" } }, required: ["label"] },
+          description: "Alleen bij soort 'tekst'.",
+        },
+        beeld_ids: { type: "array", items: { type: "string" }, maxItems: 8, description: "Alleen bij soort 'beeld': creatie-ids." },
+        meerdere: { type: "boolean", description: "Meer dan één antwoord toestaan." },
       },
-      required: ["vraag", "opties"],
+      required: ["vraag", "soort"],
     },
   },
   {
@@ -203,6 +211,54 @@ export interface Stap {
   invoer: Record<string, unknown>;
   credits: number;
   omschrijving: string;
+  /** Wat de gebruiker bij de bevestiging te zien krijgt: een beeld en het script. */
+  details?: { beelden?: string[]; regels?: string[] };
+}
+
+/** Eén keuze in een menu van de Regisseur. */
+export interface Optie {
+  label: string;
+  /** Wat er naar Claude teruggaat (bv. "Chantal (creator-id chantal)"). */
+  waarde: string;
+  uitleg?: string;
+  beeld?: string;
+  /** Een stemvoorbeeld om te beluisteren. */
+  geluid?: string;
+}
+
+/**
+ * Het menu bij een vraag. Creators en stemmen vult de app zelf: zo hoeft Claude ze niet
+ * op te sommen, en staan er altijd echte portretten en echte stemvoorbeelden in.
+ */
+export async function bouwOpties(userId: string, input: Record<string, unknown>): Promise<Optie[]> {
+  const soort = input.soort;
+  if (soort === "creator") {
+    const lijst = JSON.parse(await gratis(userId, { name: "ugc_creators", input: {} } as Anthropic.Beta.BetaToolUseBlock)) as { id: string; naam: string; omschrijving?: string; portret: string; eigen?: boolean }[];
+    return lijst.map((c) => ({
+      label: c.naam,
+      waarde: `${c.naam} (creator-id ${c.id})`,
+      uitleg: c.eigen ? "Eigen creator" : CREATORS.find((x) => x.id === c.id)?.omschrijving,
+      beeld: c.portret,
+    }));
+  }
+  if (soort === "stem") {
+    return UGC_STEMMEN.map((s) => ({ label: s.naam, waarde: `stem ${s.naam}`, uitleg: `${s.geslacht} · ${s.omschrijving}`, geluid: `/voice-previews/${s.id}.mp3` }));
+  }
+  if (soort === "beeld") {
+    const ids = (Array.isArray(input.beeld_ids) ? input.beeld_ids : []).map(String).slice(0, 8);
+    const { data } = ids.length
+      ? await createServiceClient().from("creaties").select("id, url, prompt").eq("user_id", userId).in("id", ids)
+      : { data: [] as { id: string; url: string | null; prompt: string | null }[] };
+    return ids
+      .map((id, i) => (data ?? []).find((c) => c.id === id))
+      .filter((c): c is { id: string; url: string | null; prompt: string | null } => !!c?.url)
+      .map((c, i) => ({ label: `Versie ${i + 1}`, waarde: `beeld ${c.id}`, beeld: c.url! }));
+  }
+  return (Array.isArray(input.opties) ? input.opties : [])
+    .slice(0, 6)
+    .map((o) => (typeof o === "string" ? { label: o } : (o as { label?: unknown; uitleg?: unknown })))
+    .filter((o) => o.label)
+    .map((o) => ({ label: String(o.label), waarde: String(o.label), ...(o.uitleg ? { uitleg: String(o.uitleg) } : {}) }));
 }
 
 /**
@@ -252,7 +308,11 @@ export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUs
     // bevestiging waar hij voor betaalt.
     const script = await schrijfUgcScript(onderwerp, { ...creator, omschrijving: "" }, sec, broll);
     const invoer = { onderwerp, fotoUrl: foto, creator: creator.id, sec, broll, script };
-    return { ...basis, maker: "ugc", invoer, credits: ugcCredits(script), omschrijving: `UGC-video (${sec} s) door ${creator.naam}: "${script.stukjes[0]?.tekst.slice(0, 70)}…"` };
+    return {
+      ...basis, maker: "ugc", invoer, credits: ugcCredits(script),
+      omschrijving: `UGC-video (${sec} s) door ${creator.naam}`,
+      details: { beelden: [creator.portretUrl, ...(foto ? [foto] : [])], regels: script.stukjes.map((x) => (x.soort === "broll" ? `🎬 ${x.tekst}` : x.tekst)) },
+    };
   }
   if (blok.name === "maak_reclame") {
     let product: Product = { naam: String(i.naam ?? ""), merk: "", omschrijving: String(i.omschrijving ?? ""), voordelen: [], prijs: "", kleur: String(i.kleur ?? "#1c72ed"), website: "", fotos: [] };
@@ -264,7 +324,11 @@ export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUs
     const formaat = (RECLAME_FORMATEN.some((f) => f.id === i.formaat) ? i.formaat : "9:16") as ReclameFormaat;
     const plan = await schrijfPlan(product, stijl);
     const invoer = { product, fotoUrl, stijl, formaat, plan };
-    return { ...basis, maker: "reclame", invoer, credits: RECLAME_CREDITS, omschrijving: `Reclame voor ${product.naam} (${stijl}, ${formaat}): "${plan.voiceover.slice(0, 70)}…"` };
+    return {
+      ...basis, maker: "reclame", invoer, credits: RECLAME_CREDITS,
+      omschrijving: `Reclame voor ${product.naam} (${STIJLEN.find((x) => x.id === stijl)?.naam}, ${formaat})`,
+      details: { beelden: [fotoUrl], regels: [`🎙️ ${plan.voiceover}`, ...plan.shots.map((x, n) => `Shot ${n + 1}: ${x.uitleg || x.tekst}`), `Eindkaart: ${plan.eindtekst}`] },
+    };
   }
   if (blok.name === "maak_trailer") {
     const sec = (TRAILER_LENGTES.some((l) => l.sec === i.sec) ? i.sec : 60) as TrailerLengte;
@@ -274,7 +338,16 @@ export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUs
       .slice(0, 3);
     const plan = await schrijfTrailer({ titel: String(i.titel ?? ""), verhaal: String(i.verhaal ?? ""), personages, genre: "fantasy", sec });
     const invoer = { genre: "fantasy", sec, plan };
-    return { ...basis, maker: "trailer", invoer, credits: trailerCredits(plan), omschrijving: `Trailer "${plan.titel}" (${sec} s, ${plan.clips.length} filmclips)` };
+    return {
+      ...basis, maker: "trailer", invoer, credits: trailerCredits(plan),
+      omschrijving: `Trailer "${plan.titel}" (${sec} s, ${plan.clips.length} filmclips)`,
+      details: {
+        regels: [
+          ...plan.personages.map((x) => `🎭 ${x.naam}: ${x.rol}`),
+          ...plan.tijdlijn.filter((e) => e.regel?.tekst).map((e) => `${e.regel!.wie === "verteller" ? "🎙️" : `${e.regel!.wie}:`} ${e.regel!.tekst}`),
+        ],
+      },
+    };
   }
   throw new Error(`Onbekend gereedschap: ${blok.name}`);
 }
