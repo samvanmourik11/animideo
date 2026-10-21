@@ -71,6 +71,17 @@ function regels(berichten: Bericht[]) {
   return uit;
 }
 
+/** Claude schrijft **vet**; dat tonen we als vet in plaats van met sterretjes. */
+function MetVet({ tekst }: { tekst: string }) {
+  return (
+    <>
+      {tekst.split(/(\*\*[^*]+\*\*)/g).map((stuk, i) =>
+        stuk.startsWith("**") && stuk.endsWith("**") ? <strong key={i}>{stuk.slice(2, -2)}</strong> : <span key={i}>{stuk}</span>,
+      )}
+    </>
+  );
+}
+
 async function stuur(pad: string, body: unknown) {
   const res = await fetch(pad, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const d = await res.json().catch(() => ({}));
@@ -213,7 +224,7 @@ export default function Regisseur() {
                       r.wie === "jij" ? "bg-blue-600 text-white" : "bg-paneel border border-rand text-tekst"
                     }`}
                   >
-                    {r.tekst}
+                    <MetVet tekst={r.tekst} />
                   </div>
                 </div>
               ),
