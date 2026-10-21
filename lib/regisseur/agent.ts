@@ -208,22 +208,82 @@ export async function draai(id: string): Promise<void> {
   }
 }
 
+// ── Bijlagen ─────────────────────────────────────────────────────────────
+
+export interface BijlageInvoer {
+  soort?: unknown;
+  id?: unknown;
+  url?: unknown;
+  naam?: unknown;
+}
+
+const MAX_BIJLAGEN = 8;
+
+/**
+ * Tekst + bijlagen → wat Claude krijgt. Foto's alleen uit de eigen bibliotheek (opnieuw
+ * opgezocht, nooit een adres uit de browser overnemen), pdf's alleen uit de eigen map in
+ * onze opslag. Geeft ook de foto-ids terug, die horen in de galerij van het project.
+ */
+export async function maakInhoud(
+  userId: string,
+  tekst: string,
+  bijlagen: BijlageInvoer[] = [],
+): Promise<{ inhoud: string | Anthropic.Beta.BetaContentBlockParam[]; fotoIds: string[] }> {
+  const lijst = bijlagen.slice(0, MAX_BIJLAGEN);
+  if (!lijst.length) return { inhoud: tekst, fotoIds: [] };
+  const blokken: Anthropic.Beta.BetaContentBlockParam[] = [];
+  const fotoIds: string[] = [];
+  const ids = lijst.filter((b) => b.soort === "beeld").map((b) => String(b.id ?? ""));
+  const { data } = ids.length
+    ? await createServiceClient().from("creaties").select("id, url, prompt").eq("user_id", userId).in("id", ids)
+    : { data: [] as { id: string; url: string | null; prompt: string | null }[] };
+  for (const b of lijst) {
+    const naam = String(b.naam ?? "bestand").slice(0, 120);
+    if (b.soort === "beeld") {
+      const c = (data ?? []).find((x) => x.id === b.id);
+      if (!c?.url) continue;
+      blokken.push({ type: "image", source: { type: "url", url: c.url } });
+      blokken.push({ type: "text", text: `(Bijlage: foto "${naam}", creatie-id ${c.id}. Bruikbaar als voorbeeld in maak_beeld, maak_video en gebruik_app.)` });
+      fotoIds.push(c.id);
+    } else if (b.soort === "document") {
+      const url = String(b.url ?? "");
+      if (!url.includes(`/scene-assets/${userId}/creaties/`) || !url.endsWith(".pdf")) continue;
+      blokken.push({ type: "document", source: { type: "url", url }, title: naam });
+    }
+  }
+  blokken.push({ type: "text", text: tekst || "(Zie de bijlage.)" });
+  return { inhoud: blokken, fotoIds };
+}
+
 // ── Verder na een pauze ──────────────────────────────────────────────────
 
 /** Een nieuw bericht van de gebruiker. Tijdens een pauze telt het als antwoord of als nee. */
-export async function nieuwBericht(p: RegieProject, tekst: string): Promise<void> {
+export async function nieuwBericht(p: RegieProject, tekst: string, bijlagen: BijlageInvoer[] = []): Promise<void> {
   const w = p.wachtend;
-  if (w?.soort === "antwoord") return beantwoord(p, tekst);
-  if (w?.soort === "bevestiging") return bevestig(p, false, tekst);
-  await bewaar(p.id, { berichten: [...p.berichten, { role: "user", content: tekst }], wachtend: null });
+  if (w?.soort === "antwoord") return beantwoord(p, tekst, bijlagen);
+  // Bijlagen bij een "nee" zouden verloren gaan: dan eerst nee, en het bericht erachteraan.
+  if (w?.soort === "bevestiging" && !bijlagen.length) return bevestig(p, false, tekst);
+  const { inhoud, fotoIds } = await maakInhoud(p.user_id, tekst, bijlagen);
+  if (w?.soort === "bevestiging") {
+    const klaar = { ...w.klaar };
+    for (const s of w.stappen) klaar[s.toolUseId] = resultaatTekst(s.toolUseId, "De gebruiker stuurde eerst een nieuw bericht; dit is niet gestart.", true);
+    if (w.wachtId) klaar[w.wachtId] = resultaatTekst(w.wachtId, "Niet gewacht: er is niets gestart.", true);
+    p = { ...p, berichten: [...p.berichten, resultatenBericht(w.volgorde, klaar)] };
+  }
+  await bewaar(p.id, { berichten: [...p.berichten, { role: "user", content: inhoud }], galerij: [...p.galerij, ...fotoIds], wachtend: null });
   await draai(p.id);
 }
 
-export async function beantwoord(p: RegieProject, antwoord: string): Promise<void> {
+export async function beantwoord(p: RegieProject, antwoord: string, bijlagen: BijlageInvoer[] = []): Promise<void> {
   const w = p.wachtend;
   if (w?.soort !== "antwoord") return draai(p.id);
   const klaar = { ...w.klaar, [w.toolUseId]: resultaatTekst(w.toolUseId, `Antwoord van de gebruiker: ${antwoord}`) };
-  await bewaar(p.id, { berichten: [...p.berichten, resultatenBericht(w.volgorde, klaar)], wachtend: null });
+  const berichten = [...p.berichten, resultatenBericht(w.volgorde, klaar)];
+  // Stuurt de gebruiker bij zijn antwoord een bestand mee, dan komt dat er als gewoon
+  // bericht achteraan (twee gebruikersbeurten na elkaar voegt de API samen).
+  const { inhoud, fotoIds } = await maakInhoud(p.user_id, "", bijlagen);
+  if (fotoIds.length || typeof inhoud !== "string") berichten.push({ role: "user", content: inhoud });
+  await bewaar(p.id, { berichten, galerij: [...p.galerij, ...fotoIds], wachtend: null });
   await draai(p.id);
 }
 

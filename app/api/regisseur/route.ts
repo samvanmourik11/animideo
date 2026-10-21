@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { draai } from "@/lib/regisseur/agent";
+import { draai, maakInhoud, type BijlageInvoer } from "@/lib/regisseur/agent";
 
 export const runtime = "nodejs";
 // Een ronde van de Regisseur draait na het antwoord door (after()): Claude denkt na en
@@ -27,12 +27,15 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
-  const { tekst } = (await req.json().catch(() => ({}))) as { tekst?: unknown };
+  const { tekst, bijlagen } = (await req.json().catch(() => ({}))) as { tekst?: unknown; bijlagen?: unknown };
   const t = typeof tekst === "string" ? tekst.trim().slice(0, 4000) : "";
-  if (t.length < 3) return NextResponse.json({ error: "Vertel wat je wilt maken." }, { status: 400 });
+  const lijst = (Array.isArray(bijlagen) ? bijlagen : []) as BijlageInvoer[];
+  if (t.length < 3 && !lijst.length) return NextResponse.json({ error: "Vertel wat je wilt maken." }, { status: 400 });
+  const { inhoud, fotoIds } = await maakInhoud(user.id, t, lijst);
+  const titel = t || String(lijst[0]?.naam ?? "Nieuw project");
   const { data, error } = await createServiceClient()
     .from("regie_projecten")
-    .insert({ user_id: user.id, titel: t.length > 60 ? `${t.slice(0, 57)}…` : t, berichten: [{ role: "user", content: t }], status: "denkt" })
+    .insert({ user_id: user.id, titel: titel.length > 60 ? `${titel.slice(0, 57)}…` : titel, berichten: [{ role: "user", content: inhoud }], galerij: fotoIds, status: "denkt" })
     .select("id")
     .single();
   if (error || !data) return NextResponse.json({ error: "Project aanmaken mislukt." }, { status: 500 });

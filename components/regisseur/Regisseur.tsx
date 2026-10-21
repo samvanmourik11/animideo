@@ -12,7 +12,8 @@ import { CREATIES_GEWIJZIGD } from "@/components/app-shell/Zijbalk";
 // er leesbare blokjes van. Een vraag, een bevestiging of het wachten op creaties staat
 // onderaan als kaart.
 
-type Blok = { type: string; text?: string; name?: string; input?: Record<string, unknown>; content?: unknown; tool_use_id?: string };
+type Blok = { type: string; text?: string; name?: string; input?: Record<string, unknown>; content?: unknown; tool_use_id?: string; source?: { url?: string }; title?: string };
+interface Bijlage { soort: "beeld" | "document"; url: string; naam: string; id?: string }
 type Bericht = { role: "user" | "assistant"; content: string | Blok[] };
 interface Stap { toolUseId: string; naam: string; credits: number; omschrijving: string }
 type Wachtend =
@@ -49,13 +50,18 @@ const ICOON: Record<string, string> = {
 
 /** Het gesprek in leesbare regels: tekst van beide kanten, en wat de Regisseur deed. */
 function regels(berichten: Bericht[]) {
-  const uit: { wie: "jij" | "regisseur" | "actie"; tekst: string }[] = [];
+  const uit: { wie: "jij" | "regisseur" | "actie" | "bijlage"; tekst: string; url?: string }[] = [];
   for (const b of berichten) {
     if (typeof b.content === "string") {
       uit.push({ wie: b.role === "user" ? "jij" : "regisseur", tekst: b.content });
       continue;
     }
     for (const blok of b.content) {
+      if (b.role === "user" && blok.type === "image" && blok.source?.url) uit.push({ wie: "bijlage", tekst: "", url: blok.source.url });
+      if (b.role === "user" && blok.type === "document") uit.push({ wie: "bijlage", tekst: `📄 ${blok.title ?? "document"}` });
+      // De uitleg bij een bijlage is voor Claude, niet voor in beeld.
+      if (blok.type === "text" && blok.text?.startsWith("(Bijlage: ")) continue;
+      if (blok.type === "text" && blok.text === "(Zie de bijlage.)") continue;
       if (blok.type === "text" && blok.text?.trim()) uit.push({ wie: b.role === "user" ? "jij" : "regisseur", tekst: blok.text });
       if (blok.type === "tool_use" && blok.name === "vraag_keuze") uit.push({ wie: "regisseur", tekst: String(blok.input?.vraag ?? "") });
       else if (blok.type === "tool_use" && blok.name && ICOON[blok.name]) {
@@ -82,6 +88,31 @@ function MetVet({ tekst }: { tekst: string }) {
   );
 }
 
+/** Verhouding van een foto, voor de vorm van de tegel in de bibliotheek. */
+function meetFormaat(f: File): Promise<string> {
+  return new Promise((ok) => {
+    if (!f.type.startsWith("image/")) return ok("1:1");
+    const img = new Image();
+    img.onload = () => {
+      const r = img.width / img.height;
+      URL.revokeObjectURL(img.src);
+      ok(r > 1.25 ? "16:9" : r < 0.8 ? "9:16" : "1:1");
+    };
+    img.onerror = () => ok("1:1");
+    img.src = URL.createObjectURL(f);
+  });
+}
+
+async function uploadBijlage(f: File): Promise<Bijlage> {
+  const form = new FormData();
+  form.append("bestand", f);
+  form.append("formaat", await meetFormaat(f));
+  const res = await fetch("/api/regisseur/bijlage", { method: "POST", body: form });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error ?? "Uploaden mislukt.");
+  return d.bijlage;
+}
+
 async function stuur(pad: string, body: unknown) {
   const res = await fetch(pad, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const d = await res.json().catch(() => ({}));
@@ -97,7 +128,30 @@ export default function Regisseur() {
   const [invoer, setInvoer] = useState("");
   const [fout, setFout] = useState<string | null>(null);
   const [open, setOpen] = useState<Creatie | null>(null);
+  const [bijlagen, setBijlagen] = useState<Bijlage[]>([]);
+  const [uploaden, setUploaden] = useState(0);
+  const [slepen, setSlepen] = useState(false);
   const onder = useRef<HTMLDivElement>(null);
+  const kiezer = useRef<HTMLInputElement>(null);
+
+  async function voegToe(bestanden: FileList | File[]) {
+    const lijst = Array.from(bestanden).slice(0, 8 - bijlagen.length);
+    if (!lijst.length) return;
+    setFout(null);
+    setUploaden((n) => n + lijst.length);
+    await Promise.all(
+      lijst.map(async (f) => {
+        try {
+          const b = await uploadBijlage(f);
+          setBijlagen((x) => [...x, b]);
+        } catch (e) {
+          setFout(e instanceof Error ? e.message : String(e));
+        } finally {
+          setUploaden((n) => n - 1);
+        }
+      }),
+    );
+  }
 
   const laadLijst = useCallback(async () => {
     const d = await fetch("/api/regisseur", { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
@@ -156,17 +210,21 @@ export default function Regisseur() {
 
   function verstuur(tekst = invoer) {
     const t = tekst.trim();
-    if (!t) return;
+    if (!t && !bijlagen.length) return;
+    const mee = bijlagen;
     return doe(async () => {
       if (!actief) {
-        const d = await stuur("/api/regisseur", { tekst: t });
+        const d = await stuur("/api/regisseur", { tekst: t, bijlagen: mee });
         setInvoer("");
+        setBijlagen([]);
         setActief(d.id);
         laadLijst();
       } else {
-        await stuur(`/api/regisseur/${actief}`, { actie: "bericht", tekst: t });
+        await stuur(`/api/regisseur/${actief}`, { actie: "bericht", tekst: t, bijlagen: mee });
         setInvoer("");
-        setProject((p) => (p ? { ...p, status: "denkt", berichten: [...p.berichten, { role: "user", content: t }], wachtend: null } : p));
+        setBijlagen([]);
+        setProject((p) => (p ? { ...p, status: "denkt", berichten: [...p.berichten, { role: "user", content: t || "(bijlage)" }], wachtend: null } : p));
+        laadProject(actief);
       }
     });
   }
@@ -193,7 +251,19 @@ export default function Regisseur() {
       </aside>
 
       {/* Gesprek */}
-      <section className="min-h-[70vh] flex flex-col">
+      <section
+        className={`min-h-[70vh] flex flex-col rounded-3xl transition-colors ${slepen ? "bg-blue-500/5 ring-2 ring-dashed ring-blue-500/40" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setSlepen(true);
+        }}
+        onDragLeave={() => setSlepen(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setSlepen(false);
+          if (e.dataTransfer.files.length) voegToe(e.dataTransfer.files);
+        }}
+      >
         {!project ? (
           <div className="flex-1 flex flex-col items-center justify-center text-center gap-5 py-10">
             <div>
@@ -217,6 +287,15 @@ export default function Regisseur() {
             {regels(project.berichten).map((r, i) =>
               r.wie === "actie" ? (
                 <div key={i} className="text-xs text-tekst-3 pl-1">{r.tekst}</div>
+              ) : r.wie === "bijlage" ? (
+                <div key={i} className="flex justify-end">
+                  {r.url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.url} alt="Bijlage" className="max-h-40 rounded-2xl border border-rand" />
+                  ) : (
+                    <span className="text-sm rounded-xl bg-paneel-2 px-3 py-1.5 text-tekst-2">{r.tekst}</span>
+                  )}
+                </div>
               ) : (
                 <div key={i} className={`flex ${r.wie === "jij" ? "justify-end" : ""}`}>
                   <div
@@ -329,8 +408,61 @@ export default function Regisseur() {
 
         <div className="sticky bottom-3 mt-2">
           {fout && <p className="text-sm text-red-600 dark:text-red-300 mb-2">{fout}{fout.includes("credits") && <> <Link href="/pricing" className="underline">Credits bijkopen</Link></>}</p>}
+          {(bijlagen.length > 0 || uploaden > 0) && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {bijlagen.map((b, i) => (
+                <div key={b.url} className="relative">
+                  {b.soort === "beeld" ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={b.url} alt={b.naam} className="h-16 w-16 rounded-xl object-cover border border-rand" />
+                  ) : (
+                    <div className="h-16 max-w-[160px] rounded-xl border border-rand bg-paneel-2 px-3 flex items-center text-xs text-tekst-2 truncate">📄 {b.naam}</div>
+                  )}
+                  <button
+                    onClick={() => setBijlagen((x) => x.filter((_, j) => j !== i))}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/70 text-white text-[11px]"
+                    aria-label="Bijlage weghalen"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              {uploaden > 0 && (
+                <div className="h-16 w-16 rounded-xl border border-dashed border-rand flex items-center justify-center">
+                  <span className="w-4 h-4 rounded-full border-2 border-blue-500/30 border-t-blue-500 animate-spin" />
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex gap-2 rounded-2xl border border-rand bg-paneel p-2 shadow-sm">
+            <input
+              ref={kiezer}
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files) voegToe(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            <button
+              onClick={() => kiezer.current?.click()}
+              disabled={bijlagen.length >= 8}
+              className="self-end shrink-0 w-9 h-9 rounded-xl text-lg text-tekst-3 hover:text-tekst hover:bg-paneel-2 disabled:opacity-40"
+              title="Foto of pdf toevoegen (of sleep/plak hem hierin)"
+              aria-label="Bestand toevoegen"
+            >
+              📎
+            </button>
             <textarea
+              onPaste={(e) => {
+                const f = Array.from(e.clipboardData.files);
+                if (f.length) {
+                  e.preventDefault();
+                  voegToe(f);
+                }
+              }}
               value={invoer}
               onChange={(e) => setInvoer(e.target.value)}
               onKeyDown={(e) => {
@@ -340,10 +472,14 @@ export default function Regisseur() {
                 }
               }}
               rows={2}
-              placeholder={project ? "Stuur bij, stel een vraag of geef een nieuwe opdracht…" : "Wat wil je maken? Plak gerust een link naar je product."}
+              placeholder={project ? "Stuur bij, stel een vraag of geef een nieuwe opdracht… (📎 foto of pdf erbij)" : "Wat wil je maken? Plak een link, of voeg een foto of pdf toe met 📎"}
               className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-tekst outline-none placeholder:text-tekst-3"
             />
-            <button onClick={() => verstuur()} disabled={!invoer.trim() || project?.status === "denkt"} className="btn-primary self-end disabled:opacity-50">
+            <button
+              onClick={() => verstuur()}
+              disabled={(!invoer.trim() && !bijlagen.length) || uploaden > 0 || project?.status === "denkt"}
+              className="btn-primary self-end disabled:opacity-50"
+            >
               Stuur
             </button>
           </div>

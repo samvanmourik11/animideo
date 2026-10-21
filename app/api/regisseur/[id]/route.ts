@@ -4,7 +4,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { isAdminAccount } from "@/lib/studio/access";
 import { verversLopende } from "@/lib/creaties/wachtrij";
 import type { Creatie } from "@/lib/creaties/types";
-import { beantwoord, bevestig, controleerMaken, neemOver, nieuwBericht, type RegieProject } from "@/lib/regisseur/agent";
+import { beantwoord, bevestig, controleerMaken, neemOver, nieuwBericht, type BijlageInvoer, type RegieProject } from "@/lib/regisseur/agent";
 
 export const runtime = "nodejs";
 export const maxDuration = 800;
@@ -38,7 +38,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const { user, p } = await eigen(id);
   if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
   if (!p) return NextResponse.json({ error: "Niet gevonden" }, { status: 404 });
-  const b = (await req.json().catch(() => ({}))) as { actie?: string; tekst?: unknown; ja?: unknown; aan?: unknown };
+  const b = (await req.json().catch(() => ({}))) as { actie?: string; tekst?: unknown; ja?: unknown; aan?: unknown; bijlagen?: unknown };
+  const bijlagen = (Array.isArray(b.bijlagen) ? b.bijlagen : []) as BijlageInvoer[];
   const tekst = typeof b.tekst === "string" ? b.tekst.trim().slice(0, 4000) : "";
 
   if (b.actie === "automatisch") {
@@ -49,12 +50,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   // door elkaar halen.
   const mag = ["klaar", "fout", "wacht_op_antwoord", "wacht_op_bevestiging"];
   if (b.actie === "bericht") {
-    if (!tekst) return NextResponse.json({ error: "Leeg bericht." }, { status: 400 });
+    if (!tekst && !bijlagen.length) return NextResponse.json({ error: "Leeg bericht." }, { status: 400 });
     if (!(await neemOver(id, mag))) return NextResponse.json({ error: "De Regisseur is nog bezig. Even geduld." }, { status: 409 });
-    after(() => nieuwBericht(p, tekst));
+    after(() => nieuwBericht(p, tekst, bijlagen));
   } else if (b.actie === "antwoord") {
     if (!(await neemOver(id, ["wacht_op_antwoord"]))) return NextResponse.json({ error: "Er staat geen vraag open." }, { status: 409 });
-    after(() => beantwoord(p, tekst));
+    after(() => beantwoord(p, tekst, bijlagen));
   } else if (b.actie === "bevestig") {
     if (!(await neemOver(id, ["wacht_op_bevestiging"]))) return NextResponse.json({ error: "Er staat niets klaar om te bevestigen." }, { status: 409 });
     after(() => bevestig(p, b.ja === true, tekst || undefined));

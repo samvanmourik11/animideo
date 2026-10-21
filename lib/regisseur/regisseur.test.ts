@@ -58,7 +58,7 @@ vi.mock("@anthropic-ai/sdk", () => {
 });
 
 process.env.ANTHROPIC_API_KEY = "test";
-const { draai, beantwoord, bevestig, controleerMaken } = await import("./agent");
+const { draai, beantwoord, bevestig, controleerMaken, maakInhoud } = await import("./agent");
 
 const usage = { input_tokens: 1000, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
 const tool = (id: string, name: string, input: Record<string, unknown>) => ({ type: "tool_use", id, name, input });
@@ -157,5 +157,26 @@ describe("de Regisseur", () => {
     await draai("p1");
     expect(verzoeken[0]).toMatchObject({ model: "claude-opus-5-5", fallbacks: "default", betas: ["server-side-fallback-2026-07-01"] });
     expect((verzoeken[0].system as { cache_control?: unknown }[])[0].cache_control).toEqual({ type: "ephemeral" });
+  });
+});
+
+describe("bijlagen", () => {
+  test("eigen foto en eigen pdf gaan mee; een vreemd pdf-adres en een onbekende foto niet", async () => {
+    db.creaties = [{ id: "f1", url: "https://x.supabase.co/storage/v1/object/public/scene-assets/u1/creaties/a.jpg", prompt: "logo.jpg" }];
+    const { inhoud, fotoIds } = await maakInhoud("u1", "Maak hier iets mee", [
+      { soort: "beeld", id: "f1", naam: "logo.jpg" },
+      { soort: "beeld", id: "bestaat-niet", naam: "x.jpg" },
+      { soort: "document", url: "https://x.supabase.co/storage/v1/object/public/scene-assets/u1/creaties/b.pdf", naam: "briefing.pdf" },
+      { soort: "document", url: "https://kwaadaardig.nl/c.pdf", naam: "c.pdf" },
+      { soort: "document", url: "https://x.supabase.co/storage/v1/object/public/scene-assets/ANDER/creaties/d.pdf", naam: "d.pdf" },
+    ]);
+    const blokken = inhoud as { type: string; text?: string; title?: string }[];
+    expect(fotoIds).toEqual(["f1"]);
+    expect(blokken.filter((b) => b.type === "image")).toHaveLength(1);
+    expect(blokken.filter((b) => b.type === "document").map((b) => b.title)).toEqual(["briefing.pdf"]);
+    expect(blokken.at(-1)).toMatchObject({ type: "text", text: "Maak hier iets mee" });
+  });
+  test("zonder bijlagen blijft het gewoon tekst", async () => {
+    expect((await maakInhoud("u1", "hoi")).inhoud).toBe("hoi");
   });
 });
