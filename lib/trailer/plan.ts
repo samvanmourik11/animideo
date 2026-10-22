@@ -173,6 +173,19 @@ export function beperkZwart(t: Element[], sec: number): Element[] {
 }
 
 /**
+ * Een Kling-clip start uit een stilstaande foto: de eerste 0,5-1,75 s beweegt er bijna
+ * niets (gemeten op de proefclips). Een shot dat daar begint, voelt als "stilstaand beeld,
+ * dan pas beweging" — houterig. Waar de clip het toelaat, beginnen shots pas hierna.
+ */
+export const EERSTE_BEWEGING = 0.8;
+
+/** Het vroegste en laatste beginpunt van een shot van deze lengte in een clip. */
+export function beginRuimte(duur: number): [number, number] {
+  const laatst = Math.max(0, CLIP_SEC - duur);
+  return [Math.min(EERSTE_BEWEGING, laatst), laatst];
+}
+
+/**
  * Een clip die vaker gebruikt wordt, laat elke keer een ander stuk zien: zo ver mogelijk
  * van de stukken die al in beeld waren. De montage zoomt herhalingen daarnaast anders in.
  */
@@ -181,18 +194,19 @@ export function spreidHerhalingen(t: Element[]): Element[] {
   return t.map((e) => {
     if (e.soort !== "shot") return e;
     const eerder = gebruikt.get(e.clip) ?? [];
-    let van = e.van;
+    const [vroegst, laatst] = beginRuimte(e.duur);
+    let van = Math.min(laatst, Math.max(vroegst, e.van));
     if (eerder.length) {
-      const ruimte = Math.max(0, CLIP_SEC - e.duur);
       let beste = van;
       let afstand = -1;
-      const kandidaten = [...Array.from({ length: Math.floor(ruimte / 0.25) + 1 }, (_, j) => j * 0.25), ruimte];
+      const kandidaten = [...Array.from({ length: Math.floor((laatst - vroegst) / 0.25) + 1 }, (_, j) => vroegst + j * 0.25), laatst];
       for (const k of kandidaten) {
         const d = Math.min(...eerder.map((x) => Math.abs(x - k)));
         if (d > afstand) [beste, afstand] = [k, d];
       }
-      van = Math.round(beste * 100) / 100;
+      van = beste;
     }
+    van = Math.round(van * 100) / 100;
     gebruikt.set(e.clip, [...eerder, van]);
     return { ...e, van, ...(eerder.length ? { herhaling: eerder.length } : {}) };
   });

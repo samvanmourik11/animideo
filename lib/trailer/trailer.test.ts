@@ -6,8 +6,8 @@ vi.mock("@/lib/creaties/wachtrij", () => ({}));
 vi.mock("@/lib/team/team", () => ({}));
 vi.mock("next/server", () => ({ after: () => {} }));
 
-const { controleerTrailerPlan } = await import("./plan");
-const { plaatsStemmen, muziekVolume, begintijden, zinsgrenzen, volgDeStem } = await import("./montage");
+const { controleerTrailerPlan, beginRuimte, EERSTE_BEWEGING } = await import("./plan");
+const { plaatsStemmen, muziekVolume, muziekNiveau, muziekSleutels, begintijden, zinsgrenzen, volgDeStem } = await import("./montage");
 const { stemVoor, voOpdracht, TRAILERSTEM } = await import("./regie");
 const { tijdlijnDuur, trailerCredits } = await import("./types");
 
@@ -54,10 +54,19 @@ test("stemmen overlappen nooit en schuiven op als een zin uitloopt", () => {
   expect(p[0].start).toBeCloseTo(begintijden(t)[met[0]] + 0.15);
 });
 
-test("muziek: stil bij de adem", () => {
+test("muziek: stil bij de adem, en glijdend in plaats van springend", () => {
   const t = controleerTrailerPlan(ruwPlan(12), 60).tijdlijn;
   const i = t.findIndex((e) => e.deel === "adem");
-  expect(muziekVolume(t, [])).toContain(`between(t,${begintijden(t)[i].toFixed(2)}`);
+  const midden = begintijden(t)[i] + t[i].duur / 2;
+  expect(muziekNiveau(t, [], midden)).toBe(0);
+  const stem = [{ index: 1, start: 10, duur: 2 }];
+  const k = muziekSleutels(t, stem);
+  // Vóór de zin zakt de muziek in 0,3 s weg, erna komt hij in 0,8 s terug.
+  expect(k).toContainEqual([9.6, 0.9]);
+  expect(k).toContainEqual([9.9, 0.35]);
+  expect(k).toContainEqual([12.1, 0.35]);
+  expect(k).toContainEqual([12.9, 0.9]);
+  expect(muziekVolume(t, stem)).toContain("if(lt(t,9.90),(0.900+(-0.550)*(t-9.60)/0.30)");
 });
 
 test("stemmen: verteller vast, personages per geslacht", () => {
@@ -109,7 +118,10 @@ describe("gaten uit de proeftrailer van 20-10-2026", () => {
     const tweede = p.tijdlijn.filter((e) => e.soort === "shot" && e.herhaling);
     expect(tweede.length).toBeGreaterThan(0);
     // Zo ver uit elkaar als de clip toelaat (een shot van 4,5 s laat maar 0,5 s ruimte).
-    for (const [, s] of perClip) if (s.length > 1) expect(Math.abs(s[1].van - s[0].van)).toBeGreaterThanOrEqual(Math.min(1, 5 - s[1].duur) - 0.01);
+    for (const [, s] of perClip) if (s.length > 1) {
+      const [vroegst, laatst] = beginRuimte(s[1].duur);
+      expect(Math.abs(s[1].van - s[0].van)).toBeGreaterThanOrEqual(Math.min(1, laatst - vroegst) - 0.01);
+    }
   });
 
   test("terugkerende wezens horen bij het plan, mogen in een clip staan en tellen mee in de prijs", () => {
@@ -123,8 +135,8 @@ describe("gaten uit de proeftrailer van 20-10-2026", () => {
 
   test("de openingsstilte is bijna stil, de adem helemaal", () => {
     const t = controleerTrailerPlan({ ...ruwPlan(12), tijdlijn: [{ soort: "zwart", deel: "opening", duur: 1.5, stil: true }, ...ruwPlan(12).tijdlijn.slice(1)] }, 60).tijdlijn;
-    const v = muziekVolume(t, []);
-    expect(v.startsWith("if(between(t,0.00,1.50),0.06,")).toBe(true);
+    expect(muziekNiveau(t, [], 0.5)).toBe(0.06);
+    expect(muziekSleutels(t, [])[0]).toEqual([0, 0.06]);
   });
 });
 
@@ -169,4 +181,9 @@ describe("één verteller (22-10-2026)", () => {
     expect(uit[2].duur).toBe(2);
     expect(uit[3].duur).toBe(2);
   });
+});
+
+test("een shot begint niet in het stilstaande begin van een clip, als de clip ruimte heeft", () => {
+  const p = controleerTrailerPlan({ ...ruwPlan(24, 1), taal: "en" }, 60);
+  for (const e of p.tijdlijn) if (e.soort === "shot") expect(e.van).toBeGreaterThanOrEqual(Math.min(EERSTE_BEWEGING, 5 - e.duur) - 0.001);
 });

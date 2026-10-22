@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { renderMusicBed } from "@/lib/music/bed";
 import { CLIP_SEC, type Element } from "./types";
+import { beginRuimte } from "./plan";
 
 const run = promisify(execFile);
 const FFMPEG = ffmpegPath as unknown as string;
@@ -59,19 +60,59 @@ export function plaatsStemmen(t: Element[], duren: Map<number, number>): Plaatsi
   return uit;
 }
 
-/** Het muziekvolume als ffmpeg-uitdrukking: stil bij de adem, zacht onder stemmen, opbouw in de opening. */
-export function muziekVolume(t: Element[], stemmen: Plaatsing[]): string {
+/** Het muziekniveau op tijdstip x: stil bij de adem, zacht onder de stem, opbouw in de opening. */
+export function muziekNiveau(t: Element[], stemmen: Plaatsing[], x: number): number {
   const starts = begintijden(t);
-  const tussen = (a: number, b: number) => `between(t,${a.toFixed(2)},${b.toFixed(2)})`;
   // De openingsstilte is "bijna stil" (GoT S7: -40 dB), niet digitaal stil: 4,5 s niets
   // klonk in de proef alsof de video kapot was.
-  const bijnaStil = t[0]?.soort === "zwart" && t[0].stil ? tussen(0, t[0].duur) : null;
-  const stil = t.flatMap((e, i) => (e.soort === "zwart" && e.stil && i > 0 ? [tussen(starts[i], starts[i] + e.duur)] : []));
-  const stem = stemmen.map((s) => tussen(s.start - 0.1, s.start + s.duur + 0.1));
+  if (t[0]?.soort === "zwart" && t[0].stil && x < t[0].duur) return 0.06;
+  if (t.some((e, i) => i > 0 && e.soort === "zwart" && e.stil && x >= starts[i] && x < starts[i] + e.duur)) return 0;
+  if (stemmen.some((s) => x >= s.start - 0.1 && x < s.start + s.duur + 0.1)) return 0.35;
   const eindOpening = t.reduce((m, e, i) => (e.deel === "opening" ? starts[i] + e.duur : m), 0);
-  const of = (lijst: string[]) => (lijst.length ? `gt(${lijst.join("+")},0)` : "0");
-  const rest = `if(${of(stil)},0,if(${of(stem)},0.35,if(lt(t,${eindOpening.toFixed(2)}),0.45,0.9)))`;
-  return bijnaStil ? `if(${bijnaStil},0.06,${rest})` : rest;
+  return x < eindOpening ? 0.45 : 0.9;
+}
+
+/**
+ * Sleutelmomenten voor het muziekvolume, met glijdende overgangen. In de proef sprong het
+ * volume in één frame van 0,9 naar 0,35 zodra de stem begon: dat klonk houterig. Nu zakt de
+ * muziek vlak vóór een zin weg en komt hij er rustig weer onder vandaan. Alleen de klap na
+ * de adem komt meteen terug: dat hoort hard te zijn.
+ */
+export function muziekSleutels(t: Element[], stemmen: Plaatsing[]): [number, number][] {
+  const starts = begintijden(t);
+  const eind = starts.length ? starts[starts.length - 1] + t[t.length - 1].duur : 0;
+  const punten = new Set<number>();
+  t.forEach((e, i) => {
+    if (e.soort === "zwart" && e.stil) [starts[i], starts[i] + e.duur].forEach((p) => punten.add(p));
+    if (e.deel === "opening") punten.add(starts[i] + e.duur);
+  });
+  stemmen.forEach((s) => [s.start - 0.1, s.start + s.duur + 0.1].forEach((p) => punten.add(p)));
+  const sleutels: [number, number][] = [[0, muziekNiveau(t, stemmen, 0)]];
+  for (const p of [...punten].filter((p) => p > 0 && p < eind).sort((a, b) => a - b)) {
+    const voor = muziekNiveau(t, stemmen, p - 0.001);
+    const na = muziekNiveau(t, stemmen, p + 0.001);
+    if (Math.abs(voor - na) < 0.001) continue;
+    const r = na < voor ? (na === 0 ? 0.2 : 0.3) : voor === 0 ? 0.05 : voor === 0.35 ? 0.8 : 0.6;
+    const [a, b] = na < voor ? [p - r, p] : [p, p + r];
+    const laatste = sleutels[sleutels.length - 1];
+    if (a > laatste[0]) sleutels.push([a, voor]);
+    else laatste[1] = voor;
+    sleutels.push([Math.max(b, sleutels[sleutels.length - 1][0] + 0.01), na]);
+  }
+  return sleutels.map(([x, v]) => [Math.round(x * 100) / 100, v]);
+}
+
+/** Het muziekvolume als ffmpeg-uitdrukking: lineair tussen de sleutelmomenten. */
+export function muziekVolume(t: Element[], stemmen: Plaatsing[]): string {
+  const k = muziekSleutels(t, stemmen);
+  let expr = k[k.length - 1][1].toFixed(3);
+  for (let i = k.length - 2; i >= 0; i--) {
+    const [x0, v0] = k[i];
+    const [x1, v1] = k[i + 1];
+    const lijn = v0 === v1 ? v0.toFixed(3) : `(${v0.toFixed(3)}+(${(v1 - v0).toFixed(3)})*(t-${x0.toFixed(2)})/${Math.max(0.01, x1 - x0).toFixed(2)})`;
+    expr = `if(lt(t,${x1.toFixed(2)}),${lijn},${expr})`;
+  }
+  return expr;
 }
 
 /**
@@ -119,11 +160,30 @@ export function volgDeStem(t: Element[], duren: Map<number, number>, adem = 0.5)
     for (const [e, j] of shots) {
       if (e.soort !== "shot") continue;
       const duur = Math.round((e.duur + Math.max(0, CLIP_SEC - e.duur) * deel) * 100) / 100;
-      uit[j] = { ...e, duur, van: Math.max(0, Math.min(e.van, CLIP_SEC - duur)) };
+      const [vroegst, laatst] = beginRuimte(duur);
+      uit[j] = { ...e, duur, van: Math.min(laatst, Math.max(vroegst, e.van)) };
     }
     tekort -= ruimte * deel;
   });
   return uit;
+}
+
+/**
+ * Beweegt er iets in de clip? Gemiddeld verschil tussen opeenvolgende frames, laag
+ * opgelost. Gemeten op de proefclips: een stilstaande ijsvlakte ~0, een lopende koning ~2.
+ */
+async function isStilstaand(bestand: string): Promise<boolean> {
+  try {
+    const { stderr } = await run(
+      FFMPEG,
+      ["-hide_banner", "-i", bestand, "-vf", "scale=160:-2,tblend=all_mode=difference,signalstats,metadata=print:key=lavfi.signalstats.YAVG", "-f", "null", "-"],
+      { maxBuffer: 1 << 25 },
+    );
+    const w = [...stderr.matchAll(/YAVG=([\d.]+)/g)].map((m) => parseFloat(m[1]));
+    return w.length > 0 && w.reduce((a, b) => a + b, 0) / w.length < 0.4;
+  } catch {
+    return false;
+  }
 }
 
 async function stiltes(bestand: string): Promise<[number, number][]> {
@@ -200,6 +260,7 @@ export async function monteerTrailer(m: {
     const laatsteStem = plaatsing.reduce((x, p) => Math.max(x, p.start + p.duur + 0.6), 0);
     const totaal = Math.max(tijdlijnEind, laatsteStem);
 
+    const stilstaand = await Promise.all(clips.map(isStilstaand));
     const inputs: string[] = [];
     const filters: string[] = [];
     const segmenten: string[] = [];
@@ -218,9 +279,25 @@ export async function monteerTrailer(m: {
       const x = herhaling % 2 ? 0.15 : 0.85;
       return `scale=${Math.round(W * zoom)}:${Math.round(H * zoom)}:force_original_aspect_ratio=increase,crop=${W}:${H}:(iw-${W})*${x}:(ih-${H})*0.4`;
     };
-    /** Regelboek §1: de opening gaat met overvloeiers van en naar zwart, niet met harde knippen. */
-    const opkomen = (e: Element) =>
-      e.deel === "opening" && e.duur >= 2 ? `fade=t=in:st=0:d=0.5,fade=t=out:st=${(e.duur - 0.5).toFixed(3)}:d=0.5,` : "";
+    /**
+     * Overgangen van en naar zwart lopen via een korte fade, niet met een harde knip: zo'n
+     * zwart dipje klonk in de proef als een hapering. De opening fadet langzamer (§1).
+     */
+    const opkomen = (i: number) => {
+      const e = tijdlijn[i];
+      const leeg = (x?: Element) => !!x && x.soort !== "shot";
+      const lang = e.deel === "opening" && e.duur >= 2 ? 0.5 : Math.min(0.3, e.duur / 3);
+      const f: string[] = [];
+      if (leeg(tijdlijn[i - 1]) || i === 0) f.push(`fade=t=in:st=0:d=${lang.toFixed(2)}`);
+      if (leeg(tijdlijn[i + 1]) || i === tijdlijn.length - 1) f.push(`fade=t=out:st=${(e.duur - lang).toFixed(3)}:d=${lang.toFixed(2)}`);
+      return f.length ? `${f.join(",")},` : "";
+    };
+    /**
+     * Een clip waarin bijna niets beweegt (de ijsvlakte in de proef) krijgt een langzame
+     * camerabeweging, anders staat het beeld stil tussen bewegende shots.
+     */
+    const drift = (i: number, e: Extract<Element, { soort: "shot" }>) =>
+      `scale=${Math.round(W * 1.12)}:${Math.round(H * 1.12)}:force_original_aspect_ratio=increase,crop=${W}:${H}:x='(iw-${W})*(${i % 2 ? "0.85-0.7" : "0.15+0.7"}*t/${e.duur.toFixed(2)})':y=(ih-${H})/2`;
     const tekstFilter = async (t: string, maxGrootte: number, d: number) => {
       const f = path.join(map, `t${segmenten.length}.txt`);
       // Een lange titel ("Het Fluisteren van de Draken") liep in de proef buiten beeld.
@@ -237,7 +314,7 @@ export async function monteerTrailer(m: {
         const k = invoer(clips[e.clip]);
         filters.push(
           `[${k}:v]trim=start=${Math.max(0, e.van).toFixed(3)}:duration=${d},setpts=PTS-STARTPTS,` +
-            `${uitsnede(e.herhaling ?? 0)},fps=${FPS},${KLEUR},${opkomen(e)}` +
+            `${!e.herhaling && stilstaand[e.clip] ? drift(i, e) : uitsnede(e.herhaling ?? 0)},fps=${FPS},${KLEUR},${opkomen(i)}` +
             `drawbox=x=0:y=0:w=iw:h=${BALK}:color=black:t=fill,drawbox=x=0:y=ih-${BALK}:w=iw:h=${BALK}:color=black:t=fill,` +
             `tpad=stop_mode=clone:stop_duration=1,trim=duration=${d},setsar=1,format=yuv420p[${label}]`,
         );
