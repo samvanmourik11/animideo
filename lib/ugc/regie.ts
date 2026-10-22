@@ -22,6 +22,7 @@ import type { Creatie } from "@/lib/creaties/types";
 import { controleerUgcScript, type UgcOnderwerp } from "./script";
 import { vasteCreator } from "./creators";
 import { monteerUgc } from "./montage";
+import { isBibliotheekStem } from "@/lib/stem/bibliotheek";
 import { UGC_BROLL_MODEL, UGC_LENGTES, isUgcStem, ugcCredits, type Creator, type UgcLengte, type UgcScript, type UgcStap } from "./types";
 
 fal.config({ credentials: process.env.FAL_KEY });
@@ -98,7 +99,7 @@ export async function leesCreator(userId: string, ruw: unknown): Promise<UgcInvo
     id: data.id,
     naam: inv.naam || "Creator",
     portretUrl: data.url,
-    stem: isUgcStem(inv.stem) ? inv.stem : "kZQ3IGqYUStQ8u1Y62s6",
+    stem: isUgcStem(inv.stem) || isBibliotheekStem(inv.stem) ? inv.stem : "kZQ3IGqYUStQ8u1Y62s6",
     persona: inv.beschrijving || "Gewone, eerlijke gebruiker.",
   };
 }
@@ -131,7 +132,7 @@ export async function startUgc(userId: string, ruw: Record<string, unknown>, oud
       onderwerp: leesOnderwerp(ruw.onderwerp, /^https:\/\//.test(foto)),
       fotoUrl: /^https:\/\//.test(foto) ? foto : null,
       // Een andere stem dan de vaste van de creator mag (de Regisseur laat de gebruiker kiezen).
-      creator: { ...(await leesCreator(userId, ruw.creator)), ...(isUgcStem(ruw.stem) ? { stem: ruw.stem } : {}) },
+      creator: { ...(await leesCreator(userId, ruw.creator)), ...(isUgcStem(ruw.stem) || isBibliotheekStem(ruw.stem) ? { stem: ruw.stem } : {}) },
       sec,
       broll,
       script: controleerUgcScript(ruw.script, broll),

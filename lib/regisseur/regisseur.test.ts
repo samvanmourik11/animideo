@@ -220,3 +220,42 @@ describe("keuzemenu's", () => {
     expect(opties.every((o) => o.geluid?.startsWith("/voice-previews/"))).toBe(true);
   });
 });
+
+describe("stemmen", () => {
+  test("zoek_stemmen geeft de bibliotheek, gefilterd", async () => {
+    const { gratis } = await import("./tools");
+    const lijst = JSON.parse(await gratis("u1", { name: "zoek_stemmen", input: { geslacht: "vrouw", accent: "Vlaams" } } as never)) as { geslacht: string; accent: string }[];
+    expect(lijst.length).toBeGreaterThan(0);
+    expect(lijst.every((s) => s.geslacht === "vrouw" && s.accent === "Vlaams")).toBe(true);
+  });
+
+  test("het stemmenmenu toont Claudes aanraders met reden en Nederlands voorbeeld", async () => {
+    const { bouwOpties } = await import("./tools");
+    const { BIBLIOTHEEK } = await import("@/lib/stem/bibliotheek");
+    const [a, b] = BIBLIOTHEEK;
+    const opties = await bouwOpties("u1", { soort: "stem", stemmen: [{ id: a.id, waarom: "Warm en rustig" }, { id: "bestaat-niet", waarom: "x" }, { id: b.id, waarom: "Speels" }] });
+    expect(opties.map((o) => o.label)).toEqual([a.naam, b.naam]);
+    expect(opties[0].waarde).toContain(a.id);
+    expect(opties[0].uitleg).toMatch(/^Warm en rustig/);
+    expect(opties[0].geluid).toBe(a.voorbeeld);
+  });
+
+  test("maak_voiceover: bibliotheekstem wordt een betaalde voice-over-stap, onbekende stem niet", async () => {
+    const { bereidVoor } = await import("./tools");
+    const { BIBLIOTHEEK } = await import("@/lib/stem/bibliotheek");
+    const s = BIBLIOTHEEK[0];
+    const stap = await bereidVoor("u1", { id: "t1", name: "maak_voiceover", input: { tekst: "Er was eens een uiltje.", stem: s.id, snelheid: 0.9 } } as never);
+    expect(stap.maker).toBe("voice-over");
+    expect(stap.invoer).toMatchObject({ stemId: s.id, stemNaam: s.naam, snelheid: 0.9 });
+    expect(stap.credits).toBeGreaterThan(0);
+    await expect(bereidVoor("u1", { id: "t2", name: "maak_voiceover", input: { tekst: "x", stem: "verzonnen" } } as never)).rejects.toThrow(/zoek_stemmen/);
+  });
+
+  test("monteer accepteert een bibliotheekstem op id of naam", async () => {
+    const { leesMontage } = await vi.importActual<typeof import("./montage")>("./montage");
+    const { BIBLIOTHEEK } = await import("@/lib/stem/bibliotheek");
+    const s = BIBLIOTHEEK.find((x) => x.naam === "Melanie")!;
+    expect(leesMontage({ clipIds: ["c1"], stem: s.id }).stem).toBe(s.id);
+    expect(leesMontage({ clipIds: ["c1"], stem: "Melanie" }).stem).toBe(s.id);
+  });
+});

@@ -12,6 +12,8 @@ import { RECEPTEN, recept } from "@/lib/creaties/recepten";
 import { VIDEO_MODELLEN, STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
 import { MUSIC_CATEGORIES } from "@/lib/music/library";
 import { UGC_STEMMEN } from "@/lib/ugc/types";
+import { BIBLIOTHEEK, vindStem } from "@/lib/stem/bibliotheek";
+import { EIGEN, GEBRUIK_LABEL, type BibliotheekStem } from "@/lib/stem/types";
 import { startCreatie } from "@/lib/creaties/wachtrij";
 import { leesProductpagina } from "@/lib/reclame/pagina";
 import { montageCredits, leesMontage } from "./montage";
@@ -26,9 +28,9 @@ import { TRAILER_LENGTES, trailerCredits, type TrailerLengte } from "@/lib/trail
 
 type Tool = Anthropic.Beta.BetaTool;
 
-export const BETAALDE_TOOLS = new Set(["maak_beeld", "maak_video", "gebruik_app", "monteer", "maak_ugc_video", "maak_reclame", "maak_trailer"]);
+export const BETAALDE_TOOLS = new Set(["maak_beeld", "maak_voiceover", "maak_video", "gebruik_app", "monteer", "maak_ugc_video", "maak_reclame", "maak_trailer"]);
 /** Gratis, meteen uitgevoerd. */
-export const GRATIS_TOOLS = new Set(["lees_webpagina", "mijn_werk", "ugc_creators", "onthoud"]);
+export const GRATIS_TOOLS = new Set(["lees_webpagina", "mijn_werk", "ugc_creators", "zoek_stemmen", "onthoud"]);
 
 // De lijst apps staat in de omschrijving van het gereedschap. Die verandert alleen als we
 // apps toevoegen, dus de cache van het verzoek blijft gewoon geldig.
@@ -38,7 +40,7 @@ export const TOOLS: Tool[] = [
   {
     name: "vraag_keuze",
     description:
-      "Laat de gebruiker kiezen via een klikbaar menu; het gesprek pauzeert tot er antwoord is (de gebruiker kan ook zelf iets typen). Soorten: 'creator' toont alle UGC-creators met portret (geen opties nodig), 'stem' toont alle Nederlandse stemmen met luisterknop (geen opties nodig), 'beeld' toont de beelden uit beeld_ids naast elkaar (bijv. versies om uit te kiezen; met meerdere: true mag de gebruiker er meer kiezen), 'tekst' toont de opties als knoppen (2-6, eventueel met korte uitleg). Gebruik dit voor alle echte keuzes in plaats van in je tekst te vragen of zelf te kiezen.",
+      "Laat de gebruiker kiezen via een klikbaar menu; het gesprek pauzeert tot er antwoord is (de gebruiker kan ook zelf iets typen). Soorten: 'creator' toont alle UGC-creators met portret (geen opties nodig), 'stem' toont jouw aanraders uit 'stemmen' (3-5 stuks, gevonden met zoek_stemmen, elk met waarom ze bij dit verhaal passen) met luisterknop, 'beeld' toont de beelden uit beeld_ids naast elkaar (bijv. versies om uit te kiezen; met meerdere: true mag de gebruiker er meer kiezen), 'tekst' toont de opties als knoppen (2-6, eventueel met korte uitleg). Gebruik dit voor alle echte keuzes in plaats van in je tekst te vragen of zelf te kiezen.",
     input_schema: {
       type: "object",
       properties: {
@@ -51,6 +53,16 @@ export const TOOLS: Tool[] = [
           description: "Alleen bij soort 'tekst'.",
         },
         beeld_ids: { type: "array", items: { type: "string" }, maxItems: 8, description: "Alleen bij soort 'beeld': creatie-ids." },
+        stemmen: {
+          type: "array",
+          maxItems: 5,
+          items: {
+            type: "object",
+            properties: { id: { type: "string", description: "Stem-id uit zoek_stemmen." }, waarom: { type: "string", description: "Eén korte zin waarom deze stem bij dit verhaal past." } },
+            required: ["id", "waarom"],
+          },
+          description: "Alleen bij soort 'stem': je aanraders, de beste eerst.",
+        },
         meerdere: { type: "boolean", description: "Meer dan één antwoord toestaan." },
       },
       required: ["vraag", "soort"],
@@ -85,6 +97,20 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: "maak_voiceover",
+    description:
+      "Spreek een tekst in als losse voice-over (mp3, te downloaden; kost 1 credit per 1.000 tekens). Kies de stem eerst samen met de gebruiker (zoek_stemmen, dan vraag_keuze soort 'stem'). Schrijf de tekst zoals hij uitgesproken moet worden; met [fluisterend], [lachend] of [enthousiast] stuur je de toon bij.",
+    input_schema: {
+      type: "object",
+      properties: {
+        tekst: { type: "string", description: "Max 5.000 tekens." },
+        stem: { type: "string", description: "Stem-id uit zoek_stemmen (ook een eigen stem, 'eigen:…')." },
+        snelheid: { type: "number", description: "0.7-1.3, standaard 1; rustiger voor slaapverhalen." },
+      },
+      required: ["tekst", "stem"],
+    },
+  },
+  {
     name: "maak_video",
     description: `Laat een bestaand beeld 5 seconden bewegen (kost credits). Beschrijf de beweging in het Engels. Modellen: ${VIDEO_MODELLEN.map((m) => `${m.id} (${m.waarvoor} ${m.credits} cr.)`).join("; ")}. Standaard ${STANDAARD_VIDEO_MODEL}.`,
     input_schema: {
@@ -104,7 +130,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "monteer",
-    description: `Zet klare clips en/of beelden achter elkaar tot één video, met optioneel titelkaart, eindkaart, Nederlandse voice-over en muziek. Voice-over kost 1 credit. Stemmen: ${UGC_STEMMEN.map((s) => `${s.naam} (${s.geslacht}, ${s.omschrijving})`).join("; ")}; zonder stem een diepe verteller. Muziek: ${MUSIC_CATEGORIES.map((c) => c.id).join(", ")}.`,
+    description: `Zet klare clips en/of beelden achter elkaar tot één video, met optioneel titelkaart, eindkaart, Nederlandse voice-over en muziek. Voice-over kost 1 credit. Stem: het stem-id dat de gebruiker koos (eerst zoek_stemmen, dan vraag_keuze soort 'stem'); zonder stem een diepe verteller. Muziek: ${MUSIC_CATEGORIES.map((c) => c.id).join(", ")}.`,
     input_schema: {
       type: "object",
       properties: {
@@ -116,6 +142,19 @@ export const TOOLS: Tool[] = [
         muziek: { type: "string", enum: MUSIC_CATEGORIES.map((c) => c.id) },
       },
       required: ["clip_ids"],
+    },
+  },
+  {
+    name: "zoek_stemmen",
+    description:
+      "Bekijk de stemmenbibliotheek (gratis): de 100 beste stemmen voor Nederlands, met id, naam, typering, geslacht, leeftijd, accent (Nederlands/Vlaams/Brabants), soort (verteller, gewoon praten, reclame, social media, personage…) en beschrijving. Gebruik dit vóór je een stem voorstelt, en kies stemmen waarvan de typering en beschrijving passen bij het verhaal, de toon en het publiek. Filters zijn optioneel.",
+    input_schema: {
+      type: "object",
+      properties: {
+        geslacht: { type: "string", enum: ["man", "vrouw"] },
+        leeftijd: { type: "string", enum: ["jong", "volwassen", "ouder"] },
+        accent: { type: "string", enum: ["Nederlands", "Vlaams", "Brabants"] },
+      },
     },
   },
   {
@@ -135,7 +174,7 @@ export const TOOLS: Tool[] = [
         website: { type: "string" },
         foto_id: { type: "string", description: "Productfoto (creatie-id of https); leeg bij een dienst." },
         creator_id: { type: "string" },
-        stem: { type: "string", description: "Naam of id van een stem uit het stemmenmenu; leeg = de vaste stem van de creator." },
+        stem: { type: "string", description: "Stem-id uit zoek_stemmen of het stemmenmenu; leeg = de vaste stem van de creator." },
         sec: { type: "integer", enum: UGC_LENGTES.map((l) => l.sec) },
         broll: { type: "boolean", description: "Productbeelden tussendoor." },
       },
@@ -243,6 +282,29 @@ export async function bouwOpties(userId: string, input: Record<string, unknown>)
     }));
   }
   if (soort === "stem") {
+    // Claudes aanraders uit de bibliotheek, met zijn reden erbij en het Nederlandse voorbeeld.
+    const ruw = (Array.isArray(input.stemmen) ? input.stemmen : []).map((x) => x as { id?: unknown; waarom?: unknown }).slice(0, 5);
+    // Een eigen stem staat niet in de bibliotheek: zoek hem op bij de creaties van deze gebruiker.
+    const eigenIds = ruw.map((x) => String(x.id ?? "")).filter((id) => id.startsWith(EIGEN)).map((id) => id.slice(EIGEN.length));
+    const { data: eigen } = eigenIds.length
+      ? await createServiceClient().from("creaties").select("id, url, invoer").eq("user_id", userId).eq("maker", "stem-kloon").in("id", eigenIds)
+      : { data: [] as { id: string; url: string | null; invoer: unknown }[] };
+    const eigenStem = (id: string): BibliotheekStem | undefined => {
+      const c = (eigen ?? []).find((x) => `${EIGEN}${x.id}` === id);
+      if (!c) return undefined;
+      return { id, naam: (c.invoer as { naam?: string }).naam ?? "Eigen stem", typering: "je eigen stem", geslacht: "neutraal", leeftijd: "volwassen", accent: "Nederlands", moedertaal: true, taal: "nl", talen: ["nl"], gebruik: "", beschrijving: "", voorbeeld: c.url ?? "", populariteit: 0 };
+    };
+    const aanraders = ruw
+      .map((x) => ({ s: vindStem(x.id) ?? eigenStem(String(x.id ?? "")), waarom: String(x.waarom ?? "").slice(0, 160) }))
+      .filter((x): x is { s: BibliotheekStem; waarom: string } => !!x.s);
+    if (aanraders.length) {
+      return aanraders.map(({ s, waarom }) => ({
+        label: s.naam,
+        waarde: `stem ${s.naam} (stem-id ${s.id})`,
+        uitleg: [waarom, s.id.startsWith(EIGEN) ? "⭐ je eigen stem" : `${s.geslacht} · ${s.leeftijd}${s.accent !== "Nederlands" ? ` · ${s.accent}` : ""} · ${s.typering}`].filter(Boolean).join(" — "),
+        geluid: s.voorbeeld,
+      }));
+    }
     return UGC_STEMMEN.map((s) => ({ label: s.naam, waarde: `stem ${s.naam}`, uitleg: `${s.geslacht} · ${s.omschrijving}`, geluid: `/voice-previews/${s.id}.mp3` }));
   }
   if (soort === "beeld") {
@@ -275,6 +337,15 @@ export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUs
     const o = maakOpdracht("beeld", invoer);
     return { ...basis, maker: "beeld", invoer, credits: o.credits, omschrijving: `Beeld${voorbeelden.length ? ` met ${voorbeelden.length} voorbeeld(en)` : ""}: ${String(i.prompt).slice(0, 90)}` };
   }
+  if (blok.name === "maak_voiceover") {
+    const id = String(i.stem ?? "");
+    const stem = vindStem(id);
+    if (!stem && !id.startsWith(EIGEN)) throw new Error(`Onbekende stem: ${id}. Zoek er een met zoek_stemmen.`);
+    const invoer = { tekst: i.tekst, stemId: stem?.id ?? id, stemNaam: stem?.naam ?? "Eigen stem", snelheid: i.snelheid ?? 1, taal: "nl" };
+    // Een eigen stem krijgt zijn MiniMax-id pas in de wachtrij; voor de prijs maakt het niet uit.
+    const o = maakOpdracht("voice-over", { ...invoer, minimaxVoiceId: stem ? undefined : "nog-op-te-zoeken" });
+    return { ...basis, maker: "voice-over", invoer, credits: o.credits, omschrijving: `Voice-over door ${invoer.stemNaam}: ${String(i.tekst).slice(0, 90)}`, details: { regels: [String(i.tekst)] } };
+  }
   if (blok.name === "maak_video") {
     const invoer = { bronUrl: await naarUrl(userId, i.beeld_id), prompt: i.beweging, model: i.model ?? STANDAARD_VIDEO_MODEL, formaat: await formaatVan(userId, i.beeld_id) };
     const o = maakOpdracht("beeld-naar-video", invoer);
@@ -302,7 +373,7 @@ export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUs
   if (blok.name === "maak_ugc_video") {
     const foto = i.foto_id ? await naarUrl(userId, i.foto_id) : "";
     const onderwerp = leesOnderwerp({ naam: i.naam, omschrijving: i.omschrijving, voordelen: i.voordelen, website: i.website }, !!foto);
-    const gekozen = UGC_STEMMEN.find((x) => x.id === i.stem || x.naam.toLowerCase() === String(i.stem ?? "").replace(/^stem\s+/i, "").toLowerCase());
+    const gekozen = UGC_STEMMEN.find((x) => x.id === i.stem || x.naam.toLowerCase() === String(i.stem ?? "").replace(/^stem\s+/i, "").toLowerCase()) ?? vindStem(i.stem);
     const creator = { ...(await leesCreator(userId, i.creator_id)), ...(gekozen ? { stem: gekozen.id } : {}) };
     const sec = (UGC_LENGTES.some((l) => l.sec === i.sec) ? i.sec : 15) as UgcLengte;
     const broll = i.broll === true;
@@ -312,7 +383,7 @@ export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUs
     const invoer = { onderwerp, fotoUrl: foto, creator: creator.id, stem: creator.stem, sec, broll, script };
     return {
       ...basis, maker: "ugc", invoer, credits: ugcCredits(script),
-      omschrijving: `UGC-video (${sec} s) door ${creator.naam}, stem ${UGC_STEMMEN.find((x) => x.id === creator.stem)?.naam ?? "eigen"}`,
+      omschrijving: `UGC-video (${sec} s) door ${creator.naam}, stem ${UGC_STEMMEN.find((x) => x.id === creator.stem)?.naam ?? vindStem(creator.stem)?.naam ?? "eigen"}`,
       details: { beelden: [creator.portretUrl, ...(foto ? [foto] : [])], regels: script.stukjes.map((x) => (x.soort === "broll" ? `🎬 ${x.tekst}` : x.tekst)) },
     };
   }
@@ -413,6 +484,29 @@ export async function gratis(userId: string, blok: Anthropic.Beta.BetaToolUseBlo
     return JSON.stringify([
       ...eigen.map((c, n) => ({ ...c, stem: stemNaam(((data ?? [])[n]?.invoer as { stem?: string }).stem) })),
       ...CREATORS.map((c) => ({ id: c.id, naam: c.naam, omschrijving: `${c.omschrijving}. ${c.persona}`, portret: c.portretUrl, stem: stemNaam(c.stem) })),
+    ]);
+  }
+  if (blok.name === "zoek_stemmen") {
+    const { data: eigen } = await createServiceClient()
+      .from("creaties")
+      .select("id, invoer")
+      .eq("user_id", userId)
+      .eq("maker", "stem-kloon")
+      .eq("status", "klaar")
+      .limit(10);
+    return JSON.stringify([
+      // Eigen stemmen alleen voor maak_voiceover; de montage en UGC spreken via ElevenLabs.
+      ...(eigen ?? []).map((c) => ({ id: `${EIGEN}${c.id}`, naam: (c.invoer as { naam?: string }).naam ?? "Eigen stem", typering: "de eigen, getrainde stem van de gebruiker (alleen voor maak_voiceover)" })),
+      ...BIBLIOTHEEK.filter((s) => (!i.geslacht || s.geslacht === i.geslacht) && (!i.leeftijd || s.leeftijd === i.leeftijd) && (!i.accent || s.accent === i.accent)).map((s) => ({
+        id: s.id,
+        naam: s.naam,
+        typering: s.typering,
+        geslacht: s.geslacht,
+        leeftijd: s.leeftijd,
+        accent: s.accent,
+        soort: GEBRUIK_LABEL[s.gebruik] ?? s.gebruik,
+        beschrijving: s.beschrijving,
+      })),
     ]);
   }
   if (blok.name === "onthoud") {

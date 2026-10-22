@@ -84,12 +84,17 @@ function regels(berichten: Bericht[], openVraag = false) {
   return uit;
 }
 
-/** Claude schrijft **vet**; dat tonen we als vet in plaats van met sterretjes. */
+/** Claude schrijft **vet** en [links](https://…); die tonen we zo in plaats van met tekens. */
 function MetVet({ tekst }: { tekst: string }) {
+  const links = (stuk: string, sleutel: string) =>
+    stuk.split(/(\[[^\]]+\]\(https:\/\/[^)\s]+\))/g).map((deel, j) => {
+      const m = deel.match(/^\[([^\]]+)\]\((https:\/\/[^)\s]+)\)$/);
+      return m ? <a key={`${sleutel}-${j}`} href={m[2]} target="_blank" rel="noreferrer" className="text-blue-500 underline">{m[1]}</a> : <span key={`${sleutel}-${j}`}>{deel}</span>;
+    });
   return (
     <>
       {tekst.split(/(\*\*[^*]+\*\*)/g).map((stuk, i) =>
-        stuk.startsWith("**") && stuk.endsWith("**") ? <strong key={i}>{stuk.slice(2, -2)}</strong> : <span key={i}>{stuk}</span>,
+        stuk.startsWith("**") && stuk.endsWith("**") ? <strong key={i}>{links(stuk.slice(2, -2), String(i))}</strong> : <span key={i}>{links(stuk, String(i))}</span>,
       )}
     </>
   );
@@ -161,7 +166,8 @@ function KeuzeMenu({ vraag, opties, meerdere, onKies }: { vraag: string; opties:
           ))}
         </div>
       ) : metGeluid ? (
-        <div className="grid sm:grid-cols-2 gap-2">
+        // Eén kolom: bij een stem staat de reden waarom hij bij het verhaal past, die moet leesbaar zijn.
+        <div className="grid gap-2">
           {opties.map((o) => (
             <div
               key={o.waarde}
@@ -174,7 +180,7 @@ function KeuzeMenu({ vraag, opties, meerdere, onKies }: { vraag: string; opties:
               <button onClick={(e) => luister(e, o.geluid!)} className="w-8 h-8 shrink-0 rounded-full bg-blue-600 text-white text-xs" aria-label={`Luister naar ${o.label}`}>▶</button>
               <div className="min-w-0">
                 <div className="text-sm font-semibold text-tekst">{o.label}</div>
-                {o.uitleg && <div className="text-[11px] text-tekst-3 truncate">{o.uitleg}</div>}
+                {o.uitleg && <div className="text-xs text-tekst-3 line-clamp-3">{o.uitleg}</div>}
               </div>
             </div>
           ))}

@@ -6,6 +6,7 @@
 // Geen fal-wachtrij: de stem duurt een paar seconden en de montage een halve minuut, dus
 // dat gebeurt direct na het antwoord (after()), net als de montage van de reclame.
 
+import { vindStem } from "@/lib/stem/bibliotheek";
 import { after } from "next/server";
 import ffmpegPath from "ffmpeg-static";
 import { execFile } from "node:child_process";
@@ -56,8 +57,8 @@ export function leesMontage(ruw: Record<string, unknown>): MontageInvoer {
     titel: t(ruw.titel, 60) || undefined,
     eindtekst: t(ruw.eindtekst, 60) || undefined,
     voiceover: t(ruw.voiceover, 1200) || undefined,
-    // Een stem op naam ("Hugo") of id; onbekend = de verteller.
-    stem: UGC_STEMMEN.find((s) => s.id === stem || s.naam.toLowerCase() === stem.toLowerCase())?.id ?? VERTELLER,
+    // Een stem op naam ("Hugo") of id, uit de UGC-set of de stemmenbibliotheek; onbekend = de verteller.
+    stem: UGC_STEMMEN.find((s) => s.id === stem || s.naam.toLowerCase() === stem.toLowerCase())?.id ?? vindStem(stem)?.id ?? VERTELLER,
     muziek,
   };
 }
