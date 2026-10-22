@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
       personages,
       genre: (GENRES.some((g) => g.id === b.genre) ? b.genre : "fantasy") as GenreId,
       sec: (TRAILER_LENGTES.some((l) => l.sec === b.sec) ? b.sec : 60) as TrailerLengte,
+      taal: b.taal === "nl" ? "nl" : "en",
     });
     return NextResponse.json({ plan });
   } catch (e) {

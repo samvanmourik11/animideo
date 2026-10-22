@@ -20,7 +20,7 @@ import { betaal, betaalTerug } from "@/lib/team/team";
 import type { Creatie } from "@/lib/creaties/types";
 import { controleerTrailerPlan } from "./plan";
 import { monteerTrailer } from "./montage";
-import { GENRES, TRAILER_LENGTES, TRAILER_VIDEOMODEL, trailerCredits, type GenreId, type TrailerLengte, type TrailerPlan, type TrailerStap } from "./types";
+import { GENRES, TRAILER_LENGTES, TRAILER_VIDEOMODEL, trailerCredits, voTekst, type GenreId, type TrailerLengte, type TrailerPlan, type TrailerStap, type VoTaal } from "./types";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -34,6 +34,30 @@ const VASTGELOPEN_MS = 5 * 60 * 1000;
 const VERTELLER = "YXgx21dvgkRwunWFpa5d"; // Jamie
 const MANNEN = ["2GJZCZIWrWiGFDntCFaz", "yGnXd97Wft6RDkIaLXiR", "0qLmDzgqulxcvv0yf3kg"]; // Bram, Pepijn, Remko
 const VROUWEN = ["XCOm4Hr4NoqIsKeVFU2y", "7qdUFMklKPaaAVMsBTBt", "qpYcCnnbKrqp5HBM19ou"]; // Linda, Roos, Mia
+
+/**
+ * De trailerstem: één verteller voor de hele trailer. Engels: Hank, "reminiscent of Don
+ * LaFontaine" en de meest gebruikte trailerstem van ElevenLabs. Nederlands: Willem,
+ * "Powerful Cinematic Voice".
+ */
+export const TRAILERSTEM: Record<VoTaal, string> = { en: "6F5Zhi321D3Oq7v1oNT4", nl: "yBtEjlHaWNu9xrYohjbA" };
+
+/**
+ * De hele voice-over in één opname, met lange pauzes tussen de zinnen: losse korte zinnen
+ * knipte ElevenLabs zelf af (vijf van de acht zinnen in de proef stopten midden in een klank)
+ * en elke zin kreeg een andere toon. De montage knipt de opname op die pauzes.
+ */
+export function voOpdracht(plan: TrailerPlan) {
+  const taal = plan.taal ?? "en";
+  return {
+    text: `${voTekst(plan).join(" [long pause] ")} [long pause]`,
+    voice: TRAILERSTEM[taal],
+    language_code: taal,
+    stability: 0.5,
+    similarity_boost: 0.8,
+    speed: 0.9,
+  };
+}
 
 const MUZIEK: Record<GenreId, string> = { fantasy: "episch-inspirerend" };
 
@@ -55,8 +79,10 @@ interface Voortgang {
   portretUrls?: string[];
   beelden?: string[];
   clips?: string[];
-  /** Per element-index met een zin: het stemverzoek. */
+  /** Per element-index met een zin: het stemverzoek (oude trailers, stem per personage). */
   stemmen: { i: number; id: string }[];
+  /** De hele voice-over in één opname (trailers met één verteller). */
+  vo?: string;
 }
 
 type RijInvoer = TrailerInvoer & { voortgang?: Voortgang };
@@ -169,10 +195,11 @@ export async function startTrailer(userId: string, ruw: Record<string, unknown>,
   }
 
   try {
-    // De stemmen hangen nergens van af: meteen insturen, dan zijn ze klaar als de clips komen.
+    // De stem hangt nergens van af: meteen insturen, dan is hij klaar als de clips komen.
+    const vo = invoer.plan.taal && voTekst(invoer.plan).length ? (await fal.queue.submit(STEM_MODEL, { input: voOpdracht(invoer.plan) as never })).request_id : undefined;
     const stemmen = await Promise.all(
       invoer.plan.tijdlijn.flatMap((e, i) =>
-        e.regel?.tekst
+        !invoer.plan.taal && e.regel?.tekst
           ? [
               fal.queue
                 .submit(STEM_MODEL, {
@@ -185,12 +212,12 @@ export async function startTrailer(userId: string, ruw: Record<string, unknown>,
     );
     if (zonderPersonages) {
       const beelden = await stuurBeelden(invoer, []);
-      return await werkBij(nieuw as Creatie, { ...voortgang, stemmen, portretUrls: [], beelden });
+      return await werkBij(nieuw as Creatie, { ...voortgang, stemmen, vo, portretUrls: [], beelden });
     }
     const portretten = await Promise.all(
       cast(invoer.plan).map(async (_, i) => (await fal.queue.submit(BEELD, { input: portretOpdracht(invoer.plan, invoer.genre, i) as never })).request_id),
     );
-    return await werkBij(nieuw as Creatie, { ...voortgang, stemmen, portretten });
+    return await werkBij(nieuw as Creatie, { ...voortgang, stemmen, vo, portretten });
   } catch (e) {
     const reden = falReden(e);
     console.error("[trailer] insturen mislukt:", reden);
@@ -283,7 +310,11 @@ export async function verversTrailer(c: Creatie): Promise<Creatie> {
     }
     if (v.stap === "clips") {
       if (!v.clips?.length) return vast ? ((await markeerMislukt(c, "De clips zijn niet goed aangekomen.")) ?? c) : c;
-      const paren: [string, string][] = [...v.clips.map((id) => [model.slug, id] as [string, string]), ...v.stemmen.map((s) => [STEM_MODEL, s.id] as [string, string])];
+      const paren: [string, string][] = [
+        ...v.clips.map((id) => [model.slug, id] as [string, string]),
+        ...v.stemmen.map((s) => [STEM_MODEL, s.id] as [string, string]),
+        ...(v.vo ? [[STEM_MODEL, v.vo] as [string, string]] : []),
+      ];
       if (!(await klaar(paren))) return c;
       return await startMontage(c, v);
     }
@@ -314,15 +345,17 @@ async function voerMontageUit(c: Creatie, v: Voortgang): Promise<void> {
   const r = rij(c);
   const model = videoModel(TRAILER_VIDEOMODEL);
   try {
-    const [clips, stemmen] = await Promise.all([
+    const [clips, stemmen, voiceOver] = await Promise.all([
       Promise.all((v.clips ?? []).map((id) => resultaat(model.slug, id))),
       Promise.all(v.stemmen.map(async (s) => [s.i, await resultaat(STEM_MODEL, s.id)] as [number, string])),
+      v.vo ? resultaat(STEM_MODEL, v.vo) : Promise.resolve(undefined),
     ]);
     const mp4 = await monteerTrailer({
       tijdlijn: r.plan.tijdlijn,
       titel: r.plan.titel,
       clips,
       stemmen: new Map(stemmen),
+      voiceOver,
       muziek: musicTrackUrl(MUZIEK[r.genre]),
     });
     const url = await uploadNaarOpslag(c.user_id, mp4, "mp4", "video/mp4");

@@ -13,7 +13,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { renderMusicBed } from "@/lib/music/bed";
-import type { Element } from "./types";
+import { CLIP_SEC, type Element } from "./types";
 
 const run = promisify(execFile);
 const FFMPEG = ffmpegPath as unknown as string;
@@ -74,6 +74,75 @@ export function muziekVolume(t: Element[], stemmen: Plaatsing[]): string {
   return bijnaStil ? `if(${bijnaStil},0.06,${rest})` : rest;
 }
 
+/**
+ * Waar de opname van de verteller te knippen is: n zinnen, gescheiden door de n-1 langste
+ * pauzes (we zetten tussen elke zin een lange pauze). Een zin begint net vóór zijn eerste
+ * klank en houdt 0,25 s na zijn laatste op, zodat geen enkele zin wordt afgeknipt.
+ * Null als er minder pauzes zijn dan nodig.
+ */
+export function zinsgrenzen(stil: [number, number][], totaal: number, n: number): { start: number; eind: number }[] | null {
+  if (n < 1) return [];
+  const begin = stil[0] && stil[0][0] <= 0.05 ? stil[0][1] : 0;
+  const laatste = stil[stil.length - 1];
+  const einde = laatste && laatste[1] >= totaal - 0.05 ? laatste[0] : totaal;
+  const binnen = stil.filter(([a, b]) => a > begin + 0.05 && b < einde - 0.05 && a >= begin && b <= einde);
+  if (binnen.length < n - 1) return null;
+  const pauzes = [...binnen].sort((x, y) => y[1] - y[0] - (x[1] - x[0])).slice(0, n - 1).sort((x, y) => x[0] - y[0]);
+  return Array.from({ length: n }, (_, k) => {
+    const start = k === 0 ? begin : pauzes[k - 1][1];
+    const eind = k === n - 1 ? einde : pauzes[k][0];
+    const ruimte = k === n - 1 ? totaal - eind : (pauzes[k][1] - pauzes[k][0]) / 2;
+    return { start: Math.max(0, start - 0.08), eind: Math.min(totaal, eind + Math.min(0.25, ruimte)) };
+  });
+}
+
+/**
+ * Het beeld volgt de stem: na elke zin loopt het beeld minstens zo lang door als de zin
+ * duurt (plus een ademhaling), vóór de volgende zin, de adem of de titel komt. Is dat
+ * korter, dan worden de shots daar langer (tot de lengte van hun clip). In de proef
+ * kregen zinnen te weinig ruimte en schoven ze over elkaar en over de stiltes heen.
+ */
+export function volgDeStem(t: Element[], duren: Map<number, number>, adem = 0.5): Element[] {
+  const uit = t.map((e) => ({ ...e }));
+  const zinnen = uit.map((e, i) => i).filter((i) => duren.has(i));
+  zinnen.forEach((i, k) => {
+    const volgende = zinnen[k + 1] ?? uit.length;
+    let eind = i + 1;
+    while (eind < volgende && !(uit[eind].soort === "titel" || (uit[eind].soort === "zwart" && (uit[eind] as { stil?: boolean }).stil))) eind++;
+    const stuk = uit.slice(i, eind);
+    let tekort = duren.get(i)! + adem - stuk.reduce((s, e) => s + e.duur, 0);
+    if (tekort <= 0) return;
+    const shots = stuk.map((e, j) => [e, i + j] as const).filter(([e]) => e.soort === "shot");
+    const ruimte = shots.reduce((s, [e]) => s + Math.max(0, CLIP_SEC - e.duur), 0);
+    if (ruimte <= 0) return;
+    const deel = Math.min(1, tekort / ruimte);
+    for (const [e, j] of shots) {
+      if (e.soort !== "shot") continue;
+      const duur = Math.round((e.duur + Math.max(0, CLIP_SEC - e.duur) * deel) * 100) / 100;
+      uit[j] = { ...e, duur, van: Math.max(0, Math.min(e.van, CLIP_SEC - duur)) };
+    }
+    tekort -= ruimte * deel;
+  });
+  return uit;
+}
+
+async function stiltes(bestand: string): Promise<[number, number][]> {
+  const { stderr } = await run(FFMPEG, ["-hide_banner", "-i", bestand, "-af", "silencedetect=n=-40dB:d=0.25", "-f", "null", "-"], { maxBuffer: 1 << 24 });
+  const uit: [number, number][] = [];
+  let open: number | null = null;
+  for (const regel of stderr.split("\n")) {
+    const a = regel.match(/silence_start: ([\d.]+)/);
+    const b = regel.match(/silence_end: ([\d.]+)/);
+    if (a) open = parseFloat(a[1]);
+    if (b && open !== null) {
+      uit.push([open, parseFloat(b[1])]);
+      open = null;
+    }
+  }
+  if (open !== null) uit.push([open, Infinity]);
+  return uit;
+}
+
 async function duur(bestand: string): Promise<number> {
   const { stderr } = await run(FFMPEG, ["-hide_banner", "-i", bestand], { maxBuffer: 1 << 22 }).catch(
     (e: { stderr?: string }) => ({ stderr: e.stderr ?? "" }),
@@ -94,8 +163,10 @@ export async function monteerTrailer(m: {
   tijdlijn: Element[];
   titel: string;
   clips: string[];
-  /** Per element-index met een zin: de stem. */
+  /** Per element-index met een zin: de stem (oude trailers). */
   stemmen: Map<number, string>;
+  /** De hele voice-over in één opname (trailers met één verteller). */
+  voiceOver?: string;
   muziek: string | null;
 }): Promise<Buffer> {
   const map = await mkdtemp(path.join(tmpdir(), "trailer-"));
@@ -107,8 +178,25 @@ export async function monteerTrailer(m: {
     );
     const duren = new Map<number, number>();
     for (const [i, f] of stemBestanden) duren.set(i, await duur(f));
-    const plaatsing = plaatsStemmen(m.tijdlijn, duren);
-    const tijdlijnEind = m.tijdlijn.reduce((s, e) => s + e.duur, 0);
+    let tijdlijn = m.tijdlijn;
+    if (m.voiceOver) {
+      // Eén opname van de verteller, op de pauzes geknipt in zinnen, elk op zijn eigen plek.
+      const vo = await download(m.voiceOver, path.join(map, "vo.mp3"));
+      const lengte = await duur(vo);
+      const stil = (await stiltes(vo)).map(([a, b]) => [a, Math.min(b, lengte)] as [number, number]);
+      const plekken = tijdlijn.map((e, i) => i).filter((i) => tijdlijn[i].regel?.tekst);
+      const grenzen = zinsgrenzen(stil, lengte, plekken.length) ?? (plekken.length ? [{ start: 0, eind: lengte }] : []);
+      for (const [k, g] of grenzen.entries()) {
+        const doel = path.join(map, `zin${k}.wav`);
+        const d = g.eind - g.start;
+        await run(FFMPEG, ["-hide_banner", "-ss", g.start.toFixed(3), "-t", d.toFixed(3), "-i", vo, "-af", `afade=t=in:d=0.04,afade=t=out:st=${Math.max(0, d - 0.15).toFixed(3)}:d=0.15`, "-y", doel]);
+        stemBestanden.set(plekken[k], doel);
+        duren.set(plekken[k], d);
+      }
+      tijdlijn = volgDeStem(tijdlijn, duren);
+    }
+    const plaatsing = plaatsStemmen(tijdlijn, duren);
+    const tijdlijnEind = tijdlijn.reduce((s, e) => s + e.duur, 0);
     const laatsteStem = plaatsing.reduce((x, p) => Math.max(x, p.start + p.duur + 0.6), 0);
     const totaal = Math.max(tijdlijnEind, laatsteStem);
 
@@ -142,7 +230,7 @@ export async function monteerTrailer(m: {
       return `drawtext=fontfile='${LETTER}':textfile='${f}':expansion=none:fontsize=${grootte}:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:${fade}`;
     };
 
-    for (const [i, e] of m.tijdlijn.entries()) {
+    for (const [i, e] of tijdlijn.entries()) {
       const label = `s${i}`;
       const d = e.duur.toFixed(3);
       if (e.soort === "shot") {
@@ -167,7 +255,8 @@ export async function monteerTrailer(m: {
     for (const p of plaatsing) {
       const k = invoer(stemBestanden.get(p.index)!);
       const ms = Math.round(p.start * 1000);
-      filters.push(`[${k}:a]aformat=channel_layouts=stereo,aresample=44100,adelay=${ms}|${ms}[st${p.index}]`);
+      // Een trailerstem is vol en dichtbij: wat compressie en een beetje laag erbij.
+      filters.push(`[${k}:a]aformat=channel_layouts=stereo,aresample=44100,acompressor=threshold=-20dB:ratio=3:attack=5:release=150,equalizer=f=110:t=q:w=1:g=2,adelay=${ms}|${ms}[st${p.index}]`);
       audio.push(`[st${p.index}]`);
     }
     if (m.muziek) {
@@ -175,7 +264,7 @@ export async function monteerTrailer(m: {
         const bron = await download(m.muziek, path.join(map, "muziek.mp3"));
         const bed = await renderMusicBed(bron, totaal, path.join(map, "bed.wav"));
         const k = invoer(bed);
-        filters.push(`[${k}:a]volume='${muziekVolume(m.tijdlijn, plaatsing)}':eval=frame[mu]`);
+        filters.push(`[${k}:a]volume='${muziekVolume(tijdlijn, plaatsing)}':eval=frame[mu]`);
         audio.push("[mu]");
       } catch (e) {
         console.error("[trailer] muziek mislukt, verder zonder:", e);

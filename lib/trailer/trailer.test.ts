@@ -7,8 +7,8 @@ vi.mock("@/lib/team/team", () => ({}));
 vi.mock("next/server", () => ({ after: () => {} }));
 
 const { controleerTrailerPlan } = await import("./plan");
-const { plaatsStemmen, muziekVolume, begintijden } = await import("./montage");
-const { stemVoor } = await import("./regie");
+const { plaatsStemmen, muziekVolume, begintijden, zinsgrenzen, volgDeStem } = await import("./montage");
+const { stemVoor, voOpdracht, TRAILERSTEM } = await import("./regie");
 const { tijdlijnDuur, trailerCredits } = await import("./types");
 
 const clip = { beeld: "a castle", beweging: "push in", personages: ["Mira"], uitleg: "kasteel" };
@@ -125,5 +125,48 @@ describe("gaten uit de proeftrailer van 20-10-2026", () => {
     const t = controleerTrailerPlan({ ...ruwPlan(12), tijdlijn: [{ soort: "zwart", deel: "opening", duur: 1.5, stil: true }, ...ruwPlan(12).tijdlijn.slice(1)] }, 60).tijdlijn;
     const v = muziekVolume(t, []);
     expect(v.startsWith("if(between(t,0.00,1.50),0.06,")).toBe(true);
+  });
+});
+
+describe("één verteller (22-10-2026)", () => {
+  test("met een taal spreekt alleen de verteller, in één opname met pauzes", () => {
+    const r = ruwPlan(12);
+    const p = controleerTrailerPlan({ ...r, taal: "en" }, 60);
+    expect(p.taal).toBe("en");
+    expect(p.tijdlijn.filter((e) => e.regel).every((e) => e.regel!.wie === "verteller")).toBe(true);
+    const o = voOpdracht({ ...p, tijdlijn: [{ soort: "zwart", deel: "opening", duur: 1, regel: { wie: "verteller", tekst: "In a world..." } }, { soort: "zwart", deel: "titel", duur: 1, regel: { wie: "verteller", tekst: "one girl." } }] });
+    expect(o.text).toBe("In a world... [long pause] one girl. [long pause]");
+    expect(o.voice).toBe(TRAILERSTEM.en);
+  });
+
+  test("oude plannen zonder taal houden hun stemmen per personage", () => {
+    const p = controleerTrailerPlan(ruwPlan(12), 60);
+    expect(p.taal).toBeUndefined();
+    expect(p.tijdlijn.find((e) => e.regel)?.regel?.wie).toBe("Mira");
+  });
+
+  test("de opname wordt op de langste pauzes geknipt, met wat lucht na elke zin", () => {
+    // Gemeten op een echte opname van Hank: 6 zinnen, 5 lange pauzes en 2 korte ademhalingen.
+    const stil: [number, number][] = [[2.32, 4.73], [6.1, 6.4], [8.08, 9.96], [11.96, 13.38], [15.46, 16.96], [17.0, 17.3], [18.02, 18.49]];
+    const g = zinsgrenzen(stil, 20.61, 6)!;
+    expect(g).toHaveLength(6);
+    expect(g[0]).toEqual({ start: 0, eind: 2.57 });
+    expect(g[1].start).toBeCloseTo(4.65);
+    // De korte ademhaling midden in zin 2 (6,1-6,4) is geen knip.
+    expect(g[1].eind).toBeGreaterThan(8);
+    expect(zinsgrenzen(stil.slice(0, 2), 20.61, 6)).toBeNull();
+  });
+
+  test("het beeld wacht op de stem: shots worden langer tot de zin uit is, niet over de adem heen", () => {
+    const t = [
+      { soort: "shot", deel: "wereld", clip: 0, van: 0, duur: 1, regel: { wie: "verteller", tekst: "x" } },
+      { soort: "shot", deel: "wereld", clip: 1, van: 0, duur: 1 },
+      { soort: "zwart", deel: "adem", duur: 2, stil: true },
+      { soort: "shot", deel: "klap", clip: 2, van: 0, duur: 2, regel: { wie: "verteller", tekst: "y" } },
+    ] as never;
+    const uit = volgDeStem(t, new Map([[0, 3.5], [3, 1]]));
+    expect(uit[0].duur + uit[1].duur).toBeCloseTo(4, 1);
+    expect(uit[2].duur).toBe(2);
+    expect(uit[3].duur).toBe(2);
   });
 });

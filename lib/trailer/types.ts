@@ -12,6 +12,16 @@ import { videoModel } from "@/lib/video-modellen";
 export const GENRES = [{ id: "fantasy", naam: "Fantasy", icoon: "🐉", uitleg: "Magie, oude rijken, draken en een held tegen het duister." }] as const;
 export type GenreId = (typeof GENRES)[number]["id"];
 
+/**
+ * De taal van de voice-over (en de tekstkaarten). Eén verteller, zoals in een echte trailer;
+ * Engels klinkt het meest als bioscoop (Sam, 22-10-2026: "hij mag in het Engels").
+ */
+export const VO_TALEN = [
+  { id: "en", naam: "Engels", uitleg: "De klassieke bioscoopstem" },
+  { id: "nl", naam: "Nederlands", uitleg: "Een diepe Nederlandse verteller" },
+] as const;
+export type VoTaal = (typeof VO_TALEN)[number]["id"];
+
 export const TRAILER_LENGTES = [
   { sec: 60, naam: "1 minuut", clips: 10 },
   { sec: 90, naam: "1,5 minuut", clips: 14 },
@@ -87,6 +97,8 @@ export interface TrailerPlan {
   personages: Personage[];
   /** Ontbreekt bij plannen van vóór 22-10-2026. */
   wezens?: Wezen[];
+  /** Taal van de verteller; ontbreekt bij oude plannen (die hadden losse stemmen per personage). */
+  taal?: VoTaal;
   clips: Clip[];
   tijdlijn: Element[];
 }
@@ -99,13 +111,22 @@ export function aantalRegels(p: TrailerPlan): number {
   return p.tijdlijn.filter((e) => e.regel?.tekst).length;
 }
 
-/** Prijs: voorbeeldbeeld per personage en wezen, per clip een filmbeeld + beweging, per zin de stem. */
+/** Alle zinnen van de verteller, in volgorde: samen één opname. */
+export function voTekst(p: Pick<TrailerPlan, "tijdlijn">): string[] {
+  return p.tijdlijn.flatMap((e) => (e.regel?.tekst ? [e.regel.tekst] : []));
+}
+
+/**
+ * Prijs: voorbeeldbeeld per personage en wezen, per clip een filmbeeld + beweging, en de
+ * voice-over (één opname, per begonnen 1.000 tekens).
+ */
 export function trailerCredits(p: Pick<TrailerPlan, "personages" | "clips" | "tijdlijn" | "wezens">): number {
   const perClip = CREDIT_COSTS.IMAGE_GENERATION_PRO + videoModel(TRAILER_VIDEOMODEL).credits;
+  const tekens = voTekst(p).join(" ").length;
   return (
     (p.personages.length + (p.wezens?.length ?? 0)) * CREDIT_COSTS.IMAGE_GENERATION_PRO +
     p.clips.length * perClip +
-    p.tijdlijn.filter((e) => e.regel?.tekst).length * CREDIT_COSTS.VOICE
+    (tekens ? CREDIT_COSTS.VOICE * Math.ceil(tekens / 1000) : 0)
   );
 }
 
@@ -114,7 +135,7 @@ export function geschatteTrailerCredits(sec: TrailerLengte, personages: number):
   return trailerCredits({
     personages: Array.from({ length: personages }) as Personage[],
     clips: Array.from({ length: clips }) as Clip[],
-    tijdlijn: Array.from({ length: Math.round(sec / 6) }, () => ({ soort: "zwart", deel: "wereld", duur: 1, regel: { wie: "", tekst: "x" } }) as Element),
+    tijdlijn: [{ soort: "zwart", deel: "wereld", duur: 1, regel: { wie: "verteller", tekst: "x" } }],
   });
 }
 

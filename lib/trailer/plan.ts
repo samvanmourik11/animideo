@@ -17,6 +17,7 @@ import {
   type Regel,
   type TrailerLengte,
   type TrailerPlan,
+  type VoTaal,
   type Wezen,
 } from "./types";
 
@@ -27,6 +28,7 @@ export interface TrailerVraag {
   personages: { naam: string; omschrijving: string }[];
   genre: GenreId;
   sec: TrailerLengte;
+  taal: VoTaal;
 }
 
 const DELEN: Deel[] = ["opening", "wereld", "escalatie", "adem", "klap", "titel"];
@@ -76,6 +78,10 @@ export function controleerTrailerPlan(ruw: unknown, sec: TrailerLengte): Trailer
     };
   }).filter((p) => p.naam && p.uiterlijk);
   const namen = personages.map((p) => p.naam);
+  const taal: VoTaal | undefined = r.taal === "nl" ? "nl" : r.taal === "en" ? "en" : undefined;
+  // Eén verteller: in de proef sprak elk personage met een andere stem, en dat klonk
+  // rommelig. Oude plannen (zonder taal) houden hun stemmen per personage.
+  const sprekers = taal ? [] : namen;
   const wezens: Wezen[] = (Array.isArray(r.wezens) ? r.wezens : []).slice(0, 2).map((x) => {
     const o = (x ?? {}) as Record<string, unknown>;
     return { naam: tekst(o.naam, 40), uiterlijk: tekst(o.uiterlijk, 400) };
@@ -97,7 +103,7 @@ export function controleerTrailerPlan(ruw: unknown, sec: TrailerLengte): Trailer
   let tijdlijn: Element[] = (Array.isArray(r.tijdlijn) ? r.tijdlijn : []).slice(0, 80).flatMap((x): Element[] => {
     const o = (x ?? {}) as Record<string, unknown>;
     const deel = DELEN.includes(o.deel as Deel) ? (o.deel as Deel) : "wereld";
-    const rg = regel(o.regel, namen);
+    const rg = regel(o.regel, sprekers);
     if (o.soort === "shot") {
       const clip = Math.round(Number(o.clip));
       if (!(clip >= 0 && clip < clips.length)) return [];
@@ -140,7 +146,7 @@ export function controleerTrailerPlan(ruw: unknown, sec: TrailerLengte): Trailer
     });
   }
 
-  return { titel: tekst(r.titel, 60) || "Zonder titel", personages, ...(wezens.length ? { wezens } : {}), clips, tijdlijn: spreidHerhalingen(tijdlijn) };
+  return { titel: tekst(r.titel, 60) || "Zonder titel", ...(taal ? { taal } : {}), personages, ...(wezens.length ? { wezens } : {}), clips, tijdlijn: spreidHerhalingen(tijdlijn) };
 }
 
 /** Hoeveel van de trailer zwart mag zijn. De proef had 15 van de 60 s zwart (25%). */
@@ -219,11 +225,13 @@ Production limits:
 - Keep the last 2 clips for the ending: the "klap" shot and the button shot after the title use clips that appear NOWHERE else in the trailer. Reuse other clips at most 2 times.
 - Black: the opening silence at most 2 s, dips between movements 0.2-0.8 s, the "adem" 1.5-3 s. All black together at most 10% of the trailer.
 - 2-4 text cards ("tekst") that together form one sentence, placed between movements.
-- All spoken lines are in DUTCH (Nederlands), short and dramatic, like a real dubbed trailer. A line starts at the element it is attached to and keeps running over the next shots (that is intended).
+- VOICE-OVER: ONE narrator speaks every line ("wie": "verteller") — the classic deep movie-trailer voice. Characters do not speak. Write ${v.taal === "en" ? "in ENGLISH" : "in DUTCH (Nederlands)"}: 6-10 short narrator phrases (2-10 words each) that together tell ONE story arc, like "In a world… / one girl… / will rise." Phrases are spoken slowly with pauses, so give each phrase room: the shots after a phrase (until the next phrase) must last at least 1 second per 2 words. A phrase starts on the element it is attached to and runs over the next shots.
+- Text cards and the button line are in the same language as the narrator.
 
 Answer ONLY with JSON:
 {
  "titel": "<film title>",
+ "taal": "${v.taal}",
  "personages": [{"naam": "", "rol": "<Dutch, one line>", "uiterlijk": "<English: age and sex first, then face, hair, build, costume, era>", "geslacht": "man|vrouw"}],
  "wezens": [{"naam": "<e.g. De draak>", "uiterlijk": "<English: species, shape, size, colours, texture, distinctive marks>"}],
  "clips": [{"beeld": "<English, one cinematic frame: setting, composition, lens, light>", "beweging": "<English: camera move + action in 5 s>", "personages": ["<names in frame>"], "uitleg": "<Dutch, one line>"}],
@@ -235,7 +243,7 @@ Answer ONLY with JSON:
  ]
 }
 The timeline must add up to about ${v.sec} seconds, follow the four movements of the rulebook (incl. the silent "adem" before the "klap", the title card and the button line after it), and use every clip at least once.
-Before answering, check: shots never longer than ${CLIP_SEC} s; 2-4 text cards; black at most 10%; the last 2 clips only at the ending; every recurring creature in "wezens"; spoken lines fit the character (he/she) and the story, not generic phrases.`,
+Before answering, check: shots never longer than ${CLIP_SEC} s; 2-4 text cards; black at most 10%; the last 2 clips only at the ending; every recurring creature in "wezens"; narrator phrases fit the story (he/she right), build one arc, and avoid clichés unless used on purpose ("In a world…").`,
         },
         {
           role: "user",
@@ -246,7 +254,7 @@ ${v.personages.map((p) => `- ${p.naam}: ${p.omschrijving}`).join("\n") || "(verz
         },
       ],
     });
-    return controleerTrailerPlan(JSON.parse(resp.choices[0]?.message?.content ?? "{}"), v.sec);
+    return controleerTrailerPlan({ ...JSON.parse(resp.choices[0]?.message?.content ?? "{}"), taal: v.taal }, v.sec);
   };
   try {
     return await vraag();

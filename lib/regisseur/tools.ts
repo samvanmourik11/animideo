@@ -208,6 +208,7 @@ export const TOOLS: Tool[] = [
         verhaal: { type: "string" },
         personages: { type: "array", items: { type: "object", properties: { naam: { type: "string" }, omschrijving: { type: "string" } }, required: ["naam"] }, maxItems: 3 },
         sec: { type: "integer", enum: TRAILER_LENGTES.map((l) => l.sec) },
+        taal: { type: "string", enum: ["en", "nl"], description: "Taal van de verteller; standaard Engels (klassieke trailerstem)." },
       },
       required: ["verhaal"],
     },
@@ -409,7 +410,7 @@ export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUs
       .map((p) => ({ naam: String((p as { naam?: unknown }).naam ?? ""), omschrijving: String((p as { omschrijving?: unknown }).omschrijving ?? "") }))
       .filter((p) => p.naam)
       .slice(0, 3);
-    const plan = await schrijfTrailer({ titel: String(i.titel ?? ""), verhaal: String(i.verhaal ?? ""), personages, genre: "fantasy", sec });
+    const plan = await schrijfTrailer({ titel: String(i.titel ?? ""), verhaal: String(i.verhaal ?? ""), personages, genre: "fantasy", sec, taal: i.taal === "nl" ? "nl" : "en" });
     const invoer = { genre: "fantasy", sec, plan };
     return {
       ...basis, maker: "trailer", invoer, credits: trailerCredits(plan),

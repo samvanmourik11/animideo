@@ -9,6 +9,8 @@ import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebr
 import {
   GENRES,
   TRAILER_LENGTES,
+  VO_TALEN,
+  type VoTaal,
   geschatteTrailerCredits,
   tijdlijnDuur,
   trailerCredits,
@@ -49,6 +51,7 @@ async function post<T>(pad: string, body: unknown): Promise<T> {
 export default function TrailerStudio() {
   const [genre, setGenre] = useState<GenreId>("fantasy");
   const [sec, setSec] = useState<TrailerLengte>(60);
+  const [taal, setTaal] = useState<VoTaal>("en");
   const [titel, setTitel] = useState("");
   const [verhaal, setVerhaal] = useState("");
   const [personages, setPersonages] = useState([{ naam: "", omschrijving: "" }]);
@@ -72,7 +75,7 @@ export default function TrailerStudio() {
 
   function schrijf() {
     return doe("schrijven", async () => {
-      const { plan: p } = await post<{ plan: TrailerPlan }>("/api/trailer/plan", { genre, sec, titel, verhaal, personages: personages.filter((p) => p.naam.trim()) });
+      const { plan: p } = await post<{ plan: TrailerPlan }>("/api/trailer/plan", { genre, sec, taal, titel, verhaal, personages: personages.filter((p) => p.naam.trim()) });
       setPlan(p);
     });
   }
@@ -127,6 +130,17 @@ export default function TrailerStudio() {
                   <div className="text-[11px] text-tekst-3">{l.clips} filmclips</div>
                 </button>
               ))}
+            </div>
+            <div>
+              <div className="n-label mb-1.5">Verteller</div>
+              <div className="grid grid-cols-2 gap-2">
+                {VO_TALEN.map((t) => (
+                  <button key={t.id} onClick={() => { setTaal(t.id); setPlan(null); }} className={`rounded-xl border px-3 py-2 text-left ${taal === t.id ? "border-blue-500 bg-blue-500/10" : "border-rand"}`}>
+                    <div className="text-sm font-semibold text-tekst">{t.id === "en" ? "🇬🇧" : "🇳🇱"} {t.naam}</div>
+                    <div className="text-[11px] text-tekst-3">{t.uitleg}</div>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
