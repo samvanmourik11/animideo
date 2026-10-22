@@ -14,7 +14,9 @@ export function leesCast(ruw: unknown, bestaand: CastLid[]): CastLid[] {
     if (!naam) return null;
     const oud = bestaand.find((c) => c.naam.toLowerCase() === naam.toLowerCase());
     const stem = tekst(o.stem, 80) || oud?.stem;
-    if (stem && !isBibliotheekStem(stem) && !String(stem).startsWith(EIGEN)) throw new Error(`Onbekende stem voor ${naam}: zoek er een met zoek_stemmen.`);
+    // Eigen getrainde stemmen spreken via MiniMax; de film spreekt (nog) alleen via ElevenLabs.
+    if (stem && String(stem).startsWith(EIGEN)) throw new Error(`Eigen stemmen kunnen nog niet in een film. Kies voor ${naam} een stem uit de bibliotheek.`);
+    if (stem && !isBibliotheekStem(stem)) throw new Error(`Onbekende stem voor ${naam}: zoek er een met zoek_stemmen.`);
     return {
       naam,
       soort: o.soort === "wezen" ? "wezen" : "personage",
