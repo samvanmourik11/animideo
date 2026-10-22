@@ -104,3 +104,12 @@ Alle vijf volgen dezelfde boog. Percentages zijn van de totale lengte.
 - De muziek bepaalt de knippen: eerst de muziek en de stemmen, dan de beelden op de tellen.
 - Zwart, stilte en de "adem" vóór de klap zijn bewuste montagekeuzes; die moet de monteur zelf
   inplannen, niet aan het toeval overlaten.
+
+## 7. Afwijkingen voor de trailerstudio (keuzes van Sam, 22-10-2026)
+
+- **Geen muziekstiltes na de opening.** De echte trailers vallen stil vóór de klap en na de
+  titel, maar zonder geluidseffecten voelde dat bij ons steeds als "de video valt uit", ook
+  met uitstervende muziek. De muziek loopt door; de adem is alleen een kort zwart dipje.
+- **Eén verteller**, de klassieke trailerstem (standaard Engels). Personages spreken niet.
+- **Elke zin valt op het beeld waar hij over gaat**: een zin over de draak begint op een
+  draakshot, een zin over de koning op de koning.

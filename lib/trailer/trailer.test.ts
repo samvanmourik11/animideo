@@ -54,12 +54,11 @@ test("stemmen overlappen nooit en schuiven op als een zin uitloopt", () => {
   expect(p[0].start).toBeCloseTo(begintijden(t)[met[0]] + 0.15);
 });
 
-test("muziek: stil bij de adem, en glijdend in plaats van springend", () => {
+test("muziek: glijdend in plaats van springend", () => {
   const t = controleerTrailerPlan(ruwPlan(12), 60).tijdlijn;
   const i = t.findIndex((e) => e.deel === "adem");
   const midden = begintijden(t)[i] + t[i].duur / 2;
-  expect(muziekNiveau(t, [], midden)).toBe(0.05);
-  expect(t[i].duur).toBeLessThanOrEqual(1.5);
+  expect(muziekNiveau(t, [], midden)).toBe(0.9);
   const stem = [{ index: 1, start: 10, duur: 2 }];
   const k = muziekSleutels(t, stem);
   // Vóór de zin zakt de muziek in 0,3 s weg, erna komt hij in 0,8 s terug.
@@ -187,4 +186,26 @@ describe("één verteller (22-10-2026)", () => {
 test("een shot begint niet in het stilstaande begin van een clip, als de clip ruimte heeft", () => {
   const p = controleerTrailerPlan({ ...ruwPlan(24, 1), taal: "en" }, 60);
   for (const e of p.tijdlijn) if (e.soort === "shot") expect(e.van).toBeGreaterThanOrEqual(Math.min(EERSTE_BEWEGING, 5 - e.duur) - 0.001);
+});
+
+test("een zin over de draak verschuift naar het draakshot ernaast", () => {
+  const clips = [
+    { beeld: "A bustling village market", beweging: "", personages: ["Mira"], uitleg: "Mira loopt door de markt." },
+    { beeld: "A dragon's eye in extreme close-up", beweging: "", personages: [], uitleg: "Het oog van een draak." },
+    ...Array.from({ length: 4 }, () => clip),
+  ];
+  const r = ruwPlan(12);
+  const tijdlijn = r.tijdlijn.map((e) => ({ ...e, regel: undefined })) as Record<string, unknown>[];
+  tijdlijn[1] = { soort: "shot", deel: "wereld", clip: 1, van: 0, duur: 2 };
+  tijdlijn[2] = { soort: "shot", deel: "wereld", clip: 0, van: 0, duur: 2, regel: { wie: "verteller", tekst: "The dragons are waking." } };
+  const p = controleerTrailerPlan({ ...r, clips, tijdlijn, taal: "en" }, 60);
+  expect(p.tijdlijn[1].regel?.tekst).toBe("The dragons are waking.");
+  expect(p.tijdlijn[2].regel).toBeUndefined();
+});
+
+test("de muziek loopt door bij de adem (geen stiltes meer na de opening)", () => {
+  const t = controleerTrailerPlan(ruwPlan(12), 60).tijdlijn;
+  const i = t.findIndex((e) => e.deel === "adem");
+  expect(muziekNiveau(t, [], begintijden(t)[i] + 0.1)).toBe(0.9);
+  expect(t[i].duur).toBeLessThanOrEqual(0.8);
 });

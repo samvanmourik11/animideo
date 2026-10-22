@@ -60,19 +60,20 @@ export function plaatsStemmen(t: Element[], duren: Map<number, number>): Plaatsi
   return uit;
 }
 
-/**
- * Zo zacht is "stil": nooit helemaal niets. Digitale stilte klonk in de proef alsof de video
- * uitviel; nu sterft de muziek uit tot een zachte ondertoon.
- */
+/** Alleen de openingsstilte is (bijna) stil; daarna loopt de muziek door. */
 export const BIJNA_STIL = 0.05;
 
-/** Het muziekniveau op tijdstip x: bijna stil bij de adem, zacht onder de stem, opbouw in de opening. */
+/**
+ * Het muziekniveau op tijdstip x: zacht in de opening, iets zachter onder de stem, verder vol.
+ * Geen muziekstiltes meer bij de adem of na de titel: het regelboek vraagt erom, maar zonder
+ * geluidseffecten voelde het steeds als "de video valt uit", ook met uitstervende muziek
+ * (Sam, 22-10-2026).
+ */
 export function muziekNiveau(t: Element[], stemmen: Plaatsing[], x: number): number {
   const starts = begintijden(t);
   // De openingsstilte is "bijna stil" (GoT S7: -40 dB), niet digitaal stil: 4,5 s niets
   // klonk in de proef alsof de video kapot was.
   if (t[0]?.soort === "zwart" && t[0].stil && x < t[0].duur) return 0.06;
-  if (t.some((e, i) => i > 0 && e.soort === "zwart" && e.stil && x >= starts[i] && x < starts[i] + e.duur)) return BIJNA_STIL;
   if (stemmen.some((s) => x >= s.start - 0.1 && x < s.start + s.duur + 0.1)) return 0.35;
   const eindOpening = t.reduce((m, e, i) => (e.deel === "opening" ? starts[i] + e.duur : m), 0);
   return x < eindOpening ? 0.45 : 0.9;

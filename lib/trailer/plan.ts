@@ -146,7 +146,68 @@ export function controleerTrailerPlan(ruw: unknown, sec: TrailerLengte): Trailer
     });
   }
 
-  return { titel: tekst(r.titel, 60) || "Zonder titel", ...(taal ? { taal } : {}), personages, ...(wezens.length ? { wezens } : {}), clips, tijdlijn: spreidHerhalingen(tijdlijn) };
+  return { titel: tekst(r.titel, 60) || "Zonder titel", ...(taal ? { taal } : {}), personages, ...(wezens.length ? { wezens } : {}), clips, tijdlijn: spreidHerhalingen(taal ? koppelZinnenAanBeeld(tijdlijn, clips, personages, wezens) : tijdlijn) };
+}
+
+const ZELFDE: Record<string, string> = {
+  draak: "dragon", draken: "dragon", koning: "king", koningin: "queen", meisje: "girl", vrouw: "woman", jongen: "boy",
+  vuur: "fire", ijs: "ice", sneeuw: "snow", boek: "book", zwaard: "sword", kroon: "crown", troon: "throne", leger: "army",
+  markt: "market", smidse: "forge", smid: "forge", berg: "mountain", bergen: "mountain", vallei: "valley", kasteel: "castle",
+  oog: "eye", ogen: "eye", oorlog: "war", strijd: "battle", nacht: "night", winter: "winter", rijk: "kingdom",
+};
+const LEEG = new Set(["the", "and", "with", "from", "that", "this", "they", "them", "their", "will", "what", "when", "into", "een", "het", "van", "die", "dat", "zijn", "voor", "met", "wordt", "worden"]);
+const VROUW = ["girl", "woman", "she", "her", "heroine", "queen", "zij", "haar"];
+const MAN = ["boy", "man", "he", "him", "his", "king", "hij"];
+
+function woorden(t: string): Set<string> {
+  return new Set(
+    t.toLowerCase().split(/[^a-zà-ÿ]+/).map((w) => ZELFDE[w] ?? w).map((w) => (w.length > 4 && w.endsWith("s") ? w.slice(0, -1) : w))
+      .filter((w) => (w.length >= 3 || VROUW.includes(w) || MAN.includes(w)) && !LEEG.has(w)),
+  );
+}
+
+/**
+ * Een zin van de verteller hoort op het beeld waar hij over gaat: in de proef viel "the
+ * dragons are waking" op de markt, terwijl het draakshot er net vóór zat. Per zin kijken we
+ * of een shot in de buurt (tot de vorige en volgende zin) beter past bij wat er gezegd wordt,
+ * en zo ja, dan begint de zin daar.
+ */
+export function koppelZinnenAanBeeld(t: Element[], clips: Clip[], personages: Personage[], wezens: Wezen[]): Element[] {
+  const tekstVan = (c: Clip) => {
+    const extra = c.personages.flatMap((n) => {
+      const p = personages.find((x) => x.naam === n);
+      if (p) return [p.rol, p.uiterlijk, ...(p.geslacht === "vrouw" ? VROUW : MAN)];
+      const w = wezens.find((x) => x.naam === n);
+      return w ? [w.uiterlijk] : [];
+    });
+    return woorden([c.beeld, c.uitleg, ...c.personages, ...extra].join(" "));
+  };
+  const score = (zin: string, e: Element | undefined) => {
+    if (e?.soort !== "shot" || !clips[e.clip]) return -1;
+    const w = tekstVan(clips[e.clip]);
+    return [...woorden(zin)].filter((x) => w.has(x)).length;
+  };
+  const uit = [...t];
+  const zinnen = uit.map((e, i) => i).filter((i) => uit[i].regel);
+  zinnen.forEach((i, k) => {
+    const rg = uit[i].regel!;
+    const van = k > 0 ? zinnen[k - 1] + 1 : 0;
+    const tot = k < zinnen.length - 1 ? zinnen[k + 1] - 1 : uit.length - 1;
+    let beste = i;
+    let hoogst = score(rg.tekst, uit[i]);
+    for (let j = Math.max(van, i - 3); j <= Math.min(tot, i + 3); j++) {
+      if (j === i || uit.slice(Math.min(i, j), Math.max(i, j) + 1).some((e) => e.soort === "titel")) continue;
+      const s = score(rg.tekst, uit[j]);
+      if (s > hoogst || (s === hoogst && s > 0 && Math.abs(j - i) < Math.abs(beste - i))) [beste, hoogst] = [j, s];
+    }
+    if (beste !== i) {
+      const { regel: _, ...zonder } = uit[i] as Element & { regel?: Regel };
+      uit[i] = zonder as Element;
+      uit[beste] = { ...uit[beste], regel: rg };
+      zinnen[k] = beste;
+    }
+  });
+  return uit;
 }
 
 /** Hoeveel van de trailer zwart mag zijn. De proef had 15 van de 60 s zwart (25%). */
@@ -162,7 +223,8 @@ const MAX_ZWART = 0.12;
 export function beperkZwart(t: Element[], sec: number): Element[] {
   let uit = t.map((e, i) => {
     if (e.soort !== "zwart") return e;
-    const max = i === 0 ? 2 : e.stil ? (e.deel === "adem" ? 1.5 : 1) : 0.8;
+    // Na de opening is zwart alleen nog een kort dipje; de muziek loopt erdoorheen.
+    const max = i === 0 ? 2 : e.stil ? 0.8 : 0.8;
     return { ...e, duur: Math.min(e.duur, max) };
   });
   const zwart = uit.reduce((s, e) => s + (e.soort === "zwart" ? e.duur : 0), 0);
@@ -239,7 +301,8 @@ Production limits:
 - Every clip's "beeld" names the location AND the light, matching the same world (cold, overcast, firelit). A close-up still says where we are; never a sunny green background in a cold world.
 - Each character's "uiterlijk" starts with age and sex, e.g. "19-year-old young woman, ...".
 - Keep the last 2 clips for the ending: the "klap" shot and the button shot after the title use clips that appear NOWHERE else in the trailer. Reuse other clips at most 2 times.
-- Black: the opening silence at most 2 s, dips between movements 0.2-0.8 s, the "adem" 1.5-3 s. All black together at most 10% of the trailer.
+- Black: the opening silence at most 2 s, dips between movements 0.2-0.8 s, the "adem" before the klap 0.5-0.8 s (the music keeps playing; no silences). All black together at most 10% of the trailer.
+- SYNC: attach every narrator phrase to a shot that SHOWS what the phrase is about. "The dragons are waking" starts on a dragon shot, "a king…" on the king, "one girl…" on the heroine. Never put a phrase about X on a shot without X.
 - 2-4 text cards ("tekst") that together form one sentence, placed between movements.
 - VOICE-OVER: ONE narrator speaks every line ("wie": "verteller") — the classic deep movie-trailer voice. Characters do not speak. Write ${v.taal === "en" ? "in ENGLISH" : "in DUTCH (Nederlands)"}: 6-10 short narrator phrases (2-10 words each) that together tell ONE story arc, like "In a world… / one girl… / will rise." Phrases are spoken slowly with pauses, so give each phrase room: the shots after a phrase (until the next phrase) must last at least 1 second per 2 words. A phrase starts on the element it is attached to and runs over the next shots.
 - Text cards and the button line are in the same language as the narrator.
