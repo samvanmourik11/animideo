@@ -60,13 +60,19 @@ export function plaatsStemmen(t: Element[], duren: Map<number, number>): Plaatsi
   return uit;
 }
 
-/** Het muziekniveau op tijdstip x: stil bij de adem, zacht onder de stem, opbouw in de opening. */
+/**
+ * Zo zacht is "stil": nooit helemaal niets. Digitale stilte klonk in de proef alsof de video
+ * uitviel; nu sterft de muziek uit tot een zachte ondertoon.
+ */
+export const BIJNA_STIL = 0.05;
+
+/** Het muziekniveau op tijdstip x: bijna stil bij de adem, zacht onder de stem, opbouw in de opening. */
 export function muziekNiveau(t: Element[], stemmen: Plaatsing[], x: number): number {
   const starts = begintijden(t);
   // De openingsstilte is "bijna stil" (GoT S7: -40 dB), niet digitaal stil: 4,5 s niets
   // klonk in de proef alsof de video kapot was.
   if (t[0]?.soort === "zwart" && t[0].stil && x < t[0].duur) return 0.06;
-  if (t.some((e, i) => i > 0 && e.soort === "zwart" && e.stil && x >= starts[i] && x < starts[i] + e.duur)) return 0;
+  if (t.some((e, i) => i > 0 && e.soort === "zwart" && e.stil && x >= starts[i] && x < starts[i] + e.duur)) return BIJNA_STIL;
   if (stemmen.some((s) => x >= s.start - 0.1 && x < s.start + s.duur + 0.1)) return 0.35;
   const eindOpening = t.reduce((m, e, i) => (e.deel === "opening" ? starts[i] + e.duur : m), 0);
   return x < eindOpening ? 0.45 : 0.9;
@@ -92,7 +98,8 @@ export function muziekSleutels(t: Element[], stemmen: Plaatsing[]): [number, num
     const voor = muziekNiveau(t, stemmen, p - 0.001);
     const na = muziekNiveau(t, stemmen, p + 0.001);
     if (Math.abs(voor - na) < 0.001) continue;
-    const r = na < voor ? (na === 0 ? 0.2 : 0.3) : voor === 0 ? 0.05 : voor === 0.35 ? 0.8 : 0.6;
+    // Naar de stilte toe sterft de muziek uit (0,6 s); de klap erna komt meteen.
+    const r = na < voor ? (na === BIJNA_STIL ? 0.6 : 0.3) : voor === BIJNA_STIL ? 0.05 : voor === 0.35 ? 0.8 : 0.6;
     const [a, b] = na < voor ? [p - r, p] : [p, p + r];
     const laatste = sleutels[sleutels.length - 1];
     if (a > laatste[0]) sleutels.push([a, voor]);

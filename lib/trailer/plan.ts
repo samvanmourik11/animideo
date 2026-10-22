@@ -154,13 +154,15 @@ const MAX_ZWART = 0.12;
 
 /**
  * Zwart is een bewuste keuze (regelboek §1 en §2), maar met mate: de openingsstilte max 2 s,
- * een dip tussen delen max 0,8 s, de adem en de stilte na de titel max 3 s, en alles samen
- * hooguit 12%. De vrijgekomen tijd gaat daarna naar de shots.
+ * een dip tussen delen max 0,8 s, de adem max 1,5 s, de stilte na de titel max 1 s, en alles
+ * samen hooguit 12%. De vrijgekomen tijd gaat daarna naar de shots. De echte trailers hebben
+ * langere stiltes, maar bij ons (zonder geluidseffecten erin) voelde 1,7 s zwart en stil als
+ * "de video valt uit" (Sam, 22-10-2026).
  */
 export function beperkZwart(t: Element[], sec: number): Element[] {
   let uit = t.map((e, i) => {
     if (e.soort !== "zwart") return e;
-    const max = i === 0 ? 2 : e.stil ? 3 : 0.8;
+    const max = i === 0 ? 2 : e.stil ? (e.deel === "adem" ? 1.5 : 1) : 0.8;
     return { ...e, duur: Math.min(e.duur, max) };
   });
   const zwart = uit.reduce((s, e) => s + (e.soort === "zwart" ? e.duur : 0), 0);

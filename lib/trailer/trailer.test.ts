@@ -58,7 +58,8 @@ test("muziek: stil bij de adem, en glijdend in plaats van springend", () => {
   const t = controleerTrailerPlan(ruwPlan(12), 60).tijdlijn;
   const i = t.findIndex((e) => e.deel === "adem");
   const midden = begintijden(t)[i] + t[i].duur / 2;
-  expect(muziekNiveau(t, [], midden)).toBe(0);
+  expect(muziekNiveau(t, [], midden)).toBe(0.05);
+  expect(t[i].duur).toBeLessThanOrEqual(1.5);
   const stem = [{ index: 1, start: 10, duur: 2 }];
   const k = muziekSleutels(t, stem);
   // Vóór de zin zakt de muziek in 0,3 s weg, erna komt hij in 0,8 s terug.
