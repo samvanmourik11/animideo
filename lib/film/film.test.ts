@@ -86,3 +86,25 @@ describe("montage", () => {
     expect(e).toContain("0.18");
   });
 });
+
+test("wijzigFilm bewaart de aanpassing, ook als de functie niets teruggeeft", async () => {
+  const bewaard: unknown[] = [];
+  vi.doMock("@/lib/supabase/service", () => ({
+    createServiceClient: () => ({
+      from: () => {
+        const keten: Record<string, unknown> = {
+          select: () => keten,
+          eq: () => keten,
+          maybeSingle: async () => ({ data: { id: "f1", user_id: "u1", titel: "x", data: { ...LEGE_FILM, cast: [] } } }),
+          update: (rij: { data: unknown }) => (bewaard.push(rij.data), keten),
+          then: (ok: (v: unknown) => void) => ok({ error: null }),
+        };
+        return keten;
+      },
+    }),
+  }));
+  vi.resetModules();
+  const { wijzigFilm } = await import("./opslag");
+  await wijzigFilm("u1", "f1", (f) => void (f.titel = "Nieuw"));
+  expect((bewaard[0] as { titel: string }).titel).toBe("Nieuw");
+});

@@ -43,7 +43,10 @@ export async function maakFilm(userId: string, projectId: string, film: Film): P
 /** Lees, pas aan en bewaar in één keer (de server is de enige schrijver). */
 export async function wijzigFilm(userId: string, filmId: string, f: (film: Film) => Film | void): Promise<Film> {
   const rij = await leesFilm(userId, filmId);
-  const nieuw = f(structuredClone(rij.data)) ?? rij.data;
+  // Pas de kopie aan (of geef een nieuwe film terug). Eerst stond hier `?? rij.data`: dan
+  // werd bij een aanpassing zonder return de oude versie bewaard en ging alles verloren.
+  const kopie = structuredClone(rij.data);
+  const nieuw = f(kopie) ?? kopie;
   await bewaarFilm(filmId, nieuw);
   return nieuw;
 }
