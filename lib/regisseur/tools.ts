@@ -13,6 +13,7 @@ import { VIDEO_MODELLEN, STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
 import { MUSIC_CATEGORIES } from "@/lib/music/library";
 import { UGC_STEMMEN } from "@/lib/ugc/types";
 import { BIBLIOTHEEK, vindStem } from "@/lib/stem/bibliotheek";
+import { FILM_BETAALD, FILM_GRATIS, FILM_TOOLS, filmBereidVoor, filmGratis, filmOpties } from "@/lib/film/tools";
 import { EIGEN, GEBRUIK_LABEL, type BibliotheekStem } from "@/lib/stem/types";
 import { startCreatie } from "@/lib/creaties/wachtrij";
 import { leesProductpagina } from "@/lib/reclame/pagina";
@@ -28,9 +29,9 @@ import { TRAILER_LENGTES, trailerCredits, type TrailerLengte } from "@/lib/trail
 
 type Tool = Anthropic.Beta.BetaTool;
 
-export const BETAALDE_TOOLS = new Set(["maak_beeld", "maak_voiceover", "maak_video", "gebruik_app", "monteer", "maak_ugc_video", "maak_reclame", "maak_trailer"]);
+export const BETAALDE_TOOLS = new Set([...FILM_BETAALD, "maak_beeld", "maak_voiceover", "maak_video", "gebruik_app", "monteer", "maak_ugc_video", "maak_reclame", "maak_trailer"]);
 /** Gratis, meteen uitgevoerd. */
-export const GRATIS_TOOLS = new Set(["lees_webpagina", "mijn_werk", "ugc_creators", "zoek_stemmen", "onthoud"]);
+export const GRATIS_TOOLS = new Set([...FILM_GRATIS, "lees_webpagina", "mijn_werk", "ugc_creators", "zoek_stemmen", "onthoud"]);
 
 // De lijst apps staat in de omschrijving van het gereedschap. Die verandert alleen als we
 // apps toevoegen, dus de cache van het verzoek blijft gewoon geldig.
@@ -45,7 +46,8 @@ export const TOOLS: Tool[] = [
       type: "object",
       properties: {
         vraag: { type: "string", description: "De vraag, kort, in het Nederlands." },
-        soort: { type: "string", enum: ["tekst", "creator", "stem", "beeld"] },
+        soort: { type: "string", enum: ["tekst", "creator", "stem", "beeld", "scene"] },
+        scene_nummer: { type: "integer", description: "Alleen bij soort 'scene': de scène die ter keuring gaat (toont de video met Goedkeuren / Aanpassen)." },
         opties: {
           type: "array",
           maxItems: 6,
@@ -223,6 +225,7 @@ export const TOOLS: Tool[] = [
     description: "Wacht tot creaties klaar zijn (beelden duren ~20 s, video's 1-3 min, een montage ~1 min). Je krijgt daarna de resultaten te zien, beelden ook als plaatje, zodat je ze kunt beoordelen. Gebruik dit na het starten van stappen waarop je wilt verder bouwen.",
     input_schema: { type: "object", properties: { creatie_ids: { type: "array", items: { type: "string" }, minItems: 1 } }, required: ["creatie_ids"] },
   },
+  ...FILM_TOOLS,
 ];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -265,14 +268,17 @@ export interface Optie {
   beeld?: string;
   /** Een stemvoorbeeld om te beluisteren. */
   geluid?: string;
+  /** Een video om te bekijken (een scène ter keuring). */
+  video?: string;
 }
 
 /**
  * Het menu bij een vraag. Creators en stemmen vult de app zelf: zo hoeft Claude ze niet
  * op te sommen, en staan er altijd echte portretten en echte stemvoorbeelden in.
  */
-export async function bouwOpties(userId: string, input: Record<string, unknown>): Promise<Optie[]> {
+export async function bouwOpties(userId: string, input: Record<string, unknown>, projectId?: string): Promise<Optie[]> {
   const soort = input.soort;
+  if (soort === "scene") return filmOpties(userId, projectId, input);
   if (soort === "creator") {
     const lijst = JSON.parse(await gratis(userId, { name: "ugc_creators", input: {} } as Anthropic.Beta.BetaToolUseBlock)) as { id: string; naam: string; omschrijving?: string; portret: string; eigen?: boolean }[];
     return lijst.map((c) => ({
@@ -329,7 +335,8 @@ export async function bouwOpties(userId: string, input: Record<string, unknown>)
  * Zet een betaalde tool-aanroep om in een stap: controleren, prijs uitrekenen, ids naar
  * adressen. Gooit met een melding die als foutresultaat terug naar Claude gaat.
  */
-export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUseBlock): Promise<Stap> {
+export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUseBlock, projectId?: string): Promise<Stap> {
+  if (FILM_BETAALD.has(blok.name)) return filmBereidVoor(userId, projectId, blok);
   const i = (blok.input ?? {}) as Record<string, unknown>;
   const basis = { toolUseId: blok.id, naam: blok.name, input: i };
   if (blok.name === "maak_beeld") {
@@ -454,7 +461,8 @@ export async function voerUit(userId: string, s: Stap): Promise<string> {
 }
 
 /** De gratis gereedschappen, meteen uitgevoerd. */
-export async function gratis(userId: string, blok: Anthropic.Beta.BetaToolUseBlock): Promise<string> {
+export async function gratis(userId: string, blok: Anthropic.Beta.BetaToolUseBlock, projectId?: string): Promise<string> {
+  if (FILM_GRATIS.has(blok.name)) return filmGratis(userId, projectId, blok);
   const i = (blok.input ?? {}) as Record<string, unknown>;
   if (blok.name === "lees_webpagina") {
     const p = await leesProductpagina(String(i.url ?? ""));

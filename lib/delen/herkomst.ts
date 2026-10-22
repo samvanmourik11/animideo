@@ -13,6 +13,7 @@ export function herkomst(c: Pick<Creatie, "maker" | "invoer" | "soort">): { naam
   if (c.maker === "voice-over" || c.maker === "stem-kloon" || c.maker === "pratende-foto") return { naam: "Stem & Lipsync", pad: "/stem" };
   if (c.maker === "montage") return { naam: "Regisseur", pad: "/regisseur" };
   if (c.maker === "trailer") return { naam: "Trailerstudio", pad: "/studios/trailer" };
+  if (c.maker === "film-scene" || c.maker === "film") return { naam: "Filmstudio", pad: "/studios/film" };
   if (c.maker === "ugc") return { naam: "UGC-studio", pad: "/studios/ugc" };
   if (c.maker === "ugc-creator") return { naam: "UGC-creator", pad: "/studios/ugc" };
   if (c.maker === "storytelling") return { naam: "Storytelling", pad: "/studios/storytelling" };

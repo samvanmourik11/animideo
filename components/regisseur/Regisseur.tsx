@@ -17,7 +17,7 @@ type Blok = { type: string; text?: string; name?: string; input?: Record<string,
 interface Bijlage { soort: "beeld" | "document"; url: string; naam: string; id?: string }
 type Bericht = { role: "user" | "assistant"; content: string | Blok[] };
 interface Stap { toolUseId: string; naam: string; credits: number; omschrijving: string; details?: { beelden?: string[]; regels?: string[] } }
-interface Optie { label: string; waarde: string; uitleg?: string; beeld?: string; geluid?: string }
+interface Optie { label: string; waarde: string; uitleg?: string; beeld?: string; geluid?: string; video?: string }
 type Wachtend =
   | { soort: "antwoord"; vraag: string; opties: (Optie | string)[]; meerdere?: boolean }
   | { soort: "bevestiging"; stappen: Stap[]; totaal: number }
@@ -148,6 +148,8 @@ function KeuzeMenu({ vraag, opties, meerdere, onKies }: { vraag: string; opties:
   return (
     <div className="n-kaart !p-4 space-y-3">
       <div className="text-sm font-semibold text-tekst">{vraag}</div>
+      {/* Een scène ter keuring: eerst kijken, dan goedkeuren of aanpassen. */}
+      {opties.find((o) => o.video) && <video src={opties.find((o) => o.video)!.video} controls playsInline className="w-full rounded-xl bg-black max-h-[60vh]" />}
       {metBeeld ? (
         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
           {opties.map((o) => (
@@ -282,8 +284,11 @@ export default function Regisseur() {
 
   useEffect(() => {
     laadLijst();
-    const id = new URLSearchParams(window.location.search).get("project");
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("project");
     if (id) setActief(id);
+    // Vanuit een studio ("Nieuwe film"): de eerste zin staat alvast klaar.
+    else if (params.get("start")) setInvoer(params.get("start")!.slice(0, 500));
   }, [laadLijst]);
 
   useEffect(() => {
@@ -610,7 +615,7 @@ export default function Regisseur() {
               ref={kiezer}
               type="file"
               multiple
-              accept="image/jpeg,image/png,image/webp,application/pdf"
+              accept="image/jpeg,image/png,image/webp,application/pdf,.docx,.txt,.fountain,.md,text/plain"
               className="hidden"
               onChange={(e) => {
                 if (e.target.files) voegToe(e.target.files);

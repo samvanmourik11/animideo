@@ -55,7 +55,16 @@ Werkwijze:
 - Voor een complete productreclame, een UGC-video (een creator die over een product of dienst praat) of een filmtrailer zijn er kant-en-klare studio's: maak_reclame, maak_ugc_video (kies eerst een creator met ugc_creators) en maak_trailer. Die leveren in één stap een afgemonteerde video en zijn meestal beter dan zelf losse clips aan elkaar zetten.
 - Je hebt een geheugen over deze gebruiker (onderaan). Gebruik het: huisstijl, bedrijfsnaam, voorkeuren. Vertelt de gebruiker iets dat ook voor volgende projecten geldt, sla het dan op met onthoud (kort), zonder erover te zeuren.
 - Sluit af met een korte samenvatting van wat er gemaakt is en wat de gebruiker nog kan laten aanpassen.
-- Geen echte bestaande personen, geen merken van anderen namaken, niets misleidends.`;
+- Geen echte bestaande personen, geen merken van anderen namaken, niets misleidends.
+
+Films (de filmstudio): een film van een paar minuten bouw je SAMEN met de gebruiker, scène voor scène. Werkwijze:
+1. Verhaal: begrijp het verhaal. Heeft de gebruiker een script geüpload, lees het en volg het (vraag alleen wat echt ontbreekt). Anders werk je het verhaal samen uit: stel een korte opzet voor (logline + scènes in één regel elk) en vraag of het zo goed is.
+2. film_opzet: titel, logline, de filmlook (stijl, Engels) en de taal. Zelfde film = zelfde look in elk beeld.
+3. Cast: per personage een portret (maak_beeld, kwaliteit pro, neutrale donkere achtergrond, gezicht goed zichtbaar; laat de gebruiker bij hoofdpersonen kiezen uit versies) en een vaste stem (zoek_stemmen, laat de gebruiker kiezen met vraag_keuze soort 'stem'). Terugkerende wezens/voorwerpen krijgen ook een referentiebeeld. Zet alles met film_cast.
+4. Per scène: film_scene_schrijf (shots van 1,5-4,2 s; wie praat staat in een (medium) close-up in beeld en krijgt lipsync; wissel close-ups, wijde shots en details af; plek en licht per scène vast), daarna film_scene_maak, wacht_op, en stuur de scène ter keuring met vraag_keuze soort 'scene' (scene_nummer). Maak niet meer dan één scène tegelijk zonder dat de gebruiker de vorige heeft gezien, tenzij hij zegt dat het mag.
+5. Keuring: "goedgekeurd" → film_scene_keur goedgekeurd, door naar de volgende scène. Feedback → film_scene_keur met de feedback, herschrijf ALLEEN de shots die anders moeten (houd de id's van de rest gelijk, dan blijven die staan en kosten ze niets), maak hem opnieuw en stuur hem weer ter keuring.
+6. Zijn alle scènes goedgekeurd: film_monteer, wacht_op, en geef de link.
+Gebruik film_bekijk om de stand te zien (ook na een pauze). Een film is een dure functie: noem bij elke scène wat hij kost.`;
 
 let client: Anthropic | null = null;
 function claude(): Anthropic {
@@ -156,7 +165,7 @@ export async function draai(id: string): Promise<void> {
       const klaar: Record<string, Resultaat> = {};
       for (const b of aanroepen.filter((x) => GRATIS_TOOLS.has(x.name))) {
         try {
-          klaar[b.id] = resultaatTekst(b.id, await gratis(p.user_id, b));
+          klaar[b.id] = resultaatTekst(b.id, await gratis(p.user_id, b, p.id));
         } catch (e) {
           klaar[b.id] = resultaatTekst(b.id, e instanceof Error ? e.message : String(e), true);
         }
@@ -168,7 +177,7 @@ export async function draai(id: string): Promise<void> {
         const i = vraag.input as Record<string, unknown>;
         await bewaar(id, {
           berichten, gebruik, galerij, status: "wacht_op_antwoord",
-          wachtend: { soort: "antwoord", toolUseId: vraag.id, vraag: String(i.vraag ?? ""), opties: await bouwOpties(p.user_id, i), meerdere: i.meerdere === true, volgorde, klaar },
+          wachtend: { soort: "antwoord", toolUseId: vraag.id, vraag: String(i.vraag ?? ""), opties: await bouwOpties(p.user_id, i, p.id), meerdere: i.meerdere === true, volgorde, klaar },
         });
         return;
       }
@@ -176,7 +185,7 @@ export async function draai(id: string): Promise<void> {
       const stappen: Stap[] = [];
       for (const b of aanroepen.filter((x) => BETAALDE_TOOLS.has(x.name))) {
         try {
-          stappen.push(await bereidVoor(p.user_id, b));
+          stappen.push(await bereidVoor(p.user_id, b, p.id));
         } catch (e) {
           klaar[b.id] = resultaatTekst(b.id, e instanceof Error ? e.message : String(e), true);
         }
@@ -259,12 +268,27 @@ export async function maakInhoud(
       fotoIds.push(c.id);
     } else if (b.soort === "document") {
       const url = String(b.url ?? "");
-      if (!url.includes(`/scene-assets/${userId}/creaties/`) || !url.endsWith(".pdf")) continue;
-      blokken.push({ type: "document", source: { type: "url", url }, title: naam });
+      if (!url.includes(`/scene-assets/${userId}/creaties/`)) continue;
+      if (url.endsWith(".pdf")) blokken.push({ type: "document", source: { type: "url", url }, title: naam });
+      else if (url.endsWith(".txt") && eigenOpslag(url, userId)) {
+        // Een script als tekst (Word of .txt/.fountain, omgezet bij het uploaden).
+        const res = await fetch(url);
+        if (res.ok) blokken.push({ type: "document", source: { type: "text", media_type: "text/plain", data: await res.text() }, title: naam });
+      }
     }
   }
   blokken.push({ type: "text", text: tekst || "(Zie de bijlage.)" });
   return { inhoud: blokken, fotoIds };
+}
+
+/** Alleen onze eigen Supabase-opslag, map van deze gebruiker: die tekst halen wij zelf op. */
+function eigenOpslag(url: string, userId: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && u.hostname.endsWith(".supabase.co") && u.pathname.startsWith(`/storage/v1/object/public/scene-assets/${userId}/creaties/`);
+  } catch {
+    return false;
+  }
 }
 
 // ── Verder na een pauze ──────────────────────────────────────────────────

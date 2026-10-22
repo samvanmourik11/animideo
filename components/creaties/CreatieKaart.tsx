@@ -1,5 +1,6 @@
 "use client";
 
+import { SCENE_STAP_LABEL, type SceneStap } from "@/lib/film/types";
 import type { Creatie } from "@/lib/creaties/types";
 import { STAP_LABEL, type ReclameStap } from "@/lib/reclame/types";
 import { UGC_STAP_LABEL, type UgcStap } from "@/lib/ugc/types";
@@ -33,6 +34,8 @@ function bezigLabel(c: Creatie): string {
   if (c.maker === "reclame" && stap) return STAP_LABEL[stap];
   if (c.maker === "trailer" && stap) return TRAILER_STAP_LABEL[stap as unknown as TrailerStap] ?? "Wordt gemaakt…";
   if (c.maker === "ugc" && stap) return UGC_STAP_LABEL[stap as unknown as UgcStap] ?? "Wordt gemaakt…";
+  if (c.maker === "film-scene" && stap) return SCENE_STAP_LABEL[stap as unknown as SceneStap] ?? "Wordt gemaakt…";
+  if (c.maker === "film") return "Film wordt gemonteerd…";
   return c.soort === "video" ? "Video wordt gemaakt…" : "Wordt gemaakt…";
 }
 
