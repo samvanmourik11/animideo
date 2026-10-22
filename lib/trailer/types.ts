@@ -32,12 +32,23 @@ export interface Personage {
   geslacht: "man" | "vrouw";
 }
 
+/**
+ * Een wezen of voorwerp dat vaker terugkomt (de draak, het zwaard). Krijgt net als een
+ * personage een eigen voorbeeldbeeld: in de proeftrailer had de draak zonder voorbeeld in
+ * elk shot een ander uiterlijk (oranje oog, zwarte draak, blauwe kop in een zonnig bos).
+ */
+export interface Wezen {
+  naam: string;
+  /** Engels: vorm, kleur, schubben/materiaal, grootte. */
+  uiterlijk: string;
+}
+
 export interface Clip {
   /** Engels: wat we zien (setting, compositie, licht). */
   beeld: string;
   /** Engels: wat er in 5 seconden beweegt. */
   beweging: string;
-  /** Namen van de personages die in beeld zijn (moeten bestaan in personages). */
+  /** Namen van de personages én wezens die in beeld zijn (moeten bestaan in het plan). */
   personages: string[];
   /** Nederlands, voor de klant. */
   uitleg: string;
@@ -46,7 +57,20 @@ export interface Clip {
 export type Deel = "opening" | "wereld" | "escalatie" | "adem" | "klap" | "titel";
 
 export type Element =
-  | { soort: "shot"; deel: Deel; clip: number; van: number; duur: number; regel?: Regel }
+  | {
+      soort: "shot";
+      deel: Deel;
+      clip: number;
+      van: number;
+      duur: number;
+      regel?: Regel;
+      /**
+       * Hoe vaak deze clip al eerder in beeld was. Een herhaald shot krijgt in de montage een
+       * andere uitsnede (ingezoomd, ander deel van het beeld), zodat het niet als hetzelfde
+       * shot herkend wordt; in de proef zag je zes keer letterlijk een eerder shot terug.
+       */
+      herhaling?: number;
+    }
   | { soort: "zwart"; deel: Deel; duur: number; stil?: boolean; regel?: Regel }
   | { soort: "tekst"; deel: Deel; tekst: string; duur: number; regel?: Regel }
   | { soort: "titel"; deel: Deel; duur: number; regel?: Regel };
@@ -61,6 +85,8 @@ export interface Regel {
 export interface TrailerPlan {
   titel: string;
   personages: Personage[];
+  /** Ontbreekt bij plannen van vóór 22-10-2026. */
+  wezens?: Wezen[];
   clips: Clip[];
   tijdlijn: Element[];
 }
@@ -73,11 +99,11 @@ export function aantalRegels(p: TrailerPlan): number {
   return p.tijdlijn.filter((e) => e.regel?.tekst).length;
 }
 
-/** Prijs: portret per personage, per clip een filmbeeld + beweging, per zin de stem. */
-export function trailerCredits(p: Pick<TrailerPlan, "personages" | "clips" | "tijdlijn">): number {
+/** Prijs: voorbeeldbeeld per personage en wezen, per clip een filmbeeld + beweging, per zin de stem. */
+export function trailerCredits(p: Pick<TrailerPlan, "personages" | "clips" | "tijdlijn" | "wezens">): number {
   const perClip = CREDIT_COSTS.IMAGE_GENERATION_PRO + videoModel(TRAILER_VIDEOMODEL).credits;
   return (
-    p.personages.length * CREDIT_COSTS.IMAGE_GENERATION_PRO +
+    (p.personages.length + (p.wezens?.length ?? 0)) * CREDIT_COSTS.IMAGE_GENERATION_PRO +
     p.clips.length * perClip +
     p.tijdlijn.filter((e) => e.regel?.tekst).length * CREDIT_COSTS.VOICE
   );

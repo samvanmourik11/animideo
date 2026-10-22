@@ -77,3 +77,53 @@ test("geen zwarte flitsen tussen de snelle shots van de escalatie", () => {
   const p = controleerTrailerPlan(r, 60);
   expect(p.tijdlijn.some((e) => e.soort === "zwart" && e.deel === "escalatie")).toBe(false);
 });
+
+describe("gaten uit de proeftrailer van 20-10-2026", () => {
+  test("geen shot langer dan de clip en nooit een negatieve starttijd", () => {
+    const r = ruwPlan(9, 6);
+    (r.tijdlijn[1] as Record<string, unknown>).van = -2;
+    const p = controleerTrailerPlan(r, 60);
+    for (const e of p.tijdlijn) if (e.soort === "shot") {
+      expect(e.duur).toBeLessThanOrEqual(5);
+      expect(e.van).toBeGreaterThanOrEqual(0);
+      expect(e.van + e.duur).toBeLessThanOrEqual(5.001);
+    }
+  });
+
+  test("zwart: openingsstilte max 2 s, dips max 0,8 s, samen hooguit 12%", () => {
+    const r = ruwPlan(14);
+    (r.tijdlijn[0] as Record<string, unknown>).duur = 4.5;
+    r.tijdlijn.splice(3, 0, { soort: "zwart", deel: "opening", duur: 2 } as never, { soort: "zwart", deel: "wereld", duur: 3, stil: true } as never);
+    const p = controleerTrailerPlan(r, 60);
+    const zwart = p.tijdlijn.filter((e) => e.soort === "zwart");
+    expect(zwart[0].duur).toBeLessThanOrEqual(2);
+    expect(zwart.slice(1).filter((e) => e.soort === "zwart" && !e.stil).every((e) => e.duur <= 0.8)).toBe(true);
+    expect(zwart.reduce((s, e) => s + e.duur, 0)).toBeLessThanOrEqual(60 * 0.12 + 0.01);
+  });
+
+  test("een herhaald shot laat een ander stuk van de clip zien en wordt gemarkeerd", () => {
+    const r = ruwPlan(12); // 6 clips, elk twee keer
+    const p = controleerTrailerPlan(r, 60);
+    const perClip = new Map<number, { van: number; duur: number }[]>();
+    for (const e of p.tijdlijn) if (e.soort === "shot") perClip.set(e.clip, [...(perClip.get(e.clip) ?? []), { van: e.van, duur: e.duur }]);
+    const tweede = p.tijdlijn.filter((e) => e.soort === "shot" && e.herhaling);
+    expect(tweede.length).toBeGreaterThan(0);
+    // Zo ver uit elkaar als de clip toelaat (een shot van 4,5 s laat maar 0,5 s ruimte).
+    for (const [, s] of perClip) if (s.length > 1) expect(Math.abs(s[1].van - s[0].van)).toBeGreaterThanOrEqual(Math.min(1, 5 - s[1].duur) - 0.01);
+  });
+
+  test("terugkerende wezens horen bij het plan, mogen in een clip staan en tellen mee in de prijs", () => {
+    const r = { ...ruwPlan(12), wezens: [{ naam: "De draak", uiterlijk: "huge black dragon with ember-red eyes" }] };
+    r.clips = r.clips.map((c, i) => (i === 2 ? { ...c, personages: ["De draak"] } : c));
+    const p = controleerTrailerPlan(r, 60);
+    expect(p.wezens).toEqual([{ naam: "De draak", uiterlijk: "huge black dragon with ember-red eyes" }]);
+    expect(p.clips[2].personages).toEqual(["De draak"]);
+    expect(trailerCredits(p)).toBe(trailerCredits({ ...p, wezens: [] }) + 2);
+  });
+
+  test("de openingsstilte is bijna stil, de adem helemaal", () => {
+    const t = controleerTrailerPlan({ ...ruwPlan(12), tijdlijn: [{ soort: "zwart", deel: "opening", duur: 1.5, stil: true }, ...ruwPlan(12).tijdlijn.slice(1)] }, 60).tijdlijn;
+    const v = muziekVolume(t, []);
+    expect(v.startsWith("if(between(t,0.00,1.50),0.06,")).toBe(true);
+  });
+});

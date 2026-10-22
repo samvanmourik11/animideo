@@ -191,10 +191,13 @@ export default function TrailerStudio() {
                 </div>
               </div>
 
-              {plan.personages.length > 0 && (
+              {plan.personages.length + (plan.wezens?.length ?? 0) > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {plan.personages.map((p) => (
                     <span key={p.naam} className="text-xs rounded-full bg-paneel-2 px-3 py-1 text-tekst-2"><strong className="text-tekst">{p.naam}</strong> · {p.rol}</span>
+                  ))}
+                  {(plan.wezens ?? []).map((w) => (
+                    <span key={w.naam} className="text-xs rounded-full bg-paneel-2 px-3 py-1 text-tekst-2" title="Krijgt een eigen voorbeeldbeeld, zodat hij in elk shot hetzelfde blijft">🐉 <strong className="text-tekst">{w.naam}</strong></span>
                   ))}
                 </div>
               )}

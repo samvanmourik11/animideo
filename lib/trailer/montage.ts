@@ -63,11 +63,15 @@ export function plaatsStemmen(t: Element[], duren: Map<number, number>): Plaatsi
 export function muziekVolume(t: Element[], stemmen: Plaatsing[]): string {
   const starts = begintijden(t);
   const tussen = (a: number, b: number) => `between(t,${a.toFixed(2)},${b.toFixed(2)})`;
-  const stil = t.flatMap((e, i) => (e.soort === "zwart" && e.stil ? [tussen(starts[i], starts[i] + e.duur)] : []));
+  // De openingsstilte is "bijna stil" (GoT S7: -40 dB), niet digitaal stil: 4,5 s niets
+  // klonk in de proef alsof de video kapot was.
+  const bijnaStil = t[0]?.soort === "zwart" && t[0].stil ? tussen(0, t[0].duur) : null;
+  const stil = t.flatMap((e, i) => (e.soort === "zwart" && e.stil && i > 0 ? [tussen(starts[i], starts[i] + e.duur)] : []));
   const stem = stemmen.map((s) => tussen(s.start - 0.1, s.start + s.duur + 0.1));
   const eindOpening = t.reduce((m, e, i) => (e.deel === "opening" ? starts[i] + e.duur : m), 0);
   const of = (lijst: string[]) => (lijst.length ? `gt(${lijst.join("+")},0)` : "0");
-  return `if(${of(stil)},0,if(${of(stem)},0.35,if(lt(t,${eindOpening.toFixed(2)}),0.45,0.9)))`;
+  const rest = `if(${of(stil)},0,if(${of(stem)},0.35,if(lt(t,${eindOpening.toFixed(2)}),0.45,0.9)))`;
+  return bijnaStil ? `if(${bijnaStil},0.06,${rest})` : rest;
 }
 
 async function duur(bestand: string): Promise<number> {
@@ -116,6 +120,19 @@ export async function monteerTrailer(m: {
       inputs.push("-i", bestand);
       return n++;
     };
+    /**
+     * Herhaalde shots anders uitsnijden: ingezoomd en afwisselend links/rechts. In de proef
+     * waren de laatste 20 s vooral letterlijke herhalingen van eerdere shots.
+     */
+    const uitsnede = (herhaling: number) => {
+      if (!herhaling) return `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`;
+      const zoom = 1.25 + 0.1 * Math.min(2, herhaling - 1);
+      const x = herhaling % 2 ? 0.15 : 0.85;
+      return `scale=${Math.round(W * zoom)}:${Math.round(H * zoom)}:force_original_aspect_ratio=increase,crop=${W}:${H}:(iw-${W})*${x}:(ih-${H})*0.4`;
+    };
+    /** Regelboek §1: de opening gaat met overvloeiers van en naar zwart, niet met harde knippen. */
+    const opkomen = (e: Element) =>
+      e.deel === "opening" && e.duur >= 2 ? `fade=t=in:st=0:d=0.5,fade=t=out:st=${(e.duur - 0.5).toFixed(3)}:d=0.5,` : "";
     const tekstFilter = async (t: string, maxGrootte: number, d: number) => {
       const f = path.join(map, `t${segmenten.length}.txt`);
       // Een lange titel ("Het Fluisteren van de Draken") liep in de proef buiten beeld.
@@ -131,14 +148,14 @@ export async function monteerTrailer(m: {
       if (e.soort === "shot") {
         const k = invoer(clips[e.clip]);
         filters.push(
-          `[${k}:v]trim=start=${e.van.toFixed(3)}:duration=${d},setpts=PTS-STARTPTS,` +
-            `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=${FPS},${KLEUR},` +
+          `[${k}:v]trim=start=${Math.max(0, e.van).toFixed(3)}:duration=${d},setpts=PTS-STARTPTS,` +
+            `${uitsnede(e.herhaling ?? 0)},fps=${FPS},${KLEUR},${opkomen(e)}` +
             `drawbox=x=0:y=0:w=iw:h=${BALK}:color=black:t=fill,drawbox=x=0:y=ih-${BALK}:w=iw:h=${BALK}:color=black:t=fill,` +
             `tpad=stop_mode=clone:stop_duration=1,trim=duration=${d},setsar=1,format=yuv420p[${label}]`,
         );
       } else {
         const tekst =
-          e.soort === "tekst" ? `,${await tekstFilter(e.tekst, 52, e.duur)}` : e.soort === "titel" ? `,${await tekstFilter(m.titel, 84, e.duur)}` : "";
+          e.soort === "tekst" ? `,${await tekstFilter(e.tekst, 62, e.duur)}` : e.soort === "titel" ? `,${await tekstFilter(m.titel, 84, e.duur)}` : "";
         filters.push(`color=c=black:s=${W}x${H}:r=${FPS}:d=${d}${tekst},setsar=1,format=yuv420p[${label}]`);
       }
       segmenten.push(`[${label}]`);

@@ -71,10 +71,32 @@ export function stemVoor(wie: string, plan: Pick<TrailerPlan, "personages">): st
   return lijst[zelfde.indexOf(p) % lijst.length];
 }
 
+/** Man of vrouw voluit in elke prompt: Mira (19, vrouw) kwam in de proef als jongen terug. */
+function wie(p: TrailerPlan["personages"][number]): string {
+  return p.geslacht === "vrouw" ? "a woman" : "a man";
+}
+
+/** Iedereen en alles met een voorbeeldbeeld, in vaste volgorde: eerst personages, dan wezens. */
+function cast(plan: TrailerPlan): { naam: string; beschrijving: string; prompt: (look: string) => string }[] {
+  return [
+    ...plan.personages.map((p) => ({
+      naam: p.naam,
+      beschrijving: `${wie(p)}: ${p.uiterlijk}`,
+      prompt: (look: string) =>
+        `Character reference portrait for a film of ${wie(p)}: ${p.uiterlijk}. Clearly ${p.geslacht === "vrouw" ? "female, feminine features" : "male"}. Three-quarter view, head and shoulders, neutral expression, plain dark background, even soft key light so the face, hair and costume are clearly visible. ${look}`,
+    })),
+    ...(plan.wezens ?? []).map((w) => ({
+      naam: w.naam,
+      beschrijving: w.uiterlijk,
+      prompt: (look: string) =>
+        `Creature / prop reference sheet for a film: ${w.uiterlijk}. The whole creature or object, three-quarter side view, plain dark background, even soft light so shape, colours and texture are clearly visible. ${look}`,
+    })),
+  ];
+}
+
 function portretOpdracht(plan: TrailerPlan, genre: GenreId, i: number) {
-  const p = plan.personages[i];
   return {
-    prompt: `Character reference portrait for a film: ${p.uiterlijk}. Three-quarter view, head and shoulders, neutral expression, plain dark background, even soft key light so the face, hair and costume are clearly visible. ${FILMLOOK[genre]}`,
+    prompt: cast(plan)[i].prompt(FILMLOOK[genre]),
     aspect_ratio: "1:1",
     num_images: 1,
     output_format: "jpeg",
@@ -84,15 +106,16 @@ function portretOpdracht(plan: TrailerPlan, genre: GenreId, i: number) {
 
 function beeldOpdracht(plan: TrailerPlan, genre: GenreId, i: number, portretten: string[]) {
   const c = plan.clips[i];
-  const wie = c.personages.map((n) => plan.personages.findIndex((p) => p.naam === n)).filter((k) => k >= 0 && portretten[k]);
-  const cast = wie
-    .map((k, j) => `${plan.personages[k].naam} is the person from reference image ${j + 1} (${plan.personages[k].uiterlijk}); keep the face, hair and costume exactly the same.`)
+  const alle = cast(plan);
+  const ref = c.personages.map((n) => alle.findIndex((p) => p.naam === n)).filter((k) => k >= 0 && portretten[k]).slice(0, 4);
+  const uitleg = ref
+    .map((k, j) => `${alle[k].naam} is ${k < plan.personages.length ? "the person" : "the creature/object"} from reference image ${j + 1} (${alle[k].beschrijving}); keep it exactly the same.`)
     .join(" ");
   return {
-    endpoint: wie.length ? BEELD_MET_VOORBEELD : BEELD,
+    endpoint: ref.length ? BEELD_MET_VOORBEELD : BEELD,
     input: {
-      prompt: `${c.beeld} ${cast} Widescreen 16:9 composition. ${FILMLOOK[genre]}`,
-      ...(wie.length ? { image_urls: wie.map((k) => portretten[k]) } : {}),
+      prompt: `${c.beeld} ${uitleg} Widescreen 16:9 composition. ${FILMLOOK[genre]}`,
+      ...(ref.length ? { image_urls: ref.map((k) => portretten[k]) } : {}),
       aspect_ratio: "16:9",
       num_images: 1,
       output_format: "jpeg",
@@ -121,7 +144,7 @@ export async function startTrailer(userId: string, ruw: Record<string, unknown>,
   const { ok, betaald, betalerId } = await betaal(userId, trailerCredits(invoer.plan), "Nieuwe app: trailer");
   if (!ok) throw new WachtrijFout("Niet genoeg credits.", 402);
 
-  const zonderPersonages = invoer.plan.personages.length === 0;
+  const zonderPersonages = cast(invoer.plan).length === 0;
   const voortgang: Voortgang = { stap: zonderPersonages ? "beelden" : "personages", sinds: new Date().toISOString(), portretten: [], stemmen: [] };
   const { data: nieuw, error } = await db
     .from("creaties")
@@ -165,7 +188,7 @@ export async function startTrailer(userId: string, ruw: Record<string, unknown>,
       return await werkBij(nieuw as Creatie, { ...voortgang, stemmen, portretUrls: [], beelden });
     }
     const portretten = await Promise.all(
-      invoer.plan.personages.map(async (_, i) => (await fal.queue.submit(BEELD, { input: portretOpdracht(invoer.plan, invoer.genre, i) as never })).request_id),
+      cast(invoer.plan).map(async (_, i) => (await fal.queue.submit(BEELD, { input: portretOpdracht(invoer.plan, invoer.genre, i) as never })).request_id),
     );
     return await werkBij(nieuw as Creatie, { ...voortgang, stemmen, portretten });
   } catch (e) {
@@ -251,7 +274,8 @@ export async function verversTrailer(c: Creatie): Promise<Creatie> {
       const urls = await Promise.all(v.beelden.map((s) => resultaat(...splits(s))));
       const clips = await Promise.all(
         urls.map(async (url, i) => {
-          const prompt = `${r.plan.clips[i].beweging} Cinematic, smooth camera movement, realistic motion. Faces and costumes stay exactly the same. No text.`;
+          // "Blijf in dit beeld": Kling verzon bij een uitzoomende draak een zonnig groen bos.
+          const prompt = `${r.plan.clips[i].beweging} Cinematic, smooth camera movement, realistic motion. Faces, costumes and creatures stay exactly the same. Keep the same location, lighting and colour grade as the image; do not reveal new surroundings. No text.`;
           return (await fal.queue.submit(model.slug, { input: model.invoer({ image_url: url, prompt }) as never })).request_id;
         }),
       );
