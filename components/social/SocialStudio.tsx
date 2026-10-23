@@ -120,7 +120,7 @@ export default function SocialStudio() {
             );
           })}
         </div>
-        {PLATFORMS.some((p) => p.id === "instagram") && <p className="text-xs text-tekst-3">Instagram werkt met een zakelijk of creator-account. TikTok en YouTube krijgen alleen video&apos;s.</p>}
+        <p className="text-xs text-tekst-3">Instagram werkt met een zakelijk of creator-account. TikTok en YouTube krijgen alleen video&apos;s.</p>
       </section>
 
       <section className="n-kaart space-y-4">
