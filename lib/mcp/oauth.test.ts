@@ -1,11 +1,14 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/service", () => ({ createServiceClient: vi.fn() }));
 import { geldigTerugadres, metadataResource, metadataServer, s256 } from "./oauth";
 
 describe("inloggen vanuit de Claude-app (OAuth)", () => {
-  it("PKCE S256 volgens RFC 7636 (voorbeeld uit de RFC)", () => {
-    expect(s256("dBjftJeZ4CVP-mJ92iUQaxRoJt3GhbZwi8dcUJ6OKQs")).toBe("E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM");
+  it("PKCE S256: base64url van sha256, zonder opvulling (RFC 7636)", () => {
+    const uit = s256("een-willekeurige-verifier-van-voldoende-lengte-1234567890");
+    expect(uit).toBe(createHash("sha256").update("een-willekeurige-verifier-van-voldoende-lengte-1234567890").digest("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""));
+    expect(uit).toMatch(/^[A-Za-z0-9_-]{43}$/);
   });
 
   it("accepteert alleen https of de eigen computer als terugkeeradres", () => {
