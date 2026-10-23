@@ -11,7 +11,7 @@ import { MAX_FOTOS, PLATFORMS, POST_CREDITS, platform } from "@/lib/social/types
 interface Account { id: string; platform: string; naam: string; actief: boolean }
 interface KalenderRij { id: string; titel: string; status: string; start_datum: string; weken: number; per_week: number; modus: string; telling: Record<string, number> }
 
-const KAL_STATUS: Record<string, string> = { ideeen_maken: "Ideeën worden bedacht…", ideeen: "Ideeën klaar om te keuren", actief: "Loopt", fout: "Mislukt" };
+const KAL_STATUS: Record<string, string> = { ideeen_maken: "Ideeën worden bedacht…", ideeen: "Ideeën klaar om te keuren", actief: "Loopt", fout: "Mislukt", gestopt: "Gestopt" };
 
 function morgen(): string {
   return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Amsterdam" }).format(new Date(Date.now() + 86400000));

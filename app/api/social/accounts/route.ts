@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { accountsVan, koppelUrl, ontkoppel, ZernioFout } from "@/lib/social/zernio";
 import { PLATFORMS, type PlatformId } from "@/lib/social/types";
 
@@ -26,6 +27,9 @@ export async function GET(req: NextRequest) {
     if (koppel) {
       if (!PLATFORMS.some((p) => p.id === koppel)) return NextResponse.json({ error: "Onbekend platform." }, { status: 400 });
       const terug = `${req.nextUrl.origin}/studios/social?gekoppeld=${koppel}`;
+      // Na een eerdere opruiming (abonnement gestopt) begint de klant met een schone lei;
+      // betaalt hij nog steeds niet, dan waarschuwt de dagelijkse ronde opnieuw.
+      await createServiceClient().from("social_profielen").update({ ontkoppeld_op: null, niet_betalend_sinds: null }).eq("user_id", user.id).not("ontkoppeld_op", "is", null);
       return NextResponse.json({ url: await koppelUrl(user.id, koppel as PlatformId, terug) });
     }
     return NextResponse.json({ accounts: await accountsVan(user.id) });

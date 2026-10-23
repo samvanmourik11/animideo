@@ -58,3 +58,41 @@ export async function meldTeKeuren(): Promise<number> {
   }
   return verstuurd;
 }
+
+// ── Opruimen (lib/social/opruimen.ts) ──
+
+export function opruimMail(soort: "waarschuwing" | "ontkoppeld", accounts: number, link: string) {
+  const kanalen = accounts === 1 ? "je gekoppelde kanaal" : `je ${accounts} gekoppelde kanalen`;
+  if (soort === "waarschuwing")
+    return {
+      onderwerp: "Je socialmedia-kanalen worden over 14 dagen ontkoppeld",
+      tekst: `We zien dat je abonnement op Animideo is gestopt. Over 14 dagen ontkoppelen we ${kanalen} in de Social-studio, en posts die dan nog ingepland staan, worden niet meer geplaatst.\n\nWil je ze houden? Hervat dan je abonnement; dan blijft alles gewoon staan.`,
+      knop: "Abonnement hervatten",
+      link,
+    };
+  return {
+    onderwerp: "Je socialmedia-kanalen zijn ontkoppeld",
+    tekst: `Omdat je abonnement is gestopt, hebben we ${kanalen} in de Social-studio ontkoppeld en de ingeplande posts geannuleerd. Wat al online stond, blijft gewoon staan, en je kalenders en beelden bewaren we.\n\nKom je terug? Dan koppel je je kanalen in een paar klikken opnieuw.`,
+    knop: "Naar Animideo",
+    link,
+  };
+}
+
+export async function mailOpruimen(userId: string, soort: "waarschuwing" | "ontkoppeld", accounts: number): Promise<void> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return;
+  const { data: u } = await createServiceClient().auth.admin.getUserById(userId);
+  if (!u.user?.email) return;
+  const basis = (process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.jouwanimatievideo.nl").replace(/\/$/, "");
+  const m = opruimMail(soort, accounts, soort === "waarschuwing" ? `${basis}/pricing` : `${basis}/studios/social`);
+  const html = `<div style="font-family:Inter,Arial,sans-serif;max-width:480px;margin:0 auto;color:#0f172a">
+<h2 style="margin:0 0 12px">${ontsnap(m.onderwerp)}</h2>
+<p style="white-space:pre-wrap">${ontsnap(m.tekst)}</p>
+<p style="margin:24px 0"><a href="${m.link}" style="background:#1c72ed;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:600">${m.knop}</a></p></div>`;
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: AFZENDER, to: [u.user.email], subject: m.onderwerp, text: `${m.tekst}\n\n${m.knop}: ${m.link}`, html }),
+  });
+  if (!res.ok) console.error("[social] opruim-mail mislukt:", res.status, (await res.text().catch(() => "")).slice(0, 200));
+}

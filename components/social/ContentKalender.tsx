@@ -103,6 +103,11 @@ export default function ContentKalender({ id }: { id: string }) {
       </div>
       {fout && <p className="text-sm text-red-600 dark:text-red-300">{fout}</p>}
 
+      {k.status === "gestopt" && (
+        <div className="n-kaart text-sm text-tekst-2">
+          Deze kalender is gestopt omdat je abonnement afliep; je kanalen zijn ontkoppeld. Wat al online stond, blijft staan. Hervat je abonnement en koppel je kanalen opnieuw om weer te plaatsen.
+        </div>
+      )}
       {k.status === "ideeen_maken" && (
         <div className="n-kaart flex items-center gap-3 text-sm text-tekst-2">
           <span className="w-4 h-4 rounded-full border-2 border-blue-500/30 border-t-blue-500 animate-spin" />

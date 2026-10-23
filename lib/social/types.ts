@@ -45,7 +45,7 @@ export interface Kalender {
   start_datum: string;
   weken: number;
   per_week: number;
-  status: "ideeen_maken" | "ideeen" | "actief" | "fout";
+  status: "ideeen_maken" | "ideeen" | "actief" | "fout" | "gestopt";
   foutmelding: string | null;
   /** Eigen foto's van de klant (product, logo, winkel): voorbeelden voor de beelden. */
   fotos: { url: string; naam: string }[];
