@@ -226,10 +226,12 @@ export const TOOLS: Tool[] = [
     description:
       "Leg een vaste taak vast (gratis): iets dat de Regisseur voortaan zelf op een vast moment maakt, zonder dat de gebruiker erbij is (bijvoorbeeld elke maandag 3 Instagram-posts). " +
       "Alleen als de gebruiker dat echt wil, en pas nadat hij met vraag_keuze heeft bevestigd: het ritme, het tijdstip en het maximum aan credits per keer (stel een maximum voor dat ruim past bij wat één keer kost). " +
-      "Schrijf de opdracht volledig en op zichzelf staand (wat, hoeveel, formaat, stijl, toon, onderwerpen, bedrijf), want bij het uitvoeren is dit gesprek er niet meer.",
+      "Schrijf de opdracht volledig en op zichzelf staand (wat, hoeveel, formaat, stijl, toon, onderwerpen, bedrijf), want bij het uitvoeren is dit gesprek er niet meer. " +
+      "Een bestaande taak aanpassen: geef taak_id mee en weer alle velden (de nieuwe volledige opdracht).",
     input_schema: {
       type: "object",
       properties: {
+        taak_id: { type: "string", description: "Alleen bij aanpassen van een bestaande taak." },
         titel: { type: "string", description: "Kort, bv. 'Instagram-posts bakkerij'." },
         opdracht: { type: "string" },
         ritme: { type: "string", enum: ["dag", "week", "maand"] },
@@ -547,7 +549,7 @@ export async function gratis(userId: string, blok: Anthropic.Beta.BetaToolUseBlo
   }
   if (blok.name === "vaste_taak") {
     const t = await maakTaak(userId, i, projectId);
-    return `Vastgelegd: "${t.titel}", ${ritmeTekst(t)}, max ${t.max_credits} credits per keer. De eerste keer: ${datumTekst(t.volgende_op)}. De gebruiker beheert zijn taken onder Regisseur → Vaste taken (pauzeren, maximum aanpassen, meteen uitvoeren, weghalen) en krijgt na elke keer een mail.`;
+    return `${i.taak_id ? "Aangepast" : "Vastgelegd"} (taak-id ${t.id}): "${t.titel}", ${ritmeTekst(t)}, max ${t.max_credits} credits per keer. De eerste keer: ${datumTekst(t.volgende_op)}. De gebruiker beheert zijn taken onder Regisseur → Vaste taken (pauzeren, maximum aanpassen, meteen uitvoeren, weghalen) en krijgt na elke keer een mail.`;
   }
   throw new Error(`Onbekend gereedschap: ${blok.name}`);
 }

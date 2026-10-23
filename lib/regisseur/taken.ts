@@ -120,6 +120,19 @@ export function schoonTaak(i: Record<string, unknown>): Pick<Taak, "titel" | "op
 export async function maakTaak(userId: string, invoer: Record<string, unknown>, bronProject?: string): Promise<Taak> {
   const t = schoonTaak(invoer);
   const db = createServiceClient();
+  // Bestaande taak aanpassen (opdracht, ritme, maximum): het id staat in het gesprek waarin
+  // hij gemaakt is en bovenaan elke uitvoering.
+  if (invoer.taak_id) {
+    const { data, error } = await db
+      .from("regie_taken")
+      .update({ ...t, volgende_op: new Date(volgendeKeer(t, Date.now())).toISOString() })
+      .eq("id", String(invoer.taak_id))
+      .eq("user_id", userId)
+      .select("*")
+      .maybeSingle();
+    if (error || !data) throw new Error("Die vaste taak bestaat niet (meer).");
+    return data as Taak;
+  }
   const { count } = await db.from("regie_taken").select("id", { count: "exact", head: true }).eq("user_id", userId);
   if ((count ?? 0) >= MAX_TAKEN) throw new Error(`Je hebt al ${MAX_TAKEN} vaste taken. Haal er eerst een weg.`);
   const { data, error } = await db
@@ -133,9 +146,12 @@ export async function maakTaak(userId: string, invoer: Record<string, unknown>, 
 
 // ── Uitvoeren ────────────────────────────────────────────────────────────
 
+/** Zo begint de eerste beurt van een uitvoering; het scherm toont dan alleen een kort regeltje. */
+export const START = "Vaste taak ";
+
 /** De eerste beurt van een uitvoering: de opdracht plus hoe hij zich moet gedragen. */
 export function startTekst(t: Taak, nu = Date.now()): string {
-  return `Vaste taak "${t.titel}" (${ritmeTekst(t)}), uitvoering van ${datumTekst(new Date(nu).toISOString())}.
+  return `${START}"${t.titel}" (${ritmeTekst(t)}, taak-id ${t.id}), uitvoering van ${datumTekst(new Date(nu).toISOString())}.
 
 Er kijkt nu niemand mee. Stel dus geen vragen en kies zelf, op basis van je geheugen over deze gebruiker en de opdracht. Je mag tot ${t.max_credits} credits uitgeven zonder te vragen; kost het meer, dan wordt de gebruiker gevraagd. Maak iets nieuws (niet hetzelfde als vorige keer: kijk met mijn_werk wat er al is). Sluit af met een korte samenvatting voor de gebruiker, die een mail krijgt met de link.
 
