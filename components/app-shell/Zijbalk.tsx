@@ -38,6 +38,7 @@ const STUDIOS: Item[] = [
   { href: "/studios/dialoog", label: "Dialoog", icoon: "💬", ook: ["/infographics/dialogue"] },
   { href: "/studios/ugc", label: "UGC", icoon: "🤳" },
   { href: "/studios/film", label: "Film", icoon: "🎬", ook: ["/studios/trailer"] },
+  { href: "/studios/social", label: "Social", icoon: "📣" },
   { href: "/dashboard", label: "Overige tools", icoon: "🗂️", ook: ["/studio", "/explainer", "/playground", "/project", "/infographics/new"] },
 ];
 

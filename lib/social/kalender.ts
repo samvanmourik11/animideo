@@ -1,0 +1,276 @@
+// DE CONTENTKALENDER — eerst ideeën in tekst (Claude bedenkt ze, de klant past aan en keurt
+// goed), daarna maakt de server per week vooruit de beelden/video's en plant ze in bij
+// Zernio, of zet ze klaar om te keuren (Sam, 23-10-2026).
+//
+// Een post loopt: idee → gepland → maken → te_keuren / ingepland → geplaatst (of mislukt).
+// verwerk() duwt alles een stap verder; de cron roept hem elke 5 minuten aan, en het
+// scherm bij het opvragen (dan hoeft de klant niet op de cron te wachten).
+
+import Anthropic from "@anthropic-ai/sdk";
+import { createServiceClient } from "@/lib/supabase/service";
+import { startCreatie, verversLopende, WachtrijFout } from "@/lib/creaties/wachtrij";
+import { STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
+import type { Creatie } from "@/lib/creaties/types";
+import { leesGeheugen } from "@/lib/regisseur/tools";
+import { nlMoment } from "@/lib/regisseur/taken";
+import { ALLEEN_VIDEO, PLATFORMS, type Kalender, type Kanaal, type Post } from "./types";
+import { plaatsPost, standVan, ZernioFout } from "./zernio";
+
+const MODEL = "claude-opus-5-5";
+/** Een week vooruit maken: dan is er tijd om te keuren, en geen credits voor verre plannen. */
+export const VOORUIT_MS = 7 * 24 * 60 * 60 * 1000;
+/** Per ronde niet meer starten dan de wachtrij toestaat (4 tegelijk per gebruiker). */
+const PER_RONDE = 4;
+
+// ── Ideeën ───────────────────────────────────────────────────────────────
+
+const IDEE_TOOL: Anthropic.Tool = {
+  name: "kalender",
+  description: "De contentkalender: alle posts in de periode.",
+  input_schema: {
+    type: "object",
+    properties: {
+      titel: { type: "string", description: "Korte naam voor deze kalender." },
+      posts: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            datum: { type: "string", description: "YYYY-MM-DD" },
+            tijd: { type: "string", description: "HH:MM, Nederlandse tijd; kies goede momenten voor het platform." },
+            platforms: { type: "array", items: { type: "string", enum: PLATFORMS.map((p) => p.id) } },
+            soort: { type: "string", enum: ["beeld", "video"] },
+            idee: { type: "string", description: "Wat deze post is, in één of twee Nederlandse zinnen (voor de klant)." },
+            tekst: { type: "string", description: "Het bijschrift, Nederlands, in de toon van het bedrijf, met een paar hashtags." },
+            tekst_kort: { type: "string", description: "Alleen als X erbij zit: versie van max 260 tekens." },
+            titel: { type: "string", description: "Alleen als YouTube erbij zit: titel, max 90 tekens." },
+            beeld_prompt: { type: "string", description: "Engelse prompt voor het beeld (bij video: het eerste beeld, staand 9:16). Concreet: onderwerp, omgeving, licht, stijl, huisstijlkleuren. Geen tekst in beeld, geen logo's van anderen, geen echte bestaande personen." },
+            beweging: { type: "string", description: "Alleen bij video: Engelse omschrijving van de beweging (5 s), rustig en natuurlijk; niets toevoegen dat niet in het beeld staat." },
+          },
+          required: ["datum", "tijd", "platforms", "soort", "idee", "tekst", "beeld_prompt"],
+        },
+      },
+    },
+    required: ["titel", "posts"],
+  },
+};
+
+let client: Anthropic | null = null;
+function claude(): Anthropic {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error("De Claude-sleutel (ANTHROPIC_API_KEY) ontbreekt nog.");
+  return (client ??= new Anthropic());
+}
+
+function dagNa(start: string, dagen: number): string {
+  const d = new Date(`${start}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + dagen);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Laat Claude de ideeën bedenken en zet ze als posts met status 'idee' in de kalender. */
+export async function bedenkIdeeen(kalenderId: string, extra = ""): Promise<void> {
+  const db = createServiceClient();
+  const { data } = await db.from("content_kalenders").select("*").eq("id", kalenderId).single();
+  const k = data as (Kalender & { user_id: string }) | null;
+  if (!k) return;
+  try {
+    const geheugen = await leesGeheugen(k.user_id);
+    const kanalen = [...new Set(k.kanalen.map((x) => x.platform))];
+    const eind = dagNa(k.start_datum, k.weken * 7 - 1);
+    const antwoord = await claude()
+      .messages.stream({
+        model: MODEL,
+        max_tokens: 32000,
+        output_config: { effort: "medium" },
+        tools: [IDEE_TOOL],
+        tool_choice: { type: "tool", name: "kalender" },
+        system: `Je bent de social-media-strateeg van Animideo. Je maakt een contentkalender voor een Nederlands bedrijf: gevarieerd (product, achter de schermen, tips, seizoen, actie, klantvoordeel), passend bij het publiek, nooit twee keer hetzelfde. Bijschriften in natuurlijk Nederlands, niet schreeuwerig. Alleen beelden en video's die je met AI kunt maken zonder echte bestaande personen of andermans merken.
+
+Regels:
+- Precies ${k.per_week} posts per week, ${k.weken} weken: van ${k.start_datum} tot en met ${eind}. Verdeel ze over de week.
+- Alleen deze kanalen: ${kanalen.join(", ")}. Een post mag op meerdere kanalen tegelijk.
+- TikTok en YouTube nemen alleen video aan: een post met die kanalen is een video. Een video is 5 seconden beweging vanuit één beeld, staand (9:16), zonder geluid; kies daar onderwerpen voor waar rustige beweging mooi werkt (stoom, gieten, draaien, licht).
+- Beelden zijn vierkant (1:1).`,
+        messages: [
+          {
+            role: "user",
+            content: `${geheugen ? `Wat je over dit bedrijf weet:\n${geheugen}\n\n` : ""}De opdracht van de klant:\n${k.briefing}${extra ? `\n\nAanvulling van de klant op een vorige versie:\n${extra}` : ""}`,
+          },
+        ],
+      })
+      .finalMessage();
+    const blok = antwoord.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+    const invoer = blok?.input as { titel?: string; posts?: Record<string, unknown>[] } | undefined;
+    const posts = (invoer?.posts ?? []).map((p) => schoonIdee(p, k)).filter((p): p is NonNullable<ReturnType<typeof schoonIdee>> => !!p);
+    if (!posts.length) throw new Error("De Regisseur kwam niet met bruikbare ideeën. Probeer het opnieuw met een iets uitgebreidere opdracht.");
+    await db.from("content_posts").delete().eq("kalender_id", k.id).eq("status", "idee");
+    const { error } = await db.from("content_posts").insert(posts.map((p) => ({ ...p, kalender_id: k.id, user_id: k.user_id, status: "idee" })));
+    if (error) throw new Error(error.message);
+    await db.from("content_kalenders").update({ status: "ideeen", foutmelding: null, ...(invoer?.titel ? { titel: invoer.titel.slice(0, 80) } : {}) }).eq("id", k.id);
+  } catch (e) {
+    console.error("[social] ideeën bedenken mislukt:", e);
+    await db
+      .from("content_kalenders")
+      .update({ status: "fout", foutmelding: e instanceof Anthropic.APIError ? `Claude gaf een fout (${e.status}). Probeer het opnieuw.` : e instanceof Error ? e.message : String(e) })
+      .eq("id", k.id);
+  }
+}
+
+/** Een idee van Claude (of een aanpassing van de klant) → een geldige post, of niets. */
+export function schoonIdee(p: Record<string, unknown>, k: Pick<Kalender, "kanalen" | "start_datum" | "weken">) {
+  const tekst = (x: unknown, max: number) => String(x ?? "").trim().slice(0, max);
+  const datum = tekst(p.datum, 10);
+  const tijd = /^\d{1,2}:\d{2}$/.test(tekst(p.tijd, 5)) ? tekst(p.tijd, 5) : "09:00";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) return null;
+  const [j, m, d] = datum.split("-").map(Number);
+  const [u, min] = tijd.split(":").map(Number);
+  const gepland = nlMoment(j, m, d, Math.min(u, 23)) + Math.min(min, 59) * 60_000;
+  const beschikbaar = new Set(k.kanalen.map((x) => x.platform));
+  const platforms = [...new Set((Array.isArray(p.platforms) ? p.platforms : []).map(String))].filter((x) => beschikbaar.has(x as never));
+  if (!platforms.length) return null;
+  const soort = p.soort === "video" || platforms.some((x) => ALLEEN_VIDEO.has(x)) ? "video" : "beeld";
+  const idee = tekst(p.idee, 500);
+  const beeld = tekst(p.beeld_prompt, 1500);
+  if (!idee || !beeld) return null;
+  return {
+    gepland_op: new Date(gepland).toISOString(),
+    platforms,
+    soort,
+    idee,
+    tekst: tekst(p.tekst, 2200),
+    tekst_kort: platforms.includes("twitter") ? tekst(p.tekst_kort || p.tekst, 280) : null,
+    titel: platforms.includes("youtube") ? tekst(p.titel || p.idee, 100) : null,
+    beeld_prompt: beeld,
+    beweging: soort === "video" ? tekst(p.beweging, 600) || "gentle natural motion, slow camera push-in" : null,
+  };
+}
+
+// ── Maken en plaatsen ────────────────────────────────────────────────────
+
+type Rij = Post & { user_id: string };
+
+async function zet(id: string, w: Partial<Rij>, alsStatus?: string) {
+  let q = createServiceClient().from("content_posts").update(w).eq("id", id);
+  if (alsStatus) q = q.eq("status", alsStatus);
+  const { data } = await q.select("id");
+  return !!data?.length;
+}
+
+/** Start het beeld van een post. Bij een volle wachtrij gewoon later opnieuw. */
+export async function startMaken(p: Rij): Promise<void> {
+  if (!(await zet(p.id, { status: "maken", foutmelding: null }, p.status))) return;
+  try {
+    const c = await startCreatie(p.user_id, "beeld", { prompt: p.beeld_prompt, formaat: p.soort === "video" ? "9:16" : "1:1", kwaliteit: "standaard" });
+    await zet(p.id, { beeld_id: c.id, video_id: null });
+  } catch (e) {
+    const vol = e instanceof WachtrijFout && e.status === 429;
+    await zet(p.id, vol ? { status: p.status } : { status: "mislukt", foutmelding: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+/** Een post die gemaakt wordt: kijken of het beeld/de video klaar is en de volgende stap zetten. */
+async function verderMaken(p: Rij, k: Kalender, creaties: Map<string, Creatie>): Promise<void> {
+  const beeld = p.beeld_id ? creaties.get(p.beeld_id) : undefined;
+  const video = p.video_id ? creaties.get(p.video_id) : undefined;
+  const laatste = p.soort === "video" ? video : beeld;
+  if (!beeld || beeld.status === "bezig" || (video && video.status === "bezig")) return;
+  if (beeld.status === "mislukt" || video?.status === "mislukt") {
+    await zet(p.id, { status: "mislukt", foutmelding: (video ?? beeld).foutmelding ?? "Maken mislukt." }, "maken");
+    return;
+  }
+  if (p.soort === "video" && !video) {
+    try {
+      const c = await startCreatie(p.user_id, "beeld-naar-video", { bronUrl: beeld.url, prompt: p.beweging ?? "", model: STANDAARD_VIDEO_MODEL, formaat: "9:16" });
+      await zet(p.id, { video_id: c.id });
+    } catch (e) {
+      if (!(e instanceof WachtrijFout && e.status === 429)) await zet(p.id, { status: "mislukt", foutmelding: e instanceof Error ? e.message : String(e) }, "maken");
+    }
+    return;
+  }
+  if (laatste?.status !== "klaar") return;
+  if (k.modus === "plaatsen") await plan(p, k);
+  else await zet(p.id, { status: "te_keuren" }, "maken");
+}
+
+/** Naar Zernio: ingepland op het geplande moment (ligt dat al achter ons, dan meteen). */
+export async function plan(p: Rij, k: Pick<Kalender, "kanalen">, mediaUrl?: string): Promise<void> {
+  const db = createServiceClient();
+  let url = mediaUrl;
+  if (!url) {
+    const { data } = await db.from("creaties").select("url").eq("id", (p.soort === "video" ? p.video_id : p.beeld_id) ?? "").eq("user_id", p.user_id).maybeSingle();
+    url = data?.url ?? undefined;
+  }
+  if (!url) return void (await zet(p.id, { status: "mislukt", foutmelding: "Het beeld of de video is er niet meer." }));
+  const kanalen = k.kanalen.filter((x) => p.platforms.includes(x.platform)) as Kanaal[];
+  if (!kanalen.length) return void (await zet(p.id, { status: "mislukt", foutmelding: "Geen gekoppeld account meer voor deze kanalen." }));
+  try {
+    const id = await plaatsPost({ kanalen, tekst: p.tekst, tekstKort: p.tekst_kort, titel: p.titel, mediaUrl: url, op: p.gepland_op, sleutel: p.id });
+    await zet(p.id, { status: "ingepland", zernio_post: id, foutmelding: null });
+  } catch (e) {
+    await zet(p.id, { status: "mislukt", foutmelding: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+/** Ingeplande posts waarvan het moment voorbij is: geplaatst of mislukt? */
+async function controleerGeplaatst(p: Rij): Promise<void> {
+  if (!p.zernio_post) return;
+  try {
+    const s = await standVan(p.zernio_post);
+    if (s.status === "published") await zet(p.id, { status: "geplaatst", links: s.links, foutmelding: null }, "ingepland");
+    else if (s.status === "partial") await zet(p.id, { status: "geplaatst", links: s.links, foutmelding: s.fout }, "ingepland");
+    else if (s.status === "failed" || s.status === "cancelled") await zet(p.id, { status: "mislukt", links: s.links, foutmelding: s.fout ?? "Plaatsen mislukt." }, "ingepland");
+  } catch (e) {
+    if (!(e instanceof ZernioFout && e.status >= 500)) console.error("[social] stand opvragen mislukt:", e);
+  }
+}
+
+/**
+ * Duwt alle posts een stap verder: maken wat binnen een week gepland staat, klare
+ * creaties doorzetten, ingeplande posts controleren. Zonder kalender-id: alles (de cron).
+ */
+export async function verwerk(opties: { kalenderId?: string; userId?: string } = {}): Promise<{ gestart: number; bijgewerkt: number }> {
+  const db = createServiceClient();
+  const nu = Date.now();
+  let q = db
+    .from("content_posts")
+    .select("*")
+    .in("status", ["gepland", "maken", "ingepland"])
+    .lte("gepland_op", new Date(nu + VOORUIT_MS).toISOString())
+    .order("gepland_op")
+    .limit(200);
+  if (opties.kalenderId) q = q.eq("kalender_id", opties.kalenderId);
+  if (opties.userId) q = q.eq("user_id", opties.userId);
+  const { data } = await q;
+  const posts = (data ?? []) as Rij[];
+  if (!posts.length) return { gestart: 0, bijgewerkt: 0 };
+
+  const { data: ks } = await db.from("content_kalenders").select("*").in("id", [...new Set(posts.map((p) => p.kalender_id))]);
+  const kalenders = new Map(((ks ?? []) as Kalender[]).map((k) => [k.id, k]));
+
+  const ids = posts.flatMap((p) => (p.status === "maken" ? [p.beeld_id, p.video_id] : [])).filter((x): x is string => !!x);
+  const { data: cs } = ids.length ? await db.from("creaties").select("*").in("id", ids) : { data: [] };
+  const creaties = new Map((await verversLopende((cs ?? []) as Creatie[])).map((c) => [c.id, c]));
+
+  let gestart = 0;
+  let bijgewerkt = 0;
+  const bezigPerGebruiker = new Map<string, number>();
+  for (const p of posts) if (p.status === "maken") bezigPerGebruiker.set(p.user_id, (bezigPerGebruiker.get(p.user_id) ?? 0) + 1);
+  for (const p of posts) {
+    const k = kalenders.get(p.kalender_id);
+    if (!k || k.status !== "actief") continue;
+    if (p.status === "gepland") {
+      const bezig = bezigPerGebruiker.get(p.user_id) ?? 0;
+      if (bezig >= PER_RONDE) continue;
+      bezigPerGebruiker.set(p.user_id, bezig + 1);
+      await startMaken(p);
+      gestart++;
+    } else if (p.status === "maken") {
+      await verderMaken(p, k, creaties);
+      bijgewerkt++;
+    } else if (p.status === "ingepland" && new Date(p.gepland_op).getTime() < nu - 60_000) {
+      await controleerGeplaatst(p);
+      bijgewerkt++;
+    }
+  }
+  return { gestart, bijgewerkt };
+}

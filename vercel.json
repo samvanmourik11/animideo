@@ -53,6 +53,10 @@
     {
       "path": "/api/cron/regie-taken",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/social",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

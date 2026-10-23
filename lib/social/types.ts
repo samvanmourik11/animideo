@@ -1,0 +1,74 @@
+// De Social-studio: wat zowel het scherm als de server kent.
+
+export const PLATFORMS = [
+  { id: "instagram", naam: "Instagram", icoon: "📸", video: false },
+  { id: "tiktok", naam: "TikTok", icoon: "🎵", video: true },
+  { id: "facebook", naam: "Facebook", icoon: "👍", video: false },
+  { id: "youtube", naam: "YouTube", icoon: "▶️", video: true },
+  { id: "twitter", naam: "X", icoon: "𝕏", video: false },
+] as const;
+
+export type PlatformId = (typeof PLATFORMS)[number]["id"];
+
+/** TikTok en YouTube nemen alleen video aan; een beeldpost gaat daar niet heen. */
+export const ALLEEN_VIDEO = new Set<string>(PLATFORMS.filter((p) => p.video).map((p) => p.id));
+
+export function platform(id: string) {
+  return PLATFORMS.find((p) => p.id === id);
+}
+
+export interface Kanaal {
+  platform: PlatformId;
+  accountId: string;
+  naam: string;
+}
+
+export type Modus = "controleren" | "plaatsen";
+export type PostStatus = "idee" | "gepland" | "maken" | "te_keuren" | "ingepland" | "geplaatst" | "mislukt";
+
+export const STATUS_LABEL: Record<PostStatus, string> = {
+  idee: "Idee",
+  gepland: "Wacht op maken",
+  maken: "Wordt gemaakt",
+  te_keuren: "Keur jij hem?",
+  ingepland: "Ingepland",
+  geplaatst: "Geplaatst",
+  mislukt: "Mislukt",
+};
+
+export interface Kalender {
+  id: string;
+  titel: string;
+  briefing: string;
+  kanalen: Kanaal[];
+  modus: Modus;
+  start_datum: string;
+  weken: number;
+  per_week: number;
+  status: "ideeen_maken" | "ideeen" | "actief" | "fout";
+  foutmelding: string | null;
+  created_at: string;
+}
+
+export interface Post {
+  id: string;
+  kalender_id: string;
+  gepland_op: string;
+  platforms: string[];
+  soort: "beeld" | "video";
+  idee: string;
+  tekst: string;
+  tekst_kort: string | null;
+  titel: string | null;
+  beeld_prompt: string;
+  beweging: string | null;
+  beeld_id: string | null;
+  video_id: string | null;
+  status: PostStatus;
+  zernio_post: string | null;
+  links: Record<string, string>;
+  foutmelding: string | null;
+}
+
+/** Credits van één post: een beeld (standaard) en bij video de beweging (Seedance Lite). */
+export const POST_CREDITS = { beeld: 1, video: 3 } as const;
