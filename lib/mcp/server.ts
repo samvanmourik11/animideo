@@ -111,7 +111,7 @@ export async function roepAan(userId: string, naam: string, args: Record<string,
     if (!BETAALDE_TOOLS.has(naam)) return tekst(`Onbekend gereedschap: ${naam}`, true);
     const stap = await bereidVoor(userId, blok);
     if (Number(akkoord_credits) < stap.credits || akkoord_credits === undefined) {
-      return tekst(`Dit kost ${stap.credits} credits: ${stap.omschrijving}. Noem dat de gebruiker; na zijn akkoord roep je ${naam} opnieuw aan met dezelfde invoer en akkoord_credits: ${stap.credits}.`);
+      return tekst(`Dit kost ${stap.credits} ${stap.credits === 1 ? "credit" : "credits"}: ${stap.omschrijving}. Noem dat de gebruiker; na zijn akkoord roep je ${naam} opnieuw aan met dezelfde invoer en akkoord_credits: ${stap.credits}.`);
     }
     const id = await voerUit(userId, stap);
     return tekst(`Gestart: creatie ${id} (${stap.credits} credits). Volg het met status.`);
