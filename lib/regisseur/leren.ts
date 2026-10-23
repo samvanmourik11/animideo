@@ -59,7 +59,10 @@ export async function leerronde(nu = Date.now()): Promise<{ bekeken: number; fee
   const sinds = new Date(nu - VENSTER_MS).toISOString();
   const { data: projecten } = await db.from("regie_projecten").select("berichten, galerij").gte("updated_at", sinds).limit(200);
   const ids = [...new Set((projecten ?? []).flatMap((p) => (p.galerij ?? []) as string[]))];
-  const feedback = (projecten ?? []).flatMap((p) => feedbackUit((p.berichten ?? []) as unknown[])).slice(-MAX_FEEDBACK);
+  // Feedback onder eindresultaten (met sterren) weegt het zwaarst: die gaat voorop.
+  const { data: fb } = await db.from("creatie_feedback").select("sterren, tekst, creaties(maker)").gte("created_at", sinds).order("sterren").limit(MAX_FEEDBACK);
+  const beoordeeld = (fb ?? []).map((f) => `${"★".repeat(f.sterren)} (${(f.creaties as { maker?: string } | null)?.maker ?? "video"}): ${f.tekst}`);
+  const feedback = [...beoordeeld, ...(projecten ?? []).flatMap((p) => feedbackUit((p.berichten ?? []) as unknown[]))].slice(0, MAX_FEEDBACK);
 
   const { data: cs } = ids.length
     ? await db.from("creaties").select("id, url, prompt, maker, status, foutmelding").in("id", ids.slice(0, 500)).gte("created_at", sinds)

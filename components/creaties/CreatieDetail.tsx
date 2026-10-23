@@ -9,6 +9,8 @@ import { recept, receptPad } from "@/lib/creaties/recepten";
 import { startMaker, verwijder, zetFavoriet, zetMap } from "./gebruik-creaties";
 import { SCHAAKBORD, isDoorzichtig } from "./CreatieKaart";
 import { heeftGezicht, herkomst } from "@/lib/delen/herkomst";
+import { magFeedback } from "@/lib/creaties/eindmakers";
+import FeedbackBlok from "./FeedbackBlok";
 
 // De detailweergave van één creatie — en vooral de vervolgknoppen. Dat is de motor van
 // de nieuwe app: iets is nooit "af", je gaat vanaf hier verder (er een video van maken,
@@ -308,6 +310,8 @@ export default function CreatieDetail({
               )}
             </div>
           )}
+
+          {magFeedback(c) && <FeedbackBlok creatieId={c.id} />}
 
           {c.status === "klaar" && c.maker !== "upload" && (
             <div className="space-y-2 rounded-2xl border border-rand p-3">
