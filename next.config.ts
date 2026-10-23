@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Alleen de dev-server: de tijdelijke tunnel (cloudflared) om de Claude-app-connector te
+  // testen. Zonder dit blokkeert Next de scripts voor dat adres en werkt geen enkele knop.
+  allowedDevOrigins: ["*.trycloudflare.com"],
   images: {
     remotePatterns: [
       {
