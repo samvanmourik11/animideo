@@ -34,6 +34,12 @@ export default async function AdminDashboardPage() {
       >
         ⭐ Nieuwe app: ingestuurd werk voor de voorpagina beoordelen →
       </Link>
+      <Link
+        href="/admin/regieboek"
+        className="block rounded-2xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-200 hover:bg-blue-500/15"
+      >
+        📖 Nieuwe app: regieboek van de Regisseur (voorstellen uit de leerronde) →
+      </Link>
       <AdminDashboard />
       <Achterstanden />
       <ProviderKosten />

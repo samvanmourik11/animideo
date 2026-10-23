@@ -19,11 +19,13 @@ vi.mock("@/lib/supabase/service", () => ({
         eq: (k: string, v: unknown) => (filters.push([k, v]), keten),
         in: (k: string, v: unknown[]) => (filters.push([k + ":in", v]), keten),
         limit: () => keten,
+        order: () => keten,
         single: async () => resultaat(),
         maybeSingle: async () => resultaat(),
         then: (ok: (r: unknown) => void) => ok(resultaat()),
       };
       function resultaat() {
+        if (tabel === "regieboek_regels") return { data: [] };
         if (tabel === "regie_geheugen") return { data: db.geheugen ? { tekst: db.geheugen } : null };
         if (tabel === "regie_taak_runs") {
           if (!db.run || !wijziging) return { data: db.run };
@@ -180,7 +182,10 @@ describe("de Regisseur", () => {
     antwoorden.push(zegt({ type: "text", text: "Hoi" }));
     await draai("p1");
     expect(verzoeken[0]).toMatchObject({ model: "claude-opus-5-5", fallbacks: "default", betas: ["server-side-fallback-2026-07-01"] });
-    expect((verzoeken[0].system as { cache_control?: unknown }[])[0].cache_control).toEqual({ type: "ephemeral" });
+    // Vaste tekst + regieboek samen in de cache (het breekpunt na het regieboek), daarna het geheugen.
+    const blokken = verzoeken[0].system as { text: string; cache_control?: unknown }[];
+    expect(blokken[1].text).toContain("Regieboek");
+    expect(blokken[1].cache_control).toEqual({ type: "ephemeral" });
   });
 });
 
@@ -213,7 +218,7 @@ describe("geheugen", () => {
     expect(db.geheugen).toBe("- Bakkerij De Zoete Zwaan, huisstijl goud en crème");
     expect(db.project!.status).toBe("klaar");
     const systeem = verzoeken[1].system as { text: string }[];
-    expect(systeem[1].text).toContain("De Zoete Zwaan");
+    expect(systeem[2].text).toContain("De Zoete Zwaan");
     expect(verzoeken[1].cache_control).toEqual({ type: "ephemeral" });
   });
 });

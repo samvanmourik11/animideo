@@ -16,6 +16,7 @@ import { verversLopende } from "@/lib/creaties/wachtrij";
 import type { Creatie } from "@/lib/creaties/types";
 import { tijd } from "./video";
 import { binnenBudget, taakRun } from "./taken";
+import { regieboekTekst } from "./regieboek";
 import { BETAALDE_TOOLS, GRATIS_TOOLS, TOOLS, bereidVoor, bouwOpties, gratis, leesGeheugen, voerUit, type Optie, type Stap } from "./tools";
 
 const MODEL = "claude-opus-5-5";
@@ -144,7 +145,9 @@ export async function draai(id: string): Promise<void> {
           // bovenaan het verzoek neemt daarnaast het hele gesprek tot nu toe mee, zodat
           // elke volgende ronde de geschiedenis voor ~een tiende van de prijs leest.
           system: [
-            { type: "text", text: SYSTEEM, cache_control: { type: "ephemeral" } },
+            { type: "text", text: SYSTEEM },
+            // Het regieboek is voor iedereen gelijk: met de vaste tekst samen in de cache.
+            { type: "text", text: await regieboekTekst(), cache_control: { type: "ephemeral" } },
             { type: "text", text: geheugen ? `Wat je blijvend over deze gebruiker weet:\n${geheugen}` : "Je weet nog niets blijvends over deze gebruiker." },
             { type: "text", text: p.automatisch ? "Dit project staat op automatisch: de gebruiker wil niet steeds bevestigen. Sla het storyboard over." : "Dit project staat niet op automatisch." },
           ],
