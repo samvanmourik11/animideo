@@ -10,6 +10,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/service";
 import { startCreatie, verversLopende, WachtrijFout } from "@/lib/creaties/wachtrij";
 import { STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
+import { MUSIC_CATEGORIES } from "@/lib/music/library";
 import type { Creatie } from "@/lib/creaties/types";
 import { leesGeheugen } from "@/lib/regisseur/tools";
 import { nlMoment } from "@/lib/regisseur/taken";
@@ -21,6 +22,9 @@ const MODEL = "claude-opus-5-5";
 export const VOORUIT_MS = 7 * 24 * 60 * 60 * 1000;
 /** Per ronde niet meer starten dan de wachtrij toestaat (4 tegelijk per gebruiker). */
 const PER_RONDE = 4;
+/** Hugo V: de vaste stem van Animideo (Sam). */
+const STEM = "rbqBOMK4BPTMGvIB7N8w";
+const MUZIEK = MUSIC_CATEGORIES.map((c) => c.id) as string[];
 
 // ── Ideeën ───────────────────────────────────────────────────────────────
 
@@ -31,6 +35,7 @@ const IDEE_SCHEMA = {
     additionalProperties: false,
     properties: {
       titel: { type: "string", description: "Korte naam voor deze kalender." },
+      eindkaart: { type: "string", description: "Korte tekst voor de eindkaart van video's: de website of bedrijfsnaam, max 30 tekens." },
       posts: {
         type: "array",
         items: {
@@ -47,6 +52,9 @@ const IDEE_SCHEMA = {
             titel: { type: "string", description: "Alleen als YouTube erbij zit: titel, max 90 tekens." },
             beeld_prompt: { type: "string", description: "Engelse prompt voor het beeld (bij video: het eerste beeld, staand 9:16). Concreet: onderwerp, omgeving, licht, stijl, huisstijlkleuren. Geen tekst in beeld, geen logo's van anderen, geen echte bestaande personen." },
             beweging: { type: "string", description: "Alleen bij video: Engelse omschrijving van de beweging (5 s), rustig en natuurlijk; niets toevoegen dat niet in het beeld staat." },
+            voiceover: { type: "string", description: "Alleen bij video: wat de stem zegt, Nederlands, max 12 woorden (past in 5 seconden). Leeg laten als alleen muziek beter is." },
+            muziek: { type: "string", enum: MUZIEK, description: "Alleen bij video: de sfeer van de muziek eronder." },
+            fotos: { type: "array", items: { type: "integer" }, description: "Nummers van de eigen foto's van de klant die in dit beeld moeten (bv. het product). Leeg als er geen past." },
           },
           required: ["datum", "tijd", "platforms", "soort", "idee", "tekst", "beeld_prompt"],
         },
@@ -87,18 +95,29 @@ export async function bedenkIdeeen(kalenderId: string, extra = ""): Promise<void
 Regels:
 - Precies ${k.per_week} posts per week, ${k.weken} weken: van ${k.start_datum} tot en met ${eind}. Verdeel ze over de week.
 - Alleen deze kanalen: ${kanalen.join(", ")}. Een post mag op meerdere kanalen tegelijk.
-- TikTok en YouTube nemen alleen video aan: een post met die kanalen is een video. Een video is 5 seconden beweging vanuit één beeld, staand (9:16), zonder geluid; kies daar onderwerpen voor waar rustige beweging mooi werkt (stoom, gieten, draaien, licht).
-- Beelden zijn vierkant (1:1).`,
+- TikTok en YouTube nemen alleen video aan: een post met die kanalen is een video. Een video is 5 seconden beweging vanuit één beeld, staand (9:16), met een korte voice-over (max 12 woorden, de stem van het bedrijf), muziek en daarna 3 seconden een eindkaart. Kies onderwerpen waar rustige beweging mooi werkt (stoom, gieten, draaien, licht).
+- Beelden zijn vierkant (1:1).
+${k.fotos?.length ? `- De klant gaf ${k.fotos.length} eigen foto's (hieronder genummerd vanaf 1). Gebruik ze waar het past via 'fotos': het beeld laat dan precies dat product, logo of die plek zien. Beschrijf in beeld_prompt hoe het in beeld komt (bv. "the product from the reference photo on a marble table"). Wissel af: niet elke post hoeft een eigen foto.` : ""}`,
         messages: [
           {
             role: "user",
-            content: `${geheugen ? `Wat je over dit bedrijf weet:\n${geheugen}\n\n` : ""}De opdracht van de klant:\n${k.briefing}${extra ? `\n\nAanvulling van de klant op een vorige versie:\n${extra}` : ""}`,
+            content: [
+              // De eigen foto's zelf meesturen: dan weet Claude wat erop staat.
+              ...(k.fotos ?? []).flatMap((f, i): Anthropic.ContentBlockParam[] => [
+                { type: "text", text: `Foto ${i + 1}: ${f.naam}` },
+                { type: "image", source: { type: "url", url: f.url } },
+              ]),
+              {
+                type: "text",
+                text: `${geheugen ? `Wat je over dit bedrijf weet:\n${geheugen}\n\n` : ""}De opdracht van de klant:\n${k.briefing}${extra ? `\n\nAanvulling van de klant op een vorige versie:\n${extra}` : ""}`,
+              },
+            ],
           },
         ],
       })
       .finalMessage();
     const json = antwoord.content.map((b) => (b.type === "text" ? b.text : "")).join("");
-    let invoer: { titel?: string; posts?: Record<string, unknown>[] } | undefined;
+    let invoer: { titel?: string; eindkaart?: string; posts?: Record<string, unknown>[] } | undefined;
     try {
       invoer = JSON.parse(json);
     } catch {
@@ -109,7 +128,10 @@ Regels:
     await db.from("content_posts").delete().eq("kalender_id", k.id).eq("status", "idee");
     const { error } = await db.from("content_posts").insert(posts.map((p) => ({ ...p, kalender_id: k.id, user_id: k.user_id, status: "idee" })));
     if (error) throw new Error(error.message);
-    await db.from("content_kalenders").update({ status: "ideeen", foutmelding: null, ...(invoer?.titel ? { titel: invoer.titel.slice(0, 80) } : {}) }).eq("id", k.id);
+    await db
+      .from("content_kalenders")
+      .update({ status: "ideeen", foutmelding: null, ...(invoer?.titel ? { titel: invoer.titel.slice(0, 80) } : {}), ...(invoer?.eindkaart && !k.eindkaart ? { eindkaart: invoer.eindkaart.slice(0, 40) } : {}) })
+      .eq("id", k.id);
   } catch (e) {
     console.error("[social] ideeën bedenken mislukt:", e);
     await db
@@ -120,7 +142,7 @@ Regels:
 }
 
 /** Een idee van Claude (of een aanpassing van de klant) → een geldige post, of niets. */
-export function schoonIdee(p: Record<string, unknown>, k: Pick<Kalender, "kanalen" | "start_datum" | "weken">) {
+export function schoonIdee(p: Record<string, unknown>, k: Pick<Kalender, "kanalen" | "start_datum" | "weken"> & { fotos?: Kalender["fotos"] }) {
   const tekst = (x: unknown, max: number) => String(x ?? "").trim().slice(0, max);
   const datum = tekst(p.datum, 10);
   const tijd = /^\d{1,2}:\d{2}$/.test(tekst(p.tijd, 5)) ? tekst(p.tijd, 5) : "09:00";
@@ -145,12 +167,22 @@ export function schoonIdee(p: Record<string, unknown>, k: Pick<Kalender, "kanale
     titel: platforms.includes("youtube") ? tekst(p.titel || p.idee, 100) : null,
     beeld_prompt: beeld,
     beweging: soort === "video" ? tekst(p.beweging, 600) || "gentle natural motion, slow camera push-in" : null,
+    voiceover: soort === "video" ? tekst(p.voiceover, 160) || null : null,
+    muziek: soort === "video" ? (MUZIEK.includes(String(p.muziek)) ? String(p.muziek) : "vrolijk") : null,
+    // Nummers (van Claude, vanaf 1) of al adressen (bij aanpassen); alleen foto's van deze kalender.
+    referenties: fotoAdressen(p.fotos ?? p.referenties, k.fotos ?? []),
   };
+}
+
+function fotoAdressen(ruw: unknown, fotos: Kalender["fotos"]): string[] {
+  const eigen = new Set(fotos.map((f) => f.url));
+  const uit = (Array.isArray(ruw) ? ruw : []).map((x) => (typeof x === "number" ? fotos[x - 1]?.url : eigen.has(String(x)) ? String(x) : undefined));
+  return [...new Set(uit.filter((x): x is string => !!x))].slice(0, 3);
 }
 
 // ── Maken en plaatsen ────────────────────────────────────────────────────
 
-type Rij = Post & { user_id: string };
+type Rij = Post & { user_id: string; gemeld?: boolean };
 
 async function zet(id: string, w: Partial<Rij>, alsStatus?: string) {
   let q = createServiceClient().from("content_posts").update(w).eq("id", id);
@@ -163,8 +195,8 @@ async function zet(id: string, w: Partial<Rij>, alsStatus?: string) {
 export async function startMaken(p: Rij): Promise<void> {
   if (!(await zet(p.id, { status: "maken", foutmelding: null }, p.status))) return;
   try {
-    const c = await startCreatie(p.user_id, "beeld", { prompt: p.beeld_prompt, formaat: p.soort === "video" ? "9:16" : "1:1", kwaliteit: "standaard" });
-    await zet(p.id, { beeld_id: c.id, video_id: null });
+    const c = await startCreatie(p.user_id, "beeld", { prompt: p.beeld_prompt, formaat: p.soort === "video" ? "9:16" : "1:1", kwaliteit: "standaard", referentieUrls: p.referenties ?? [] });
+    await zet(p.id, { beeld_id: c.id, video_id: null, montage_id: null, gemeld: false });
   } catch (e) {
     const vol = e instanceof WachtrijFout && e.status === 429;
     await zet(p.id, vol ? { status: p.status } : { status: "mislukt", foutmelding: e instanceof Error ? e.message : String(e) });
@@ -175,12 +207,24 @@ export async function startMaken(p: Rij): Promise<void> {
 async function verderMaken(p: Rij, k: Kalender, creaties: Map<string, Creatie>): Promise<void> {
   const beeld = p.beeld_id ? creaties.get(p.beeld_id) : undefined;
   const video = p.video_id ? creaties.get(p.video_id) : undefined;
-  const laatste = p.soort === "video" ? video : beeld;
-  if (!beeld || beeld.status === "bezig" || (video && video.status === "bezig")) return;
-  if (beeld.status === "mislukt" || video?.status === "mislukt") {
-    await zet(p.id, { status: "mislukt", foutmelding: (video ?? beeld).foutmelding ?? "Maken mislukt." }, "maken");
+  const montage = p.montage_id ? creaties.get(p.montage_id) : undefined;
+  if (!beeld || [beeld, video, montage].some((c) => c?.status === "bezig")) return;
+  const mis = [montage, video, beeld].find((c) => c?.status === "mislukt");
+  if (mis) {
+    await zet(p.id, { status: "mislukt", foutmelding: mis.foutmelding ?? "Maken mislukt." }, "maken");
     return;
   }
+  // Video met geluid: de clip, daarna de voice-over, muziek en eindkaart eronder (montage).
+  if (p.soort === "video" && video?.status === "klaar" && !montage && (p.voiceover || p.muziek || k.eindkaart)) {
+    try {
+      const c = await startCreatie(p.user_id, "montage", { clipIds: [video.id], voiceover: p.voiceover ?? "", stem: STEM, muziek: p.muziek, eindtekst: k.eindkaart ?? "" });
+      await zet(p.id, { montage_id: c.id });
+    } catch (e) {
+      if (!(e instanceof WachtrijFout && e.status === 429)) await zet(p.id, { status: "mislukt", foutmelding: e instanceof Error ? e.message : String(e) }, "maken");
+    }
+    return;
+  }
+  const laatste = p.soort === "video" ? montage ?? video : beeld;
   if (p.soort === "video" && !video) {
     try {
       const c = await startCreatie(p.user_id, "beeld-naar-video", { bronUrl: beeld.url, prompt: p.beweging ?? "", model: STANDAARD_VIDEO_MODEL, formaat: "9:16" });
@@ -200,7 +244,7 @@ export async function plan(p: Rij, k: Pick<Kalender, "kanalen">, mediaUrl?: stri
   const db = createServiceClient();
   let url = mediaUrl;
   if (!url) {
-    const { data } = await db.from("creaties").select("url").eq("id", (p.soort === "video" ? p.video_id : p.beeld_id) ?? "").eq("user_id", p.user_id).maybeSingle();
+    const { data } = await db.from("creaties").select("url").eq("id", (p.soort === "video" ? p.montage_id ?? p.video_id : p.beeld_id) ?? "").eq("user_id", p.user_id).maybeSingle();
     url = data?.url ?? undefined;
   }
   if (!url) return void (await zet(p.id, { status: "mislukt", foutmelding: "Het beeld of de video is er niet meer." }));
@@ -250,7 +294,7 @@ export async function verwerk(opties: { kalenderId?: string; userId?: string } =
   const { data: ks } = await db.from("content_kalenders").select("*").in("id", [...new Set(posts.map((p) => p.kalender_id))]);
   const kalenders = new Map(((ks ?? []) as Kalender[]).map((k) => [k.id, k]));
 
-  const ids = posts.flatMap((p) => (p.status === "maken" ? [p.beeld_id, p.video_id] : [])).filter((x): x is string => !!x);
+  const ids = posts.flatMap((p) => (p.status === "maken" ? [p.beeld_id, p.video_id, p.montage_id] : [])).filter((x): x is string => !!x);
   const { data: cs } = ids.length ? await db.from("creaties").select("*").in("id", ids) : { data: [] };
   const creaties = new Map((await verversLopende((cs ?? []) as Creatie[])).map((c) => [c.id, c]));
 

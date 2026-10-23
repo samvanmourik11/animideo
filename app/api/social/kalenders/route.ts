@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { accountsVan } from "@/lib/social/zernio";
 import { bedenkIdeeen } from "@/lib/social/kalender";
-import type { Kanaal } from "@/lib/social/types";
+import { MAX_FOTOS, type Kanaal } from "@/lib/social/types";
 
 export const runtime = "nodejs";
 // Het bedenken van de ideeën (Claude) loopt na het antwoord door, ~1-2 minuten.
@@ -30,7 +30,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await gebruiker();
   if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
-  const b = (await req.json().catch(() => ({}))) as { briefing?: unknown; accounts?: unknown; modus?: unknown; start?: unknown; weken?: unknown; per_week?: unknown };
+  const b = (await req.json().catch(() => ({}))) as { briefing?: unknown; accounts?: unknown; modus?: unknown; start?: unknown; weken?: unknown; per_week?: unknown; fotos?: unknown; eindkaart?: unknown };
   const briefing = String(b.briefing ?? "").trim().slice(0, 3000);
   if (briefing.length < 10) return NextResponse.json({ error: "Vertel kort waar de posts over moeten gaan." }, { status: 400 });
   const weken = Math.min(6, Math.max(1, Math.round(Number(b.weken) || 4)));
@@ -45,9 +45,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Accounts ophalen mislukt." }, { status: 500 });
   }
   if (!kanalen.length) return NextResponse.json({ error: "Kies minstens één gekoppeld account." }, { status: 400 });
+  // Eigen foto's: creatie-ids uit de eigen bibliotheek, opnieuw opgezocht (nooit een adres uit de browser).
+  const fotoIds = (Array.isArray(b.fotos) ? b.fotos : []).map(String).slice(0, MAX_FOTOS);
+  const { data: fs } = fotoIds.length
+    ? await createServiceClient().from("creaties").select("id, url, prompt").eq("user_id", user.id).eq("soort", "beeld").in("id", fotoIds)
+    : { data: [] };
+  const fotos = fotoIds.map((id) => (fs ?? []).find((f) => f.id === id)).filter((f) => f?.url).map((f) => ({ url: f!.url as string, naam: String(f!.prompt ?? "foto").slice(0, 80) }));
+  const eindkaart = String(b.eindkaart ?? "").trim().slice(0, 40) || null;
   const { data, error } = await createServiceClient()
     .from("content_kalenders")
-    .insert({ user_id: user.id, titel: briefing.slice(0, 60), briefing, kanalen, modus: b.modus === "plaatsen" ? "plaatsen" : "controleren", start_datum: start, weken, per_week: perWeek, status: "ideeen_maken" })
+    .insert({ user_id: user.id, titel: briefing.slice(0, 60), briefing, kanalen, fotos, eindkaart, modus: b.modus === "plaatsen" ? "plaatsen" : "controleren", start_datum: start, weken, per_week: perWeek, status: "ideeen_maken" })
     .select("id")
     .single();
   if (error || !data) return NextResponse.json({ error: "Opslaan mislukt." }, { status: 500 });

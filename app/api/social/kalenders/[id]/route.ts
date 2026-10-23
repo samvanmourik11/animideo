@@ -26,7 +26,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   if (k.status === "actief") await verwerk({ kalenderId: k.id }).catch((e) => console.error("[social] verwerken:", e));
   const db = createServiceClient();
   const { data: posts } = await db.from("content_posts").select("*").eq("kalender_id", k.id).order("gepland_op");
-  const ids = (posts ?? []).flatMap((p) => [p.beeld_id, p.video_id]).filter(Boolean);
+  const ids = (posts ?? []).flatMap((p) => [p.beeld_id, p.video_id, p.montage_id]).filter(Boolean);
   const { data: cs } = ids.length ? await db.from("creaties").select("id, url, status, soort").in("id", ids) : { data: [] };
   return NextResponse.json({ kalender: k, posts: posts ?? [], creaties: cs ?? [] });
 }
@@ -71,9 +71,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       const tijd = new Intl.DateTimeFormat("nl-NL", { timeZone: "Europe/Amsterdam", hour: "2-digit", minute: "2-digit" }).format(new Date(p.gepland_op));
       const schoon = schoonIdee({ ...p, datum, tijd, ...(b.velden as Record<string, unknown>) }, k);
       if (!schoon) return NextResponse.json({ error: "Controleer datum, kanalen en het beeldidee." }, { status: 400 });
-      // Ander beeldidee of andere soort: het gemaakte beeld klopt niet meer.
-      const opnieuw = schoon.beeld_prompt !== p.beeld_prompt || schoon.soort !== p.soort || schoon.beweging !== p.beweging;
-      await db.from("content_posts").update({ ...schoon, ...(opnieuw && p.status !== "idee" ? { beeld_id: null, video_id: null, status: "gepland" } : {}) }).eq("id", p.id);
+      // Ander beeldidee of andere soort: het gemaakte beeld klopt niet meer. Alleen een
+      // andere voice-over of muziek: alleen de montage opnieuw, de clip blijft.
+      const opnieuw = schoon.beeld_prompt !== p.beeld_prompt || schoon.soort !== p.soort || schoon.beweging !== p.beweging || schoon.referenties.join() !== (p.referenties ?? []).join();
+      const geluid = !opnieuw && p.video_id && (schoon.voiceover !== p.voiceover || schoon.muziek !== p.muziek);
+      const reset = p.status === "idee" ? {} : opnieuw ? { beeld_id: null, video_id: null, montage_id: null, status: "gepland" } : geluid ? { montage_id: null, status: "maken", gemeld: false } : {};
+      await db.from("content_posts").update({ ...schoon, ...reset }).eq("id", p.id);
       return NextResponse.json({ ok: true });
     }
     case "weg": {

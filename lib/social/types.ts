@@ -47,6 +47,10 @@ export interface Kalender {
   per_week: number;
   status: "ideeen_maken" | "ideeen" | "actief" | "fout";
   foutmelding: string | null;
+  /** Eigen foto's van de klant (product, logo, winkel): voorbeelden voor de beelden. */
+  fotos: { url: string; naam: string }[];
+  /** Tekst op de eindkaart van video's, bv. de website. */
+  eindkaart: string | null;
   created_at: string;
 }
 
@@ -64,11 +68,16 @@ export interface Post {
   beweging: string | null;
   beeld_id: string | null;
   video_id: string | null;
+  montage_id: string | null;
+  referenties: string[];
+  voiceover: string | null;
+  muziek: string | null;
   status: PostStatus;
   zernio_post: string | null;
   links: Record<string, string>;
   foutmelding: string | null;
 }
 
-/** Credits van één post: een beeld (standaard) en bij video de beweging (Seedance Lite). */
-export const POST_CREDITS = { beeld: 1, video: 3 } as const;
+/** Credits van één post: een beeld (standaard); bij video ook de beweging (Seedance Lite) en de voice-over. */
+export const POST_CREDITS = { beeld: 1, video: 4 } as const;
+export const MAX_FOTOS = 6;

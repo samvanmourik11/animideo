@@ -144,7 +144,7 @@ export default function ContentKalender({ id }: { id: string }) {
             <PostKaart
               key={p.id}
               p={p}
-              media={creaties[(p.soort === "video" ? p.video_id : p.beeld_id) ?? ""] ?? (p.beeld_id ? creaties[p.beeld_id] : undefined)}
+              media={[p.montage_id, p.video_id, p.beeld_id].map((x) => (x ? creaties[x] : undefined)).find((c) => c?.status === "klaar" && c.url) ?? (p.beeld_id ? creaties[p.beeld_id] : undefined)}
               actief={k.status === "actief"}
               bezig={bezig === p.id}
               bewerken={bewerk === p.id}
@@ -182,7 +182,7 @@ function PostKaart({
   onActie: (body: Record<string, unknown>) => void;
 }) {
   const d = delen(p.gepland_op);
-  const [velden, setVelden] = useState({ datum: d.datum, tijd: d.tijd, tekst: p.tekst, idee: p.idee, beeld_prompt: p.beeld_prompt });
+  const [velden, setVelden] = useState({ datum: d.datum, tijd: d.tijd, tekst: p.tekst, idee: p.idee, beeld_prompt: p.beeld_prompt, voiceover: p.voiceover ?? "" });
   const magWijzigen = ["idee", "gepland", "te_keuren", "mislukt"].includes(p.status);
   const klaarMedia = media?.status === "klaar" && media.url ? media : null;
 
@@ -221,6 +221,11 @@ function PostKaart({
             <label className="block text-xs text-tekst-3">Tekst bij de post
               <textarea value={velden.tekst} onChange={(e) => setVelden({ ...velden, tekst: e.target.value })} rows={4} className="mt-0.5 w-full rounded-lg border border-rand bg-paneel px-2 py-1 text-sm text-tekst" />
             </label>
+            {p.soort === "video" && (
+              <label className="block text-xs text-tekst-3">Wat de stem zegt (max ±12 woorden; leeg = alleen muziek)
+                <input value={velden.voiceover} onChange={(e) => setVelden({ ...velden, voiceover: e.target.value })} className="mt-0.5 w-full rounded-lg border border-rand bg-paneel px-2 py-1 text-sm text-tekst" />
+              </label>
+            )}
             <label className="block text-xs text-tekst-3">Wat er in beeld komt (Engels; aanpassen = nieuw beeld)
               <textarea value={velden.beeld_prompt} onChange={(e) => setVelden({ ...velden, beeld_prompt: e.target.value })} rows={2} className="mt-0.5 w-full rounded-lg border border-rand bg-paneel px-2 py-1 text-xs text-tekst" />
             </label>
@@ -232,6 +237,10 @@ function PostKaart({
         ) : (
           <>
             <p className="text-sm font-medium text-tekst">{p.idee}</p>
+            {p.soort === "video" && (p.voiceover || p.muziek) && (
+              <p className="text-xs text-tekst-3">🎙️ {p.voiceover ? `“${p.voiceover}”` : "alleen muziek"}{p.muziek ? ` · 🎵 ${p.muziek}` : ""}</p>
+            )}
+            {p.referenties?.length > 0 && <p className="text-xs text-tekst-3">📷 met {p.referenties.length === 1 ? "je eigen foto" : `${p.referenties.length} eigen foto's`}</p>}
             <p className="text-sm text-tekst-2 whitespace-pre-wrap line-clamp-6">{p.tekst}</p>
           </>
         )}

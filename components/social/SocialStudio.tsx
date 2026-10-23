@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { PLATFORMS, POST_CREDITS, platform } from "@/lib/social/types";
+import { MAX_FOTOS, PLATFORMS, POST_CREDITS, platform } from "@/lib/social/types";
 
 // De Social-studio: kanalen koppelen (via Zernio) en een contentkalender beginnen. De
 // kalender zelf (ideeën keuren, posts volgen) staat op /studios/social/[id].
@@ -30,6 +30,31 @@ export default function SocialStudio() {
   const [weken, setWeken] = useState(4);
   const [perWeek, setPerWeek] = useState(3);
   const [modus, setModus] = useState<"controleren" | "plaatsen">("controleren");
+  const [fotos, setFotos] = useState<{ id: string; url: string; naam: string }[]>([]);
+  const [uploaden, setUploaden] = useState(0);
+  const [eindkaart, setEindkaart] = useState("");
+
+  // Eigen foto's gaan als gewone creatie de bibliotheek in (dezelfde upload als bij de Regisseur).
+  async function voegFotosToe(lijst: FileList) {
+    const bestanden = Array.from(lijst).filter((f) => f.type.startsWith("image/")).slice(0, MAX_FOTOS - fotos.length);
+    setUploaden((n) => n + bestanden.length);
+    await Promise.all(
+      bestanden.map(async (f) => {
+        try {
+          const form = new FormData();
+          form.append("bestand", f);
+          const res = await fetch("/api/regisseur/bijlage", { method: "POST", body: form });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok || !d.bijlage?.id) throw new Error(d.error ?? "Uploaden mislukt.");
+          setFotos((x) => [...x, { id: d.bijlage.id, url: d.bijlage.url, naam: f.name }]);
+        } catch (e) {
+          setFout(e instanceof Error ? e.message : String(e));
+        } finally {
+          setUploaden((n) => n - 1);
+        }
+      }),
+    );
+  }
 
   const laad = useCallback(async () => {
     const [a, k] = await Promise.all([
@@ -74,7 +99,7 @@ export default function SocialStudio() {
     const res = await fetch("/api/social/kalenders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ briefing, accounts: gekozen, start, weken, per_week: perWeek, modus }),
+      body: JSON.stringify({ briefing, accounts: gekozen, start, weken, per_week: perWeek, modus, fotos: fotos.map((f) => f.id), eindkaart }),
     });
     const d = await res.json().catch(() => ({}));
     setBezig(null);
@@ -150,6 +175,33 @@ export default function SocialStudio() {
             <p className="text-sm text-tekst-3">{accounts === null ? "Laden…" : "Koppel eerst een kanaal hierboven."}</p>
           )}
         </div>
+        <div className="space-y-1">
+          <span className="text-sm text-tekst-2">Eigen foto&apos;s <span className="text-tekst-3">(optioneel: je product, logo of winkel; die komen dan echt in beeld)</span></span>
+          <div className="flex flex-wrap gap-2">
+            {fotos.map((f) => (
+              <div key={f.id} className="relative">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={f.url} alt={f.naam} className="h-16 w-16 rounded-xl object-cover border border-rand" />
+                <button onClick={() => setFotos((x) => x.filter((y) => y.id !== f.id))} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/70 text-white text-[11px]" aria-label="Foto weghalen">✕</button>
+              </div>
+            ))}
+            {uploaden > 0 && (
+              <div className="h-16 w-16 rounded-xl border border-dashed border-rand flex items-center justify-center">
+                <span className="w-4 h-4 rounded-full border-2 border-blue-500/30 border-t-blue-500 animate-spin" />
+              </div>
+            )}
+            {fotos.length + uploaden < MAX_FOTOS && (
+              <label className="h-16 w-16 rounded-xl border border-dashed border-rand flex items-center justify-center text-2xl text-tekst-3 cursor-pointer hover:text-tekst" title="Foto toevoegen">
+                ＋
+                <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(e) => { if (e.target.files) voegFotosToe(e.target.files); e.target.value = ""; }} />
+              </label>
+            )}
+          </div>
+        </div>
+        <label className="block space-y-1">
+          <span className="text-sm text-tekst-2">Op het eind van je video&apos;s <span className="text-tekst-3">(bv. je website; leeg = dat bedenkt de Regisseur)</span></span>
+          <input value={eindkaart} onChange={(e) => setEindkaart(e.target.value)} maxLength={40} placeholder="jouwanimatievideo.nl" className="w-full sm:w-80 rounded-xl border border-rand bg-paneel px-3 py-1.5 text-sm text-tekst" />
+        </label>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <label className="space-y-1 text-sm text-tekst-2">
             <span className="block">Vanaf</span>
@@ -185,10 +237,10 @@ export default function SocialStudio() {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-tekst-3">
-            {totaal} posts. De ideeën bedenken is gratis; daarna kost een beeldpost {POST_CREDITS.beeld} credit en een videopost {POST_CREDITS.video} credits
+            {totaal} posts. De ideeën bedenken is gratis; daarna kost een beeldpost {POST_CREDITS.beeld} credit en een videopost (met voice-over en muziek) {POST_CREDITS.video} credits
             {allesVideo ? " (TikTok en YouTube zijn altijd video)" : ""}. Ze worden per week vooruit gemaakt.
           </p>
-          <button onClick={maak} disabled={bezig === "nieuw" || briefing.trim().length < 10 || !gekozen.length} className="btn-primary">
+          <button onClick={maak} disabled={bezig === "nieuw" || uploaden > 0 || briefing.trim().length < 10 || !gekozen.length} className="btn-primary">
             {bezig === "nieuw" ? "Even…" : "✨ Bedenk de ideeën"}
           </button>
         </div>
