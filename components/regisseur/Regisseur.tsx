@@ -50,6 +50,8 @@ const ICOON: Record<string, string> = {
   mijn_werk: "📚 Je werk bekijken",
   wacht_op: "⏳ Wachten op resultaten",
   vaste_taak: "🔁 Vaste taak",
+  social_kanalen: "📣 Je kanalen bekijken",
+  maak_contentkalender: "📅 Contentkalender opzetten",
 };
 
 /** Het gesprek in leesbare regels: tekst van beide kanten, en wat de Regisseur deed. */
@@ -98,9 +100,10 @@ function regels(berichten: Bericht[], openVraag = false) {
 /** Claude schrijft **vet** en [links](https://…); die tonen we zo in plaats van met tekens. */
 function MetVet({ tekst }: { tekst: string }) {
   const links = (stuk: string, sleutel: string) =>
-    stuk.split(/(\[[^\]]+\]\(https:\/\/[^)\s]+\))/g).map((deel, j) => {
-      const m = deel.match(/^\[([^\]]+)\]\((https:\/\/[^)\s]+)\)$/);
-      return m ? <a key={`${sleutel}-${j}`} href={m[2]} target="_blank" rel="noreferrer" className="text-blue-500 underline">{m[1]}</a> : <span key={`${sleutel}-${j}`}>{deel}</span>;
+    // Ook links binnen de app (/studios/social/…), die de Regisseur zelf meegeeft.
+    stuk.split(/(\[[^\]]+\]\((?:https:\/\/|\/)[^)\s]*\))/g).map((deel, j) => {
+      const m = deel.match(/^\[([^\]]+)\]\(((?:https:\/\/|\/)[^)\s]*)\)$/);
+      return m ? <a key={`${sleutel}-${j}`} href={m[2]} {...(m[2].startsWith("/") ? {} : { target: "_blank", rel: "noreferrer" })} className="text-blue-500 underline">{m[1]}</a> : <span key={`${sleutel}-${j}`}>{deel}</span>;
     });
   return (
     <>

@@ -27,12 +27,14 @@ import { RECLAME_CREDITS, RECLAME_FORMATEN, STIJLEN, type Product, type ReclameF
 import { schrijfTrailer } from "@/lib/trailer/plan";
 import { TRAILER_LENGTES, trailerCredits, type TrailerLengte } from "@/lib/trailer/types";
 import { datumTekst, maakTaak, ritmeTekst } from "./taken";
+import { accountsVan } from "@/lib/social/zernio";
+import { bedenkIdeeen, maakKalender } from "@/lib/social/kalender";
 
 type Tool = Anthropic.Beta.BetaTool;
 
 export const BETAALDE_TOOLS = new Set([...FILM_BETAALD, "maak_beeld", "maak_voiceover", "maak_video", "gebruik_app", "monteer", "maak_ugc_video", "maak_reclame", "maak_trailer"]);
 /** Gratis, meteen uitgevoerd. */
-export const GRATIS_TOOLS = new Set([...FILM_GRATIS, "lees_webpagina", "mijn_werk", "ugc_creators", "zoek_stemmen", "onthoud", "vaste_taak"]);
+export const GRATIS_TOOLS = new Set([...FILM_GRATIS, "lees_webpagina", "mijn_werk", "ugc_creators", "zoek_stemmen", "onthoud", "vaste_taak", "social_kanalen", "maak_contentkalender"]);
 
 // De lijst apps staat in de omschrijving van het gereedschap. Die verandert alleen als we
 // apps toevoegen, dus de cache van het verzoek blijft gewoon geldig.
@@ -241,6 +243,32 @@ export const TOOLS: Tool[] = [
         max_credits: { type: "integer", minimum: 1, maximum: 500 },
       },
       required: ["titel", "opdracht", "ritme", "max_credits"],
+    },
+  },
+  {
+    name: "social_kanalen",
+    description: "Bekijk welke socialmedia-accounts de gebruiker in de Social-studio heeft gekoppeld (gratis): id, platform (instagram, tiktok, facebook, youtube, twitter = X) en naam.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "maak_contentkalender",
+    description:
+      "Zet een contentkalender op in de Social-studio (gratis): jij (een strateeg) bedenkt meteen alle posts met tekst; de gebruiker keurt ze daar goed, daarna maakt Animideo ze per week vooruit (beeldpost 1 credit, videopost met voice-over en muziek 4) en plaatst ze automatisch of na keuring. " +
+      "Eerst social_kanalen. Vraag vóór het aanmaken met vraag_keuze één keer akkoord op: kanalen, periode (weken), aantal posts per week en of posts eerst gekeurd moeten worden of meteen geplaatst. Schrijf de briefing volledig (bedrijf, doelgroep, thema's, acties, toon). " +
+      "Foto's: creatie-ids van eigen foto's (product, logo) uit dit gesprek, die komen dan echt in beeld.",
+    input_schema: {
+      type: "object",
+      properties: {
+        briefing: { type: "string" },
+        accounts: { type: "array", items: { type: "string" }, description: "Account-ids uit social_kanalen; leeg = alle." },
+        start: { type: "string", description: "YYYY-MM-DD, standaard morgen." },
+        weken: { type: "integer", minimum: 1, maximum: 6 },
+        per_week: { type: "integer", minimum: 1, maximum: 7 },
+        modus: { type: "string", enum: ["controleren", "plaatsen"] },
+        eindkaart: { type: "string", description: "Tekst op het eind van video's, bv. de website." },
+        fotos: { type: "array", items: { type: "string" }, maxItems: 6 },
+      },
+      required: ["briefing", "weken", "per_week", "modus"],
     },
   },
   {
@@ -546,6 +574,23 @@ export async function gratis(userId: string, blok: Anthropic.Beta.BetaToolUseBlo
     if (!feit) throw new Error("Niets om te onthouden.");
     await onthoud(userId, feit);
     return "Onthouden.";
+  }
+  if (blok.name === "social_kanalen") {
+    const a = await accountsVan(userId);
+    return a.length
+      ? JSON.stringify(a.map((x) => ({ id: x.id, platform: x.platform, naam: x.naam, ...(x.actief ? {} : { let_op: "verbinding verlopen, opnieuw koppelen" }) })))
+      : "Nog geen kanalen gekoppeld. De gebruiker koppelt ze in de Social-studio (menu Studio's → Social, /studios/social).";
+  }
+  if (blok.name === "maak_contentkalender") {
+    // Het bedenken duurt ~1 minuut; de Regisseur wacht erop, zodat hij de ideeën kan bespreken.
+    const id = await maakKalender(userId, i);
+    await bedenkIdeeen(id);
+    const db = createServiceClient();
+    const { data: k } = await db.from("content_kalenders").select("titel, status, foutmelding").eq("id", id).single();
+    if (k?.status === "fout") throw new Error(k.foutmelding ?? "Ideeën bedenken mislukt.");
+    const { data: posts } = await db.from("content_posts").select("gepland_op, platforms, soort, idee").eq("kalender_id", id).order("gepland_op");
+    const regels = (posts ?? []).map((p) => `- ${datumTekst(p.gepland_op)} · ${p.platforms.join("+")} · ${p.soort}: ${p.idee}`);
+    return `Kalender "${k?.titel}" staat klaar met ${regels.length} ideeën; de gebruiker moet ze nog goedkeuren op [de kalender](/studios/social/${id}) (daar kan hij ook aanpassen). Pas als hij goedkeurt worden ze gemaakt.\n${regels.join("\n")}`;
   }
   if (blok.name === "vaste_taak") {
     const t = await maakTaak(userId, i, projectId);

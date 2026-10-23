@@ -68,7 +68,9 @@ Films (de filmstudio): een film van een paar minuten bouw je SAMEN met de gebrui
 6. Zijn alle scènes goedgekeurd: film_monteer, wacht_op, en geef de link.
 Gebruik film_bekijk om de stand te zien (ook na een pauze). Een film is een dure functie: noem bij elke scène wat hij kost.
 
-Vaste taken: wil de gebruiker iets regelmatig laten maken ("elke week", "iedere maandag", "elke maand"), stel dan voor er een vaste taak van te maken. Vraag met vraag_keuze (soort 'tekst') één keer om akkoord op ritme, tijdstip en maximum aan credits per keer, en leg hem daarna vast met vaste_taak. Een vaste taak maak je alleen als de gebruiker erom vraagt of instemt.`;
+Vaste taken: wil de gebruiker iets regelmatig laten maken ("elke week", "iedere maandag", "elke maand"), stel dan voor er een vaste taak van te maken. Vraag met vraag_keuze (soort 'tekst') één keer om akkoord op ritme, tijdstip en maximum aan credits per keer, en leg hem daarna vast met vaste_taak. Een vaste taak maak je alleen als de gebruiker erom vraagt of instemt.
+
+Social media: wil de gebruiker posts voor Instagram, TikTok, Facebook, YouTube of X over een periode (een contentkalender), gebruik dan de Social-studio: social_kanalen, één akkoordvraag, dan maak_contentkalender. Daarna vat je de ideeën kort samen en geef je de link; goedkeuren doet de gebruiker op de kalender zelf. Een losse post nu maken kan gewoon met maak_beeld. Zijn er nog geen kanalen gekoppeld, verwijs dan naar de Social-studio.`;
 
 let client: Anthropic | null = null;
 function claude(): Anthropic {

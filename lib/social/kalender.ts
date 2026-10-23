@@ -14,8 +14,8 @@ import { MUSIC_CATEGORIES } from "@/lib/music/library";
 import type { Creatie } from "@/lib/creaties/types";
 import { leesGeheugen } from "@/lib/regisseur/tools";
 import { nlMoment } from "@/lib/regisseur/taken";
-import { ALLEEN_VIDEO, PLATFORMS, type Kalender, type Kanaal, type Post } from "./types";
-import { plaatsPost, standVan, ZernioFout } from "./zernio";
+import { ALLEEN_VIDEO, MAX_FOTOS, PLATFORMS, type Kalender, type Kanaal, type Post } from "./types";
+import { accountsVan, plaatsPost, standVan, ZernioFout } from "./zernio";
 
 const MODEL = "claude-opus-5-5";
 /** Een week vooruit maken: dan is er tijd om te keuren, en geen credits voor verre plannen. */
@@ -25,6 +25,44 @@ const PER_RONDE = 4;
 /** Hugo V: de vaste stem van Animideo (Sam). */
 const STEM = "rbqBOMK4BPTMGvIB7N8w";
 const MUZIEK = MUSIC_CATEGORIES.map((c) => c.id) as string[];
+
+// ── Aanmaken ─────────────────────────────────────────────────────────────
+
+export class KalenderFout extends Error {}
+
+/**
+ * Een nieuwe kalender (vanuit het scherm of de Regisseur). Accounts en foto's worden
+ * opnieuw opgezocht: alleen wat echt van deze gebruiker is. De ideeën bedenkt de
+ * aanroeper daarna met bedenkIdeeen().
+ */
+export async function maakKalender(userId: string, b: Record<string, unknown>): Promise<string> {
+  const briefing = String(b.briefing ?? "").trim().slice(0, 3000);
+  if (briefing.length < 10) throw new KalenderFout("Vertel kort waar de posts over moeten gaan.");
+  const weken = Math.min(6, Math.max(1, Math.round(Number(b.weken) || 4)));
+  const perWeek = Math.min(7, Math.max(1, Math.round(Number(b.per_week) || 3)));
+  const morgen = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Amsterdam" }).format(new Date(Date.now() + 86400000));
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(String(b.start)) && String(b.start) >= morgen ? String(b.start) : morgen;
+  const accounts = await accountsVan(userId);
+  // Zonder keuze (de Regisseur zegt "alles"): alle actieve accounts.
+  const gekozen = new Set((Array.isArray(b.accounts) ? b.accounts : []).map(String));
+  const kanalen: Kanaal[] = accounts.filter((a) => a.actief && (!gekozen.size || gekozen.has(a.id))).map((a) => ({ platform: a.platform, accountId: a.id, naam: a.naam }));
+  if (!kanalen.length) throw new KalenderFout(accounts.length ? "Kies minstens één gekoppeld account." : "Er is nog geen kanaal gekoppeld. Koppel er eerst een in de Social-studio.");
+  const fotoIds = (Array.isArray(b.fotos) ? b.fotos : []).map(String).slice(0, MAX_FOTOS);
+  const db = createServiceClient();
+  const { data: fs } = fotoIds.length ? await db.from("creaties").select("id, url, prompt").eq("user_id", userId).eq("soort", "beeld").in("id", fotoIds) : { data: [] };
+  const fotos = fotoIds.map((id) => (fs ?? []).find((f) => f.id === id)).filter((f) => f?.url).map((f) => ({ url: f!.url as string, naam: String(f!.prompt ?? "foto").slice(0, 80) }));
+  const { data, error } = await db
+    .from("content_kalenders")
+    .insert({
+      user_id: userId, titel: briefing.slice(0, 60), briefing, kanalen, fotos,
+      eindkaart: String(b.eindkaart ?? "").trim().slice(0, 40) || null,
+      modus: b.modus === "plaatsen" ? "plaatsen" : "controleren", start_datum: start, weken, per_week: perWeek, status: "ideeen_maken",
+    })
+    .select("id")
+    .single();
+  if (error || !data) throw new Error(error?.message ?? "Opslaan mislukt.");
+  return data.id;
+}
 
 // ── Ideeën ───────────────────────────────────────────────────────────────
 
