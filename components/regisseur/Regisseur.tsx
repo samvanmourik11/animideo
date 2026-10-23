@@ -49,6 +49,7 @@ const ICOON: Record<string, string> = {
   lees_webpagina: "🌐 Pagina lezen",
   mijn_werk: "📚 Je werk bekijken",
   wacht_op: "⏳ Wachten op resultaten",
+  vaste_taak: "🔁 Vaste taak vastgelegd",
 };
 
 /** Het gesprek in leesbare regels: tekst van beide kanten, en wat de Regisseur deed. */
@@ -381,7 +382,10 @@ export default function Regisseur() {
       {/* Projecten */}
       <aside className="space-y-2 lg:sticky lg:top-6">
         <button onClick={() => { setActief(null); setFout(null); }} className="btn-primary w-full">＋ Nieuw project</button>
-        <button onClick={openGeheugen} className="n-knop2 w-full text-sm">🧠 Geheugen</button>
+        <div className="flex gap-2">
+          <button onClick={openGeheugen} className="n-knop2 flex-1 text-sm">🧠 Geheugen</button>
+          <Link href="/regisseur/taken" className="n-knop2 flex-1 text-sm text-center">🔁 Vaste taken</Link>
+        </div>
         {geheugenOpen && (
           <div className="n-kaart !p-3 space-y-2">
             <p className="text-[11px] text-tekst-3">Wat de Regisseur over jou en je bedrijf onthoudt, in al je projecten. Pas gerust aan.</p>

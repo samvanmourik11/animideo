@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 
 // Een nep-database (één regieproject + creaties) en een nep-Claude met vooraf
 // klaargezette antwoorden. Zo testen we de lus: pauzeren, bevestigen, volgorde.
-const db = { project: null as Record<string, unknown> | null, creaties: [] as Record<string, unknown>[], geheugen: "" };
+const db = { project: null as Record<string, unknown> | null, creaties: [] as Record<string, unknown>[], geheugen: "", run: null as Record<string, unknown> | null };
 const antwoorden: Record<string, unknown>[] = [];
 const verzoeken: Record<string, unknown>[] = [];
 const gestart: { maker: string; invoer: Record<string, unknown> }[] = [];
@@ -25,6 +25,11 @@ vi.mock("@/lib/supabase/service", () => ({
       };
       function resultaat() {
         if (tabel === "regie_geheugen") return { data: db.geheugen ? { tekst: db.geheugen } : null };
+        if (tabel === "regie_taak_runs") {
+          if (!db.run || !wijziging) return { data: db.run };
+          Object.assign(db.run, wijziging);
+          return { data: [db.run] };
+        }
         if (tabel === "creaties") {
           const ids = filters.find(([k]) => k === "id:in")?.[1] as string[] | undefined;
           return { data: db.creaties.filter((c) => !ids || ids.includes(c.id as string)) };
@@ -73,6 +78,7 @@ beforeEach(() => {
   db.project = { id: "p1", user_id: "u1", titel: "t", berichten: [{ role: "user", content: "Maak een reclame" }], status: "denkt", wachtend: null, galerij: [], automatisch: false, gebruik: {} };
   db.creaties = [];
   db.geheugen = "";
+  db.run = null;
   antwoorden.length = 0;
   verzoeken.length = 0;
   gestart.length = 0;
@@ -116,6 +122,18 @@ describe("de Regisseur", () => {
     const res = (db.project!.berichten as { content: { tool_use_id: string }[] }[])[2].content;
     expect(res.map((r) => r.tool_use_id)).toEqual(["a", "b", "c"]);
     expect(db.project!.galerij).toEqual(["c1", "c2"]);
+  });
+
+  test("vaste taak: binnen het plafond zelf door, daarboven wachten op de gebruiker", async () => {
+    db.run = { project_id: "p1", taak_id: "t1", user_id: "u1", max_credits: 4, uitgegeven: 0, gemeld: null };
+    antwoorden.push(zegt(tool("b", "maak_beeld", { prompt: "x", formaat: "1:1", kwaliteit: "pro" }), tool("c", "maak_beeld", { prompt: "y", formaat: "1:1", kwaliteit: "pro" })));
+    antwoorden.push(zegt(tool("d", "maak_beeld", { prompt: "z", formaat: "1:1", kwaliteit: "pro" })));
+    await draai("p1");
+    // Eerste ronde: 2 + 2 = 4 credits, precies binnen het plafond; de tweede (nog 2) niet meer.
+    expect(gestart).toHaveLength(2);
+    expect(db.run.uitgegeven).toBe(4);
+    expect(db.project!.status).toBe("wacht_op_bevestiging");
+    expect((db.project!.wachtend as { totaal: number }).totaal).toBe(2);
   });
 
   test("nee zeggen: niets gestart, Claude hoort dat het niet mocht", async () => {

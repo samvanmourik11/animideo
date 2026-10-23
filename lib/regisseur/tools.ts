@@ -26,12 +26,13 @@ import { schrijfPlan } from "@/lib/reclame/plan";
 import { RECLAME_CREDITS, RECLAME_FORMATEN, STIJLEN, type Product, type ReclameFormaat, type StijlId } from "@/lib/reclame/types";
 import { schrijfTrailer } from "@/lib/trailer/plan";
 import { TRAILER_LENGTES, trailerCredits, type TrailerLengte } from "@/lib/trailer/types";
+import { datumTekst, maakTaak, ritmeTekst } from "./taken";
 
 type Tool = Anthropic.Beta.BetaTool;
 
 export const BETAALDE_TOOLS = new Set([...FILM_BETAALD, "maak_beeld", "maak_voiceover", "maak_video", "gebruik_app", "monteer", "maak_ugc_video", "maak_reclame", "maak_trailer"]);
 /** Gratis, meteen uitgevoerd. */
-export const GRATIS_TOOLS = new Set([...FILM_GRATIS, "lees_webpagina", "mijn_werk", "ugc_creators", "zoek_stemmen", "onthoud"]);
+export const GRATIS_TOOLS = new Set([...FILM_GRATIS, "lees_webpagina", "mijn_werk", "ugc_creators", "zoek_stemmen", "onthoud", "vaste_taak"]);
 
 // De lijst apps staat in de omschrijving van het gereedschap. Die verandert alleen als we
 // apps toevoegen, dus de cache van het verzoek blijft gewoon geldig.
@@ -219,6 +220,26 @@ export const TOOLS: Tool[] = [
     name: "onthoud",
     description: "Sla iets blijvends op over de gebruiker of het bedrijf (gratis), voor alle volgende projecten: bedrijfsnaam, huisstijl, doelgroep, voorkeuren. Alleen dingen die over dit project heen gelden, kort.",
     input_schema: { type: "object", properties: { feit: { type: "string" } }, required: ["feit"] },
+  },
+  {
+    name: "vaste_taak",
+    description:
+      "Leg een vaste taak vast (gratis): iets dat de Regisseur voortaan zelf op een vast moment maakt, zonder dat de gebruiker erbij is (bijvoorbeeld elke maandag 3 Instagram-posts). " +
+      "Alleen als de gebruiker dat echt wil, en pas nadat hij met vraag_keuze heeft bevestigd: het ritme, het tijdstip en het maximum aan credits per keer (stel een maximum voor dat ruim past bij wat één keer kost). " +
+      "Schrijf de opdracht volledig en op zichzelf staand (wat, hoeveel, formaat, stijl, toon, onderwerpen, bedrijf), want bij het uitvoeren is dit gesprek er niet meer.",
+    input_schema: {
+      type: "object",
+      properties: {
+        titel: { type: "string", description: "Kort, bv. 'Instagram-posts bakkerij'." },
+        opdracht: { type: "string" },
+        ritme: { type: "string", enum: ["dag", "week", "maand"] },
+        weekdag: { type: "integer", minimum: 0, maximum: 6, description: "Bij 'week': 0 = zondag, 1 = maandag … 6 = zaterdag." },
+        maanddag: { type: "integer", minimum: 1, maximum: 28, description: "Bij 'maand'." },
+        uur: { type: "integer", minimum: 0, maximum: 23, description: "Nederlandse tijd; standaard 8." },
+        max_credits: { type: "integer", minimum: 1, maximum: 500 },
+      },
+      required: ["titel", "opdracht", "ritme", "max_credits"],
+    },
   },
   {
     name: "wacht_op",
@@ -523,6 +544,10 @@ export async function gratis(userId: string, blok: Anthropic.Beta.BetaToolUseBlo
     if (!feit) throw new Error("Niets om te onthouden.");
     await onthoud(userId, feit);
     return "Onthouden.";
+  }
+  if (blok.name === "vaste_taak") {
+    const t = await maakTaak(userId, i, projectId);
+    return `Vastgelegd: "${t.titel}", ${ritmeTekst(t)}, max ${t.max_credits} credits per keer. De eerste keer: ${datumTekst(t.volgende_op)}. De gebruiker beheert zijn taken onder Regisseur → Vaste taken (pauzeren, maximum aanpassen, meteen uitvoeren, weghalen) en krijgt na elke keer een mail.`;
   }
   throw new Error(`Onbekend gereedschap: ${blok.name}`);
 }

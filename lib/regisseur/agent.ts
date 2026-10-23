@@ -15,6 +15,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { verversLopende } from "@/lib/creaties/wachtrij";
 import type { Creatie } from "@/lib/creaties/types";
 import { tijd } from "./video";
+import { binnenBudget, taakRun } from "./taken";
 import { BETAALDE_TOOLS, GRATIS_TOOLS, TOOLS, bereidVoor, bouwOpties, gratis, leesGeheugen, voerUit, type Optie, type Stap } from "./tools";
 
 const MODEL = "claude-opus-5-5";
@@ -65,7 +66,9 @@ Films (de filmstudio): een film van een paar minuten bouw je SAMEN met de gebrui
 4. Per scène: film_scene_schrijf (shots van 1,5-4,2 s; wie praat staat in een (medium) close-up in beeld en krijgt lipsync; wissel close-ups, wijde shots en details af; plek en licht per scène vast), daarna film_scene_maak, wacht_op, en stuur de scène ter keuring met vraag_keuze soort 'scene' (scene_nummer). Maak niet meer dan één scène tegelijk zonder dat de gebruiker de vorige heeft gezien, tenzij hij zegt dat het mag.
 5. Keuring: "goedgekeurd" → film_scene_keur goedgekeurd, door naar de volgende scène. Feedback → film_scene_keur met de feedback, herschrijf ALLEEN de shots die anders moeten (houd de id's van de rest gelijk, dan blijven die staan en kosten ze niets), maak hem opnieuw en stuur hem weer ter keuring.
 6. Zijn alle scènes goedgekeurd: film_monteer, wacht_op, en geef de link.
-Gebruik film_bekijk om de stand te zien (ook na een pauze). Een film is een dure functie: noem bij elke scène wat hij kost.`;
+Gebruik film_bekijk om de stand te zien (ook na een pauze). Een film is een dure functie: noem bij elke scène wat hij kost.
+
+Vaste taken: wil de gebruiker iets regelmatig laten maken ("elke week", "iedere maandag", "elke maand"), stel dan voor er een vaste taak van te maken. Vraag met vraag_keuze (soort 'tekst') één keer om akkoord op ritme, tijdstip en maximum aan credits per keer, en leg hem daarna vast met vaste_taak. Een vaste taak maak je alleen als de gebruiker erom vraagt of instemt.`;
 
 let client: Anthropic | null = null;
 function claude(): Anthropic {
@@ -193,7 +196,11 @@ export async function draai(id: string): Promise<void> {
       }
       const wacht = aanroepen.find((b) => b.name === "wacht_op");
 
-      if (stappen.length && !p.automatisch) {
+      // Een vaste taak draait zonder iemand erbij: zelf doorgaan zolang het binnen het
+      // plafond van deze uitvoering blijft; daarboven wacht hij op de gebruiker (die een mail krijgt).
+      const run = stappen.length ? await taakRun(p.id) : null;
+      const zelf = p.automatisch || (!!run && (await binnenBudget(run, stappen.reduce((s, x) => s + x.credits, 0))));
+      if (stappen.length && !zelf) {
         await bewaar(id, {
           berichten, gebruik, galerij, status: "wacht_op_bevestiging",
           wachtend: {
