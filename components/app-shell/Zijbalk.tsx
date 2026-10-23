@@ -48,6 +48,7 @@ const MIJN: Item[] = [
   { href: "/brand", label: "Huisstijlen", icoon: "🎨" },
   { href: "/profiel", label: "Mijn profiel", icoon: "🌐" },
   { href: "/team", label: "Team", icoon: "👥" },
+  { href: "/claude", label: "Animideo in Claude", icoon: "🤖" },
 ];
 
 interface ZijbalkProps {
