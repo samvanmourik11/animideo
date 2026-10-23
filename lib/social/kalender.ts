@@ -283,8 +283,9 @@ export async function verwerk(opties: { kalenderId?: string; userId?: string } =
   let q = db
     .from("content_posts")
     .select("*")
-    .in("status", ["gepland", "maken", "ingepland"])
-    .lte("gepland_op", new Date(nu + VOORUIT_MS).toISOString())
+    // De week-grens geldt alleen voor beginnen: wat al gemaakt wordt (bv. via "Nu maken")
+    // of ingepland is, loopt altijd door.
+    .or(`status.in.(maken,ingepland),and(status.eq.gepland,gepland_op.lte.${new Date(nu + VOORUIT_MS).toISOString()})`)
     .order("gepland_op")
     .limit(200);
   if (opties.kalenderId) q = q.eq("kalender_id", opties.kalenderId);
