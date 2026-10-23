@@ -34,7 +34,7 @@ type Tool = Anthropic.Beta.BetaTool;
 
 export const BETAALDE_TOOLS = new Set([...FILM_BETAALD, "maak_beeld", "maak_voiceover", "maak_video", "gebruik_app", "monteer", "maak_ugc_video", "maak_reclame", "maak_trailer"]);
 /** Gratis, meteen uitgevoerd. */
-export const GRATIS_TOOLS = new Set([...FILM_GRATIS, "lees_webpagina", "mijn_werk", "ugc_creators", "zoek_stemmen", "onthoud", "vaste_taak", "social_kanalen", "maak_contentkalender"]);
+export const GRATIS_TOOLS = new Set([...FILM_GRATIS, "lees_webpagina", "mijn_werk", "ugc_creators", "zoek_stemmen", "onthoud", "vaste_taak", "lees_huisstijl", "social_kanalen", "maak_contentkalender"]);
 
 // De lijst apps staat in de omschrijving van het gereedschap. Die verandert alleen als we
 // apps toevoegen, dus de cache van het verzoek blijft gewoon geldig.
@@ -44,12 +44,12 @@ export const TOOLS: Tool[] = [
   {
     name: "vraag_keuze",
     description:
-      "Laat de gebruiker kiezen via een klikbaar menu; het gesprek pauzeert tot er antwoord is (de gebruiker kan ook zelf iets typen). Soorten: 'creator' toont alle UGC-creators met portret (geen opties nodig), 'stem' toont jouw aanraders uit 'stemmen' (3-5 stuks, gevonden met zoek_stemmen, elk met waarom ze bij dit verhaal passen) met luisterknop, 'beeld' toont de beelden uit beeld_ids naast elkaar (bijv. versies om uit te kiezen; met meerdere: true mag de gebruiker er meer kiezen), 'tekst' toont de opties als knoppen (2-6, eventueel met korte uitleg). Gebruik dit voor alle echte keuzes in plaats van in je tekst te vragen of zelf te kiezen.",
+      "Laat de gebruiker kiezen via een klikbaar menu; het gesprek pauzeert tot er antwoord is (de gebruiker kan ook zelf iets typen). Soorten: 'creator' toont alle UGC-creators met portret (geen opties nodig), 'stem' toont jouw aanraders uit 'stemmen' (3-5 stuks, gevonden met zoek_stemmen, elk met waarom ze bij dit verhaal passen) met luisterknop, 'beeld' toont de beelden uit beeld_ids naast elkaar (bijv. versies om uit te kiezen; met meerdere: true mag de gebruiker er meer kiezen), 'storyboard' toont de schetsbeelden uit beeld_ids op volgorde met per scène een bijschrift en de knoppen Goedkeuren / Aanpassen, 'tekst' toont de opties als knoppen (2-6, eventueel met korte uitleg). Gebruik dit voor alle echte keuzes in plaats van in je tekst te vragen of zelf te kiezen.",
     input_schema: {
       type: "object",
       properties: {
         vraag: { type: "string", description: "De vraag, kort, in het Nederlands." },
-        soort: { type: "string", enum: ["tekst", "creator", "stem", "beeld", "scene"] },
+        soort: { type: "string", enum: ["tekst", "creator", "stem", "beeld", "storyboard", "scene"] },
         scene_nummer: { type: "integer", description: "Alleen bij soort 'scene': de scène die ter keuring gaat (toont de video met Goedkeuren / Aanpassen)." },
         opties: {
           type: "array",
@@ -57,7 +57,8 @@ export const TOOLS: Tool[] = [
           items: { type: "object", properties: { label: { type: "string" }, uitleg: { type: "string" } }, required: ["label"] },
           description: "Alleen bij soort 'tekst'.",
         },
-        beeld_ids: { type: "array", items: { type: "string" }, maxItems: 8, description: "Alleen bij soort 'beeld': creatie-ids." },
+        beeld_ids: { type: "array", items: { type: "string" }, maxItems: 12, description: "Bij soort 'beeld' en 'storyboard': creatie-ids (storyboard: op volgorde van de scènes)." },
+        bijschriften: { type: "array", items: { type: "string" }, maxItems: 12, description: "Alleen bij soort 'storyboard': per scène één korte zin (wat er gebeurt of gezegd wordt)." },
         stemmen: {
           type: "array",
           maxItems: 5,
@@ -246,6 +247,11 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: "lees_huisstijl",
+    description: "Lees de huisstijlen die de gebruiker in Animideo heeft vastgelegd (gratis): naam, beschrijving, toon, kernwaarden, kleuren, lettertypen, omgeving, wat niet mag, logo en voorbeeldbeelden. Gebruik dit bij elke opdracht voor een bedrijf of merk, vóór je beelden of teksten maakt.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
     name: "social_kanalen",
     description: "Bekijk welke socialmedia-accounts de gebruiker in de Social-studio heeft gekoppeld (gratis): id, platform (instagram, tiktok, facebook, youtube, twitter = X) en naam.",
     input_schema: { type: "object", properties: {} },
@@ -321,6 +327,8 @@ export interface Optie {
   geluid?: string;
   /** Een video om te bekijken (een scène ter keuring). */
   video?: string;
+  /** Een storyboard ter keuring: de schetsen op volgorde, met bijschrift. */
+  storyboard?: { url: string; tekst: string }[];
 }
 
 /**
@@ -364,6 +372,20 @@ export async function bouwOpties(userId: string, input: Record<string, unknown>,
       }));
     }
     return UGC_STEMMEN.map((s) => ({ label: s.naam, waarde: `stem ${s.naam}`, uitleg: `${s.geslacht} · ${s.omschrijving}`, geluid: `/voice-previews/${s.id}.mp3` }));
+  }
+  if (soort === "storyboard") {
+    // Het controlemoment vóór de dure clips: alle schetsen op volgorde, dan één keuze.
+    const ids = (Array.isArray(input.beeld_ids) ? input.beeld_ids : []).map(String).slice(0, 12);
+    const bijschriften = (Array.isArray(input.bijschriften) ? input.bijschriften : []).map(String);
+    const { data } = ids.length ? await createServiceClient().from("creaties").select("id, url").eq("user_id", userId).in("id", ids) : { data: [] as { id: string; url: string | null }[] };
+    const storyboard = ids
+      .map((id, i) => ({ url: (data ?? []).find((c) => c.id === id)?.url ?? "", tekst: bijschriften[i]?.slice(0, 200) ?? "" }))
+      .filter((s) => s.url);
+    if (!storyboard.length) throw new Error("Geen klare storyboardbeelden gevonden; wacht eerst met wacht_op tot ze klaar zijn.");
+    return [
+      { label: "✅ Goedkeuren", waarde: "Storyboard goedgekeurd", storyboard },
+      { label: "✏️ Aanpassen", waarde: "Storyboard: ik wil iets aanpassen", uitleg: "Of typ hieronder meteen welke scène anders moet." },
+    ];
   }
   if (soort === "beeld") {
     const ids = (Array.isArray(input.beeld_ids) ? input.beeld_ids : []).map(String).slice(0, 8);
@@ -574,6 +596,22 @@ export async function gratis(userId: string, blok: Anthropic.Beta.BetaToolUseBlo
     if (!feit) throw new Error("Niets om te onthouden.");
     await onthoud(userId, feit);
     return "Onthouden.";
+  }
+  if (blok.name === "lees_huisstijl") {
+    const { data } = await createServiceClient()
+      .from("brand_kits")
+      .select("id, name, description, tone_of_voice, brand_values, colors, fonts, environment, do_nots, default_language, default_format, logo_url, reference_images")
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false })
+      .limit(5);
+    if (!data?.length) return "Nog geen huisstijl vastgelegd (dat kan onder Huisstijlen, /brand). Gebruik wat je in het geheugen weet, of vraag het kort.";
+    return JSON.stringify(
+      data.map((b) => ({
+        ...b,
+        reference_images: (Array.isArray(b.reference_images) ? b.reference_images : []).slice(0, 4),
+        gebruik: "Kleuren als hex in je Engelse beeldprompts noemen; logo_url en reference_images zijn bruikbaar als voorbeelden in maak_beeld (logo alleen waar een logo hoort, zoals de eindkaart of een verpakking).",
+      })),
+    );
   }
   if (blok.name === "social_kanalen") {
     const a = await accountsVan(userId);

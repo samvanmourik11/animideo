@@ -18,7 +18,7 @@ type Blok = { type: string; text?: string; name?: string; input?: Record<string,
 interface Bijlage { soort: "beeld" | "document" | "video"; url: string; naam: string; id?: string }
 type Bericht = { role: "user" | "assistant"; content: string | Blok[] };
 interface Stap { toolUseId: string; naam: string; credits: number; omschrijving: string; details?: { beelden?: string[]; regels?: string[] } }
-interface Optie { label: string; waarde: string; uitleg?: string; beeld?: string; geluid?: string; video?: string }
+interface Optie { label: string; waarde: string; uitleg?: string; beeld?: string; geluid?: string; video?: string; storyboard?: { url: string; tekst: string }[] }
 type Wachtend =
   | { soort: "antwoord"; vraag: string; opties: (Optie | string)[]; meerdere?: boolean }
   | { soort: "bevestiging"; stappen: Stap[]; totaal: number }
@@ -51,6 +51,7 @@ const ICOON: Record<string, string> = {
   wacht_op: "⏳ Wachten op resultaten",
   vaste_taak: "🔁 Vaste taak",
   social_kanalen: "📣 Je kanalen bekijken",
+  lees_huisstijl: "🎨 Huisstijl bekijken",
   maak_contentkalender: "📅 Contentkalender opzetten",
 };
 
@@ -186,6 +187,18 @@ function KeuzeMenu({ vraag, opties, meerdere, onKies }: { vraag: string; opties:
       <div className="text-sm font-semibold text-tekst">{vraag}</div>
       {/* Een scène ter keuring: eerst kijken, dan goedkeuren of aanpassen. */}
       {opties.find((o) => o.video) && <video src={opties.find((o) => o.video)!.video} controls playsInline className="w-full rounded-xl bg-black max-h-[60vh]" />}
+      {/* Een storyboard ter keuring: de schetsen op volgorde, met wat er per scène gebeurt. */}
+      {opties.find((o) => o.storyboard) && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {opties.find((o) => o.storyboard)!.storyboard!.map((s, i) => (
+            <figure key={i} className="rounded-xl overflow-hidden border border-rand bg-paneel-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={s.url} alt={`Scène ${i + 1}`} className="w-full aspect-video object-cover" />
+              <figcaption className="px-2 py-1.5 text-[11px] text-tekst-2"><strong className="text-tekst">{i + 1}.</strong> {s.tekst}</figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
       {metBeeld ? (
         <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
           {opties.map((o) => (
