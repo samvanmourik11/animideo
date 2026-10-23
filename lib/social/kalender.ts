@@ -24,17 +24,18 @@ const PER_RONDE = 4;
 
 // ── Ideeën ───────────────────────────────────────────────────────────────
 
-const IDEE_TOOL: Anthropic.Tool = {
-  name: "kalender",
-  description: "De contentkalender: alle posts in de periode.",
-  input_schema: {
+// Een vaste antwoordvorm (JSON-schema) in plaats van een gedwongen gereedschap: Opus 5.5
+// weigert tool_choice 'tool' (400 "not supported for this model").
+const IDEE_SCHEMA = {
     type: "object",
+    additionalProperties: false,
     properties: {
       titel: { type: "string", description: "Korte naam voor deze kalender." },
       posts: {
         type: "array",
         items: {
           type: "object",
+          additionalProperties: false,
           properties: {
             datum: { type: "string", description: "YYYY-MM-DD" },
             tijd: { type: "string", description: "HH:MM, Nederlandse tijd; kies goede momenten voor het platform." },
@@ -52,7 +53,6 @@ const IDEE_TOOL: Anthropic.Tool = {
       },
     },
     required: ["titel", "posts"],
-  },
 };
 
 let client: Anthropic | null = null;
@@ -81,9 +81,7 @@ export async function bedenkIdeeen(kalenderId: string, extra = ""): Promise<void
       .messages.stream({
         model: MODEL,
         max_tokens: 32000,
-        output_config: { effort: "medium" },
-        tools: [IDEE_TOOL],
-        tool_choice: { type: "tool", name: "kalender" },
+        output_config: { effort: "medium", format: { type: "json_schema", schema: IDEE_SCHEMA } },
         system: `Je bent de social-media-strateeg van Animideo. Je maakt een contentkalender voor een Nederlands bedrijf: gevarieerd (product, achter de schermen, tips, seizoen, actie, klantvoordeel), passend bij het publiek, nooit twee keer hetzelfde. Bijschriften in natuurlijk Nederlands, niet schreeuwerig. Alleen beelden en video's die je met AI kunt maken zonder echte bestaande personen of andermans merken.
 
 Regels:
@@ -99,8 +97,13 @@ Regels:
         ],
       })
       .finalMessage();
-    const blok = antwoord.content.find((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-    const invoer = blok?.input as { titel?: string; posts?: Record<string, unknown>[] } | undefined;
+    const json = antwoord.content.map((b) => (b.type === "text" ? b.text : "")).join("");
+    let invoer: { titel?: string; posts?: Record<string, unknown>[] } | undefined;
+    try {
+      invoer = JSON.parse(json);
+    } catch {
+      throw new Error(antwoord.stop_reason === "max_tokens" ? "De kalender werd te lang. Kies minder weken of minder posts per week." : "De Regisseur gaf een onleesbaar antwoord. Probeer het opnieuw.");
+    }
     const posts = (invoer?.posts ?? []).map((p) => schoonIdee(p, k)).filter((p): p is NonNullable<ReturnType<typeof schoonIdee>> => !!p);
     if (!posts.length) throw new Error("De Regisseur kwam niet met bruikbare ideeën. Probeer het opnieuw met een iets uitgebreidere opdracht.");
     await db.from("content_posts").delete().eq("kalender_id", k.id).eq("status", "idee");
