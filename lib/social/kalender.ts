@@ -80,7 +80,9 @@ export async function bedenkIdeeen(kalenderId: string, extra = ""): Promise<void
   const db = createServiceClient();
   const { data } = await db.from("content_kalenders").select("*").eq("id", kalenderId).single();
   const k = data as (Kalender & { user_id: string }) | null;
-  if (!k) return;
+  // Alleen als iemand er net om vroeg (status ideeen_maken): een kalender die al loopt, mag
+  // nooit terug naar ideeën; dan zouden ingeplande posts stil komen te staan.
+  if (!k || k.status !== "ideeen_maken") return;
   try {
     const geheugen = await leesGeheugen(k.user_id);
     const kanalen = [...new Set(k.kanalen.map((x) => x.platform))];
