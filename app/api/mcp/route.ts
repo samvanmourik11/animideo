@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { gebruikerVan } from "@/lib/mcp/sleutels";
 import { verwerk } from "@/lib/mcp/server";
+import { origin } from "@/lib/mcp/origin";
 
 export const runtime = "nodejs";
 // Sommige gereedschappen (een productpagina lezen, een contentkalender bedenken) duren even.
@@ -12,8 +13,9 @@ export async function POST(req: NextRequest) {
   const userId = await gebruikerVan(req.headers.get("authorization"));
   if (!userId) {
     return NextResponse.json(
-      { jsonrpc: "2.0", id: null, error: { code: -32001, message: "Geen geldige Animideo-sleutel. Maak er een aan in Animideo onder 'Animideo in Claude'." } },
-      { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="animideo"' } },
+      { jsonrpc: "2.0", id: null, error: { code: -32001, message: "Niet (meer) ingelogd bij Animideo. Verbind opnieuw, of maak een sleutel onder 'Animideo in Claude'." } },
+      // Zo vindt de Claude-app de inlogpagina (RFC 9728, verplicht in de MCP-specificatie).
+      { status: 401, headers: { "WWW-Authenticate": `Bearer resource_metadata="${origin(req)}/.well-known/oauth-protected-resource"` } },
     );
   }
   const body = await req.json().catch(() => null);
