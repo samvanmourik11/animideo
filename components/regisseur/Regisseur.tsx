@@ -109,7 +109,16 @@ function MetVet({ tekst }: { tekst: string }) {
   return (
     <>
       {tekst.split(/(\*\*[^*]+\*\*)/g).map((stuk, i) =>
-        stuk.startsWith("**") && stuk.endsWith("**") ? <strong key={i}>{links(stuk.slice(2, -2), String(i))}</strong> : <span key={i}>{links(stuk, String(i))}</span>,
+        stuk.startsWith("**") && stuk.endsWith("**") ? (
+          <strong key={i}>{links(stuk.slice(2, -2), String(i))}</strong>
+        ) : (
+          // *schuin* (bv. "*Beeld:*" in een script), zonder sterretjes in beeld.
+          <span key={i}>
+            {stuk.split(/(\*[^*\n]+\*)/g).map((s, j) =>
+              s.length > 2 && s.startsWith("*") && s.endsWith("*") ? <em key={j}>{links(s.slice(1, -1), `${i}-${j}`)}</em> : <span key={j}>{links(s, `${i}-${j}`)}</span>,
+            )}
+          </span>
+        ),
       )}
     </>
   );
