@@ -136,7 +136,7 @@ export default function CreatieDetail({
         <div className="p-5 space-y-5">
           <div className="flex items-start justify-between gap-3">
             <div className="text-xs text-tekst-3">
-              {c.maker === "upload" ? "Eigen foto" : receptVan ? receptVan.naam : studio ? herkomst(c).naam : modelNaam(c.fal_endpoint)} ·{" "}
+              {c.maker === "upload" ? (c.soort === "video" ? "Eigen video" : "Eigen foto") : receptVan ? receptVan.naam : studio ? herkomst(c).naam : modelNaam(c.fal_endpoint)} ·{" "}
               {new Date(c.created_at).toLocaleString("nl-NL", { dateStyle: "medium", timeStyle: "short" })}
               {c.credits > 0 && <> · {c.credits} cr.</>}
             </div>

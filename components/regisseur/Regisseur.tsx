@@ -7,6 +7,7 @@ import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { CREATIES_GEWIJZIGD } from "@/components/app-shell/Zijbalk";
 import { useCreaties } from "@/components/creaties/gebruik-creaties";
+import { createClient } from "@/lib/supabase/client";
 
 // De Regisseur: één chat waarin Claude het werk plant en de gereedschappen van de app
 // aanstuurt. Het gesprek komt uit de database (precies wat Claude ziet); hier maken we
@@ -14,7 +15,7 @@ import { useCreaties } from "@/components/creaties/gebruik-creaties";
 // onderaan als kaart.
 
 type Blok = { type: string; text?: string; name?: string; input?: Record<string, unknown>; content?: unknown; tool_use_id?: string; source?: { url?: string }; title?: string };
-interface Bijlage { soort: "beeld" | "document"; url: string; naam: string; id?: string }
+interface Bijlage { soort: "beeld" | "document" | "video"; url: string; naam: string; id?: string }
 type Bericht = { role: "user" | "assistant"; content: string | Blok[] };
 interface Stap { toolUseId: string; naam: string; credits: number; omschrijving: string; details?: { beelden?: string[]; regels?: string[] } }
 interface Optie { label: string; waarde: string; uitleg?: string; beeld?: string; geluid?: string; video?: string }
@@ -52,14 +53,17 @@ const ICOON: Record<string, string> = {
 
 /** Het gesprek in leesbare regels: tekst van beide kanten, en wat de Regisseur deed. */
 function regels(berichten: Bericht[], openVraag = false) {
-  const uit: { wie: "jij" | "regisseur" | "actie" | "bijlage"; tekst: string; url?: string }[] = [];
+  const uit: { wie: "jij" | "regisseur" | "actie" | "bijlage"; tekst: string; url?: string; video?: boolean }[] = [];
   for (const b of berichten) {
     if (typeof b.content === "string") {
       uit.push({ wie: b.role === "user" ? "jij" : "regisseur", tekst: b.content });
       continue;
     }
     for (const blok of b.content) {
-      if (b.role === "user" && blok.type === "image" && blok.source?.url) uit.push({ wie: "bijlage", tekst: "", url: blok.source.url });
+      // Een video-bijlage gaat naar Claude als losse beelden; in beeld tonen we de video zelf.
+      const video = b.role === "user" && blok.type === "text" ? blok.text?.match(/^\(Bijlage: video "[^"]*", adres (\S+) /) : null;
+      if (video) uit.push({ wie: "bijlage", tekst: "", url: video[1], video: true });
+      if (b.role === "user" && blok.type === "image" && blok.source?.url && !blok.source.url.endsWith(".still.jpg")) uit.push({ wie: "bijlage", tekst: "", url: blok.source.url });
       if (b.role === "user" && blok.type === "document") uit.push({ wie: "bijlage", tekst: `📄 ${blok.title ?? "document"}` });
       // De uitleg bij een bijlage is voor Claude, niet voor in beeld.
       if (blok.type === "text" && blok.text?.startsWith("(Bijlage: ")) continue;
@@ -115,13 +119,35 @@ function meetFormaat(f: File): Promise<string> {
   });
 }
 
+const VIDEO = /\.(mp4|mov|webm|m4v)$/i;
+const MAX_VIDEO_MB = 200;
+
 async function uploadBijlage(f: File): Promise<Bijlage> {
+  if (f.type.startsWith("video/") || VIDEO.test(f.name)) return uploadVideo(f);
   const form = new FormData();
   form.append("bestand", f);
   form.append("formaat", await meetFormaat(f));
   const res = await fetch("/api/regisseur/bijlage", { method: "POST", body: form });
   const d = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(d.error ?? "Uploaden mislukt.");
+  return d.bijlage;
+}
+
+// Een video is te groot voor een serverfunctie (4,5 MB): de browser zet hem zelf in de
+// eigen map in de opslag, daarna leest de server hem in (beelden + wat er gezegd wordt).
+async function uploadVideo(f: File): Promise<Bijlage> {
+  if (f.size > MAX_VIDEO_MB * 1024 * 1024) throw new Error(`Video's mogen maximaal ${MAX_VIDEO_MB} MB zijn.`);
+  const sb = createClient();
+  const { data: { user } } = await sb.auth.getUser();
+  if (!user) throw new Error("Sessie ongeldig — log opnieuw in.");
+  const ext = (f.name.match(VIDEO)?.[1] ?? (f.type === "video/quicktime" ? "mov" : f.type === "video/webm" ? "webm" : "mp4")).toLowerCase();
+  const pad = `${user.id}/creaties/${crypto.randomUUID()}.${ext}`;
+  const { error } = await sb.storage.from("scene-assets").upload(pad, f, { contentType: f.type || "video/mp4" });
+  if (error) throw new Error(`Video uploaden mislukt: ${error.message}`);
+  const url = sb.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl;
+  const res = await fetch("/api/regisseur/bijlage", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url, naam: f.name }) });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.error ?? "Video inlezen mislukt.");
   return d.bijlage;
 }
 
@@ -423,7 +449,9 @@ export default function Regisseur() {
                 <div key={i} className="text-xs text-tekst-3 pl-1">{r.tekst}</div>
               ) : r.wie === "bijlage" ? (
                 <div key={i} className="flex justify-end">
-                  {r.url ? (
+                  {r.video ? (
+                    <video src={r.url} controls preload="metadata" className="max-h-56 max-w-[70%] rounded-2xl border border-rand" />
+                  ) : r.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={r.url} alt="Bijlage" className="max-h-40 rounded-2xl border border-rand" />
                   ) : (
@@ -560,6 +588,8 @@ export default function Regisseur() {
                   {b.soort === "beeld" ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={b.url} alt={b.naam} className="h-16 w-16 rounded-xl object-cover border border-rand" />
+                  ) : b.soort === "video" ? (
+                    <video src={b.url} muted preload="metadata" className="h-16 w-24 rounded-xl object-cover border border-rand bg-black" title={b.naam} />
                   ) : (
                     <div className="h-16 max-w-[160px] rounded-xl border border-rand bg-paneel-2 px-3 flex items-center text-xs text-tekst-2 truncate">📄 {b.naam}</div>
                   )}
@@ -615,7 +645,7 @@ export default function Regisseur() {
               ref={kiezer}
               type="file"
               multiple
-              accept="image/jpeg,image/png,image/webp,application/pdf,.docx,.txt,.fountain,.md,text/plain"
+              accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm,.mp4,.mov,.m4v,application/pdf,.docx,.txt,.fountain,.md,text/plain"
               className="hidden"
               onChange={(e) => {
                 if (e.target.files) voegToe(e.target.files);
@@ -626,7 +656,7 @@ export default function Regisseur() {
               onClick={() => kiezer.current?.click()}
               disabled={bijlagen.length >= 8}
               className="self-end shrink-0 w-9 h-9 rounded-xl text-lg text-tekst-3 hover:text-tekst hover:bg-paneel-2 disabled:opacity-40"
-              title="Foto of pdf toevoegen (of sleep/plak hem hierin)"
+              title="Foto, video of document toevoegen (of sleep/plak hem hierin)"
               aria-label="Bestand toevoegen"
             >
               📎
@@ -664,7 +694,7 @@ export default function Regisseur() {
                 }
               }}
               rows={2}
-              placeholder={project ? "Stuur bij, stel een vraag of geef een nieuwe opdracht… (📎 foto of pdf erbij)" : "Wat wil je maken? Plak een link, of voeg een foto of pdf toe met 📎"}
+              placeholder={project ? "Stuur bij, stel een vraag of geef een nieuwe opdracht… (📎 foto, video of pdf erbij)" : "Wat wil je maken? Plak een link, of voeg een foto, video of pdf toe met 📎"}
               className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-tekst outline-none placeholder:text-tekst-3"
             />
             <button

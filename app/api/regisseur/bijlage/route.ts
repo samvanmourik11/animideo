@@ -3,8 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import mammoth from "mammoth";
 import { uploadNaarOpslag } from "@/lib/creaties/wachtrij";
+import { formaatVan, leesVideo } from "@/lib/regisseur/video";
 
 export const runtime = "nodejs";
+// Een video inlezen (beelden pakken + uitschrijven) duurt bij tien minuten zo'n minuut.
+export const maxDuration = 300;
 
 const BEELDEN: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const MAX_BEELD = 10 * 1024 * 1024;
@@ -15,10 +18,10 @@ const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.doc
 const MAX_TEKENS = 250_000;
 
 export interface Bijlage {
-  soort: "beeld" | "document";
+  soort: "beeld" | "document" | "video";
   url: string;
   naam: string;
-  /** Alleen bij beelden: de creatie in de bibliotheek, bruikbaar als voorbeeld. */
+  /** Bij beelden en video's: de creatie in de bibliotheek, bruikbaar als voorbeeld of clip. */
   id?: string;
 }
 
@@ -28,6 +31,7 @@ export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
+  if (req.headers.get("content-type")?.includes("application/json")) return video(user.id, await req.json().catch(() => ({})));
   const form = await req.formData().catch(() => null);
   const bestand = form?.get("bestand");
   if (!(bestand instanceof File)) return NextResponse.json({ error: "Geen bestand ontvangen" }, { status: 400 });
@@ -70,5 +74,45 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     console.error("[regisseur/bijlage]", e);
     return NextResponse.json({ error: "Uploaden mislukt. Probeer het opnieuw." }, { status: 500 });
+  }
+}
+
+// Een video is te groot om via deze functie te sturen (Vercel neemt maar 4,5 MB aan): de
+// browser zet hem zelf in de eigen map in de opslag en stuurt ons alleen het adres.
+async function video(userId: string, body: { url?: unknown; naam?: unknown }) {
+  const url = String(body.url ?? "");
+  const naam = String(body.naam ?? "video").slice(0, 120);
+  if (!eigenVideo(url, userId)) return NextResponse.json({ error: "Onbekende video." }, { status: 400 });
+  try {
+    const v = await leesVideo(userId, url);
+    const { data, error } = await createServiceClient()
+      .from("creaties")
+      .insert({
+        user_id: userId, soort: "video", status: "klaar", maker: "upload", prompt: naam,
+        invoer: { formaat: formaatVan(v.breedte, v.hoogte), duur: v.duur, beelden: v.beelden, tekst: v.tekst },
+        url, credits: 0, klaar_op: new Date().toISOString(),
+      })
+      .select("id")
+      .single();
+    if (error || !data) throw new Error(error?.message);
+    return NextResponse.json({ bijlage: { soort: "video", url, naam, id: data.id } satisfies Bijlage });
+  } catch (e) {
+    console.error("[regisseur/bijlage] video:", e);
+    const melding = e instanceof Error && /^(Deze video|Video's mogen|Uit deze video)/.test(e.message) ? e.message : "Video inlezen mislukt. Probeer het opnieuw.";
+    return NextResponse.json({ error: melding }, { status: 400 });
+  }
+}
+
+function eigenVideo(url: string, userId: string): boolean {
+  try {
+    const u = new URL(url);
+    return (
+      u.protocol === "https:" &&
+      u.hostname === new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://x").hostname &&
+      u.pathname.startsWith(`/storage/v1/object/public/scene-assets/${userId}/creaties/`) &&
+      /\.(mp4|mov|webm|m4v)$/i.test(u.pathname)
+    );
+  } catch {
+    return false;
   }
 }

@@ -104,7 +104,7 @@ export default function CreatieKaart({
       </button>
 
       <span className="absolute top-2 left-2 text-xs bg-black/50 backdrop-blur px-1.5 py-0.5 rounded-md">
-        {c.maker === "upload" ? "📷" : SOORT_ICOON[c.soort]}
+        {c.maker === "upload" && c.soort === "beeld" ? "📷" : SOORT_ICOON[c.soort]}
       </span>
       {onFavoriet && c.status === "klaar" && (
         <button

@@ -14,6 +14,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/service";
 import { verversLopende } from "@/lib/creaties/wachtrij";
 import type { Creatie } from "@/lib/creaties/types";
+import { tijd } from "./video";
 import { BETAALDE_TOOLS, GRATIS_TOOLS, TOOLS, bereidVoor, bouwOpties, gratis, leesGeheugen, voerUit, type Optie, type Stap } from "./tools";
 
 const MODEL = "claude-opus-5-5";
@@ -241,9 +242,9 @@ export interface BijlageInvoer {
 const MAX_BIJLAGEN = 8;
 
 /**
- * Tekst + bijlagen → wat Claude krijgt. Foto's alleen uit de eigen bibliotheek (opnieuw
+ * Tekst + bijlagen → wat Claude krijgt. Foto's en video's alleen uit de eigen bibliotheek (opnieuw
  * opgezocht, nooit een adres uit de browser overnemen), pdf's alleen uit de eigen map in
- * onze opslag. Geeft ook de foto-ids terug, die horen in de galerij van het project.
+ * onze opslag. Geeft ook de foto- en video-ids terug, die horen in de galerij van het project.
  */
 export async function maakInhoud(
   userId: string,
@@ -254,10 +255,10 @@ export async function maakInhoud(
   if (!lijst.length) return { inhoud: tekst, fotoIds: [] };
   const blokken: Anthropic.Beta.BetaContentBlockParam[] = [];
   const fotoIds: string[] = [];
-  const ids = lijst.filter((b) => b.soort === "beeld").map((b) => String(b.id ?? ""));
+  const ids = lijst.filter((b) => b.soort === "beeld" || b.soort === "video").map((b) => String(b.id ?? ""));
   const { data } = ids.length
-    ? await createServiceClient().from("creaties").select("id, url, prompt").eq("user_id", userId).in("id", ids)
-    : { data: [] as { id: string; url: string | null; prompt: string | null }[] };
+    ? await createServiceClient().from("creaties").select("id, soort, url, prompt, invoer").eq("user_id", userId).in("id", ids)
+    : { data: [] as { id: string; soort: string; url: string | null; prompt: string | null; invoer: Record<string, unknown> | null }[] };
   for (const b of lijst) {
     const naam = String(b.naam ?? "bestand").slice(0, 120);
     if (b.soort === "beeld") {
@@ -265,6 +266,21 @@ export async function maakInhoud(
       if (!c?.url) continue;
       blokken.push({ type: "image", source: { type: "url", url: c.url } });
       blokken.push({ type: "text", text: `(Bijlage: foto "${naam}", creatie-id ${c.id}. Bruikbaar als voorbeeld in maak_beeld, maak_video en gebruik_app.)` });
+      fotoIds.push(c.id);
+    } else if (b.soort === "video") {
+      // Claude ziet geen video: de beelden en de uitgeschreven tekst van het inlezen.
+      const c = (data ?? []).find((x) => x.id === b.id && x.soort === "video");
+      const v = (c?.invoer ?? {}) as { duur?: number; beelden?: { t: number; url: string }[]; tekst?: string };
+      if (!c?.url || !v.beelden?.length) continue;
+      blokken.push({
+        type: "text",
+        text:
+          `(Bijlage: video "${naam}", adres ${c.url} , creatie-id ${c.id}, ${Math.round(v.duur ?? 0)} s. Je kunt hem niet afspelen; hieronder ${v.beelden.length} stilstaande beelden, in deze volgorde:\n` +
+          v.beelden.map((x) => `${tijd(x.t)} ${x.url}`).join("\n") +
+          (v.tekst ? `\nWat er gezegd wordt:\n${v.tekst}\n` : "\nEr wordt niets gezegd.\n") +
+          `De video is bruikbaar als clip in monteer; een beeld eruit als voorbeeld in maak_beeld of gebruik_app via het adres.)`,
+      });
+      for (const x of v.beelden) blokken.push({ type: "image", source: { type: "url", url: x.url } });
       fotoIds.push(c.id);
     } else if (b.soort === "document") {
       const url = String(b.url ?? "");
