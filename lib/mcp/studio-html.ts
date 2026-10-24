@@ -42,6 +42,11 @@ export const STUDIO_HTML = `<!doctype html>
   .laad { width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center; background:linear-gradient(110deg, var(--kaart) 30%, var(--rand) 50%, var(--kaart) 70%); background-size:200% 100%; animation:glans 1.4s linear infinite; color:var(--tekst2); font-size:12px; }
   @keyframes glans { to { background-position:-200% 0; } }
   .mis { color:#dc2626; font-size:12px; }
+  .lijst { display:flex; flex-direction:column; gap:8px; }
+  .rij { display:flex; align-items:center; gap:10px; background:var(--kaart); border:1px solid var(--rand); border-radius:14px; padding:8px 10px; }
+  .rij .wie { min-width:0; flex:0 0 32%; } .rij .wie .naam, .rij .wie .klein { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rij audio { flex:1; min-width:0; height:36px; }
+  .rij button { flex:0 0 auto; }
   .zoek { width:100%; padding:7px 10px; border-radius:10px; border:1px solid var(--rand); background:var(--kaart); color:var(--tekst); margin-bottom:8px; font:inherit; }
 </style>
 </head>
@@ -180,13 +185,32 @@ export const STUDIO_HTML = `<!doctype html>
       knoppen.length ? e("div", { class: "knoppen" }, knoppen) : null,
     ])]);
   }
+  // Geluid als rijen (naam + brede speler), beeld en video als raster.
+  function geluidRij(c) {
+    var naam = (c.prompt || "").split(":")[0].replace(/^Voice-over door /i, "").slice(0, 40) || "Voice-over";
+    var tekst = (c.prompt || "").indexOf(":") > 0 ? c.prompt.slice(c.prompt.indexOf(":") + 1).trim() : "";
+    var speler = c.status === "klaar" && c.url ? e("audio", { src: c.url, controls: "", preload: "none" }) : e("div", { class: c.status === "mislukt" ? "mis" : "klein", style: "flex:1", tekst: c.status === "mislukt" ? (c.fout || "Mislukt") : "Wordt ingesproken…" });
+    return e("div", { class: "rij" }, [
+      e("div", { class: "wie" }, [e("div", { class: "naam", tekst: naam }), tekst ? e("div", { class: "klein", tekst: tekst }) : null]),
+      speler,
+      c.status === "klaar" ? e("button", { class: "blauw", tekst: "Kies", onclick: function () { zeg("Ik kies de voice-over van " + naam + " (creatie " + c.id + ")."); } }) : null,
+    ]);
+  }
   function galerij(s) {
     var items = s.items || [];
     var bezig = items.filter(function (x) { return x.status === "bezig"; }).length;
-    app.appendChild(kop(s.titel || "Resultaten", bezig ? bezig + " bezig" : items.length + " stuks"));
-    var raster = e("div", { class: "raster" });
-    items.forEach(function (c) { raster.appendChild(tegel(c)); });
-    app.appendChild(raster);
+    var titel = (s.titel || "Resultaten").replace(/:.*/, "");
+    app.appendChild(kop(titel, bezig ? bezig + " bezig" : items.length === 1 ? "1 stuk" : items.length + " stuks"));
+    var geluid = items.length && items.every(function (x) { return x.soort === "audio" || (x.status === "bezig" && /voice|stem/i.test(s.titel || "")); });
+    if (geluid) {
+      var lijst = e("div", { class: "lijst" });
+      items.forEach(function (c) { lijst.appendChild(geluidRij(c)); });
+      app.appendChild(lijst);
+    } else {
+      var raster = e("div", { class: "raster" });
+      items.forEach(function (c) { raster.appendChild(tegel(c)); });
+      app.appendChild(raster);
+    }
     if (bezig) volg(items.map(function (x) { return x.id; }), s.titel);
   }
   // Zolang er iets bezig is: elke 5 s de stand opvragen (via Claude naar onze server).
