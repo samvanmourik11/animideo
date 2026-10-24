@@ -9,6 +9,7 @@ import { startUgc, verversUgc } from "@/lib/ugc/regie";
 import { startTrailer, verversTrailer } from "@/lib/trailer/regie";
 import { startFilm, startScene, verversFilm, verversScene } from "@/lib/film/regie";
 import { startMontage, verversMontage } from "@/lib/regisseur/montage";
+import { startTrend, verversTrend } from "@/lib/trends/regie";
 import { EIGEN } from "@/lib/stem/types";
 import type { Creatie, CreatieSoort } from "./types";
 
@@ -52,6 +53,7 @@ export async function startCreatie(
   if (maker === "film-scene") return startScene(userId, ruweInvoer, ouderId);
   if (maker === "film") return startFilm(userId, ruweInvoer);
   if (maker === "montage") return startMontage(userId, ruweInvoer);
+  if (maker === "trend") return startTrend(userId, ruweInvoer, ouderId);
 
   let opdracht;
   try {
@@ -149,6 +151,7 @@ export async function ververs(c: Creatie): Promise<Creatie> {
   if (c.maker === "film-scene") return verversScene(c);
   if (c.maker === "film") return verversFilm(c);
   if (c.maker === "montage") return verversMontage(c);
+  if (c.maker === "trend") return verversTrend(c);
   const leeftijd = Date.now() - new Date(c.created_at).getTime();
 
   if (!c.fal_request_id || !c.fal_endpoint) {

@@ -39,6 +39,8 @@ export async function GET(req: NextRequest) {
   if (maker) q = q.eq("maker", maker);
   const recept = p.get("recept");
   if (recept) q = q.eq("invoer->>receptId", recept);
+  const trend = p.get("trend");
+  if (trend) q = q.eq("invoer->>trendId", trend);
   if (p.get("favoriet") === "1") q = q.eq("favoriet", true);
   const map = p.get("map");
   if (map) q = q.eq("map_id", map);

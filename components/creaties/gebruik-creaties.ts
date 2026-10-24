@@ -11,6 +11,7 @@ export interface CreatieFilter {
   soort?: string;
   maker?: string;
   recept?: string;
+  trend?: string;
   favoriet?: boolean;
   map?: string;
   zoek?: string;
@@ -23,6 +24,7 @@ function query(f: CreatieFilter, voor?: string) {
   if (f.soort) p.set("soort", f.soort);
   if (f.maker) p.set("maker", f.maker);
   if (f.recept) p.set("recept", f.recept);
+  if (f.trend) p.set("trend", f.trend);
   if (f.favoriet) p.set("favoriet", "1");
   if (f.map) p.set("map", f.map);
   if (f.zoek) p.set("zoek", f.zoek);

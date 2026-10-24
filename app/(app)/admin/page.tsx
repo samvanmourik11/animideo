@@ -40,6 +40,12 @@ export default async function AdminDashboardPage() {
       >
         📖 Nieuwe app: regieboek van de Regisseur (voorstellen uit de leerronde) →
       </Link>
+      <Link
+        href="/admin/trends"
+        className="block rounded-2xl border border-orange-500/30 bg-orange-500/10 px-4 py-3 text-sm text-orange-200 hover:bg-orange-500/15"
+      >
+        🔥 Nieuwe app: trends keuren (wat er viral gaat, om na te maken) →
+      </Link>
       <AdminDashboard />
       <Achterstanden />
       <ProviderKosten />

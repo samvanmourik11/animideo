@@ -396,6 +396,7 @@ export function modelNaam(endpoint: string | null | undefined): string {
     ugc: "UGC-studio",
     trailer: "Trailerstudio",
     montage: "Montage (Regisseur)",
+    trend: "Trends-studio",
     "fal-ai/elevenlabs/tts/eleven-v3": "ElevenLabs v3",
     "fal-ai/minimax/speech-02-hd": "Eigen stem (MiniMax)",
     "fal-ai/minimax/voice-clone": "Stem trainen (MiniMax)",
