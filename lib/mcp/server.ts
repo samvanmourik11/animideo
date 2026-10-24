@@ -22,6 +22,7 @@ import { regieboekTekst } from "@/lib/regisseur/regieboek";
 import { BIBLIOTHEEK } from "@/lib/stem/bibliotheek";
 import { STUDIO_HTML, STUDIO_URI } from "./studio-html";
 import { gebruik, keurGoed, prijslijst, stelVoor } from "./budget";
+import { antwoord as regieAntwoord, samenvatting, stand as regieStand, stuurBericht } from "./regisseur";
 import { RECEPTEN } from "@/lib/creaties/recepten";
 import { voorbeeld as appVoorbeeld } from "@/lib/creaties/voorbeelden";
 
@@ -46,7 +47,44 @@ const SCHERM = { ui: { resourceUri: STUDIO_URI }, "ui/resourceUri": STUDIO_URI }
 // Waar plaatjes en stemvoorbeelden vandaan komen: onze opslag, ElevenLabs, Google (voorbeelden), fal.
 const SCHERM_CSP = { resourceDomains: ["https://*.supabase.co", "https://api.us.elevenlabs.io", "https://storage.googleapis.com", "https://*.fal.media"], connectDomains: [] as string[] };
 
-export function mcpTools(): McpTool[] {
+// In de Claude-app (die onze schermen toont) praat de klant met onze Regisseur zelf; de
+// losse gereedschappen blijven voor programma's zonder schermen (Claude Code e.d.).
+const REGISSEUR_TOOLS: McpTool[] = [
+  {
+    name: "regisseur",
+    description:
+      "Praat met de Regisseur van Animideo: hij maakt beelden, video's, voice-overs, reclames, UGC-video's, films en contentkalenders voor de gebruiker, met zijn credits. Geef elke wens of reactie van de gebruiker letterlijk door (bericht), met het project_id van het lopende project; zonder project_id begin je een nieuw project. De gebruiker ziet de Regisseur in het Animideo-scherm en beantwoordt daar zijn vragen.",
+    inputSchema: { type: "object", properties: { bericht: { type: "string" }, project_id: { type: "string" } }, required: ["bericht"] },
+    _meta: SCHERM,
+  },
+  {
+    name: "regisseur_stand",
+    description: "Bekijk de stand van een Regisseur-project (gratis): wat hij zei, of hij een vraag stelt of akkoord vraagt, en wat er klaar is.",
+    inputSchema: { type: "object", properties: { project_id: { type: "string" } }, required: ["project_id"] },
+    _meta: SCHERM,
+  },
+  {
+    name: "regisseur_antwoord",
+    description: "Antwoord op een keuze of bevestiging in het Animideo-scherm (alleen voor het scherm zelf).",
+    inputSchema: {
+      type: "object",
+      properties: { project_id: { type: "string" }, actie: { type: "string", enum: ["antwoord", "bevestig", "automatisch"] }, tekst: { type: "string" }, waarde: { type: "string" }, ja: { type: "boolean" } },
+      required: ["project_id", "actie"],
+    },
+    _meta: { ...SCHERM, ui: { ...SCHERM.ui, visibility: ["app"] } },
+  },
+  { name: "saldo", description: "Hoeveel credits de gebruiker nog heeft (gratis).", inputSchema: { type: "object", properties: {} } },
+];
+
+/** Kan dit programma onze schermen tonen? (De nieuwe versie zegt het bij elk verzoek.) */
+export function kanSchermen(v: { params?: Record<string, unknown> }): boolean {
+  const meta = (v.params?._meta ?? {}) as Record<string, unknown>;
+  const caps = (meta["io.modelcontextprotocol/clientCapabilities"] ?? {}) as { extensions?: Record<string, unknown> };
+  return !!caps.extensions?.["io.modelcontextprotocol/ui"];
+}
+
+export function mcpTools(schermen = false): McpTool[] {
+  if (schermen) return REGISSEUR_TOOLS;
   const lijst: McpTool[] = TOOLS.filter((t) => !NIET.has(t.name)).map((t) => {
     const schema = structuredClone(t.input_schema) as { properties?: Record<string, unknown>; required?: string[] };
     if (BETAALDE_TOOLS.has(t.name)) {
@@ -110,7 +148,15 @@ export function mcpTools(): McpTool[] {
   return lijst;
 }
 
-export async function instructies(): Promise<string> {
+const REGISSEUR_INSTRUCTIES = `Animideo is een Nederlandse app om met AI beelden en video's te maken. Het werk doet de Regisseur van Animideo; jij bent het doorgeefluik.
+
+- Geef elke wens en elke reactie van de gebruiker letterlijk door met het gereedschap regisseur (met het project_id van het lopende project). Vat niet samen, kies niet zelf en maak geen eigen plan: de Regisseur stelt zelf zijn vragen, schrijft het script, laat een storyboard zien en vraagt één keer akkoord voor de credits.
+- De gebruiker ziet de Regisseur in het Animideo-scherm en klikt daar zijn keuzes en Start. Zeg na een aanroep hooguit één korte zin (bijv. "De Regisseur gaat aan de slag, je ziet hem hierboven"); herhaal niet wat in het scherm staat.
+- Zegt de gebruiker in de chat "ja" of "akkoord" terwijl de Regisseur akkoord vraagt, geef dat dan ook gewoon door.
+- Wil je weten hoe het ervoor staat, gebruik regisseur_stand.`;
+
+export async function instructies(schermen = false): Promise<string> {
+  if (schermen) return REGISSEUR_INSTRUCTIES;
   return `Animideo is een Nederlandse app om met AI beelden en video's te maken. Met deze gereedschappen werk je in de bibliotheek en met de credits van de gebruiker.
 
 Zo maak je mooie video's:
@@ -201,6 +247,14 @@ export async function roepAan(userId: string, naam: string, args: Record<string,
   try {
     if (naam === "status") return await status(userId, args.creatie_ids);
     if (naam === "saldo") return tekst(`Saldo: ${await getCredits(await betalerVan(userId), { service: true })} credits.`);
+    if (naam === "regisseur" || naam === "regisseur_stand" || naam === "regisseur_antwoord") {
+      const id =
+        naam === "regisseur" ? await stuurBericht(userId, String(args.bericht ?? ""), args.project_id)
+        : naam === "regisseur_antwoord" ? (await regieAntwoord(userId, args.project_id, args), String(args.project_id))
+        : String(args.project_id);
+      const s = await regieStand(userId, id);
+      return { ...tekst(samenvatting(s)), structuredContent: s };
+    }
     if (NIET.has(naam)) return tekst(`Onbekend gereedschap: ${naam}`, true);
     if (naam === "stel_budget_voor") {
       const b = await stelVoor(userId, args.omschrijving, args.posten);
@@ -290,7 +344,7 @@ export async function verwerk(userId: string, v: Verzoek, basis?: string): Promi
       return antwoord({
         supportedVersions: PROTOCOL_VERSIES,
         capabilities: { tools: { listChanged: false }, resources: {}, extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } } },
-        instructions: await instructies(),
+        instructions: await instructies(kanSchermen(v)),
         _meta: { "io.modelcontextprotocol/serverInfo": SERVER_INFO },
         ...bewaar,
       });
@@ -315,7 +369,7 @@ export async function verwerk(userId: string, v: Verzoek, basis?: string): Promi
       return antwoord({ contents: [{ uri: STUDIO_URI, mimeType: "text/html;profile=mcp-app", text: STUDIO_HTML, _meta: { ui: { csp: SCHERM_CSP, prefersBorder: true } } }], ...(nieuw ? bewaar : {}) });
     }
     case "tools/list":
-      return antwoord({ tools: mcpTools(), ...(nieuw ? bewaar : {}) });
+      return antwoord({ tools: mcpTools(kanSchermen(v)), ...(nieuw ? bewaar : {}) });
     case "tools/call": {
       const naam = String(v.params?.name ?? "");
       const args = (v.params?.arguments ?? {}) as Record<string, unknown>;

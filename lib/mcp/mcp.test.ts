@@ -21,6 +21,8 @@ vi.mock("@/lib/creaties/wachtrij", () => ({ verversLopende: vi.fn() }));
 vi.mock("@/lib/credits", () => ({ getCredits: async () => 42 }));
 vi.mock("@/lib/team/team", () => ({ betalerVan: async (id: string) => id }));
 vi.mock("sharp", () => ({ default: vi.fn() }));
+// De Regisseur-koppeling zelf (agent, Claude, OpenAI) laden we hier niet.
+vi.mock("./regisseur", () => ({ stuurBericht: vi.fn(), antwoord: vi.fn(), stand: vi.fn(), samenvatting: vi.fn() }));
 // Het budget: één rij in het geheugen, zoals de echte tabel hem zou bijhouden.
 const budget = { rest: 10, actief: false };
 vi.mock("./budget", () => ({
@@ -108,5 +110,15 @@ describe("MCP-server", () => {
     const dan = (await vraag("tools/call", { name: "maak_beeld", arguments: { prompt: "x", budget_id: "b1" } }))!.result as { content: { text: string }[] };
     expect(dan.content[0].text).toContain("Gestart binnen het budget");
     expect(gestart).toHaveBeenCalledTimes(1);
+  });
+
+  it("in de Claude-app (met schermen) is de Regisseur het gereedschap; zonder schermen de losse gereedschappen", async () => {
+    const met = { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": { extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } } } };
+    const tools = ((await verwerk("u1", { jsonrpc: "2.0", id: 1, method: "tools/list", params: { _meta: met } }))!.result as { tools: { name: string; _meta?: { ui?: { visibility?: string[] } } }[] }).tools;
+    expect(tools.map((t) => t.name)).toEqual(["regisseur", "regisseur_stand", "regisseur_antwoord", "saldo"]);
+    // Antwoorden en Start alleen vanuit het scherm, niet door Claude zelf.
+    expect(tools[2]._meta!.ui!.visibility).toEqual(["app"]);
+    const zonder = ((await verwerk("u1", { jsonrpc: "2.0", id: 2, method: "tools/list", params: { _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28" } } }))!.result as { tools: { name: string }[] }).tools;
+    expect(zonder.map((t) => t.name)).toContain("maak_beeld");
   });
 });

@@ -43,6 +43,22 @@ export const STUDIO_HTML = `<!doctype html>
   .post:last-child { border-bottom:0; } .post b { white-space:nowrap; }
   .ok { color:#15803d; font-weight:600; }
   .scene { aspect-ratio:16/9; }
+  .gesprek { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+  .ballon { max-width:88%; padding:8px 12px; border-radius:14px; font-size:13.5px; white-space:pre-wrap; }
+  .ballon.regisseur { background:var(--kaart); border:1px solid var(--rand); align-self:flex-start; }
+  .ballon.jij { background:#dbeafe; color:#1e3a8a; align-self:flex-end; }
+  .actie { font-size:12px; color:var(--tekst3); padding-left:4px; }
+  .bijlage { max-height:120px; border-radius:12px; align-self:flex-end; border:1px solid var(--rand); }
+  .pil { font-size:11px; padding:2px 8px; border-radius:999px; background:var(--kaart2); color:var(--tekst2); font-weight:500; }
+  .pil.bezig { background:#dbeafe; color:#1d4ed8; }
+  .vraagkaart { background:var(--kaart); border:1px solid var(--rand); border-radius:16px; padding:12px; display:flex; flex-direction:column; gap:10px; margin-bottom:10px; box-shadow:0 1px 2px rgba(15,23,42,.05); }
+  .opties { display:grid; gap:6px; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); }
+  .opties button { text-align:left; } .opties button small { display:block; color:var(--tekst3); font-size:11px; }
+  .invoer { display:flex; gap:6px; margin-top:10px; }
+  .invoer input { flex:1; padding:9px 12px; border-radius:12px; border:1px solid var(--rand); background:#fff; font:inherit; color:var(--tekst); }
+  .denkt { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--tekst3); padding:4px; }
+  .draai { width:14px; height:14px; border-radius:50%; border:2px solid #bfdbfe; border-top-color:var(--blauw); animation:rond .8s linear infinite; }
+  @keyframes rond { to { transform:rotate(360deg); } }
   .dag { font-size:12px; font-weight:600; color:var(--tekst2); margin:10px 0 4px; }
   .bedrag { font-size:22px; font-weight:800; } .bedrag span { font-size:13px; font-weight:500; color:var(--tekst2); }
   .laad { width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center; background:linear-gradient(110deg, var(--kaart) 30%, var(--rand) 50%, var(--kaart) 70%); background-size:200% 100%; animation:glans 1.4s linear infinite; color:var(--tekst2); font-size:12px; }
@@ -123,7 +139,7 @@ export const STUDIO_HTML = `<!doctype html>
     huidig = s;
     if (peiling) { clearTimeout(peiling); peiling = null; }
     app.innerHTML = "";
-    var weergaven = { stemmen: stemmen, creators: creators, galerij: galerij, prijs: prijs, budget: budget, storyboard: storyboard, apps: apps, kalender: kalender };
+    var weergaven = { stemmen: stemmen, creators: creators, galerij: galerij, prijs: prijs, budget: budget, storyboard: storyboard, apps: apps, kalender: kalender, regisseur: regisseur };
     if (weergaven[s.weergave]) weergaven[s.weergave](s);
   }
 
@@ -340,6 +356,133 @@ export const STUDIO_HTML = `<!doctype html>
     });
     doos.appendChild(e("div", { class: "knoppen" }, [e("button", { class: "blauw", tekst: "Open en keur in Animideo", onclick: function () { open(s.link); } })]));
     app.appendChild(doos);
+  }
+
+  // ── De Regisseur zelf: gesprek, vraag, bevestiging, resultaten ──
+  // **vet** en [tekst](link) zoals in de app, zonder HTML van buiten in te voegen.
+  function opgemaakt(tekst) {
+    var doos = document.createDocumentFragment();
+    String(tekst || "").split(/(\\*\\*[^*]+\\*\\*|\\[[^\\]]+\\]\\(https?:\\/\\/[^)\\s]+\\))/g).forEach(function (deel) {
+      var vet = deel.match(/^\\*\\*([^*]+)\\*\\*$/), link = deel.match(/^\\[([^\\]]+)\\]\\((https?:\\/\\/[^)\\s]+)\\)$/);
+      if (vet) doos.appendChild(e("b", { tekst: vet[1] }));
+      else if (link) doos.appendChild(e("a", { href: "#", tekst: link[1], onclick: function (ev) { ev.preventDefault(); open(link[2]); } }));
+      else doos.appendChild(document.createTextNode(deel.replace(/(^|\\s)\\*([^*\\n]+)\\*/g, "$1$2")));
+    });
+    return doos;
+  }
+  var STATUS = { denkt: "denkt na…", wacht_op_antwoord: "wacht op jou", wacht_op_bevestiging: "wacht op akkoord", wacht_op_maken: "aan het maken…", klaar: "klaar", fout: "mislukt" };
+  function regieActie(args) {
+    return vraag("tools/call", { name: "regisseur_antwoord", arguments: Object.assign({ project_id: huidig.project_id }, args) }).then(function (r) { if (r && r.structuredContent) toon(r); else volgRegie(); });
+  }
+  function volgRegie(direct) {
+    if (peiling) clearTimeout(peiling);
+    peiling = setTimeout(function () {
+      vraag("tools/call", { name: "regisseur_stand", arguments: { project_id: huidig.project_id } }).then(function (r) {
+        var oud = huidig && huidig.status;
+        if (r && r.structuredContent) toon(r);
+        // Claude op de hoogte houden als de Regisseur iets van de gebruiker wil of klaar is.
+        if (huidig && oud !== huidig.status && huidig.status !== "denkt" && huidig.status !== "wacht_op_maken") {
+          var tekst = r.content && r.content[0] && r.content[0].text;
+          if (tekst) vraag("ui/update-model-context", { content: [{ type: "text", text: tekst }] }).catch(function () {});
+        }
+      }).catch(function () { volgRegie(); });
+    }, direct ? 400 : 3000);
+  }
+  function regisseur(s) {
+    var pilKlasse = s.status === "denkt" || s.status === "wacht_op_maken" ? "pil bezig" : "pil";
+    var kopje = kop("Regisseur", "");
+    kopje.appendChild(e("span", { class: pilKlasse, tekst: STATUS[s.status] || s.status }));
+    app.appendChild(kopje);
+
+    var gesprek = e("div", { class: "gesprek" });
+    (s.regels || []).forEach(function (r) {
+      if (r.wie === "actie") gesprek.appendChild(e("div", { class: "actie", tekst: r.tekst }));
+      else if (r.wie === "bijlage") gesprek.appendChild(r.url ? (r.video ? e("video", { class: "bijlage", src: r.url, controls: "" }) : e("img", { class: "bijlage", src: r.url })) : e("div", { class: "actie", tekst: r.tekst }));
+      else { var b = e("div", { class: "ballon " + r.wie }); b.appendChild(opgemaakt(r.tekst)); gesprek.appendChild(b); }
+    });
+    if (s.status === "denkt") gesprek.appendChild(e("div", { class: "denkt" }, [e("span", { class: "draai" }), e("span", { tekst: "De Regisseur denkt na…" })]));
+    if (s.status === "fout") gesprek.appendChild(e("div", { class: "mis", tekst: s.foutmelding || "Er ging iets mis." }));
+    app.appendChild(gesprek);
+
+    // Een vraag met keuzes (stemmen, creators, versies, storyboard, scène, tekst).
+    if (s.vraag) {
+      var v = s.vraag, kaart = e("div", { class: "vraagkaart" }, [e("div", { class: "naam", tekst: v.vraag })]);
+      var opties = (v.opties || []).map(function (o) { return typeof o === "string" ? { label: o, waarde: o } : o; });
+      var kies = function (o) { kaart.querySelectorAll("button").forEach(function (x) { x.disabled = true; }); regieActie({ actie: "antwoord", tekst: o.label, waarde: o.waarde }); };
+      var sb = opties.find(function (o) { return o.storyboard; }), vid = opties.find(function (o) { return o.video; });
+      if (sb) {
+        var raster = e("div", { class: "raster", style: "grid-template-columns:repeat(auto-fill, minmax(170px, 1fr))" });
+        sb.storyboard.forEach(function (sc, i) { raster.appendChild(e("div", { class: "kaart" }, [e("img", { class: "media scene", src: sc.url }), e("div", { class: "in" }, [e("div", { class: "klein" }, [e("b", { tekst: (i + 1) + ". " }), document.createTextNode(sc.tekst || "")])])])); });
+        kaart.appendChild(raster);
+      }
+      if (vid) kaart.appendChild(e("video", { class: "media", style: "aspect-ratio:auto;max-height:340px", src: vid.video, controls: "", playsinline: "" }));
+      if (opties.some(function (o) { return o.beeld; })) {
+        var tegels = e("div", { class: "raster" });
+        opties.forEach(function (o) { tegels.appendChild(e("div", { class: "kaart" }, [e("img", { class: "media staand", src: o.beeld, alt: o.label }), e("div", { class: "in" }, [e("div", { class: "naam", tekst: o.label }), o.uitleg ? e("div", { class: "klein", tekst: o.uitleg }) : null, e("div", { class: "knoppen" }, [e("button", { class: "blauw", tekst: "Kies", onclick: function () { kies(o); } })])])])); });
+        kaart.appendChild(tegels);
+      } else if (opties.some(function (o) { return o.geluid; })) {
+        var lijst = e("div", { class: "lijst" });
+        opties.forEach(function (o) {
+          lijst.appendChild(e("div", { class: "rij" }, [
+            e("div", { class: "wie", style: "flex:1" }, [e("div", { class: "naam", tekst: o.label }), o.uitleg ? e("div", { class: "klein", style: "white-space:normal", tekst: o.uitleg }) : null]),
+            o.geluid ? e("button", { tekst: "▶ Luister", onclick: function () { if (speler) speler.pause(); speler = new Audio(o.geluid); speler.play(); } }) : null,
+            e("button", { class: "blauw", tekst: "Kies", onclick: function () { kies(o); } }),
+          ]));
+        });
+        kaart.appendChild(lijst);
+      } else {
+        var knoppen = e("div", { class: "opties" });
+        opties.forEach(function (o) { var k = e("button", { class: o.storyboard || o.video ? (/goed/i.test(o.label) ? "blauw" : "") : "", onclick: function () { kies(o); } }); k.appendChild(document.createTextNode(o.label)); if (o.uitleg) k.appendChild(e("small", { tekst: o.uitleg })); knoppen.appendChild(k); });
+        kaart.appendChild(knoppen);
+      }
+      app.appendChild(kaart);
+    }
+
+    // De bevestiging: wat er gemaakt wordt en wat het kost, één keer Start.
+    if (s.bevestiging) {
+      var bv = s.bevestiging, start = e("button", { class: "blauw", tekst: "▶ Start · " + bv.totaal + " credits" }), niet = e("button", { tekst: "Niet doen" });
+      var auto = e("input", { type: "checkbox" }); if (s.automatisch) auto.checked = true;
+      auto.onchange = function () { regieActie({ actie: "automatisch", ja: auto.checked }); };
+      start.onclick = function () { start.disabled = true; niet.disabled = true; start.textContent = "Gestart…"; regieActie({ actie: "bevestig", ja: true }); };
+      niet.onclick = function () { start.disabled = true; niet.disabled = true; regieActie({ actie: "bevestig", ja: false }); };
+      var stappen = e("div", {});
+      (bv.stappen || []).forEach(function (st) {
+        stappen.appendChild(e("div", { class: "post" }, [e("span", { tekst: st.omschrijving }), e("b", { tekst: st.credits + " cr" })]));
+        if (st.details && st.details.beelden && st.details.beelden.length) {
+          var r = e("div", { style: "display:flex;gap:6px;margin:4px 0" });
+          st.details.beelden.slice(0, 4).forEach(function (u) { r.appendChild(e("img", { src: u, style: "height:56px;border-radius:8px;border:1px solid var(--rand)" })); });
+          stappen.appendChild(r);
+        }
+      });
+      app.appendChild(e("div", { class: "prijs", style: "margin-bottom:10px" }, [
+        e("div", { class: "naam", tekst: "De Regisseur wil dit maken" }), stappen,
+        e("div", { class: "knoppen" }, [niet, start]),
+        e("label", { class: "klein", style: "display:flex;gap:6px;align-items:center" }, [auto, document.createTextNode("Voortaan automatisch in dit project (niet meer per stap vragen)")]),
+      ]));
+    }
+
+    // Wat er gemaakt is (of nog gemaakt wordt).
+    if ((s.galerij || []).length) {
+      var g = e("div", { class: "raster" });
+      s.galerij.forEach(function (c) { g.appendChild(tegel(c)); });
+      app.appendChild(e("div", { class: "dag", tekst: "In dit project" }));
+      app.appendChild(g);
+    }
+
+    // Zelf iets zeggen tegen de Regisseur, zonder via Claude.
+    var veld = e("input", { placeholder: s.vraag ? "Of typ je eigen antwoord…" : "Stuur de Regisseur een bericht…" });
+    var stuur = e("button", { class: "blauw", tekst: "Stuur" });
+    var verstuur = function () {
+      var t = veld.value.trim(); if (!t) return;
+      veld.disabled = true; stuur.disabled = true;
+      var p = s.vraag ? regieActie({ actie: "antwoord", tekst: t }) : vraag("tools/call", { name: "regisseur", arguments: { bericht: t, project_id: s.project_id } }).then(function (r) { if (r && r.structuredContent) toon(r); });
+      p.catch(function () { veld.disabled = false; stuur.disabled = false; });
+    };
+    stuur.onclick = verstuur; veld.onkeydown = function (ev) { if (ev.key === "Enter") verstuur(); };
+    if (s.status !== "denkt" && s.status !== "wacht_op_maken") app.appendChild(e("div", { class: "invoer" }, [veld, stuur]));
+
+    if (s.status === "denkt" || s.status === "wacht_op_maken") volgRegie();
+    else if ((s.galerij || []).some(function (c) { return c.status === "bezig"; })) volgRegie();
   }
 
   // Precies zoals de officiële App-klasse (ext-apps): appInfo, geen clientInfo. Met een ander
