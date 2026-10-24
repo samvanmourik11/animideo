@@ -213,7 +213,9 @@ export async function verwerk(userId: string, v: Verzoek): Promise<Record<string
       return antwoord({
         // De oude handdruk: nooit de nieuwe versie (die kent geen initialize).
         protocolVersion: PROTOCOL_VERSIES.includes(gevraagd) && gevraagd !== NIEUW ? gevraagd : "2025-06-18",
-        capabilities: { tools: { listChanged: false }, resources: { listChanged: false } },
+        // Ook hier melden dat we schermen hebben: de Claude-app verbindt via deze handdruk
+        // (2025-11-25) en haalde zonder deze regel nooit ons scherm op.
+        capabilities: { tools: { listChanged: false }, resources: { listChanged: false }, extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } } },
         serverInfo: SERVER_INFO,
         instructions: await instructies(),
       });
