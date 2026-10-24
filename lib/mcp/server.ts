@@ -14,6 +14,7 @@ import sharp from "sharp";
 import { createServiceClient } from "@/lib/supabase/service";
 import { verversLopende } from "@/lib/creaties/wachtrij";
 import type { Creatie } from "@/lib/creaties/types";
+import { modelNaam } from "@/lib/creaties/makers";
 import { getCredits } from "@/lib/credits";
 import { betalerVan } from "@/lib/team/team";
 import { BETAALDE_TOOLS, GRATIS_TOOLS, TOOLS, bereidVoor, gratis, voerUit } from "@/lib/regisseur/tools";
@@ -34,7 +35,10 @@ export const PROTOCOL_VERSIES = [NIEUW, "2025-11-25", "2025-06-18", "2025-03-26"
 const SERVER_INFO = { name: "animideo", title: "Animideo", version: "1.1.0" };
 
 // Wat het chatscherm van de Regisseur zelf afhandelt, of wat aan een Regisseur-project vastzit.
-const NIET = new Set(["vraag_keuze", "wacht_op", ...FILM_BETAALD, ...FILM_GRATIS]);
+const NIET = new Set(["vraag_keuze", ...FILM_BETAALD, ...FILM_GRATIS]);
+// De Regisseur heeft zijn eigen wacht_op (pauzeert het gesprek); hier vervangen door een
+// gereedschap dat zelf wacht, zoals Higgsfields "Wait For Generation Jobs".
+const VERVANGEN = new Set(["wacht_op"]);
 
 interface McpTool { name: string; description: string; inputSchema: Record<string, unknown>; _meta?: Record<string, unknown> }
 
@@ -83,9 +87,11 @@ export function kanSchermen(v: { params?: Record<string, unknown> }): boolean {
   return !!caps.extensions?.["io.modelcontextprotocol/ui"];
 }
 
-export function mcpTools(schermen = false): McpTool[] {
-  if (schermen) return REGISSEUR_TOOLS;
-  const lijst: McpTool[] = TOOLS.filter((t) => !NIET.has(t.name)).map((t) => {
+// De Regisseur-als-gereedschap (REGISSEUR_TOOLS) staat bewust uit: Sam wilde dat het in de
+// Claude-app voelt als praten met Claude, zoals bij Higgsfield (24-10-2026). Claude praat zelf,
+// met onze werkwijze en het regieboek als handleiding; elk resultaat krijgt een kaartje.
+export function mcpTools(_schermen = false): McpTool[] {
+  const lijst: McpTool[] = TOOLS.filter((t) => !NIET.has(t.name) && !VERVANGEN.has(t.name)).map((t) => {
     const schema = structuredClone(t.input_schema) as { properties?: Record<string, unknown>; required?: string[] };
     if (BETAALDE_TOOLS.has(t.name)) {
       schema.properties = {
@@ -106,6 +112,12 @@ export function mcpTools(schermen = false): McpTool[] {
     {
       name: "status",
       description: "Bekijk de stand van creaties (gratis): bezig, klaar (met adres) of mislukt. Klare beelden krijg je als klein plaatje te zien om te beoordelen. Beelden duren ~20 s, video's 1-3 min, een montage ~1 min.",
+      inputSchema: { type: "object", properties: { creatie_ids: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 12 } }, required: ["creatie_ids"] },
+      _meta: SCHERM,
+    },
+    {
+      name: "wacht_op",
+      description: "Wacht tot creaties klaar zijn (gratis) en laat ze zien. Wacht hoogstens ~50 s; is er nog iets bezig, roep het dan nog eens aan. Gebruik dit na elke gestarte stap in plaats van de gebruiker te laten wachten of terugkomen. Beelden ~20 s, video's 1-3 min, een montage ~1 min.",
       inputSchema: { type: "object", properties: { creatie_ids: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 12 } }, required: ["creatie_ids"] },
       _meta: SCHERM,
     },
@@ -155,9 +167,13 @@ const REGISSEUR_INSTRUCTIES = `Animideo is een Nederlandse app om met AI beelden
 - Zegt de gebruiker in de chat "ja" of "akkoord" terwijl de Regisseur akkoord vraagt, geef dat dan ook gewoon door.
 - Wil je weten hoe het ervoor staat, gebruik regisseur_stand.`;
 
-export async function instructies(schermen = false): Promise<string> {
-  if (schermen) return REGISSEUR_INSTRUCTIES;
+export async function instructies(_schermen = false): Promise<string> {
   return `Animideo is een Nederlandse app om met AI beelden en video's te maken. Met deze gereedschappen werk je in de bibliotheek en met de credits van de gebruiker.
+
+Zo werk je (net als de Regisseur van Animideo):
+- Praat zelf met de gebruiker, kort en in het Nederlands. Vragen stel je gewoon in de chat; vraag niet meer dan nodig.
+- Start je iets, roep dan meteen wacht_op aan en ga verder zodra het klaar is. Zeg nooit dat de gebruiker later moet terugkomen of "check" moet sturen.
+- Vraagt de gebruiker om een aantal scènes of een eigen opbouw, bouw het dan zelf met maak_beeld, maak_video en monteer, precies zoals gevraagd. maak_reclame (3 shots, kant-en-klaar vanaf een productpagina) alleen als iemand gewoon een snelle productreclame wil.
 
 Zo maak je mooie video's:
 - Gaat het om een bedrijf: kijk eerst met lees_huisstijl en gebruik kleuren, toon en logo.
@@ -185,10 +201,16 @@ async function voorbeeld(url: string): Promise<Inhoud | null> {
   }
 }
 
-async function status(userId: string, ruw: unknown): Promise<{ content: Inhoud[]; structuredContent: Record<string, unknown> }> {
+async function status(userId: string, ruw: unknown, wachtMs = 0): Promise<{ content: Inhoud[]; structuredContent: Record<string, unknown> }> {
   const ids = (Array.isArray(ruw) ? ruw : []).map(String).slice(0, 12);
-  const { data } = await createServiceClient().from("creaties").select("*").eq("user_id", userId).in("id", ids);
-  const lijst = await verversLopende((data ?? []) as Creatie[]);
+  const tot = Date.now() + wachtMs;
+  let lijst: Creatie[] = [];
+  for (;;) {
+    const { data } = await createServiceClient().from("creaties").select("*").eq("user_id", userId).in("id", ids);
+    lijst = await verversLopende((data ?? []) as Creatie[]);
+    if (!lijst.some((c) => c.status === "bezig") || Date.now() + 4000 > tot) break;
+    await new Promise((ok) => setTimeout(ok, 4000));
+  }
   const inhoud: Inhoud[] = [
     {
       type: "text",
@@ -196,7 +218,7 @@ async function status(userId: string, ruw: unknown): Promise<{ content: Inhoud[]
         .map((id) => {
           const c = lijst.find((x) => x.id === id);
           if (!c) return `${id}: niet gevonden`;
-          return c.status === "klaar" ? `${id}: klaar (${c.soort}) ${c.url}` : c.status === "mislukt" ? `${id}: mislukt — ${c.foutmelding ?? "onbekend"}` : `${id}: bezig`;
+          return c.status === "klaar" ? `${id}: klaar (${c.soort}) ${c.url}` : c.status === "mislukt" ? `${id}: mislukt — ${c.foutmelding ?? "onbekend"}` : `${id}: nog bezig${wachtMs ? " (roep wacht_op nog eens aan)" : ""}`;
         })
         .join("\n"),
     },
@@ -209,8 +231,19 @@ async function status(userId: string, ruw: unknown): Promise<{ content: Inhoud[]
   return { content: inhoud, structuredContent: { weergave: "galerij", titel: "Stand", items } };
 }
 
-function galerijItem(c: Pick<Creatie, "id" | "status" | "soort" | "url" | "prompt" | "foutmelding">) {
-  return { id: c.id, status: c.status, soort: c.soort, url: c.status === "klaar" ? c.url : null, prompt: c.prompt ?? "", fout: c.status === "mislukt" ? c.foutmelding : null };
+function galerijItem(c: Pick<Creatie, "id" | "status" | "soort" | "url" | "prompt" | "foutmelding"> & Partial<Pick<Creatie, "fal_endpoint" | "invoer" | "maker">>) {
+  const invoer = (c.invoer ?? {}) as { formaat?: string; kwaliteit?: string };
+  return {
+    id: c.id, status: c.status, soort: c.soort, url: c.status === "klaar" ? c.url : null, prompt: c.prompt ?? "", fout: c.status === "mislukt" ? c.foutmelding : null,
+    model: c.fal_endpoint ? modelNaam(c.fal_endpoint) : c.maker && c.maker !== "beeld" ? c.maker : null, formaat: invoer.formaat ?? null, kwaliteit: invoer.kwaliteit ?? null,
+  };
+}
+
+/** Een kaartje "bezig" met alvast de goede vorm en details, tot het resultaat er is. */
+function bezigItem(id: string, stap: { maker: string; invoer: Record<string, unknown>; omschrijving: string }) {
+  const i = stap.invoer as { formaat?: string; kwaliteit?: string; prompt?: string };
+  const soort = stap.maker === "beeld" ? "beeld" : stap.maker === "voice-over" ? "audio" : /video|montage|reclame|ugc|trailer|film/.test(stap.maker) ? "video" : "beeld";
+  return { id, status: "bezig", soort, prompt: String(i.prompt ?? stap.omschrijving), formaat: i.formaat ?? null, kwaliteit: i.kwaliteit ?? null, model: null };
 }
 
 /** De contentkalender die maak_contentkalender net opzette, als overzicht met link. */
@@ -246,6 +279,7 @@ export async function roepAan(userId: string, naam: string, args: Record<string,
   const tekst = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError } : {}) });
   try {
     if (naam === "status") return await status(userId, args.creatie_ids);
+    if (naam === "wacht_op") return await status(userId, args.creatie_ids, 50_000);
     if (naam === "saldo") return tekst(`Saldo: ${await getCredits(await betalerVan(userId), { service: true })} credits.`);
     if (naam === "regisseur" || naam === "regisseur_stand" || naam === "regisseur_antwoord") {
       const id =
@@ -298,7 +332,7 @@ export async function roepAan(userId: string, naam: string, args: Record<string,
       const id = await voerUit(userId, stap);
       return {
         ...tekst(`Gestart binnen het budget: creatie ${id} (${stap.credits} credits; nog ${Math.max(0, rest)} over). Volg het met status.`),
-        structuredContent: { weergave: "galerij", titel: stap.omschrijving, items: [{ id, status: "bezig" }], creatie_id: id },
+        structuredContent: { weergave: "galerij", titel: stap.omschrijving, items: [bezigItem(id, stap)], creatie_id: id },
       };
     }
     if (Number(akkoord_credits) < stap.credits || akkoord_credits === undefined) {
@@ -310,7 +344,7 @@ export async function roepAan(userId: string, naam: string, args: Record<string,
     const id = await voerUit(userId, stap);
     return {
       ...tekst(`Gestart: creatie ${id} (${stap.credits} credits). Volg het met status.`),
-      structuredContent: { weergave: "galerij", titel: stap.omschrijving, items: [{ id, status: "bezig" }], creatie_id: id },
+      structuredContent: { weergave: "galerij", titel: stap.omschrijving, items: [bezigItem(id, stap)], creatie_id: id },
     };
   } catch (e) {
     return tekst(e instanceof Error ? e.message : String(e), true);

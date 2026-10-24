@@ -59,6 +59,18 @@ export const STUDIO_HTML = `<!doctype html>
   .denkt { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--tekst3); padding:4px; }
   .draai { width:14px; height:14px; border-radius:50%; border:2px solid #bfdbfe; border-top-color:var(--blauw); animation:rond .8s linear infinite; }
   @keyframes rond { to { transform:rotate(360deg); } }
+  .resultaten { display:grid; gap:10px; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); }
+  .resultaten.een { grid-template-columns:1fr; }
+  .res { background:var(--kaart); border:1px solid var(--rand); border-radius:16px; overflow:hidden; box-shadow:0 1px 2px rgba(15,23,42,.05); }
+  .res .vlak { position:relative; background:linear-gradient(135deg, #eef3fb, #e3ebf7); display:flex; align-items:center; justify-content:center; }
+  .res .vlak img, .res .vlak video { width:100%; height:100%; object-fit:contain; display:block; background:#0f172a; }
+  .res .vlak.bezig { background:linear-gradient(110deg, #eef3fb 30%, #dbe7f8 50%, #eef3fb 70%); background-size:200% 100%; animation:glans 1.4s linear infinite; }
+  .res .label { position:absolute; top:10px; left:10px; display:flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--rand); border-radius:999px; padding:4px 10px; font-size:12px; font-weight:600; color:var(--blauw); }
+  .res .label.mis { color:#dc2626; }
+  .res .onder { padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+  .res .meta { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; font-weight:600; color:var(--tekst2); }
+  .res .prompt { font-size:12.5px; color:var(--tekst3); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .res .knoppen { justify-content:flex-start; } .res .knoppen button { flex:0 0 auto; }
   .dag { font-size:12px; font-weight:600; color:var(--tekst2); margin:10px 0 4px; }
   .bedrag { font-size:22px; font-weight:800; } .bedrag span { font-size:13px; font-weight:500; color:var(--tekst2); }
   .laad { width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center; background:linear-gradient(110deg, var(--kaart) 30%, var(--rand) 50%, var(--kaart) 70%); background-size:200% 100%; animation:glans 1.4s linear infinite; color:var(--tekst2); font-size:12px; }
@@ -191,7 +203,33 @@ export const STUDIO_HTML = `<!doctype html>
     app.appendChild(raster);
   }
 
-  // ── Galerij / stand ──
+  // ── Galerij / stand (Higgsfield-stijl: groot resultaat, details, Download en Gebruik) ──
+  var VERHOUDING = { "1:1": "1/1", "9:16": "9/16", "16:9": "16/9" };
+  function resultaat(c, alleen) {
+    var vorm = VERHOUDING[c.formaat] || (c.soort === "audio" ? null : "1/1");
+    var stijl = vorm ? "aspect-ratio:" + vorm + ";" + (alleen && c.formaat === "9:16" ? "max-height:460px;margin:0 auto;" : "") : "height:72px;";
+    var vlak = e("div", { class: "vlak" + (c.status === "bezig" ? " bezig" : ""), style: stijl });
+    if (c.status === "klaar" && c.url) {
+      if (c.soort === "video") vlak.appendChild(e("video", { src: c.url, controls: "", playsinline: "", preload: "metadata" }));
+      else if (c.soort === "audio") vlak.appendChild(e("audio", { src: c.url, controls: "", style: "width:92%;background:transparent" }));
+      else vlak.appendChild(e("img", { src: c.url, alt: c.prompt || "" }));
+    } else if (c.status === "mislukt") {
+      vlak.appendChild(e("span", { class: "label mis", tekst: "Mislukt" }));
+    } else {
+      vlak.appendChild(e("span", { class: "label" }, [e("span", { class: "draai" }), document.createTextNode("Bezig…")]));
+    }
+    var meta = [c.model, c.kwaliteit === "pro" ? "Pro" : c.kwaliteit === "standaard" ? "Standaard" : null, c.formaat].filter(Boolean);
+    var knoppen = c.status === "klaar" && c.url ? [
+      e("button", { class: "blauw", tekst: "⬇ Download", onclick: function () { open(c.url); } }),
+      e("button", { tekst: "Gebruik", onclick: function () { zeg("Gebruik creatie " + c.id + " verder."); } }),
+    ] : c.status === "mislukt" ? [e("button", { tekst: "Opnieuw", onclick: function () { zeg("Creatie " + c.id + " is mislukt (" + (c.fout || "onbekend") + "). Probeer het opnieuw."); } })] : [];
+    return e("div", { class: "res" }, [vlak, e("div", { class: "onder" }, [
+      meta.length ? e("div", { class: "meta", tekst: meta.join(" · ") }) : null,
+      c.prompt ? e("div", { class: "prompt", tekst: c.prompt }) : null,
+      c.fout ? e("div", { class: "mis", tekst: c.fout }) : null,
+      knoppen.length ? e("div", { class: "knoppen" }, knoppen) : null,
+    ])]);
+  }
   function tegel(c) {
     var media;
     if (c.status === "klaar" && c.url && c.soort === "video") media = e("video", { class: "media", src: c.url, controls: "", playsinline: "", muted: "" });
@@ -231,8 +269,8 @@ export const STUDIO_HTML = `<!doctype html>
       items.forEach(function (c) { lijst.appendChild(geluidRij(c)); });
       app.appendChild(lijst);
     } else {
-      var raster = e("div", { class: "raster" });
-      items.forEach(function (c) { raster.appendChild(tegel(c)); });
+      var raster = e("div", { class: "resultaten" + (items.length === 1 ? " een" : "") });
+      items.forEach(function (c) { raster.appendChild(resultaat(c, items.length === 1)); });
       app.appendChild(raster);
     }
     if (bezig) volg(items.map(function (x) { return x.id; }), s.titel);

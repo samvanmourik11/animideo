@@ -46,7 +46,7 @@ describe("MCP-server", () => {
 
   it("biedt de gereedschappen aan, zonder de chatknoppen; betaalde met akkoord_credits", async () => {
     const tools = ((await vraag("tools/list"))!.result as { tools: { name: string; inputSchema: { properties: Record<string, unknown> } }[] }).tools;
-    expect(tools.map((t) => t.name)).toEqual(["maak_beeld", "zoek_stemmen", "status", "saldo", "stel_budget_voor", "keur_budget_goed", "toon_storyboard", "apps_en_effecten"]);
+    expect(tools.map((t) => t.name)).toEqual(["maak_beeld", "zoek_stemmen", "status", "wacht_op", "saldo", "stel_budget_voor", "keur_budget_goed", "toon_storyboard", "apps_en_effecten"]);
     expect(tools[0].inputSchema.properties.akkoord_credits).toBeTruthy();
     expect(tools[1].inputSchema.properties.akkoord_credits).toBeUndefined();
   });
@@ -113,13 +113,11 @@ describe("MCP-server", () => {
     expect(gestart).toHaveBeenCalledTimes(1);
   });
 
-  it("in de Claude-app (met schermen) is de Regisseur het gereedschap; zonder schermen de losse gereedschappen", async () => {
+  it("in de Claude-app praat Claude zelf: dezelfde gereedschappen, met wacht_op in plaats van de Regisseur", async () => {
     const met = { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": { extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } } } };
-    const tools = ((await verwerk("u1", { jsonrpc: "2.0", id: 1, method: "tools/list", params: { _meta: met } }))!.result as { tools: { name: string; _meta?: { ui?: { visibility?: string[] } } }[] }).tools;
-    expect(tools.map((t) => t.name)).toEqual(["regisseur", "regisseur_stand", "regisseur_antwoord", "saldo"]);
-    // Antwoorden en Start alleen vanuit het scherm, niet door Claude zelf.
-    expect(tools[2]._meta!.ui!.visibility).toEqual(["app"]);
-    const zonder = ((await verwerk("u1", { jsonrpc: "2.0", id: 2, method: "tools/list", params: { _meta: { "io.modelcontextprotocol/protocolVersion": "2026-07-28" } } }))!.result as { tools: { name: string }[] }).tools;
-    expect(zonder.map((t) => t.name)).toContain("maak_beeld");
+    const tools = ((await verwerk("u1", { jsonrpc: "2.0", id: 1, method: "tools/list", params: { _meta: met } }))!.result as { tools: { name: string }[] }).tools.map((t) => t.name);
+    expect(tools).toContain("maak_beeld");
+    expect(tools).toContain("wacht_op");
+    expect(tools).not.toContain("regisseur");
   });
 });
