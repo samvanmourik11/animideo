@@ -21,6 +21,7 @@ export const STUDIO_HTML = `<!doctype html>
   :root { --bg:#ffffff; --kaart:#f4f6fb; --rand:#e2e7f0; --tekst:#0f172a; --tekst2:#475569; --blauw:#1c72ed; --blauw2:#5a9df8; }
   :root[data-thema="dark"] { --bg:#0b1230; --kaart:#121b3f; --rand:#22305e; --tekst:#eef2ff; --tekst2:#a5b0d0; }
   * { box-sizing:border-box; }
+  html { height:auto; }
   body { margin:0; padding:12px; font:14px/1.45 Inter, system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--tekst); }
   .kop { display:flex; align-items:center; gap:8px; margin-bottom:10px; font-weight:600; }
   .logo { font-weight:800; letter-spacing:-.02em; } .logo b { color:var(--blauw); }
@@ -87,8 +88,22 @@ export const STUDIO_HTML = `<!doctype html>
   function kop(titel, sub) {
     return e("div", { class: "kop" }, [e("span", { class: "logo", tekst: "Animideo" }), e("span", { tekst: "· " + titel }), sub ? e("span", { class: "sub", tekst: sub }) : null]);
   }
-  function maat() { meld("ui/notifications/size-changed", { width: document.body.scrollWidth, height: document.body.scrollHeight }); }
-  new ResizeObserver(maat).observe(document.body);
+  // Grootte pas doorgeven na het opstarten (eerder negeert de Claude-app het), en alleen
+  // als hij echt verandert; de hoogte is wat de inhoud nodig heeft.
+  var klaarVoorMaat = false, laatsteMaat = "";
+  function maat() {
+    if (!klaarVoorMaat) return;
+    requestAnimationFrame(function () {
+      var w = window.innerWidth, h = Math.ceil(document.documentElement.getBoundingClientRect().height);
+      var sleutel = w + "x" + h;
+      if (sleutel === laatsteMaat) return;
+      laatsteMaat = sleutel;
+      meld("ui/notifications/size-changed", { width: w, height: h });
+    });
+  }
+  var waarnemer = new ResizeObserver(maat);
+  waarnemer.observe(document.documentElement);
+  waarnemer.observe(document.body);
 
   function toon(resultaat) {
     var s = resultaat.structuredContent;
@@ -210,12 +225,16 @@ export const STUDIO_HTML = `<!doctype html>
     ]));
   }
 
-  vraag("ui/initialize", { protocolVersion: "2026-01-26", appCapabilities: {}, capabilities: {}, clientInfo: { name: "animideo-studio", version: "1.0.0" } })
+  // Precies zoals de officiële App-klasse (ext-apps): appInfo, geen clientInfo. Met een ander
+  // veld keurt de Claude-app het af en blijft het scherm verborgen (24-10-2026).
+  vraag("ui/initialize", { appCapabilities: {}, appInfo: { name: "Animideo", version: "1.0.0" }, protocolVersion: "2026-01-26" })
     .then(function (r) {
       var ctx = (r && r.hostContext) || {};
       thema(ctx.theme || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
       meld("ui/notifications/initialized", {});
+      klaarVoorMaat = true;
       if (!huidig) app.innerHTML = '<div class="klein">Animideo is klaar.</div>';
+      maat();
     })
     .catch(function () { app.innerHTML = '<div class="klein">Animideo kon niet starten in dit programma.</div>'; });
 })();
