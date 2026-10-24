@@ -12,6 +12,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { ADMIN_ACCOUNTS } from "@/lib/studio/access";
 import { METHODES, METHODE_INFO, MAX_CLIP_SEC, isMethode, leesOpdracht, leesVelden, lijktOp } from "./types";
 import { vulLinksAan } from "./voorbeelden";
+import { voegToe, zoekTikToks } from "./tiktok";
 
 const MODEL = "claude-opus-5-5";
 const AFZENDER = "Animideo <noreply@jouwanimatievideo.nl>";
@@ -220,7 +221,14 @@ async function bewaar(voorstellen: Voorstel[], bron: string, max = MAX_VOORSTELL
   const bekend = bron === "speurtocht" ? await bekendeTitels() : [];
   const ruw = voorstellen.map((v) => naarRij(v, bron)).filter((r): r is NonNullable<typeof r> => !!r);
   const uniek = ruw.filter((r, i) => !bekend.some((t) => lijktOp(t, r.titel)) && !ruw.slice(0, i).some((x) => lijktOp(x.titel, r.titel))).slice(0, max);
-  const rijen = await Promise.all(uniek.map(async (r) => ({ ...r, bron_links: await vulLinksAan(r.bron_links) })));
+  // Bij elke trend echte TikToks als voorbeeld (Sam: veel beter dan screenshots). Lukt het
+  // zoeken niet, dan gaat de trend gewoon door met wat er wel is.
+  const rijen = await Promise.all(
+    uniek.map(async (r) => {
+      const tiktoks = await zoekTikToks(r).catch((e) => (console.error("[trends] TikToks zoeken mislukt:", e), []));
+      return { ...r, bron_links: await vulLinksAan(voegToe(r.bron_links, tiktoks)) };
+    }),
+  );
   if (rijen.length) {
     const { error } = await createServiceClient().from("trends").insert(rijen);
     if (error) throw new Error(error.message);

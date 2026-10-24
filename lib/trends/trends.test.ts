@@ -144,3 +144,29 @@ describe("trends: dubbele trends", () => {
     expect(lijktOp("De Jean Phil-dans", "Stil in het koor")).toBe(false);
   });
 });
+
+import { kiesBeste, leesVideoPagina, tiktoksIn, voegToe } from "./tiktok";
+
+describe("trends: echte TikToks", () => {
+  it("haalt video-adressen uit zoekresultaten, geen overzichtspagina's", () => {
+    const t = 'zie https://m.tiktok.com/@a.b/video/7695240623485521153?lang=nl en https://www.tiktok.com/discover/x en "https://www.tiktok.com/@a.b/video/7695240623485521153"';
+    expect(tiktoksIn(t)).toEqual(["https://www.tiktok.com/@a.b/video/7695240623485521153"]);
+  });
+  it("leest maker, geluid en weergaven; een verwijderde video valt af", () => {
+    const html = '"uniqueId":"more.dejankat","desc":"@Elli belle","music":{"id":"6866","title":"pray for me slo mo","playCount":5900000';
+    expect(leesVideoPagina("https://www.tiktok.com/@x/video/7695240623485521153", html)).toMatchObject({ maker: "more.dejankat", geluid: "pray for me slo mo", weergaven: 5900000 });
+    expect(leesVideoPagina("https://www.tiktok.com/@x/video/7695240623485521153", '"uniqueId":"x" 7695240623485521153')).toBeNull();
+  });
+  it("kiest eerst wat over de trend gaat, dan de best bekeken", () => {
+    const v = (maker: string, geluid: string, weergaven: number) => ({ url: `https://www.tiktok.com/@${maker}/video/1`, titel: "", maker, geluid, weergaven });
+    const lijst = kiesBeste({ titel: "Pray For Me", uitleg: "slow motion" }, [v("a", "original sound", 9e6), v("b", "pray for me slo mo", 1e5), v("c", "pray for me slo mo", 5e6)]);
+    expect(lijst.map((x) => x.maker)).toEqual(["c", "b", "a"]);
+  });
+  it("zet nieuwe TikToks vooraan, zonder dubbele", () => {
+    const links = voegToe([{ url: "https://www.tiktok.com/@a/video/1111111111111111" }], [
+      { url: "https://www.tiktok.com/@a/video/1111111111111111", titel: "", maker: "a", geluid: "", weergaven: 0 },
+      { url: "https://www.tiktok.com/@b/video/2222222222222222", titel: "", maker: "b", geluid: "x", weergaven: 5000 },
+    ]);
+    expect(links.map((l) => l.url)).toEqual(["https://www.tiktok.com/@b/video/2222222222222222", "https://www.tiktok.com/@a/video/1111111111111111"]);
+  });
+});

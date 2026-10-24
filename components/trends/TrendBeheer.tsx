@@ -160,6 +160,9 @@ function Voorbeelden({ trend: t, doe, bezig }: { trend: Rij; doe: (b: Record<str
           Screenshot uploaden
           <input type="file" accept="image/*" className="hidden" disabled={!!bezig} onChange={(e) => uploadScreenshot(e.target.files?.[0])} />
         </label>
+        <button onClick={() => doe({ actie: "tiktoks" }, "tiktoks")} disabled={!!bezig} className="text-xs text-tekst-3 hover:text-blue-500">
+          {bezig === "tiktoks" ? "TikToks zoeken (±1 min)…" : "🎵 Zoek TikToks"}
+        </button>
         <button onClick={() => doe({ actie: "beelden" }, "beelden")} disabled={!!bezig} className="text-xs text-tekst-3 hover:text-blue-500">
           {bezig === "beelden" ? "Zoeken…" : "↻ Beelden zoeken"}
         </button>

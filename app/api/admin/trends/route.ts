@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { speurtocht, voegToeVanuit } from "@/lib/trends/speuren";
 import { verwerkClip } from "@/lib/trends/clip";
 import { vulLinksAan } from "@/lib/trends/voorbeelden";
+import { voegToe, zoekTikToks } from "@/lib/trends/tiktok";
 import { isMethode, leesOpdracht, leesVelden, nogNodig, trendCredits, type Trend } from "@/lib/trends/types";
 
 export const runtime = "nodejs";
@@ -90,6 +91,11 @@ export async function POST(req: NextRequest) {
     // Opnieuw beelden en spelers zoeken bij de bronlinks (bv. na een nieuwe link).
     const links = t.bron_links.map(({ beeld: _b, ...l }) => (b.opnieuw === true ? l : { ...l, beeld: _b }));
     await db.from("trends").update({ bron_links: await vulLinksAan(links), updated_at: nu }).eq("id", id);
+  } else if (b.actie === "tiktoks") {
+    // Claude zoekt (opnieuw) echte TikToks van deze trend; duurt ~1 minuut.
+    const gevonden = await zoekTikToks(t).catch(() => []);
+    if (!gevonden.length) return NextResponse.json({ error: "Geen TikToks gevonden. Plak er zelf een, of probeer het later nog eens." }, { status: 404 });
+    await db.from("trends").update({ bron_links: (await vulLinksAan(voegToe(t.bron_links, gevonden))).slice(0, 10), updated_at: nu }).eq("id", id);
   } else if (b.actie === "link") {
     // Sam plakt zelf een TikTok-, YouTube- of Instagram-link, of zet een screenshot erbij.
     const url = String(b.url ?? "").trim();
