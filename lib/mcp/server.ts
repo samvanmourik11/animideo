@@ -19,13 +19,22 @@ import { betalerVan } from "@/lib/team/team";
 import { BETAALDE_TOOLS, GRATIS_TOOLS, TOOLS, bereidVoor, gratis, voerUit } from "@/lib/regisseur/tools";
 import { FILM_BETAALD, FILM_GRATIS } from "@/lib/film/tools";
 import { regieboekTekst } from "@/lib/regisseur/regieboek";
+import { BIBLIOTHEEK } from "@/lib/stem/bibliotheek";
+import { STUDIO_HTML, STUDIO_URI } from "./studio-html";
 
 export const PROTOCOL_VERSIES = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
 // Wat het chatscherm van de Regisseur zelf afhandelt, of wat aan een Regisseur-project vastzit.
 const NIET = new Set(["vraag_keuze", "wacht_op", ...FILM_BETAALD, ...FILM_GRATIS]);
 
-interface McpTool { name: string; description: string; inputSchema: Record<string, unknown> }
+interface McpTool { name: string; description: string; inputSchema: Record<string, unknown>; _meta?: Record<string, unknown> }
+
+// Gereedschappen met een eigen scherm in de Claude-app (MCP Apps): kiezen, prijs + Start,
+// galerij. Programma's die dat niet kennen, negeren _meta en gebruiken gewoon de tekst.
+const MET_SCHERM = new Set(["zoek_stemmen", "ugc_creators", "mijn_werk", "status"]);
+const SCHERM = { ui: { resourceUri: STUDIO_URI } };
+// Waar plaatjes en stemvoorbeelden vandaan komen: onze opslag, ElevenLabs, Google (voorbeelden), fal.
+const SCHERM_CSP = { resourceDomains: ["https://*.supabase.co", "https://api.us.elevenlabs.io", "https://storage.googleapis.com", "https://*.fal.media"], connectDomains: [] as string[] };
 
 export function mcpTools(): McpTool[] {
   const lijst: McpTool[] = TOOLS.filter((t) => !NIET.has(t.name)).map((t) => {
@@ -36,13 +45,20 @@ export function mcpTools(): McpTool[] {
         akkoord_credits: { type: "integer", description: "Laat leeg om eerst de prijs te horen. Pas na akkoord van de gebruiker: het aantal credits dat je terugkreeg." },
       };
     }
-    return { name: t.name, description: `${t.description}${BETAALDE_TOOLS.has(t.name) ? " Kost credits: roep eerst aan zonder akkoord_credits voor de prijs." : ""}`, inputSchema: schema };
+    const scherm = BETAALDE_TOOLS.has(t.name) || MET_SCHERM.has(t.name);
+    return {
+      name: t.name,
+      description: `${t.description}${BETAALDE_TOOLS.has(t.name) ? " Kost credits: roep eerst aan zonder akkoord_credits voor de prijs; de gebruiker ziet dan een kaart met een Start-knop." : ""}`,
+      inputSchema: schema,
+      ...(scherm ? { _meta: SCHERM } : {}),
+    };
   });
   lijst.push(
     {
       name: "status",
       description: "Bekijk de stand van creaties (gratis): bezig, klaar (met adres) of mislukt. Klare beelden krijg je als klein plaatje te zien om te beoordelen. Beelden duren ~20 s, video's 1-3 min, een montage ~1 min.",
       inputSchema: { type: "object", properties: { creatie_ids: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 12 } }, required: ["creatie_ids"] },
+      _meta: SCHERM,
     },
     { name: "saldo", description: "Hoeveel credits de gebruiker nog heeft (gratis).", inputSchema: { type: "object", properties: {} } },
   );
@@ -76,7 +92,7 @@ async function voorbeeld(url: string): Promise<Inhoud | null> {
   }
 }
 
-async function status(userId: string, ruw: unknown): Promise<Inhoud[]> {
+async function status(userId: string, ruw: unknown): Promise<{ content: Inhoud[]; structuredContent: Record<string, unknown> }> {
   const ids = (Array.isArray(ruw) ? ruw : []).map(String).slice(0, 12);
   const { data } = await createServiceClient().from("creaties").select("*").eq("user_id", userId).in("id", ids);
   const lijst = await verversLopende((data ?? []) as Creatie[]);
@@ -96,25 +112,59 @@ async function status(userId: string, ruw: unknown): Promise<Inhoud[]> {
     const v = await voorbeeld(c.url!);
     if (v) inhoud.push({ type: "text", text: `Beeld ${c.id}:` }, v);
   }
-  return inhoud;
+  const items = ids.map((id) => lijst.find((x) => x.id === id)).filter(Boolean).map((c) => galerijItem(c!));
+  return { content: inhoud, structuredContent: { weergave: "galerij", titel: "Stand", items } };
 }
 
-export async function roepAan(userId: string, naam: string, args: Record<string, unknown>): Promise<{ content: Inhoud[]; isError?: boolean }> {
+function galerijItem(c: Pick<Creatie, "id" | "status" | "soort" | "url" | "prompt" | "foutmelding">) {
+  return { id: c.id, status: c.status, soort: c.soort, url: c.status === "klaar" ? c.url : null, prompt: c.prompt ?? "", fout: c.status === "mislukt" ? c.foutmelding : null };
+}
+
+/** Het scherm bij een gratis gereedschap, als dat er een heeft. */
+function schermBij(naam: string, tekst: string, input: Record<string, unknown>): Record<string, unknown> | undefined {
+  try {
+    if (naam === "zoek_stemmen") {
+      const lijst = JSON.parse(tekst) as { id: string; naam: string; typering?: string; accent?: string }[];
+      const waarom = new Map(((input.aanraders ?? []) as { id: string; waarom: string }[]).map((x) => [x.id, x.waarom]));
+      return { weergave: "stemmen", stemmen: lijst.map((x) => ({ ...x, voorbeeld: BIBLIOTHEEK.find((b) => b.id === x.id)?.voorbeeld ?? null, waarom: waarom.get(x.id) })) };
+    }
+    if (naam === "ugc_creators") return { weergave: "creators", creators: JSON.parse(tekst) };
+    if (naam === "mijn_werk") {
+      const lijst = JSON.parse(tekst) as { id: string; soort: string; url?: string; prompt?: string; status?: string }[];
+      return { weergave: "galerij", titel: "Je werk", items: lijst.map((c) => ({ id: c.id, status: c.status ?? "klaar", soort: c.soort, url: c.url ?? null, prompt: c.prompt ?? "" })) };
+    }
+  } catch {
+    // Geen geldige lijst: dan alleen de tekst.
+  }
+  return undefined;
+}
+
+export async function roepAan(userId: string, naam: string, args: Record<string, unknown>): Promise<{ content: Inhoud[]; isError?: boolean; structuredContent?: Record<string, unknown> }> {
   const tekst = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError } : {}) });
   try {
-    if (naam === "status") return { content: await status(userId, args.creatie_ids) };
+    if (naam === "status") return await status(userId, args.creatie_ids);
     if (naam === "saldo") return tekst(`Saldo: ${await getCredits(await betalerVan(userId), { service: true })} credits.`);
     if (NIET.has(naam)) return tekst(`Onbekend gereedschap: ${naam}`, true);
     const { akkoord_credits, ...input } = args;
     const blok = { type: "tool_use", id: `mcp_${Date.now()}`, name: naam, input } as unknown as Anthropic.Beta.BetaToolUseBlock;
-    if (GRATIS_TOOLS.has(naam)) return tekst(await gratis(userId, blok));
+    if (GRATIS_TOOLS.has(naam)) {
+      const t = await gratis(userId, blok);
+      const scherm = schermBij(naam, t, input);
+      return { ...tekst(t), ...(scherm ? { structuredContent: scherm } : {}) };
+    }
     if (!BETAALDE_TOOLS.has(naam)) return tekst(`Onbekend gereedschap: ${naam}`, true);
     const stap = await bereidVoor(userId, blok);
     if (Number(akkoord_credits) < stap.credits || akkoord_credits === undefined) {
-      return tekst(`Dit kost ${stap.credits} ${stap.credits === 1 ? "credit" : "credits"}: ${stap.omschrijving}. Noem dat de gebruiker; na zijn akkoord roep je ${naam} opnieuw aan met dezelfde invoer en akkoord_credits: ${stap.credits}.`);
+      return {
+        ...tekst(`Dit kost ${stap.credits} ${stap.credits === 1 ? "credit" : "credits"}: ${stap.omschrijving}. De gebruiker ziet een kaart met een Start-knop; zegt hij in de chat ja, roep ${naam} dan opnieuw aan met dezelfde invoer en akkoord_credits: ${stap.credits}. Heeft hij al op Start geklikt, dan hoor je dat en start je niets opnieuw.`),
+        structuredContent: { weergave: "prijs", tool: naam, arguments: input, credits: stap.credits, omschrijving: stap.omschrijving, saldo: await getCredits(await betalerVan(userId), { service: true }).catch(() => undefined) },
+      };
     }
     const id = await voerUit(userId, stap);
-    return tekst(`Gestart: creatie ${id} (${stap.credits} credits). Volg het met status.`);
+    return {
+      ...tekst(`Gestart: creatie ${id} (${stap.credits} credits). Volg het met status.`),
+      structuredContent: { weergave: "galerij", titel: stap.omschrijving, items: [{ id, status: "bezig" }], creatie_id: id },
+    };
   } catch (e) {
     return tekst(e instanceof Error ? e.message : String(e), true);
   }
@@ -134,13 +184,19 @@ export async function verwerk(userId: string, v: Verzoek): Promise<Record<string
       const gevraagd = String(v.params?.protocolVersion ?? "");
       return antwoord({
         protocolVersion: PROTOCOL_VERSIES.includes(gevraagd) ? gevraagd : PROTOCOL_VERSIES[0],
-        capabilities: { tools: { listChanged: false } },
+        capabilities: { tools: { listChanged: false }, resources: { listChanged: false } },
         serverInfo: { name: "animideo", title: "Animideo", version: "1.0.0" },
         instructions: await instructies(),
       });
     }
     case "ping":
       return antwoord({});
+    case "resources/list":
+      return antwoord({ resources: [{ uri: STUDIO_URI, name: "Animideo-studio", description: "Kiezen, prijs + Start en resultaten van Animideo", mimeType: "text/html;profile=mcp-app" }] });
+    case "resources/read": {
+      if (v.params?.uri !== STUDIO_URI) return fout(-32002, "Onbekende resource.");
+      return antwoord({ contents: [{ uri: STUDIO_URI, mimeType: "text/html;profile=mcp-app", text: STUDIO_HTML, _meta: { ui: { csp: SCHERM_CSP, prefersBorder: true } } }] });
+    }
     case "tools/list":
       return antwoord({ tools: mcpTools() });
     case "tools/call": {

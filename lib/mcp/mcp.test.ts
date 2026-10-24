@@ -65,4 +65,15 @@ describe("MCP-server", () => {
     expect(hash(a)).toBe(hash(a));
     expect(hash(a)).not.toContain(a.slice(4, 12));
   });
+
+  it("de Claude-app krijgt een scherm: prijs met Start, en de studio-pagina als resource", async () => {
+    const tools = ((await vraag("tools/list"))!.result as { tools: { name: string; _meta?: { ui?: { resourceUri?: string } } }[] }).tools;
+    expect(tools.find((t) => t.name === "maak_beeld")!._meta!.ui!.resourceUri).toBe("ui://animideo/studio");
+    const prijs = (await vraag("tools/call", { name: "maak_beeld", arguments: { prompt: "taart" } }))!.result as { structuredContent: Record<string, unknown> };
+    expect(prijs.structuredContent).toMatchObject({ weergave: "prijs", tool: "maak_beeld", credits: 2, arguments: { prompt: "taart" }, saldo: 42 });
+    const res = (await vraag("resources/read", { uri: "ui://animideo/studio" }))!.result as { contents: { mimeType: string; text: string; _meta: { ui: { csp: { resourceDomains: string[] } } } }[] };
+    expect(res.contents[0].mimeType).toBe("text/html;profile=mcp-app");
+    expect(res.contents[0].text).toContain("ui/initialize");
+    expect(res.contents[0]._meta.ui.csp.resourceDomains).toContain("https://*.supabase.co");
+  });
 });
