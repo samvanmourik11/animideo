@@ -9,7 +9,7 @@
 // ui/notifications/tool-result; kiezen stuurt een bericht (ui/message), Start roept het
 // gereedschap zelf aan (tools/call). Gewoon JavaScript: het scherm laadt niets van buiten.
 
-export const STUDIO_URI = "ui://animideo/studio";
+import { createHash } from "node:crypto";
 
 export const STUDIO_HTML = `<!doctype html>
 <html lang="nl">
@@ -501,3 +501,7 @@ export const STUDIO_HTML = `<!doctype html>
 </script>
 </body>
 </html>`;
+
+// Het adres krijgt een vingerafdruk van de inhoud: de Claude-app bewaart een scherm onder
+// zijn adres en haalde na een wijziging de oude versie uit zijn geheugen (24-10-2026).
+export const STUDIO_URI = `ui://animideo/studio-${createHash("sha256").update(STUDIO_HTML).digest("hex").slice(0, 10)}`;
