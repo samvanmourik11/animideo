@@ -10,7 +10,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/service";
 import { ADMIN_ACCOUNTS } from "@/lib/studio/access";
-import { METHODES, METHODE_INFO, MAX_CLIP_SEC, isMethode, leesOpdracht, leesVelden } from "./types";
+import { METHODES, METHODE_INFO, MAX_CLIP_SEC, isMethode, leesOpdracht, leesVelden, lijktOp } from "./types";
+import { vulLinksAan } from "./voorbeelden";
 
 const MODEL = "claude-opus-5-5";
 const AFZENDER = "Animideo <noreply@jouwanimatievideo.nl>";
@@ -39,7 +40,7 @@ const SCHEMA = {
           uitleg: { type: "string", description: "Voor de klant, Nederlands, 1 zin: wat je krijgt. Bv. 'Jij maakt die legendarische volley, met de muziek van de trend.'" },
           waarom_viral: { type: "string", description: "Voor Sam: waarom dit nu viral is, hoe groot, sinds wanneer, waar." },
           origineel: { type: "string", description: "Hoe het origineel gemaakt is (echte opname, Kling motion control, ChatGPT-beeld, CapCut-sjabloon …) en hoe wij het namaken." },
-          bron_links: { type: "array", items: { type: "object", additionalProperties: false, properties: { url: { type: "string" }, titel: { type: "string" } }, required: ["url", "titel"] } },
+          bron_links: { type: "array", items: { type: "object", additionalProperties: false, properties: { url: { type: "string" }, titel: { type: "string" } }, required: ["url", "titel"] }, description: "Concrete video's van de trend eerst (TikTok /video/, YouTube Short, Instagram-reel), dan artikelen met screenshots." },
           icoon: { type: "string", description: "Eén emoji." },
           methode: { type: "string", enum: [...METHODES] },
           fotos: { type: "array", items: { type: "string" }, description: "Per foto die de klant aanlevert een label, bv. 'Een foto van jezelf, van top tot teen'. 0 bij tekst-foto/tekst-video, 1 meestal, max 2." },
@@ -94,7 +95,7 @@ async function zoek(client: Anthropic, opdracht: string, bekend: string): Promis
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: opdracht }];
   const system = `Je bent de trendspotter van Animideo, een Nederlandse app waarmee mensen en bedrijven met AI beelden en video's maken. Je zoekt op internet uit wat er NU viral gaat op TikTok, Instagram Reels en YouTube Shorts (in Nederland en wereldwijd) en wat mensen massaal namaken: een goal of dansje dat iedereen nadoet, een AI-effect, een audio-meme, een fototrend.
 
-Zoek breed (trendrapporten, nieuws, TikTok Creative Center, Instagram-trendlijstjes, Nederlandse media) en controleer dat het echt nu loopt. Schrijf per trend op: wat het is, waarom viral, sinds wanneer, hoe het origineel gemaakt is, en links waar je hem ziet (echte url's uit je zoekresultaten, niets verzinnen).
+Zoek breed (trendrapporten, nieuws, TikTok Creative Center, Instagram-trendlijstjes, Nederlandse media) en controleer dat het echt nu loopt. Schrijf per trend op: wat het is, waarom viral, sinds wanneer, hoe het origineel gemaakt is, en links waar je hem ziet (echte url's uit je zoekresultaten, niets verzinnen). Geef per trend minstens één of twee links naar een concrete video van de trend zelf (een TikTok-video met /video/ in het adres, een YouTube Short of een Instagram-reel), niet alleen een overzichtspagina of hashtag: die video laten we klanten zien als voorbeeld. Een artikel met screenshots van de trend is een goede aanvulling.
 
 Onze bouwstenen om iets na te maken:
 ${BOUWSTENEN}
@@ -176,6 +177,11 @@ function naarRij(v: Voorstel, bron: string) {
   };
 }
 
+async function bekendeTitels(): Promise<string[]> {
+  const { data } = await createServiceClient().from("trends").select("titel").limit(500);
+  return (data ?? []).map((t) => t.titel as string);
+}
+
 async function bekendeTrends(): Promise<string> {
   const { data } = await createServiceClient().from("trends").select("titel, status").order("created_at", { ascending: false }).limit(150);
   return (data ?? []).map((t) => `- ${t.titel}${t.status === "afgewezen" ? " (afgewezen)" : ""}`).join("\n");
@@ -209,7 +215,12 @@ export async function voegToeVanuit(tip: string): Promise<{ nieuw: number; titel
 }
 
 async function bewaar(voorstellen: Voorstel[], bron: string, max = MAX_VOORSTELLEN) {
-  const rijen = voorstellen.map((v) => naarRij(v, bron)).filter((r): r is NonNullable<typeof r> => !!r).slice(0, max);
+  // Claude krijgt de lijst al mee, maar twee zoekrondes tegelijk (de ochtendronde en "Zoek
+  // nu") zagen elkaars vondsten niet: zo stonden er op 25-10 twee keer "Pray For Me".
+  const bekend = bron === "speurtocht" ? await bekendeTitels() : [];
+  const ruw = voorstellen.map((v) => naarRij(v, bron)).filter((r): r is NonNullable<typeof r> => !!r);
+  const uniek = ruw.filter((r, i) => !bekend.some((t) => lijktOp(t, r.titel)) && !ruw.slice(0, i).some((x) => lijktOp(x.titel, r.titel))).slice(0, max);
+  const rijen = await Promise.all(uniek.map(async (r) => ({ ...r, bron_links: await vulLinksAan(r.bron_links) })));
   if (rijen.length) {
     const { error } = await createServiceClient().from("trends").insert(rijen);
     if (error) throw new Error(error.message);

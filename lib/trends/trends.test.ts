@@ -119,3 +119,28 @@ describe("trends: wat de browser ziet", () => {
     expect(v.tekst).toBeNull();
   });
 });
+
+import { beeldUitPagina, spelerVoor } from "./voorbeelden";
+import { lijktOp } from "./types";
+
+describe("trends: voorbeelden", () => {
+  it("herkent video's en maakt er een speler van", () => {
+    expect(spelerVoor("https://www.tiktok.com/@more.dejankat/video/7695240623485521153")).toMatch(/tiktok\.com\/player\/v1\/7695240623485521153/);
+    expect(spelerVoor("https://youtube.com/shorts/abcdefghijk")).toBe("https://www.youtube-nocookie.com/embed/abcdefghijk");
+    expect(spelerVoor("https://www.instagram.com/reel/C1x2y3/")).toBe("https://www.instagram.com/reel/C1x2y3/embed");
+    expect(spelerVoor("https://www.tiktok.com/discover/jean-phill-dance-trend")).toBeNull();
+  });
+  it("vindt het beeld in een artikel en de omslag van een TikTok", () => {
+    expect(beeldUitPagina("https://a.nl/x", '<meta property="og:image" content="https://a.nl/b.jpg?a=1&amp;b=2"/>')).toBe("https://a.nl/b.jpg?a=1&b=2");
+    expect(beeldUitPagina("https://a.nl/x", '<meta content="/rel.png" name="twitter:image">')).toBe("https://a.nl/rel.png");
+    expect(beeldUitPagina("https://www.tiktok.com/@a/video/1", '"cover":"https:\\u002F\\u002Fp16.tiktokcdn.com\\u002Fx.image?a=1"')).toBe("https://p16.tiktokcdn.com/x.image?a=1");
+  });
+});
+
+describe("trends: dubbele trends", () => {
+  it("ziet dezelfde trend onder een andere naam", () => {
+    expect(lijktOp("Pray For Me slow-mo-opkomst", "Pray For Me: de slow-mo entree")).toBe(true);
+    expect(lijktOp("Y2K Halloween-flitsfoto", "Halloween-flitsfoto uit 2003")).toBe(true);
+    expect(lijktOp("De Jean Phil-dans", "Stil in het koor")).toBe(false);
+  });
+});

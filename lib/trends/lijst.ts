@@ -23,3 +23,9 @@ export async function trendVoor(id: string, beheer: boolean): Promise<PubliekeTr
   if (!t || (t.status !== "live" && !beheer)) return null;
   return publiek(t);
 }
+
+/** Voor beheer: wat nog gekeurd moet worden, zoals de klant het straks ziet. */
+export async function teKeuren(): Promise<PubliekeTrend[]> {
+  const { data } = await createServiceClient().from("trends").select(PUBLIEKE_KOLOMMEN).eq("status", "voorstel").order("hotness", { ascending: false }).limit(60);
+  return ((data ?? []) as unknown as Trend[]).map(publiek);
+}

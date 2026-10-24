@@ -100,6 +100,75 @@ export default function TrendBeheer() {
   );
 }
 
+// Voorbeelden van de trend: de video's en screenshots bij de bronlinks. Sam kan zelf een
+// link plakken (TikTok/YouTube/Instagram) of een screenshot uploaden; dat komt vooraan.
+function Voorbeelden({ trend: t, doe, bezig }: { trend: Rij; doe: (b: Record<string, unknown>, label: string) => Promise<void>; bezig: string | null }) {
+  const [link, setLink] = useState("");
+  const [fout, setFout] = useState<string | null>(null);
+
+  async function uploadScreenshot(f: File | undefined) {
+    if (!f) return;
+    setFout(null);
+    try {
+      const sb = createClient();
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) throw new Error("Sessie ongeldig — log opnieuw in.");
+      const pad = `${user.id}/creaties/${crypto.randomUUID()}.${(f.name.split(".").pop() || "png").toLowerCase()}`;
+      const { error } = await sb.storage.from("scene-assets").upload(pad, f, { contentType: f.type || "image/png" });
+      if (error) throw new Error(error.message);
+      await doe({ actie: "link", beeld: sb.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl }, "link");
+    } catch (e) {
+      setFout(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="text-xs text-tekst-3">Voorbeelden van de trend (klanten zien de video&apos;s en beelden, niet de links)</div>
+      {t.bron_links.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {t.bron_links.map((l, i) => (
+            <div key={`${l.url}-${i}`} className="shrink-0 w-24 space-y-1">
+              <a href={l.url} target="_blank" rel="noreferrer" title={l.titel || l.url} className="relative block h-32 w-24 rounded-lg overflow-hidden border border-rand bg-paneel-2">
+                {l.beeld ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={l.beeld} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="flex h-full items-center justify-center p-1 text-center text-[10px] text-tekst-3">geen beeld · {new URL(l.url).hostname.replace("www.", "")}</span>
+                )}
+                {l.embed && <span className="absolute bottom-1 right-1 text-[10px] bg-black/60 text-white rounded px-1">▶ video</span>}
+              </a>
+              <p className="text-[10px] text-tekst-3 truncate">{l.titel || l.url}</p>
+              <button onClick={() => doe({ actie: "link-weg", index: i }, "link")} className="text-[10px] text-tekst-3 hover:text-red-500">weghalen</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2 items-center">
+        <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="Plak een TikTok-, YouTube- of Instagram-link" className="flex-1 min-w-[200px] rounded-lg border border-rand bg-paneel px-2 py-1 text-xs text-tekst" />
+        <button
+          onClick={async () => {
+            await doe({ actie: "link", url: link }, "link");
+            setLink("");
+          }}
+          disabled={!link.trim() || !!bezig}
+          className="n-knop2 text-xs disabled:opacity-50"
+        >
+          {bezig === "link" ? "Bezig…" : "Toevoegen"}
+        </button>
+        <label className="n-knop2 text-xs cursor-pointer">
+          Screenshot uploaden
+          <input type="file" accept="image/*" className="hidden" disabled={!!bezig} onChange={(e) => uploadScreenshot(e.target.files?.[0])} />
+        </label>
+        <button onClick={() => doe({ actie: "beelden" }, "beelden")} disabled={!!bezig} className="text-xs text-tekst-3 hover:text-blue-500">
+          {bezig === "beelden" ? "Zoeken…" : "↻ Beelden zoeken"}
+        </button>
+      </div>
+      {fout && <p className="text-xs text-red-600">{fout}</p>}
+    </div>
+  );
+}
+
 function TrendKaart({ trend: t, onLijst }: { trend: Rij; onLijst: (l: Rij[]) => void }) {
   const [titel, setTitel] = useState(t.titel);
   const [uitleg, setUitleg] = useState(t.uitleg);
@@ -175,13 +244,7 @@ function TrendKaart({ trend: t, onLijst }: { trend: Rij; onLijst: (l: Rij[]) => 
           </label>
           {t.waarom_viral && <p className="text-xs text-tekst-2 whitespace-pre-wrap">🔍 {t.waarom_viral}</p>}
           {t.origineel && <p className="text-xs text-tekst-2">🛠️ {t.origineel}</p>}
-          {t.bron_links.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {t.bron_links.map((l) => (
-                <a key={l.url} href={l.url} target="_blank" rel="noreferrer" className="text-xs text-blue-500 hover:text-blue-400 truncate max-w-[260px]">↗ {l.titel || l.url}</a>
-              ))}
-            </div>
-          )}
+          <Voorbeelden trend={t} doe={doe} bezig={bezig} />
 
           <div className="grid sm:grid-cols-3 gap-2">
             <label className="text-xs text-tekst-3 sm:col-span-2">Methode

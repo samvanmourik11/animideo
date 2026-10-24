@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isAdminAccount } from "@/lib/studio/access";
-import { liveTrends } from "@/lib/trends/lijst";
+import { liveTrends, teKeuren } from "@/lib/trends/lijst";
 import TrendTegel from "@/components/trends/TrendTegel";
 
 export const metadata = { title: "Trends · Animideo" };
@@ -14,7 +14,8 @@ export default async function TrendsStudio() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { nu, klassiekers } = await liveTrends();
+  const beheer = isAdminAccount(user.email);
+  const [{ nu, klassiekers }, voorstellen] = await Promise.all([liveTrends(), beheer ? teKeuren() : Promise.resolve([])]);
 
   return (
     <div className="space-y-10">
@@ -26,10 +27,19 @@ export default async function TrendsStudio() {
             Wat er nu viral gaat op TikTok, Instagram en YouTube — en dat maak je hier met je eigen foto na. Elke dag komen er nieuwe bij.
           </p>
         </div>
-        {isAdminAccount(user.email) && (
+        {beheer && (
           <Link href="/admin/trends" className="n-knop2 text-sm self-start sm:self-auto">Trends keuren →</Link>
         )}
       </div>
+
+      {voorstellen.length > 0 && (
+        <section className="rounded-3xl border border-dashed border-amber-500/50 p-4">
+          <h2 className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-3">Nog te keuren — alleen jij ziet deze rij ({voorstellen.length})</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+            {voorstellen.map((t) => <TrendTegel key={t.id} trend={t} vers />)}
+          </div>
+        </section>
+      )}
 
       <section>
         <h2 className="text-sm font-semibold text-tekst-2 mb-3">Nu viral</h2>
@@ -39,7 +49,7 @@ export default async function TrendsStudio() {
             Er staan nog geen nieuwe trends klaar. Kom morgen terug: we zoeken elke ochtend wat er viral gaat.
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
             {nu.map((t) => <TrendTegel key={t.id} trend={t} vers />)}
           </div>
         )}
@@ -48,7 +58,7 @@ export default async function TrendsStudio() {
       {klassiekers.length > 0 && (
         <section>
           <h2 className="text-sm font-semibold text-tekst-2 mb-3">Eerder viral</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
             {klassiekers.map((t) => <TrendTegel key={t.id} trend={t} />)}
           </div>
         </section>

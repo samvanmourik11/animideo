@@ -4,6 +4,7 @@ import { gebruiker } from "@/lib/delen/route-hulp";
 import { createServiceClient } from "@/lib/supabase/service";
 import { speurtocht, voegToeVanuit } from "@/lib/trends/speuren";
 import { verwerkClip } from "@/lib/trends/clip";
+import { vulLinksAan } from "@/lib/trends/voorbeelden";
 import { isMethode, leesOpdracht, leesVelden, nogNodig, trendCredits, type Trend } from "@/lib/trends/types";
 
 export const runtime = "nodejs";
@@ -85,6 +86,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Zonder trendvideo werkt deze trend niet; zet hem eerst uit." }, { status: 400 });
     }
     await db.from("trends").update({ voorbeeldclip: null, geluid: null, clip_sec: null, updated_at: nu }).eq("id", id);
+  } else if (b.actie === "beelden") {
+    // Opnieuw beelden en spelers zoeken bij de bronlinks (bv. na een nieuwe link).
+    const links = t.bron_links.map(({ beeld: _b, ...l }) => (b.opnieuw === true ? l : { ...l, beeld: _b }));
+    await db.from("trends").update({ bron_links: await vulLinksAan(links), updated_at: nu }).eq("id", id);
+  } else if (b.actie === "link") {
+    // Sam plakt zelf een TikTok-, YouTube- of Instagram-link, of zet een screenshot erbij.
+    const url = String(b.url ?? "").trim();
+    const beeld = String(b.beeld ?? "").trim();
+    if (!/^https:\/\//.test(url || beeld)) return NextResponse.json({ error: "Plak een link die met https:// begint." }, { status: 400 });
+    const nieuw = await vulLinksAan([{ url: url || beeld, titel: url ? "Toegevoegd door jou" : "Screenshot", ...(beeld ? { beeld } : {}) }]);
+    // Een video of screenshot van Sam zelf is meestal het beste voorbeeld: vooraan.
+    await db.from("trends").update({ bron_links: [...nieuw, ...t.bron_links].slice(0, 10), updated_at: nu }).eq("id", id);
+  } else if (b.actie === "link-weg") {
+    const i = Number(b.index);
+    await db.from("trends").update({ bron_links: t.bron_links.filter((_, j) => j !== i), updated_at: nu }).eq("id", id);
   } else if (b.actie === "voorbeeld") {
     // Een geslaagd resultaat (van Sams proefronde) als voorbeeld op de tegel.
     const url = String(b.url ?? "");

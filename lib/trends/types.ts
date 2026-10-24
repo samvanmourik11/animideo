@@ -64,6 +64,21 @@ export interface TrendOpdracht {
   formaat?: TrendFormaat;
 }
 
+/** Een plek waar de trend te zien is, met (als het lukte) een beeld en een speler erbij. */
+export interface BronLink {
+  url: string;
+  titel?: string;
+  /** Stilstaand voorbeeld, op onze opslag (omslag van de video, hoofdbeeld van een artikel, of een screenshot van Sam). */
+  beeld?: string;
+  /** Speler om de originele video in de pagina af te spelen (TikTok, YouTube, Instagram). */
+  embed?: string;
+}
+
+/** Het beeld dat de tegel toont als er nog geen eigen voorbeeld of trendvideo is. */
+export function eersteBeeld(t: { bron_links: BronLink[] }): string | null {
+  return t.bron_links.find((l) => l.beeld)?.beeld ?? null;
+}
+
 /** Wat de browser van een trend mag zien. */
 export interface PubliekeTrend {
   id: string;
@@ -72,7 +87,7 @@ export interface PubliekeTrend {
   icoon: string;
   methode: Methode;
   velden: TrendVelden;
-  bron_links: { url: string; titel?: string }[];
+  bron_links: BronLink[];
   voorbeeldclip: string | null;
   voorbeeld_url: string | null;
   voorbeeld_soort: string | null;
@@ -190,4 +205,18 @@ export function leesOpdracht(ruw: unknown): TrendOpdracht {
     ...(s(o.bewegingPrompt) ? { bewegingPrompt: s(o.bewegingPrompt) } : {}),
     formaat,
   };
+}
+
+/** Woorden die iets zeggen, om dubbele trends onder een net iets andere naam te herkennen. */
+function kernwoorden(titel: string): Set<string> {
+  return new Set(titel.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !["de", "het", "een", "van", "jij", "als", "the", "and", "met", "trend"].includes(w)));
+}
+
+/** Twee titels over dezelfde trend? ("Pray For Me slow-mo-opkomst" ↔ "Pray For Me: de slow-mo entree") */
+export function lijktOp(a: string, b: string): boolean {
+  const x = kernwoorden(a);
+  const y = kernwoorden(b);
+  if (!x.size || !y.size) return false;
+  const samen = [...x].filter((w) => y.has(w)).length;
+  return samen / Math.min(x.size, y.size) >= 0.6;
 }

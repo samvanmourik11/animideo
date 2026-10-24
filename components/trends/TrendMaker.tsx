@@ -7,6 +7,7 @@ import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import BeeldKiezer, { type GekozenBeeld } from "@/components/creaties/BeeldKiezer";
+import TrendVoorbeeld from "./TrendVoorbeeld";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 
 // Het scherm van één trend: links de trend zelf en wat je aanlevert (één of twee foto's,
@@ -116,41 +117,45 @@ export default function TrendMaker({ trend: t, beheer = false }: { trend: Publie
           </p>
         </div>
 
-        <div>
-          <h2 className="text-sm font-semibold text-tekst-2 mb-3">Jouw versies</h2>
-          {melding && <p className="text-xs text-tekst-2 mb-2">{melding}</p>}
-          {lijst.laden && lijst.creaties.length === 0 ? (
-            <p className="text-sm text-tekst-3">Laden…</p>
-          ) : lijst.creaties.length === 0 ? (
-            t.voorbeeld_url || t.voorbeeldclip ? (
-              <div className="n-kaart p-4 max-w-md">
-                <p className="text-sm text-tekst-2 mb-3">{t.voorbeeld_url ? "Zo ziet het eruit:" : "Dit is de trend die je namaakt:"}</p>
-                {t.voorbeeld_url && t.voorbeeld_soort === "beeld" ? (
+        <div className="space-y-6">
+          <div className="grid xl:grid-cols-[minmax(0,380px)_1fr] gap-6 items-start">
+            <TrendVoorbeeld links={t.bron_links} trendvideo={t.voorbeeldclip} />
+            {t.voorbeeld_url && (
+              <div className="n-kaart p-4 space-y-3">
+                <p className="text-sm font-semibold text-tekst-2">Zo wordt jouw versie</p>
+                {t.voorbeeld_soort === "beeld" ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={t.voorbeeld_url} alt="Voorbeeld" className="w-full rounded-2xl border border-rand" />
+                  <img src={t.voorbeeld_url} alt="Voorbeeld" className="w-full max-w-[340px] mx-auto rounded-2xl border border-rand" />
                 ) : (
-                  <video src={t.voorbeeld_url ?? t.voorbeeldclip!} controls autoPlay muted loop playsInline className="w-full rounded-2xl border border-rand" />
+                  <video src={t.voorbeeld_url} controls autoPlay muted loop playsInline className="w-full max-w-[340px] mx-auto rounded-2xl border border-rand" />
                 )}
-                <p className="text-xs text-tekst-3 mt-3">{metFoto ? "Kies links je eigen foto en klik op Maak na." : "Vul links in wat je wilt en klik op Maak na."}</p>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <h2 className="text-sm font-semibold text-tekst-2 mb-3">Jouw versies</h2>
+            {melding && <p className="text-xs text-tekst-2 mb-2">{melding}</p>}
+            {lijst.laden && lijst.creaties.length === 0 ? (
+              <p className="text-sm text-tekst-3">Laden…</p>
+            ) : lijst.creaties.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-rand p-10 text-center text-tekst-3">
+                <div className="text-4xl mb-3">{t.icoon}</div>
+                {metFoto ? "Kies links je foto en klik op Maak na." : "Vul links in wat je wilt en klik op Maak na."}
               </div>
             ) : (
-              <div className="rounded-3xl border border-dashed border-rand p-12 text-center text-tekst-3">
-                <div className="text-4xl mb-3">{t.icoon}</div>
-                {metFoto ? "Kies links een foto en klik op Maak na." : "Vul links in wat je wilt en klik op Maak na."}
+              <div className="columns-1 sm:columns-2 lg:columns-3 gap-3 [&>*]:mb-3 [&>*]:break-inside-avoid">
+                {lijst.creaties.map((c) => (
+                  <div key={c.id}>
+                    <CreatieKaart creatie={c} onOpen={() => setOpen(c)} onFavoriet={async () => lijst.werkBij(await zetFavoriet(c))} />
+                    {beheer && c.status === "klaar" && c.url && (
+                      <button onClick={() => alsVoorbeeld(c)} className="mt-1 text-xs text-blue-500 hover:text-blue-400">⭐ Gebruik als voorbeeld op de tegel</button>
+                    )}
+                  </div>
+                ))}
               </div>
-            )
-          ) : (
-            <div className="columns-1 sm:columns-2 gap-3 [&>*]:mb-3 [&>*]:break-inside-avoid">
-              {lijst.creaties.map((c) => (
-                <div key={c.id}>
-                  <CreatieKaart creatie={c} onOpen={() => setOpen(c)} onFavoriet={async () => lijst.werkBij(await zetFavoriet(c))} />
-                  {beheer && c.status === "klaar" && c.url && (
-                    <button onClick={() => alsVoorbeeld(c)} className="mt-1 text-xs text-blue-500 hover:text-blue-400">⭐ Gebruik als voorbeeld op de tegel</button>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
