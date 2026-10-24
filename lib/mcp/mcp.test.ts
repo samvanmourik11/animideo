@@ -46,7 +46,7 @@ describe("MCP-server", () => {
 
   it("biedt de gereedschappen aan, zonder de chatknoppen; betaalde met akkoord_credits", async () => {
     const tools = ((await vraag("tools/list"))!.result as { tools: { name: string; inputSchema: { properties: Record<string, unknown> } }[] }).tools;
-    expect(tools.map((t) => t.name)).toEqual(["maak_beeld", "zoek_stemmen", "status", "wacht_op", "saldo", "stel_budget_voor", "keur_budget_goed", "toon_storyboard", "apps_en_effecten"]);
+    expect(tools.map((t) => t.name)).toEqual(["maak_beeld", "zoek_stemmen", "status", "wacht_op", "saldo", "stel_budget_voor", "keur_budget_goed", "toon_stemmen", "toon_storyboard", "apps_en_effecten"]);
     expect(tools[0].inputSchema.properties.akkoord_credits).toBeTruthy();
     expect(tools[1].inputSchema.properties.akkoord_credits).toBeUndefined();
   });
@@ -78,7 +78,9 @@ describe("MCP-server", () => {
 
   it("de Claude-app krijgt een scherm: prijs met Start, en de studio-pagina als resource", async () => {
     const tools = ((await vraag("tools/list"))!.result as { tools: { name: string; _meta?: { ui?: { resourceUri?: string } } }[] }).tools;
-    const uri = tools.find((t) => t.name === "maak_beeld")!._meta!.ui!.resourceUri!;
+    // Geen kaartje bij elke gestarte stap meer; wel bij de resultaten (status/wacht_op).
+    expect(tools.find((t) => t.name === "maak_beeld")!._meta).toBeUndefined();
+    const uri = tools.find((t) => t.name === "status")!._meta!.ui!.resourceUri!;
     expect(uri).toMatch(/^ui:\/\/animideo\/studio-[0-9a-f]{10}$/);
     const prijs = (await vraag("tools/call", { name: "maak_beeld", arguments: { prompt: "taart" } }))!.result as { structuredContent: Record<string, unknown> };
     expect(prijs.structuredContent).toMatchObject({ weergave: "prijs", tool: "maak_beeld", credits: 2, arguments: { prompt: "taart" }, saldo: 42 });

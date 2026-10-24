@@ -44,7 +44,9 @@ interface McpTool { name: string; description: string; inputSchema: Record<strin
 
 // Gereedschappen met een eigen scherm in de Claude-app (MCP Apps): kiezen, prijs + Start,
 // galerij. Programma's die dat niet kennen, negeren _meta en gebruiken gewoon de tekst.
-const MET_SCHERM = new Set(["zoek_stemmen", "ugc_creators", "mijn_werk", "status", "maak_contentkalender"]);
+// Bewust weinig schermen (Sam, 24-10-2026: "voelt als een overvloed"): de resultaten van een
+// ronde samen (wacht_op/status), de aanraders voor een stem, creators, en de kalender.
+const MET_SCHERM = new Set(["ugc_creators", "mijn_werk", "status", "maak_contentkalender"]);
 // Beide vormen: de huidige (_meta.ui.resourceUri) en de oudere platte sleutel, die sommige
 // programma's nog lezen.
 const SCHERM = { ui: { resourceUri: STUDIO_URI }, "ui/resourceUri": STUDIO_URI };
@@ -100,7 +102,7 @@ export function mcpTools(_schermen = false): McpTool[] {
         akkoord_credits: { type: "integer", description: "Alleen voor een losse stap buiten een budget: na akkoord van de gebruiker het aantal credits dat je terugkreeg." },
       };
     }
-    const scherm = BETAALDE_TOOLS.has(t.name) || MET_SCHERM.has(t.name);
+    const scherm = MET_SCHERM.has(t.name);
     return {
       name: t.name,
       description: `${t.description}${BETAALDE_TOOLS.has(t.name) ? " Kost credits: geef budget_id mee (na één akkoord op het projectbudget). Zonder budget krijg je eerst de prijs terug." : ""}`,
@@ -141,6 +143,16 @@ export function mcpTools(_schermen = false): McpTool[] {
       inputSchema: { type: "object", properties: { budget_id: { type: "string" } }, required: ["budget_id"] },
     },
     {
+      name: "toon_stemmen",
+      description: "Laat je 3-5 aanraders voor een stem horen (gratis), elk met één zin waarom hij past. De gebruiker luistert en kiest in het scherm; wacht op zijn keuze. Zoek ze eerst met zoek_stemmen.",
+      inputSchema: {
+        type: "object",
+        properties: { stemmen: { type: "array", minItems: 2, maxItems: 5, items: { type: "object", properties: { id: { type: "string" }, waarom: { type: "string" } }, required: ["id", "waarom"] } } },
+        required: ["stemmen"],
+      },
+      _meta: SCHERM,
+    },
+    {
       name: "toon_storyboard",
       description: "Laat schetsen ter goedkeuring zien als storyboard (gratis): de beelden op volgorde met per scène een bijschrift, en de knoppen Goedkeuren / Aanpassen.",
       inputSchema: {
@@ -170,9 +182,16 @@ const REGISSEUR_INSTRUCTIES = `Animideo is een Nederlandse app om met AI beelden
 export async function instructies(_schermen = false): Promise<string> {
   return `Animideo is een Nederlandse app om met AI beelden en video's te maken. Met deze gereedschappen werk je in de bibliotheek en met de credits van de gebruiker.
 
-Zo werk je (net als de Regisseur van Animideo):
+Zo werk je (net als de Regisseur van Animideo): het is een GESPREK, geen lopende band.
 - Praat zelf met de gebruiker, kort en in het Nederlands. Vragen stel je gewoon in de chat; vraag niet meer dan nodig.
-- Start je iets, roep dan meteen wacht_op aan en ga verder zodra het klaar is. Zeg nooit dat de gebruiker later moet terugkomen of "check" moet sturen.
+- Werk in rondes en STOP na elke ronde voor de reactie van de gebruiker (beëindig je beurt met één korte vraag). Nooit alles in één keer achter elkaar maken, ook niet met een goedgekeurd budget:
+  1. Plan: kort het script per scène + stel_budget_voor. Stop.
+  2. Beelden (het storyboard): alle scènebeelden tegelijk starten, wacht_op, dan in één zin vragen of ze goed zijn of wat anders moet. Stop.
+  3. Beweging: na zijn ja de clips starten, wacht_op, kort laten zien. Stop als er iets te kiezen valt.
+  4. Stem: zoek_stemmen, kies er zelf 3-5 die passen, toon_stemmen. Stop tot hij kiest.
+  5. Montage: monteer, wacht_op, het eindresultaat met één zin. Klaar.
+- Na het starten van stappen in een ronde: meteen wacht_op (die laat de resultaten samen zien). Zeg nooit dat de gebruiker later moet terugkomen of "check" moet sturen.
+- Geen opsomming van alle mogelijkheden; doe één voorstel en vraag of het goed is.
 - Vraagt de gebruiker om een aantal scènes of een eigen opbouw, bouw het dan zelf met maak_beeld, maak_video en monteer, precies zoals gevraagd. maak_reclame (3 shots, kant-en-klaar vanaf een productpagina) alleen als iemand gewoon een snelle productreclame wil.
 
 Zo maak je mooie video's:
@@ -301,6 +320,15 @@ export async function roepAan(userId: string, naam: string, args: Record<string,
     if (naam === "keur_budget_goed") {
       const b = await keurGoed(userId, args.budget_id);
       return tekst(`Akkoord: budget ${b.id} van ${b.totaal} credits staat aan (24 uur geldig). Geef budget_id ${b.id} mee bij elke betaalde stap.`);
+    }
+    if (naam === "toon_stemmen") {
+      const lijst = (Array.isArray(args.stemmen) ? args.stemmen : []).slice(0, 5) as { id?: string; waarom?: string }[];
+      const stemmen = lijst.map((x) => BIBLIOTHEEK.find((b) => b.id === x.id) && { ...BIBLIOTHEEK.find((b) => b.id === x.id)!, waarom: String(x.waarom ?? "") }).filter(Boolean) as (typeof BIBLIOTHEEK[number] & { waarom: string })[];
+      if (!stemmen.length) return tekst("Onbekende stem-ids; zoek ze eerst met zoek_stemmen.", true);
+      return {
+        ...tekst(`${stemmen.length} stemmen staan in beeld om te beluisteren: ${stemmen.map((x) => `${x.naam} (${x.id})`).join(", ")}. Wacht tot de gebruiker er een kiest.`),
+        structuredContent: { weergave: "stemmen", stemmen: stemmen.map((x) => ({ id: x.id, naam: x.naam, typering: x.typering, accent: x.accent, voorbeeld: x.voorbeeld, waarom: x.waarom })) },
+      };
     }
     if (naam === "toon_storyboard") {
       const ids = (Array.isArray(args.beeld_ids) ? args.beeld_ids : []).map(String).slice(0, 12);
