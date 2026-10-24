@@ -21,6 +21,13 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Ongeldige JSON." } }, { status: 400 });
   const lijst = Array.isArray(body) ? body : [body];
+  // Tijdelijk (24-10-2026): zien wat de Claude-app vraagt, om het MCP Apps-scherm werkend te krijgen.
+  if (process.env.NODE_ENV !== "production") {
+    for (const v of lijst) {
+      const meta = v?.params?._meta ?? {};
+      console.log("[mcp]", v?.method, v?.params?.name ?? v?.params?.uri ?? "", "| versie:", meta["io.modelcontextprotocol/protocolVersion"] ?? v?.params?.protocolVersion ?? "-", "| kan:", JSON.stringify(meta["io.modelcontextprotocol/clientCapabilities"] ?? v?.params?.capabilities ?? null), "| klant:", JSON.stringify(meta["io.modelcontextprotocol/clientInfo"] ?? v?.params?.clientInfo ?? null));
+    }
+  }
   const antwoorden = (await Promise.all(lijst.map((v) => verwerk(userId, v)))).filter(Boolean);
   // Alleen meldingen ontvangen: niets terug te sturen.
   if (!antwoorden.length) return new NextResponse(null, { status: 202 });

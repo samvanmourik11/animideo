@@ -76,4 +76,15 @@ describe("MCP-server", () => {
     expect(res.contents[0].text).toContain("ui/initialize");
     expect(res.contents[0]._meta.ui.csp.resourceDomains).toContain("https://*.supabase.co");
   });
+
+  it("nieuwe versie (2026-07-28): server/discover zonder handdruk, met de schermen erbij", async () => {
+    const meta = { "io.modelcontextprotocol/protocolVersion": "2026-07-28", "io.modelcontextprotocol/clientCapabilities": {} };
+    const r = (await verwerk("u1", { jsonrpc: "2.0", id: 9, method: "server/discover", params: { _meta: meta } }))!.result as Record<string, unknown>;
+    expect(r).toMatchObject({ resultType: "complete", supportedVersions: expect.arrayContaining(["2026-07-28"]) });
+    expect((r.capabilities as { extensions: Record<string, unknown> }).extensions["io.modelcontextprotocol/ui"]).toBeTruthy();
+    const lijst = (await verwerk("u1", { jsonrpc: "2.0", id: 10, method: "tools/list", params: { _meta: meta } }))!.result as Record<string, unknown>;
+    expect(lijst.resultType).toBe("complete");
+    const fout = (await verwerk("u1", { jsonrpc: "2.0", id: 11, method: "tools/list", params: { _meta: { "io.modelcontextprotocol/protocolVersion": "2099-01-01" } } }))!;
+    expect(fout.error).toBeTruthy();
+  });
 });

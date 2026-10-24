@@ -22,7 +22,12 @@ import { regieboekTekst } from "@/lib/regisseur/regieboek";
 import { BIBLIOTHEEK } from "@/lib/stem/bibliotheek";
 import { STUDIO_HTML, STUDIO_URI } from "./studio-html";
 
-export const PROTOCOL_VERSIES = ["2025-06-18", "2025-03-26", "2024-11-05"];
+// 2026-07-28 werkt zonder "handdruk" (initialize): elk verzoek draagt zijn versie en de
+// mogelijkheden van het programma in params._meta, en server/discover vertelt wat wij kunnen.
+// De Claude-app probeert die eerst; de oudere versies blijven werken voor andere programma's.
+export const NIEUW = "2026-07-28";
+export const PROTOCOL_VERSIES = [NIEUW, "2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
+const SERVER_INFO = { name: "animideo", title: "Animideo", version: "1.1.0" };
 
 // Wat het chatscherm van de Regisseur zelf afhandelt, of wat aan een Regisseur-project vastzit.
 const NIET = new Set(["vraag_keuze", "wacht_op", ...FILM_BETAALD, ...FILM_GRATIS]);
@@ -32,7 +37,9 @@ interface McpTool { name: string; description: string; inputSchema: Record<strin
 // Gereedschappen met een eigen scherm in de Claude-app (MCP Apps): kiezen, prijs + Start,
 // galerij. Programma's die dat niet kennen, negeren _meta en gebruiken gewoon de tekst.
 const MET_SCHERM = new Set(["zoek_stemmen", "ugc_creators", "mijn_werk", "status"]);
-const SCHERM = { ui: { resourceUri: STUDIO_URI } };
+// Beide vormen: de huidige (_meta.ui.resourceUri) en de oudere platte sleutel, die sommige
+// programma's nog lezen.
+const SCHERM = { ui: { resourceUri: STUDIO_URI }, "ui/resourceUri": STUDIO_URI };
 // Waar plaatjes en stemvoorbeelden vandaan komen: onze opslag, ElevenLabs, Google (voorbeelden), fal.
 const SCHERM_CSP = { resourceDomains: ["https://*.supabase.co", "https://api.us.elevenlabs.io", "https://storage.googleapis.com", "https://*.fal.media"], connectDomains: [] as string[] };
 
@@ -174,31 +181,53 @@ export async function roepAan(userId: string, naam: string, args: Record<string,
 
 interface Verzoek { jsonrpc?: string; id?: string | number | null; method?: string; params?: Record<string, unknown> }
 
+/** Welke versie dit verzoek spreekt (nieuw: in params._meta; oud: afgesproken bij initialize). */
+export function versieVan(v: Verzoek): string | null {
+  const meta = (v.params?._meta ?? {}) as Record<string, unknown>;
+  const ver = meta["io.modelcontextprotocol/protocolVersion"];
+  return typeof ver === "string" ? ver : null;
+}
+
 export async function verwerk(userId: string, v: Verzoek): Promise<Record<string, unknown> | null> {
-  const antwoord = (result: unknown) => ({ jsonrpc: "2.0", id: v.id ?? null, result });
+  const nieuw = versieVan(v) !== null;
+  // In de nieuwe versie zegt elk resultaat expliciet dat het af is (geen vervolgvraag).
+  const antwoord = (result: unknown) => ({ jsonrpc: "2.0", id: v.id ?? null, result: nieuw ? { resultType: "complete", ...(result as object) } : result });
   const fout = (code: number, message: string) => ({ jsonrpc: "2.0", id: v.id ?? null, error: { code, message } });
   // Meldingen (zonder id) krijgen geen antwoord.
   if (v.id === undefined || v.id === null) return null;
+  if (nieuw && !PROTOCOL_VERSIES.includes(versieVan(v)!)) {
+    return { jsonrpc: "2.0", id: v.id ?? null, error: { code: -32602, message: "Unsupported protocol version", data: { supported: PROTOCOL_VERSIES } } };
+  }
+  const bewaar = { ttlMs: 5 * 60 * 1000, cacheScope: "private" };
   switch (v.method) {
+    case "server/discover":
+      return antwoord({
+        supportedVersions: PROTOCOL_VERSIES,
+        capabilities: { tools: { listChanged: false }, resources: {}, extensions: { "io.modelcontextprotocol/ui": { mimeTypes: ["text/html;profile=mcp-app"] } } },
+        instructions: await instructies(),
+        _meta: { "io.modelcontextprotocol/serverInfo": SERVER_INFO },
+        ...bewaar,
+      });
     case "initialize": {
       const gevraagd = String(v.params?.protocolVersion ?? "");
       return antwoord({
-        protocolVersion: PROTOCOL_VERSIES.includes(gevraagd) ? gevraagd : PROTOCOL_VERSIES[0],
+        // De oude handdruk: nooit de nieuwe versie (die kent geen initialize).
+        protocolVersion: PROTOCOL_VERSIES.includes(gevraagd) && gevraagd !== NIEUW ? gevraagd : "2025-06-18",
         capabilities: { tools: { listChanged: false }, resources: { listChanged: false } },
-        serverInfo: { name: "animideo", title: "Animideo", version: "1.0.0" },
+        serverInfo: SERVER_INFO,
         instructions: await instructies(),
       });
     }
     case "ping":
       return antwoord({});
     case "resources/list":
-      return antwoord({ resources: [{ uri: STUDIO_URI, name: "Animideo-studio", description: "Kiezen, prijs + Start en resultaten van Animideo", mimeType: "text/html;profile=mcp-app" }] });
+      return antwoord({ resources: [{ uri: STUDIO_URI, name: "Animideo-studio", description: "Kiezen, prijs + Start en resultaten van Animideo", mimeType: "text/html;profile=mcp-app" }], ...(nieuw ? bewaar : {}) });
     case "resources/read": {
       if (v.params?.uri !== STUDIO_URI) return fout(-32002, "Onbekende resource.");
-      return antwoord({ contents: [{ uri: STUDIO_URI, mimeType: "text/html;profile=mcp-app", text: STUDIO_HTML, _meta: { ui: { csp: SCHERM_CSP, prefersBorder: true } } }] });
+      return antwoord({ contents: [{ uri: STUDIO_URI, mimeType: "text/html;profile=mcp-app", text: STUDIO_HTML, _meta: { ui: { csp: SCHERM_CSP, prefersBorder: true } } }], ...(nieuw ? bewaar : {}) });
     }
     case "tools/list":
-      return antwoord({ tools: mcpTools() });
+      return antwoord({ tools: mcpTools(), ...(nieuw ? bewaar : {}) });
     case "tools/call": {
       const naam = String(v.params?.name ?? "");
       const args = (v.params?.arguments ?? {}) as Record<string, unknown>;
