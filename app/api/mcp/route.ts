@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       console.log("[mcp]", v?.method, v?.params?.name ?? v?.params?.uri ?? "", "| versie:", meta["io.modelcontextprotocol/protocolVersion"] ?? v?.params?.protocolVersion ?? "-", "| kan:", JSON.stringify(meta["io.modelcontextprotocol/clientCapabilities"] ?? v?.params?.capabilities ?? null), "| klant:", JSON.stringify(meta["io.modelcontextprotocol/clientInfo"] ?? v?.params?.clientInfo ?? null));
     }
   }
-  const antwoorden = (await Promise.all(lijst.map((v) => verwerk(userId, v)))).filter(Boolean);
+  const antwoorden = (await Promise.all(lijst.map((v) => verwerk(userId, v, origin(req))))).filter(Boolean);
   // Alleen meldingen ontvangen: niets terug te sturen.
   if (!antwoorden.length) return new NextResponse(null, { status: 202 });
   return NextResponse.json(Array.isArray(body) ? antwoorden : antwoorden[0]);

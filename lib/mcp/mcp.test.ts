@@ -21,6 +21,14 @@ vi.mock("@/lib/creaties/wachtrij", () => ({ verversLopende: vi.fn() }));
 vi.mock("@/lib/credits", () => ({ getCredits: async () => 42 }));
 vi.mock("@/lib/team/team", () => ({ betalerVan: async (id: string) => id }));
 vi.mock("sharp", () => ({ default: vi.fn() }));
+// Het budget: één rij in het geheugen, zoals de echte tabel hem zou bijhouden.
+const budget = { rest: 10, actief: false };
+vi.mock("./budget", () => ({
+  prijslijst: () => "beeld 1",
+  stelVoor: async () => ({ id: "b1", posten: [{ wat: "4 beelden", credits: 8 }], totaal: 8 }),
+  keurGoed: async () => ((budget.actief = true), { id: "b1", totaal: 8, uitgegeven: 0, omschrijving: "x" }),
+  gebruik: async (_u: string, _id: string, c: number) => (budget.actief && budget.rest >= c ? (budget.rest -= c) : null),
+}));
 import { verwerk } from "./server";
 import { hash, nieuweSleutel } from "./sleutels";
 
@@ -36,7 +44,7 @@ describe("MCP-server", () => {
 
   it("biedt de gereedschappen aan, zonder de chatknoppen; betaalde met akkoord_credits", async () => {
     const tools = ((await vraag("tools/list"))!.result as { tools: { name: string; inputSchema: { properties: Record<string, unknown> } }[] }).tools;
-    expect(tools.map((t) => t.name)).toEqual(["maak_beeld", "zoek_stemmen", "status", "saldo"]);
+    expect(tools.map((t) => t.name)).toEqual(["maak_beeld", "zoek_stemmen", "status", "saldo", "stel_budget_voor", "keur_budget_goed", "toon_storyboard", "apps_en_effecten"]);
     expect(tools[0].inputSchema.properties.akkoord_credits).toBeTruthy();
     expect(tools[1].inputSchema.properties.akkoord_credits).toBeUndefined();
   });
@@ -86,5 +94,19 @@ describe("MCP-server", () => {
     expect(lijst.resultType).toBe("complete");
     const fout = (await verwerk("u1", { jsonrpc: "2.0", id: 11, method: "tools/list", params: { _meta: { "io.modelcontextprotocol/protocolVersion": "2099-01-01" } } }))!;
     expect(fout.error).toBeTruthy();
+  });
+
+  it("één keer akkoord op het projectbudget; daarna starten betaalde stappen zonder vraag", async () => {
+    gestart.mockClear();
+    const voorstel = (await vraag("tools/call", { name: "stel_budget_voor", arguments: { omschrijving: "Reclame", posten: [{ wat: "4 beelden", credits: 8 }] } }))!.result as { structuredContent: Record<string, unknown> };
+    expect(voorstel.structuredContent).toMatchObject({ weergave: "budget", budget_id: "b1", totaal: 8 });
+    // Nog niet goedgekeurd: dan toch eerst de prijs.
+    const eerst = (await vraag("tools/call", { name: "maak_beeld", arguments: { prompt: "x", budget_id: "b1" } }))!.result as { content: { text: string }[] };
+    expect(eerst.content[0].text).toContain("Dit kost 2 credits");
+    expect(gestart).not.toHaveBeenCalled();
+    await vraag("tools/call", { name: "keur_budget_goed", arguments: { budget_id: "b1" } });
+    const dan = (await vraag("tools/call", { name: "maak_beeld", arguments: { prompt: "x", budget_id: "b1" } }))!.result as { content: { text: string }[] };
+    expect(dan.content[0].text).toContain("Gestart binnen het budget");
+    expect(gestart).toHaveBeenCalledTimes(1);
   });
 });

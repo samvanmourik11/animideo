@@ -18,32 +18,38 @@ export const STUDIO_HTML = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Animideo</title>
 <style>
-  :root { --bg:#ffffff; --kaart:#f4f6fb; --rand:#e2e7f0; --tekst:#0f172a; --tekst2:#475569; --blauw:#1c72ed; --blauw2:#5a9df8; }
-  :root[data-thema="dark"] { --bg:#0b1230; --kaart:#121b3f; --rand:#22305e; --tekst:#eef2ff; --tekst2:#a5b0d0; }
+  /* De lichte uitstraling van de nieuwe app (Sam, 24-10-2026), ook als Claude donker staat. */
+  :root { --bg:#ffffff; --vlak:#f5f7fb; --kaart:#ffffff; --kaart2:#ecf1f8; --rand:#dfe5ef; --tekst:#0f172a; --tekst2:#334155; --tekst3:#64748b; --blauw:#2563eb; --blauw2:#3b82f6; color-scheme: light; }
   * { box-sizing:border-box; }
   html { height:auto; }
-  body { margin:0; padding:12px; font:14px/1.45 Inter, system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--tekst); }
+  body { margin:0; padding:14px; font:14px/1.45 Inter, system-ui, -apple-system, sans-serif; background:var(--vlak); color:var(--tekst); border-radius:16px; }
   .kop { display:flex; align-items:center; gap:8px; margin-bottom:10px; font-weight:600; }
-  .logo { font-weight:800; letter-spacing:-.02em; } .logo b { color:var(--blauw); }
+  .logo { font-weight:800; letter-spacing:-.02em; } .logo i { color:var(--blauw); font-style:normal; }
   .sub { color:var(--tekst2); font-size:12px; font-weight:400; }
   .raster { display:grid; gap:8px; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); }
-  .kaart { background:var(--kaart); border:1px solid var(--rand); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+  .kaart { background:var(--kaart); border:1px solid var(--rand); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 1px 2px rgba(15,23,42,.05); }
   .kaart .in { padding:8px 10px; display:flex; flex-direction:column; gap:4px; flex:1; }
-  .naam { font-weight:600; } .klein { font-size:12px; color:var(--tekst2); }
+  .naam { font-weight:600; } .klein { font-size:12px; color:var(--tekst3); }
   .media { width:100%; aspect-ratio:1/1; object-fit:cover; background:#000; display:block; }
   .media.staand { aspect-ratio:3/4; }
-  button { font:inherit; border:0; border-radius:10px; padding:7px 10px; cursor:pointer; background:var(--rand); color:var(--tekst); }
-  button.blauw { background:var(--blauw); color:#fff; font-weight:600; }
+  button { font:inherit; border:1px solid var(--rand); border-radius:12px; padding:7px 12px; cursor:pointer; background:var(--kaart2); color:var(--tekst); }
+  button:hover:not(:disabled) { border-color:#c7d2e3; }
+  button.blauw { background:linear-gradient(90deg, var(--blauw), var(--blauw2)); border-color:transparent; color:#fff; font-weight:600; box-shadow:0 0 14px rgba(59,130,246,.3); }
   button:disabled { opacity:.5; cursor:default; }
   .knoppen { display:flex; gap:6px; margin-top:auto; padding-top:4px; }
   .knoppen button { flex:1; }
-  .prijs { background:var(--kaart); border:1px solid var(--rand); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+  .prijs { background:var(--kaart); border:1px solid var(--rand); border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:10px; box-shadow:0 1px 2px rgba(15,23,42,.05); }
+  .post { display:flex; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid var(--rand); font-size:13px; }
+  .post:last-child { border-bottom:0; } .post b { white-space:nowrap; }
+  .ok { color:#15803d; font-weight:600; }
+  .scene { aspect-ratio:16/9; }
+  .dag { font-size:12px; font-weight:600; color:var(--tekst2); margin:10px 0 4px; }
   .bedrag { font-size:22px; font-weight:800; } .bedrag span { font-size:13px; font-weight:500; color:var(--tekst2); }
   .laad { width:100%; aspect-ratio:1/1; display:flex; align-items:center; justify-content:center; background:linear-gradient(110deg, var(--kaart) 30%, var(--rand) 50%, var(--kaart) 70%); background-size:200% 100%; animation:glans 1.4s linear infinite; color:var(--tekst2); font-size:12px; }
   @keyframes glans { to { background-position:-200% 0; } }
   .mis { color:#dc2626; font-size:12px; }
   .lijst { display:flex; flex-direction:column; gap:8px; }
-  .rij { display:flex; align-items:center; gap:10px; background:var(--kaart); border:1px solid var(--rand); border-radius:14px; padding:8px 10px; }
+  .rij { display:flex; align-items:center; gap:10px; background:var(--kaart); border:1px solid var(--rand); border-radius:14px; padding:8px 10px; box-shadow:0 1px 2px rgba(15,23,42,.05); }
   .rij .wie { min-width:0; flex:0 0 32%; } .rij .wie .naam, .rij .wie .klein { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .rij audio { flex:1; min-width:0; height:36px; }
   .rij button { flex:0 0 auto; }
@@ -79,7 +85,7 @@ export const STUDIO_HTML = `<!doctype html>
     if (m.method === "ui/notifications/host-context-changed" && m.params && m.params.theme) thema(m.params.theme);
   });
 
-  function thema(t) { document.documentElement.setAttribute("data-thema", t === "dark" ? "dark" : "light"); }
+  function thema() { /* altijd licht: de uitstraling van de nieuwe app */ }
   function e(tag, attrs, kinderen) {
     var el = document.createElement(tag);
     for (var k in (attrs || {})) {
@@ -91,7 +97,8 @@ export const STUDIO_HTML = `<!doctype html>
     return el;
   }
   function kop(titel, sub) {
-    return e("div", { class: "kop" }, [e("span", { class: "logo", tekst: "Animideo" }), e("span", { tekst: "· " + titel }), sub ? e("span", { class: "sub", tekst: sub }) : null]);
+    var logo = e("span", { class: "logo" }, [document.createTextNode("Animideo"), e("i", { tekst: "." })]);
+    return e("div", { class: "kop" }, [logo, e("span", { tekst: titel }), sub ? e("span", { class: "sub", tekst: sub }) : null]);
   }
   // Grootte pas doorgeven na het opstarten (eerder negeert de Claude-app het), en alleen
   // als hij echt verandert; de hoogte is wat de inhoud nodig heeft.
@@ -116,7 +123,8 @@ export const STUDIO_HTML = `<!doctype html>
     huidig = s;
     if (peiling) { clearTimeout(peiling); peiling = null; }
     app.innerHTML = "";
-    ({ stemmen: stemmen, creators: creators, galerij: galerij, prijs: prijs })[s.weergave] && ({ stemmen: stemmen, creators: creators, galerij: galerij, prijs: prijs })[s.weergave](s);
+    var weergaven = { stemmen: stemmen, creators: creators, galerij: galerij, prijs: prijs, budget: budget, storyboard: storyboard, apps: apps, kalender: kalender };
+    if (weergaven[s.weergave]) weergaven[s.weergave](s);
   }
 
   // ── Stemmen ──
@@ -247,6 +255,91 @@ export const STUDIO_HTML = `<!doctype html>
       e("div", { class: "knoppen" }, [niet, start]),
       meldingEl,
     ]));
+  }
+
+  // ── Budget voor het hele project: één keer akkoord ──
+  function budget(s) {
+    var akkoord = e("button", { class: "blauw", tekst: "✓ Akkoord · " + s.totaal + " credits" });
+    var anders = e("button", { tekst: "Aanpassen", onclick: function () { zeg("Ik wil het plan of het budget aanpassen."); } });
+    var regel = e("div", { class: "klein" });
+    akkoord.onclick = function () {
+      akkoord.disabled = true; anders.disabled = true; akkoord.textContent = "Even…";
+      vraag("tools/call", { name: "keur_budget_goed", arguments: { budget_id: s.budget_id } }).then(function () {
+        akkoord.textContent = "✓ Akkoord gegeven"; regel.className = "ok"; regel.textContent = "Claude gaat aan de slag; je hoeft niets meer per stap goed te keuren.";
+        vraag("ui/update-model-context", { content: [{ type: "text", text: "De gebruiker gaf akkoord op budget " + s.budget_id + " (" + s.totaal + " credits). Ga verder met het project en geef bij elke betaalde stap budget_id " + s.budget_id + " mee." }] }).catch(function () {});
+        zeg("Akkoord, ga je gang.").catch(function () {});
+      }).catch(function () { akkoord.disabled = false; anders.disabled = false; akkoord.textContent = "✓ Akkoord · " + s.totaal + " credits"; regel.className = "mis"; regel.textContent = "Akkoord geven lukte niet; zeg het anders in de chat."; });
+    };
+    app.appendChild(kop("Plan en budget"));
+    app.appendChild(e("div", { class: "prijs" }, [
+      e("div", { class: "naam", tekst: s.omschrijving }),
+      e("div", {}, (s.posten || []).map(function (p) { return e("div", { class: "post" }, [e("span", { tekst: p.wat }), e("b", { tekst: p.credits + " cr" })]); })),
+      e("div", { class: "bedrag" }, [document.createTextNode(s.totaal + " "), e("span", { tekst: "credits in totaal" })]),
+      s.saldo !== undefined ? e("div", { class: "klein", tekst: "Je saldo: " + s.saldo + " credits · daarna vraagt Claude niet meer per stap" }) : null,
+      e("div", { class: "knoppen" }, [anders, akkoord]),
+      regel,
+    ]));
+  }
+
+  // ── Storyboard ter goedkeuring ──
+  function storyboard(s) {
+    var raster = e("div", { class: "raster", style: "grid-template-columns:repeat(auto-fill, minmax(200px, 1fr))" });
+    (s.scenes || []).forEach(function (sc, i) {
+      raster.appendChild(e("div", { class: "kaart" }, [
+        sc.url ? e("img", { class: "media scene", src: sc.url, alt: "Scène " + (i + 1) }) : e("div", { class: "laad scene", tekst: "Wordt geschetst…" }),
+        e("div", { class: "in" }, [e("div", { class: "klein" }, [e("b", { tekst: (i + 1) + ". " }), document.createTextNode(sc.tekst || "")])]),
+      ]));
+    });
+    var goed = e("button", { class: "blauw", tekst: "✓ Goedkeuren", onclick: function () { goed.disabled = true; zeg("Storyboard goedgekeurd, ga verder."); } });
+    var anders = e("button", { tekst: "✏️ Aanpassen", onclick: function () { zeg("Ik wil iets aanpassen aan het storyboard: "); } });
+    app.appendChild(kop("Storyboard", (s.scenes || []).length + " scènes"));
+    app.appendChild(raster);
+    app.appendChild(e("div", { class: "knoppen", style: "margin-top:10px" }, [anders, goed]));
+  }
+
+  // ── Apps en effecten ──
+  function apps(s) {
+    var lijst = s.apps || [];
+    var zoek = e("input", { class: "zoek", placeholder: "Zoek een app of effect…" });
+    var raster = e("div", { class: "raster" });
+    function vul() {
+      var q = (zoek.value || "").toLowerCase();
+      raster.innerHTML = "";
+      lijst.filter(function (a) { return !q || (a.naam + " " + a.uitleg).toLowerCase().indexOf(q) >= 0; }).slice(0, 60).forEach(function (a) {
+        var media = a.voorbeeld
+          ? (a.voorbeeldSoort === "video" ? e("video", { class: "media", src: a.voorbeeld, muted: "", loop: "", autoplay: "", playsinline: "" }) : e("img", { class: "media", src: a.voorbeeld, alt: a.naam }))
+          : e("div", { class: "laad", style: "animation:none;font-size:32px", tekst: a.icoon });
+        raster.appendChild(e("div", { class: "kaart" }, [media, e("div", { class: "in" }, [
+          e("div", { class: "naam", tekst: a.icoon + " " + a.naam }),
+          e("div", { class: "klein", tekst: a.uitleg }),
+          e("div", { class: "knoppen" }, [e("button", { class: "blauw", tekst: "Gebruik · " + a.credits + " cr", onclick: function () { zeg("Ik wil de app " + a.naam + " gebruiken (app-id " + a.id + ")." + (a.foto ? " Vraag me om: " + a.foto.toLowerCase() + "." : "")); } })]),
+        ])]));
+      });
+      maat();
+    }
+    zoek.oninput = vul;
+    app.appendChild(kop("Apps & effecten", lijst.length + " stuks"));
+    app.appendChild(zoek);
+    app.appendChild(raster);
+    vul();
+  }
+
+  // ── Contentkalender ──
+  function kalender(s) {
+    app.appendChild(kop(s.titel || "Contentkalender", (s.posts || []).length + " posts"));
+    var vorige = "";
+    var doos = e("div", { class: "prijs" });
+    (s.posts || []).forEach(function (p) {
+      var d = new Date(p.gepland_op);
+      var dag = d.toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" });
+      if (dag !== vorige) { doos.appendChild(e("div", { class: "dag", tekst: dag })); vorige = dag; }
+      doos.appendChild(e("div", { class: "post" }, [
+        e("span", { tekst: d.toLocaleTimeString("nl-NL", { hour: "2-digit", minute: "2-digit" }) + " · " + p.idee }),
+        e("b", { tekst: (p.platforms || []).join(" + ") + (p.soort === "video" ? " · video" : "") }),
+      ]));
+    });
+    doos.appendChild(e("div", { class: "knoppen" }, [e("button", { class: "blauw", tekst: "Open en keur in Animideo", onclick: function () { open(s.link); } })]));
+    app.appendChild(doos);
   }
 
   // Precies zoals de officiële App-klasse (ext-apps): appInfo, geen clientInfo. Met een ander

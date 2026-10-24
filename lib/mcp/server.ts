@@ -21,6 +21,9 @@ import { FILM_BETAALD, FILM_GRATIS } from "@/lib/film/tools";
 import { regieboekTekst } from "@/lib/regisseur/regieboek";
 import { BIBLIOTHEEK } from "@/lib/stem/bibliotheek";
 import { STUDIO_HTML, STUDIO_URI } from "./studio-html";
+import { gebruik, keurGoed, prijslijst, stelVoor } from "./budget";
+import { RECEPTEN } from "@/lib/creaties/recepten";
+import { voorbeeld as appVoorbeeld } from "@/lib/creaties/voorbeelden";
 
 // 2026-07-28 werkt zonder "handdruk" (initialize): elk verzoek draagt zijn versie en de
 // mogelijkheden van het programma in params._meta, en server/discover vertelt wat wij kunnen.
@@ -36,7 +39,7 @@ interface McpTool { name: string; description: string; inputSchema: Record<strin
 
 // Gereedschappen met een eigen scherm in de Claude-app (MCP Apps): kiezen, prijs + Start,
 // galerij. Programma's die dat niet kennen, negeren _meta en gebruiken gewoon de tekst.
-const MET_SCHERM = new Set(["zoek_stemmen", "ugc_creators", "mijn_werk", "status"]);
+const MET_SCHERM = new Set(["zoek_stemmen", "ugc_creators", "mijn_werk", "status", "maak_contentkalender"]);
 // Beide vormen: de huidige (_meta.ui.resourceUri) en de oudere platte sleutel, die sommige
 // programma's nog lezen.
 const SCHERM = { ui: { resourceUri: STUDIO_URI }, "ui/resourceUri": STUDIO_URI };
@@ -49,13 +52,14 @@ export function mcpTools(): McpTool[] {
     if (BETAALDE_TOOLS.has(t.name)) {
       schema.properties = {
         ...schema.properties,
-        akkoord_credits: { type: "integer", description: "Laat leeg om eerst de prijs te horen. Pas na akkoord van de gebruiker: het aantal credits dat je terugkreeg." },
+        budget_id: { type: "string", description: "Het goedgekeurde budget van dit project (stel_budget_voor + akkoord). Dan start de stap meteen, zonder nieuwe vraag." },
+        akkoord_credits: { type: "integer", description: "Alleen voor een losse stap buiten een budget: na akkoord van de gebruiker het aantal credits dat je terugkreeg." },
       };
     }
     const scherm = BETAALDE_TOOLS.has(t.name) || MET_SCHERM.has(t.name);
     return {
       name: t.name,
-      description: `${t.description}${BETAALDE_TOOLS.has(t.name) ? " Kost credits: roep eerst aan zonder akkoord_credits voor de prijs; de gebruiker ziet dan een kaart met een Start-knop." : ""}`,
+      description: `${t.description}${BETAALDE_TOOLS.has(t.name) ? " Kost credits: geef budget_id mee (na één akkoord op het projectbudget). Zonder budget krijg je eerst de prijs terug." : ""}`,
       inputSchema: schema,
       ...(scherm ? { _meta: SCHERM } : {}),
     };
@@ -68,6 +72,40 @@ export function mcpTools(): McpTool[] {
       _meta: SCHERM,
     },
     { name: "saldo", description: "Hoeveel credits de gebruiker nog heeft (gratis).", inputSchema: { type: "object", properties: {} } },
+    {
+      name: "stel_budget_voor",
+      description: `Stel het budget voor een heel projectje voor (gratis): schat alle betaalde stappen (bijv. 4 schetsen, 4 eindbeelden, 4 clips, voice-over, montage) met hun credits. De gebruiker ziet een kaart en geeft één keer akkoord; daarna geef je bij elke betaalde stap budget_id mee en vraag je niet meer per stap. Neem een kleine marge voor een overgedane stap. Prijzen: ${prijslijst()}.`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          omschrijving: { type: "string", description: "Wat er gemaakt wordt, kort." },
+          posten: { type: "array", items: { type: "object", properties: { wat: { type: "string" }, credits: { type: "integer", minimum: 0 } }, required: ["wat", "credits"] }, minItems: 1 },
+        },
+        required: ["omschrijving", "posten"],
+      },
+      _meta: SCHERM,
+    },
+    {
+      name: "keur_budget_goed",
+      description: "Zet een voorgesteld budget aan. Alleen als de gebruiker er uitdrukkelijk ja op zei (of op Akkoord klikte in de kaart, dan doet de kaart dit zelf).",
+      inputSchema: { type: "object", properties: { budget_id: { type: "string" } }, required: ["budget_id"] },
+    },
+    {
+      name: "toon_storyboard",
+      description: "Laat schetsen ter goedkeuring zien als storyboard (gratis): de beelden op volgorde met per scène een bijschrift, en de knoppen Goedkeuren / Aanpassen.",
+      inputSchema: {
+        type: "object",
+        properties: { beeld_ids: { type: "array", items: { type: "string" }, minItems: 1, maxItems: 12 }, bijschriften: { type: "array", items: { type: "string" } } },
+        required: ["beeld_ids"],
+      },
+      _meta: SCHERM,
+    },
+    {
+      name: "apps_en_effecten",
+      description: "Laat de kant-en-klare apps en effecten van Animideo zien met voorbeeldbeelden (gratis), zodat de gebruiker er een kan kiezen. Gebruik daarna gebruik_app.",
+      inputSchema: { type: "object", properties: { soort: { type: "string", enum: ["alles", "beeld", "video"] } } },
+      _meta: SCHERM,
+    },
   );
   return lijst;
 }
@@ -80,7 +118,9 @@ Zo maak je mooie video's:
 - Verhaal eerst: schrijf het script (per scène wat je ziet en hoort) en laat de gebruiker het goedkeuren. Reclame/uitleg: hook (direct tegen de kijker) → merk als antwoord → hoe het werkt → wat het oplevert → merknaam en website. Een verhaal: begin, probleem, tegenslag, omslag in beeld, slot.
 - Storyboard: bij 3+ scènes eerst per scène een schets (maak_beeld, kwaliteit 'standaard'), laat ze zien, pas na akkoord eindbeelden ('pro', met de schets als voorbeeld) en clips (maak_video). Monteer met monteer (voice-over: zoek_stemmen).
 - Kant-en-klaar: maak_reclame, maak_ugc_video, maak_trailer. Social media: social_kanalen en maak_contentkalender.
-- Elke betaalde stap: eerst zonder akkoord_credits aanroepen, de prijs aan de gebruiker noemen, na zijn ja opnieuw met akkoord_credits. Volg met status tot het klaar is.
+- Credits: vraag niet per stap. Maak bij een project eerst het plan, schat het met stel_budget_voor (alle stappen, kleine marge) en laat de gebruiker één keer akkoord geven. Daarna voer je de stappen uit met budget_id, zonder opnieuw te vragen; alleen als het budget op is, stel je een nieuw voor. Een enkele losse stap mag ook zonder budget (dan eerst de prijs). Volg met status tot het klaar is.
+- Laat schetsen zien met toon_storyboard, apps met apps_en_effecten.
+- Prijzen: ${prijslijst()}.
 - Geen echte bestaande personen, geen merken van anderen, niets misleidends.
 
 ${await regieboekTekst()}`;
@@ -127,6 +167,16 @@ function galerijItem(c: Pick<Creatie, "id" | "status" | "soort" | "url" | "promp
   return { id: c.id, status: c.status, soort: c.soort, url: c.status === "klaar" ? c.url : null, prompt: c.prompt ?? "", fout: c.status === "mislukt" ? c.foutmelding : null };
 }
 
+/** De contentkalender die maak_contentkalender net opzette, als overzicht met link. */
+async function kalenderScherm(userId: string, tekst: string, basis: string): Promise<Record<string, unknown> | undefined> {
+  const id = tekst.match(/\/studios\/social\/([0-9a-f-]{36})/)?.[1];
+  if (!id) return undefined;
+  const db = createServiceClient();
+  const { data: k } = await db.from("content_kalenders").select("titel").eq("id", id).eq("user_id", userId).maybeSingle();
+  const { data: posts } = await db.from("content_posts").select("gepland_op, platforms, soort, idee").eq("kalender_id", id).order("gepland_op");
+  return { weergave: "kalender", titel: k?.titel ?? "Contentkalender", link: `${basis}/studios/social/${id}`, posts: posts ?? [] };
+}
+
 /** Het scherm bij een gratis gereedschap, als dat er een heeft. */
 function schermBij(naam: string, tekst: string, input: Record<string, unknown>): Record<string, unknown> | undefined {
   try {
@@ -146,24 +196,60 @@ function schermBij(naam: string, tekst: string, input: Record<string, unknown>):
   return undefined;
 }
 
-export async function roepAan(userId: string, naam: string, args: Record<string, unknown>): Promise<{ content: Inhoud[]; isError?: boolean; structuredContent?: Record<string, unknown> }> {
+export async function roepAan(userId: string, naam: string, args: Record<string, unknown>, basis = "https://ai.jouwanimatievideo.nl"): Promise<{ content: Inhoud[]; isError?: boolean; structuredContent?: Record<string, unknown> }> {
   const tekst = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError } : {}) });
   try {
     if (naam === "status") return await status(userId, args.creatie_ids);
     if (naam === "saldo") return tekst(`Saldo: ${await getCredits(await betalerVan(userId), { service: true })} credits.`);
     if (NIET.has(naam)) return tekst(`Onbekend gereedschap: ${naam}`, true);
-    const { akkoord_credits, ...input } = args;
+    if (naam === "stel_budget_voor") {
+      const b = await stelVoor(userId, args.omschrijving, args.posten);
+      const saldo = await getCredits(await betalerVan(userId), { service: true }).catch(() => undefined);
+      return {
+        ...tekst(`Budget voorgesteld: ${b.totaal} credits (budget_id ${b.id}). De gebruiker ziet een kaart met Akkoord; wacht op zijn akkoord (klik of ja in de chat; bij ja roep je keur_budget_goed aan). Daarna elke betaalde stap met budget_id ${b.id}.`),
+        structuredContent: { weergave: "budget", budget_id: b.id, omschrijving: String(args.omschrijving ?? ""), posten: b.posten, totaal: b.totaal, saldo },
+      };
+    }
+    if (naam === "keur_budget_goed") {
+      const b = await keurGoed(userId, args.budget_id);
+      return tekst(`Akkoord: budget ${b.id} van ${b.totaal} credits staat aan (24 uur geldig). Geef budget_id ${b.id} mee bij elke betaalde stap.`);
+    }
+    if (naam === "toon_storyboard") {
+      const ids = (Array.isArray(args.beeld_ids) ? args.beeld_ids : []).map(String).slice(0, 12);
+      const { data } = await createServiceClient().from("creaties").select("id, url, status").eq("user_id", userId).in("id", ids);
+      const bijschriften = (Array.isArray(args.bijschriften) ? args.bijschriften : []).map(String);
+      const scenes = ids.map((id, i) => ({ id, url: (data ?? []).find((c) => c.id === id && c.status === "klaar")?.url ?? null, tekst: bijschriften[i] ?? "" }));
+      return { ...tekst(`Storyboard van ${scenes.length} scènes staat in beeld; wacht op Goedkeuren of Aanpassen.`), structuredContent: { weergave: "storyboard", scenes } };
+    }
+    if (naam === "apps_en_effecten") {
+      const soort = args.soort === "beeld" || args.soort === "video" ? args.soort : null;
+      const apps = RECEPTEN.filter((r) => r.groep !== "branche" && (!soort || r.soort === soort)).map((r) => {
+        const v = appVoorbeeld(r.id);
+        return { id: r.id, naam: r.naam, uitleg: r.uitleg, icoon: r.icoon, soort: r.soort, credits: r.credits, foto: r.zonderFoto ? null : r.fotoLabel, voorbeeld: v?.resultaat ?? null, voorbeeldSoort: v?.soort ?? null };
+      });
+      return { ...tekst(apps.map((a) => `${a.id}: ${a.naam} (${a.soort}, ${a.credits} cr) — ${a.uitleg}`).join("\n")), structuredContent: { weergave: "apps", apps } };
+    }
+    const { akkoord_credits, budget_id, ...input } = args;
     const blok = { type: "tool_use", id: `mcp_${Date.now()}`, name: naam, input } as unknown as Anthropic.Beta.BetaToolUseBlock;
     if (GRATIS_TOOLS.has(naam)) {
       const t = await gratis(userId, blok);
-      const scherm = schermBij(naam, t, input);
+      const scherm = naam === "maak_contentkalender" ? await kalenderScherm(userId, t, basis) : schermBij(naam, t, input);
       return { ...tekst(t), ...(scherm ? { structuredContent: scherm } : {}) };
     }
     if (!BETAALDE_TOOLS.has(naam)) return tekst(`Onbekend gereedschap: ${naam}`, true);
     const stap = await bereidVoor(userId, blok);
+    // Binnen een goedgekeurd projectbudget: meteen starten, niets vragen.
+    const rest = budget_id ? await gebruik(userId, budget_id, stap.credits) : null;
+    if (rest !== null) {
+      const id = await voerUit(userId, stap);
+      return {
+        ...tekst(`Gestart binnen het budget: creatie ${id} (${stap.credits} credits; nog ${Math.max(0, rest)} over). Volg het met status.`),
+        structuredContent: { weergave: "galerij", titel: stap.omschrijving, items: [{ id, status: "bezig" }], creatie_id: id },
+      };
+    }
     if (Number(akkoord_credits) < stap.credits || akkoord_credits === undefined) {
       return {
-        ...tekst(`Dit kost ${stap.credits} ${stap.credits === 1 ? "credit" : "credits"}: ${stap.omschrijving}. De gebruiker ziet een kaart met een Start-knop; zegt hij in de chat ja, roep ${naam} dan opnieuw aan met dezelfde invoer en akkoord_credits: ${stap.credits}. Heeft hij al op Start geklikt, dan hoor je dat en start je niets opnieuw.`),
+        ...tekst(`${budget_id ? "Het budget is op, verlopen of nog niet goedgekeurd. " : ""}Dit kost ${stap.credits} ${stap.credits === 1 ? "credit" : "credits"}: ${stap.omschrijving}. Hoort dit bij een groter project, stel dan liever één budget voor (stel_budget_voor). De gebruiker ziet een kaart met een Start-knop; zegt hij in de chat ja, roep ${naam} dan opnieuw aan met dezelfde invoer en akkoord_credits: ${stap.credits}. Heeft hij al op Start geklikt, dan hoor je dat en start je niets opnieuw.`),
         structuredContent: { weergave: "prijs", tool: naam, arguments: input, credits: stap.credits, omschrijving: stap.omschrijving, saldo: await getCredits(await betalerVan(userId), { service: true }).catch(() => undefined) },
       };
     }
@@ -188,7 +274,7 @@ export function versieVan(v: Verzoek): string | null {
   return typeof ver === "string" ? ver : null;
 }
 
-export async function verwerk(userId: string, v: Verzoek): Promise<Record<string, unknown> | null> {
+export async function verwerk(userId: string, v: Verzoek, basis?: string): Promise<Record<string, unknown> | null> {
   const nieuw = versieVan(v) !== null;
   // In de nieuwe versie zegt elk resultaat expliciet dat het af is (geen vervolgvraag).
   const antwoord = (result: unknown) => ({ jsonrpc: "2.0", id: v.id ?? null, result: nieuw ? { resultType: "complete", ...(result as object) } : result });
@@ -233,7 +319,7 @@ export async function verwerk(userId: string, v: Verzoek): Promise<Record<string
     case "tools/call": {
       const naam = String(v.params?.name ?? "");
       const args = (v.params?.arguments ?? {}) as Record<string, unknown>;
-      return antwoord(await roepAan(userId, naam, args));
+      return antwoord(await roepAan(userId, naam, args, basis));
     }
     default:
       return fout(-32601, `Onbekende methode: ${v.method}`);
