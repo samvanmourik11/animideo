@@ -23,7 +23,7 @@ export default function TrendVoorbeeld({ links, trendvideo }: { links: BronLink[
 
   return (
     <div className="n-kaart p-4 space-y-3">
-      <p className="text-sm font-semibold text-tekst-2">Zo ziet de trend eruit</p>
+      <p className="text-sm font-semibold text-tekst-2">De originele trend</p>
       <div className="mx-auto max-w-[340px]">
         {nu.soort === "video" && <video src={nu.src} controls autoPlay muted loop playsInline className="w-full rounded-2xl border border-rand" />}
         {nu.soort === "embed" && !speel && nu.beeld && (

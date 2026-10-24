@@ -174,6 +174,7 @@ describe("trends: echte TikToks", () => {
     const v = (titel: string, weergaven: number) => ({ url: "", titel, maker: "x", geluid: "original sound", weergaven, likes: 0, reacties: 0, gedeeld: 0 });
     expect(isUitleg(v("How to do the Burning Bridges AI trend with Higgsfield 🔥", 0))).toBe(true);
     expect(isUitleg(v("Zo maak je deze trend! Prompt in comments", 0))).toBe(true);
+    expect(isUitleg(v("made this with higgsfield genjutsu 😭 #ai", 0))).toBe(false);
     expect(goedVoorbeeld(v("ok sorry I lied 😭 #imsorry", 2_400_000))).toBe(true);
     expect(goedVoorbeeld(v("ok sorry I lied", 20_000))).toBe(false);
   });

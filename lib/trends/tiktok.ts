@@ -32,7 +32,10 @@ export interface TikTokInfo {
  * geen voorbeeld van de trend zelf. Sam, 25-10-2026: "heel veel tutorials hoe je het ergens
  * anders moet maken; ik wil voorbeelden die een beetje viral zijn gegaan".
  */
-const UITLEG = /tutorial|how to|how i made|step by step|stap voor stap|prompt|template|sjabloon|capcut|higgsfield|kling|veo ?\d|sora|runway|pika|hailuo|seedance|nano banana|chatgpt|gemini|midjourney|ai (?:tool|app|generator)|link in (?:bio|my bio)|zo maak je|hoe maak je|uitleg|tuto\b|tutorial|full tutorial/i;
+const UITLEG = /tutorial|how to|how i made|step by step|stap voor stap|prompt (?:in|below|👇)|template link|link in (?:bio|my bio)|zo maak je|hoe maak je|uitleg|\btuto\b|full tutorial/i;
+// Een video die zegt met welke AI hij gemaakt is, is juist wat we zoeken (Sam, 25-10-2026:
+// "virals gemaakt met bijvoorbeeld Higgsfield").
+const AI = /higgsfield|genjutsu|kling|veo ?\d|sora|seedance|hailuo|nano banana|motion (?:control|transfer)|#ai\b|aiart|ai video|ai-video|made with ai|gemaakt met ai/i;
 
 /** Pas vanaf hier telt een video als "een beetje viral". */
 export const MIN_WEERGAVEN = 100_000;
@@ -121,7 +124,7 @@ Trend: ${trend.titel}
 Wat het is: ${trend.uitleg}
 ${trend.waarom_viral ? `Achtergrond: ${trend.waarom_viral.slice(0, 800)}` : ""}
 
-Zoek op de naam van de trend, het geluid/nummer en de hashtag, en zoek specifiek naar adressen van de vorm tiktok.com/@maker/video/<nummer> (bijvoorbeeld met "site:tiktok.com" in je zoekopdracht). Overzichtspagina's (/discover/, /tag/, /music/) tellen niet. Geen nieuwszenders of video's óver de trend, en niets met politiek, politici, rampen of ongepaste inhoud: klanten zien deze video's als voorbeeld in onze app. GEEN tutorials of uitlegvideo's ("how to", "zo maak je dit met <AI-tool>", prompts, sjablonen, reclame voor apps): we willen video's waarin mensen de trend zélf doen en die viral gingen, met honderdduizenden of miljoenen weergaven. Het liefst het origineel en de bekendste navolgingen. Zoek er gerust 6-10, wij kiezen de best bekeken.
+Zoek op de naam van de trend, het geluid/nummer en de hashtag, en zoek specifiek naar adressen van de vorm tiktok.com/@maker/video/<nummer> (bijvoorbeeld met "site:tiktok.com" in je zoekopdracht). Overzichtspagina's (/discover/, /tag/, /music/) tellen niet. Geen nieuwszenders of video's óver de trend, en niets met politiek, politici, rampen of ongepaste inhoud: klanten zien deze video's als voorbeeld in onze app. GEEN tutorials of uitlegvideo's ("how to", "zo maak je dit met <AI-tool>", prompts, sjablonen, reclame voor apps): we willen video's waarin mensen de trend zélf doen en die viral gingen, met honderdduizenden of miljoenen weergaven. Het liefst het origineel en de bekendste navolgingen. Zoek er gerust 6-10, wij kiezen de best bekeken. Het moeten video's zijn die met AI gemaakt zijn (Higgsfield, Kling, Veo enz.), geen gewone opnames.
 
 Geef aan het eind alleen een lijstje met de video-adressen, één per regel. Niets gevonden? Zeg dat dan.`,
     },
@@ -152,7 +155,7 @@ export function kiesBeste(trend: { titel: string; uitleg: string }, lijst: TikTo
   const score = (v: TikTokInfo) => woorden.filter((w) => `${v.titel} ${v.geluid}`.toLowerCase().includes(w)).length;
   // De best bekeken eerst, maar wat duidelijk over deze trend gaat (zelfde geluid, hashtag)
   // weegt mee: een miljoenenvideo met een ander geluid is waarschijnlijk een andere trend.
-  const gewicht = (v: TikTokInfo) => Math.log10(v.weergaven + 1) + score(v);
+  const gewicht = (v: TikTokInfo) => Math.log10(v.weergaven + 1) + score(v) + (AI.test(`${v.titel} ${v.geluid}`) ? 2 : 0);
   return [...lijst].sort((a, b) => gewicht(b) - gewicht(a));
 }
 

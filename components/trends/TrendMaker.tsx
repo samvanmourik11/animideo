@@ -122,7 +122,7 @@ export default function TrendMaker({ trend: t, beheer = false }: { trend: Publie
             <TrendVoorbeeld links={t.bron_links} trendvideo={t.voorbeeldclip} />
             {t.voorbeeld_url && (
               <div className="n-kaart p-4 space-y-3">
-                <p className="text-sm font-semibold text-tekst-2">Zo wordt jouw versie</p>
+                <p className="text-sm font-semibold text-tekst-2">Nagemaakt met AI — zo wordt jouw versie</p>
                 {t.voorbeeld_soort === "beeld" ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={t.voorbeeld_url} alt="Voorbeeld" className="w-full max-w-[340px] mx-auto rounded-2xl border border-rand" />
