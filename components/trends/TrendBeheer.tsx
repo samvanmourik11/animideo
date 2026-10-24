@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { METHODES, METHODE_INFO, MAX_CLIP_SEC, TREND_FORMATEN, type Methode, type Trend, type TrendOpdracht, type TrendVelden } from "@/lib/trends/types";
+import { METHODES, METHODE_INFO, MAX_CLIP_SEC, TREND_FORMATEN, telling, type Methode, type Trend, type TrendOpdracht, type TrendVelden } from "@/lib/trends/types";
 
 // De keurpagina van de Trends-studio: wat de speurtocht vond (of wat Sam zelf tipte)
 // nalopen, aanpassen, de trendvideo erbij zetten, uitproberen en live zetten.
@@ -136,9 +136,10 @@ function Voorbeelden({ trend: t, doe, bezig }: { trend: Rij; doe: (b: Record<str
                 ) : (
                   <span className="flex h-full items-center justify-center p-1 text-center text-[10px] text-tekst-3">geen beeld · {new URL(l.url).hostname.replace("www.", "")}</span>
                 )}
-                {l.embed && <span className="absolute bottom-1 right-1 text-[10px] bg-black/60 text-white rounded px-1">▶ video</span>}
+                {l.embed && <span className="absolute bottom-1 right-1 text-[10px] bg-black/60 text-white rounded px-1">▶ {l.tiktok ? telling(l.tiktok.weergaven) : "video"}</span>}
               </a>
               <p className="text-[10px] text-tekst-3 truncate">{l.titel || l.url}</p>
+              {l.tiktok && <p className="text-[10px] text-tekst-2">♥ {telling(l.tiktok.likes)}</p>}
               <button onClick={() => doe({ actie: "link-weg", index: i }, "link")} className="text-[10px] text-tekst-3 hover:text-red-500">weghalen</button>
             </div>
           ))}

@@ -5,7 +5,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { speurtocht, voegToeVanuit } from "@/lib/trends/speuren";
 import { verwerkClip } from "@/lib/trends/clip";
 import { vulLinksAan } from "@/lib/trends/voorbeelden";
-import { voegToe, zoekTikToks } from "@/lib/trends/tiktok";
+import { controleerTikTok, ververs, voegToe } from "@/lib/trends/tiktok";
 import { isMethode, leesOpdracht, leesVelden, nogNodig, trendCredits, type Trend } from "@/lib/trends/types";
 
 export const runtime = "nodejs";
@@ -93,15 +93,17 @@ export async function POST(req: NextRequest) {
     await db.from("trends").update({ bron_links: await vulLinksAan(links), updated_at: nu }).eq("id", id);
   } else if (b.actie === "tiktoks") {
     // Claude zoekt (opnieuw) echte TikToks van deze trend; duurt ~1 minuut.
-    const gevonden = await zoekTikToks(t).catch(() => []);
-    if (!gevonden.length) return NextResponse.json({ error: "Geen TikToks gevonden. Plak er zelf een, of probeer het later nog eens." }, { status: 404 });
-    await db.from("trends").update({ bron_links: (await vulLinksAan(voegToe(t.bron_links, gevonden))).slice(0, 10), updated_at: nu }).eq("id", id);
+    const links = await ververs(t);
+    if (!links.some((l) => l.tiktok)) return NextResponse.json({ error: "Geen virale TikToks gevonden (alleen tutorials of weinig bekeken). Plak er zelf een, of probeer het later nog eens." }, { status: 404 });
+    await db.from("trends").update({ bron_links: (await vulLinksAan(links)).slice(0, 10), updated_at: nu }).eq("id", id);
   } else if (b.actie === "link") {
     // Sam plakt zelf een TikTok-, YouTube- of Instagram-link, of zet een screenshot erbij.
     const url = String(b.url ?? "").trim();
     const beeld = String(b.beeld ?? "").trim();
     if (!/^https:\/\//.test(url || beeld)) return NextResponse.json({ error: "Plak een link die met https:// begint." }, { status: 400 });
-    const nieuw = await vulLinksAan([{ url: url || beeld, titel: url ? "Toegevoegd door jou" : "Screenshot", ...(beeld ? { beeld } : {}) }]);
+    // Een TikTok van Sam krijgt ook de tellers erbij (weergaven, likes), ook als het niet viral is: hij koos hem zelf.
+    const tt = url.includes("tiktok.com") ? await controleerTikTok(url) : null;
+    const nieuw = await vulLinksAan(tt ? voegToe([], [tt]) : [{ url: url || beeld, titel: url ? "Toegevoegd door jou" : "Screenshot", ...(beeld ? { beeld } : {}) }]);
     // Een video of screenshot van Sam zelf is meestal het beste voorbeeld: vooraan.
     await db.from("trends").update({ bron_links: [...nieuw, ...t.bron_links].slice(0, 10), updated_at: nu }).eq("id", id);
   } else if (b.actie === "link-weg") {

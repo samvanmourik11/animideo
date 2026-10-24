@@ -72,11 +72,22 @@ export interface BronLink {
   beeld?: string;
   /** Speler om de originele video in de pagina af te spelen (TikTok, YouTube, Instagram). */
   embed?: string;
+  /** Bij een TikTok: hoe viral hij ging (zoals TikTok het telde op `gecontroleerd`). */
+  tiktok?: { maker: string; weergaven: number; likes: number; reacties: number; gedeeld: number; gecontroleerd: string };
+}
+
+/** 5900000 → "5,9 mln", 655800 → "656K". */
+export function telling(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString("nl-NL", { maximumFractionDigits: 1 })} mln`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
+  return String(n);
 }
 
 /** Het beeld dat de tegel toont als er nog geen eigen voorbeeld of trendvideo is. */
 export function eersteBeeld(t: { bron_links: BronLink[] }): string | null {
-  return t.bron_links.find((l) => l.beeld)?.beeld ?? null;
+  // De best bekeken TikTok eerst; daarna wat er verder een beeld heeft.
+  const opVolgorde = [...t.bron_links].sort((a, b) => (b.tiktok?.weergaven ?? -1) - (a.tiktok?.weergaven ?? -1));
+  return opVolgorde.find((l) => l.beeld)?.beeld ?? null;
 }
 
 /** Wat de browser van een trend mag zien. */

@@ -22,6 +22,28 @@ export interface TikTokInfo {
   /** Het geluid onder de video: bij een dans- of audiotrend hét kenmerk. */
   geluid: string;
   weergaven: number;
+  likes: number;
+  reacties: number;
+  gedeeld: number;
+}
+
+/**
+ * Een video die uitlegt hóe je de trend maakt (met een AI-tool, een sjabloon, een prompt) is
+ * geen voorbeeld van de trend zelf. Sam, 25-10-2026: "heel veel tutorials hoe je het ergens
+ * anders moet maken; ik wil voorbeelden die een beetje viral zijn gegaan".
+ */
+const UITLEG = /tutorial|how to|how i made|step by step|stap voor stap|prompt|template|sjabloon|capcut|higgsfield|kling|veo ?\d|sora|runway|pika|hailuo|seedance|nano banana|chatgpt|gemini|midjourney|ai (?:tool|app|generator)|link in (?:bio|my bio)|zo maak je|hoe maak je|uitleg|tuto\b|tutorial|full tutorial/i;
+
+/** Pas vanaf hier telt een video als "een beetje viral". */
+export const MIN_WEERGAVEN = 100_000;
+
+export function isUitleg(v: Pick<TikTokInfo, "titel" | "geluid">): boolean {
+  return UITLEG.test(`${v.titel} ${v.geluid}`);
+}
+
+/** Bruikbaar als voorbeeld: geen uitleg, en echt veel bekeken. */
+export function goedVoorbeeld(v: TikTokInfo): boolean {
+  return !isUitleg(v) && v.weergaven >= MIN_WEERGAVEN;
 }
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36";
@@ -42,7 +64,11 @@ export function leesVideoPagina(url: string, html: string): TikTokInfo | null {
     titel: ontsnapt(html.match(/"desc":"([^"]*)"/)?.[1] ?? "").slice(0, 300),
     maker,
     geluid: ontsnapt(html.match(/"music":\{"id":"\d+","title":"([^"]*)"/)?.[1] ?? ""),
+    // De eerste tellers op de pagina zijn die van de video zelf; daarna volgen die van de maker.
     weergaven: Number(html.match(/"playCount":(\d+)/)?.[1] ?? 0),
+    likes: Number(html.match(/"diggCount":(\d+)/)?.[1] ?? 0),
+    reacties: Number(html.match(/"commentCount":(\d+)/)?.[1] ?? 0),
+    gedeeld: Number(html.match(/"shareCount":(\d+)/)?.[1] ?? 0),
   };
 }
 
@@ -78,7 +104,7 @@ Trend: ${trend.titel}
 Wat het is: ${trend.uitleg}
 ${trend.waarom_viral ? `Achtergrond: ${trend.waarom_viral.slice(0, 800)}` : ""}
 
-Zoek op de naam van de trend, het geluid/nummer en de hashtag, en zoek specifiek naar adressen van de vorm tiktok.com/@maker/video/<nummer> (bijvoorbeeld met "site:tiktok.com" in je zoekopdracht). Overzichtspagina's (/discover/, /tag/, /music/) tellen niet. Geen nieuwszenders of video's óver de trend, en niets met politiek, politici, rampen of ongepaste inhoud: klanten zien deze video's als voorbeeld in onze app. Het liefst: het origineel en één of twee goede navolgingen waarop de trend duidelijk te zien is.
+Zoek op de naam van de trend, het geluid/nummer en de hashtag, en zoek specifiek naar adressen van de vorm tiktok.com/@maker/video/<nummer> (bijvoorbeeld met "site:tiktok.com" in je zoekopdracht). Overzichtspagina's (/discover/, /tag/, /music/) tellen niet. Geen nieuwszenders of video's óver de trend, en niets met politiek, politici, rampen of ongepaste inhoud: klanten zien deze video's als voorbeeld in onze app. GEEN tutorials of uitlegvideo's ("how to", "zo maak je dit met <AI-tool>", prompts, sjablonen, reclame voor apps): we willen video's waarin mensen de trend zélf doen en die viral gingen, met honderdduizenden of miljoenen weergaven. Het liefst het origineel en de bekendste navolgingen. Zoek er gerust 6-10, wij kiezen de best bekeken.
 
 Geef aan het eind alleen een lijstje met de video-adressen, één per regel. Niets gevonden? Zeg dat dan.`,
     },
@@ -99,16 +125,18 @@ Geef aan het eind alleen een lijstje met de video-adressen, één per regel. Nie
     if (m.stop_reason !== "pause_turn") break;
     messages.push({ role: "assistant", content: m.content });
   }
-  const gevonden = (await Promise.all(tiktoksIn(tekst).slice(0, 15).map(controleerTikTok))).filter((v): v is TikTokInfo => !!v);
-  return kiesBeste(trend, gevonden).slice(0, max);
+  const gevonden = (await Promise.all(tiktoksIn(tekst).slice(0, 20).map(controleerTikTok))).filter((v): v is TikTokInfo => !!v);
+  return kiesBeste(trend, gevonden.filter(goedVoorbeeld)).slice(0, max);
 }
 
 /** Video's waarvan de beschrijving woorden van de trend bevat, eerst. */
 export function kiesBeste(trend: { titel: string; uitleg: string }, lijst: TikTokInfo[]): TikTokInfo[] {
   const woorden = `${trend.titel} ${trend.uitleg}`.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3);
   const score = (v: TikTokInfo) => woorden.filter((w) => `${v.titel} ${v.geluid}`.toLowerCase().includes(w)).length;
-  // Eerst wat duidelijk over deze trend gaat, dan de best bekeken: dat is meestal het beste voorbeeld.
-  return [...lijst].sort((a, b) => score(b) - score(a) || b.weergaven - a.weergaven);
+  // De best bekeken eerst, maar wat duidelijk over deze trend gaat (zelfde geluid, hashtag)
+  // weegt mee: een miljoenenvideo met een ander geluid is waarschijnlijk een andere trend.
+  const gewicht = (v: TikTokInfo) => Math.log10(v.weergaven + 1) + score(v);
+  return [...lijst].sort((a, b) => gewicht(b) - gewicht(a));
 }
 
 /** Zet gevonden TikToks vooraan in de bronlinks (zonder dubbele). */
@@ -116,6 +144,24 @@ export function voegToe(links: BronLink[], tiktoks: TikTokInfo[]): BronLink[] {
   const bekend = new Set(links.map((l) => l.url.match(/video\/(\d+)/)?.[1]).filter(Boolean));
   const nieuw = tiktoks
     .filter((t) => !bekend.has(t.url.match(/video\/(\d+)/)?.[1]))
-    .map((t) => ({ url: t.url, titel: `TikTok · @${t.maker}${t.geluid ? ` · ♫ ${t.geluid}` : ""}${t.weergaven ? ` · ${Math.round(t.weergaven / 1000)}K× bekeken` : ""}` }));
+    .map((t) => ({ url: t.url, titel: `@${t.maker}${t.geluid ? ` · ♫ ${t.geluid}` : ""}`, tiktok: { maker: t.maker, weergaven: t.weergaven, likes: t.likes, reacties: t.reacties, gedeeld: t.gedeeld, gecontroleerd: new Date().toISOString() } }));
   return [...nieuw, ...links];
+}
+
+/**
+ * Loopt de TikToks van een trend opnieuw na: tutorials en weinig bekeken video's eruit, de
+ * tellers bijgewerkt, en zo nodig nieuwe gezocht tot er `max` goede voorbeelden zijn.
+ */
+export async function ververs(trend: { titel: string; uitleg: string; waarom_viral?: string | null; bron_links: BronLink[] }, max = 3): Promise<BronLink[]> {
+  const isTikTok = (l: BronLink) => /tiktok\.com\/@[\w.-]+\/video\/\d+/.test(l.url);
+  const nagelopen = await Promise.all(trend.bron_links.filter(isTikTok).map((l) => controleerTikTok(l.url)));
+  const goed = nagelopen.filter((v): v is TikTokInfo => !!v && goedVoorbeeld(v));
+  const extra = goed.length >= max ? [] : await zoekTikToks(trend, max).catch(() => []);
+  const samen = kiesBeste(trend, [...goed, ...extra.filter((e) => !goed.some((g) => g.url === e.url))]).slice(0, max);
+  // De beelden van de video's die blijven, nemen we mee (niet opnieuw ophalen).
+  const beeldVan = new Map(trend.bron_links.map((l) => [l.url.match(/video\/(\d+)/)?.[1], l.beeld]));
+  return voegToe(trend.bron_links.filter((l) => !isTikTok(l)), samen).map((l) => {
+    const b = beeldVan.get(l.url.match(/video\/(\d+)/)?.[1]);
+    return b && !l.beeld ? { ...l, beeld: b } : l;
+  });
 }

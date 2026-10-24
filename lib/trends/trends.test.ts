@@ -145,7 +145,7 @@ describe("trends: dubbele trends", () => {
   });
 });
 
-import { kiesBeste, leesVideoPagina, tiktoksIn, voegToe } from "./tiktok";
+import { goedVoorbeeld, isUitleg, kiesBeste, leesVideoPagina, tiktoksIn, voegToe } from "./tiktok";
 
 describe("trends: echte TikToks", () => {
   it("haalt video-adressen uit zoekresultaten, geen overzichtspagina's", () => {
@@ -158,15 +158,23 @@ describe("trends: echte TikToks", () => {
     expect(leesVideoPagina("https://www.tiktok.com/@x/video/7695240623485521153", '"uniqueId":"x" 7695240623485521153')).toBeNull();
   });
   it("kiest eerst wat over de trend gaat, dan de best bekeken", () => {
-    const v = (maker: string, geluid: string, weergaven: number) => ({ url: `https://www.tiktok.com/@${maker}/video/1`, titel: "", maker, geluid, weergaven });
+    const v = (maker: string, geluid: string, weergaven: number) => ({ url: `https://www.tiktok.com/@${maker}/video/1`, titel: "", maker, geluid, weergaven, likes: 0, reacties: 0, gedeeld: 0 });
     const lijst = kiesBeste({ titel: "Pray For Me", uitleg: "slow motion" }, [v("a", "original sound", 9e6), v("b", "pray for me slo mo", 1e5), v("c", "pray for me slo mo", 5e6)]);
-    expect(lijst.map((x) => x.maker)).toEqual(["c", "b", "a"]);
+    expect(lijst.map((x) => x.maker)).toEqual(["c", "a", "b"]);
   });
   it("zet nieuwe TikToks vooraan, zonder dubbele", () => {
     const links = voegToe([{ url: "https://www.tiktok.com/@a/video/1111111111111111" }], [
-      { url: "https://www.tiktok.com/@a/video/1111111111111111", titel: "", maker: "a", geluid: "", weergaven: 0 },
-      { url: "https://www.tiktok.com/@b/video/2222222222222222", titel: "", maker: "b", geluid: "x", weergaven: 5000 },
+      { url: "https://www.tiktok.com/@a/video/1111111111111111", titel: "", maker: "a", geluid: "", weergaven: 0, likes: 0, reacties: 0, gedeeld: 0 },
+      { url: "https://www.tiktok.com/@b/video/2222222222222222", titel: "", maker: "b", geluid: "x", weergaven: 5000, likes: 10, reacties: 1, gedeeld: 0 },
     ]);
     expect(links.map((l) => l.url)).toEqual(["https://www.tiktok.com/@b/video/2222222222222222", "https://www.tiktok.com/@a/video/1111111111111111"]);
+    expect(links[0].tiktok).toMatchObject({ weergaven: 5000, likes: 10 });
+  });
+  it("tutorials en weinig bekeken video's tellen niet als voorbeeld", () => {
+    const v = (titel: string, weergaven: number) => ({ url: "", titel, maker: "x", geluid: "original sound", weergaven, likes: 0, reacties: 0, gedeeld: 0 });
+    expect(isUitleg(v("How to do the Burning Bridges AI trend with Higgsfield 🔥", 0))).toBe(true);
+    expect(isUitleg(v("Zo maak je deze trend! Prompt in comments", 0))).toBe(true);
+    expect(goedVoorbeeld(v("ok sorry I lied 😭 #imsorry", 2_400_000))).toBe(true);
+    expect(goedVoorbeeld(v("ok sorry I lied", 20_000))).toBe(false);
   });
 });

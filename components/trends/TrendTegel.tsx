@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { METHODE_INFO, eersteBeeld, type PubliekeTrend } from "@/lib/trends/types";
+import { METHODE_INFO, eersteBeeld, telling, type PubliekeTrend } from "@/lib/trends/types";
 
 // Eén trend in het raster, zoals de bewegingsbibliotheek van Higgsfield: groot het voorbeeld
 // (een geslaagd resultaat, anders de trendvideo, anders een screenshot van de trend), met de
@@ -8,6 +8,8 @@ export default function TrendTegel({ trend: t, vers }: { trend: PubliekeTrend; v
   const video = t.voorbeeld_url ? (t.voorbeeld_soort === "video" ? t.voorbeeld_url : null) : t.voorbeeldclip;
   const beeld = t.voorbeeld_url && t.voorbeeld_soort === "beeld" ? t.voorbeeld_url : !video ? eersteBeeld(t) : null;
   const iets = !!(video || beeld);
+  // Hoe viral: de best bekeken TikTok van deze trend.
+  const top = Math.max(0, ...t.bron_links.map((l) => l.tiktok?.weergaven ?? 0));
   return (
     <Link
       href={`/studios/trends/${t.id}`}
@@ -35,7 +37,10 @@ export default function TrendTegel({ trend: t, vers }: { trend: PubliekeTrend; v
           <h3 className={`font-bold leading-tight ${iets ? "text-white" : "text-tekst"}`}>{t.titel}</h3>
           <p className={`text-xs mt-1 line-clamp-2 ${iets ? "text-white/80" : "text-tekst-2"}`}>{t.uitleg}</p>
           <div className="mt-3 flex items-center justify-between">
-            <span className={`text-[11px] ${iets ? "text-white/70" : "text-tekst-3"}`}>{t.credits} credits</span>
+            <span className={`text-[11px] ${iets ? "text-white/70" : "text-tekst-3"}`}>
+              {top > 0 && <span className={`font-semibold ${iets ? "text-white" : "text-tekst"}`}>▶ {telling(top)} · </span>}
+              {t.credits} cr
+            </span>
             <span className="rounded-full bg-orange-500 text-white text-xs font-semibold px-3 py-1 group-hover:bg-orange-400">Maak na</span>
           </div>
         </div>

@@ -1,15 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import type { BronLink } from "@/lib/trends/types";
+import { telling, type BronLink } from "@/lib/trends/types";
 
 // "Zo ziet de trend eruit": de originele video in de speler van TikTok/YouTube/Instagram,
 // met de andere voorbeelden (video's en screenshots) eronder om tussen te wisselen.
 export default function TrendVoorbeeld({ links, trendvideo }: { links: BronLink[]; trendvideo?: string | null }) {
   const items = [
-    ...(trendvideo ? [{ soort: "video" as const, src: trendvideo, beeld: undefined, url: undefined }] : []),
-    ...links.filter((l) => l.embed).map((l) => ({ soort: "embed" as const, src: l.embed!, beeld: l.beeld, url: l.url })),
-    ...links.filter((l) => !l.embed && l.beeld).map((l) => ({ soort: "beeld" as const, src: l.beeld!, beeld: l.beeld, url: l.url })),
+    ...(trendvideo ? [{ soort: "video" as const, src: trendvideo, beeld: undefined, url: undefined, tiktok: undefined }] : []),
+    // De meest bekeken TikTok eerst: dat is het sterkste bewijs dat dit viral gaat.
+    ...links
+      .filter((l) => l.embed)
+      .sort((a, b) => (b.tiktok?.weergaven ?? 0) - (a.tiktok?.weergaven ?? 0))
+      .map((l) => ({ soort: "embed" as const, src: l.embed!, beeld: l.beeld, url: l.url, tiktok: l.tiktok })),
+    ...links.filter((l) => !l.embed && l.beeld).map((l) => ({ soort: "beeld" as const, src: l.beeld!, beeld: l.beeld, url: l.url, tiktok: undefined })),
   ];
   const [gekozen, setGekozen] = useState(0);
   // De speler van TikTok/Instagram laadt hun cookievenster mee; pas laden als iemand op ▶ klikt.
@@ -50,6 +54,26 @@ export default function TrendVoorbeeld({ links, trendvideo }: { links: BronLink[
           </a>
         )}
       </div>
+      {nu.tiktok && (
+        <div className="mx-auto max-w-[340px] space-y-1">
+          <div className="grid grid-cols-4 gap-1 text-center">
+            {[
+              { icoon: "▶", waarde: nu.tiktok.weergaven, label: "weergaven" },
+              { icoon: "♥", waarde: nu.tiktok.likes, label: "likes" },
+              { icoon: "💬", waarde: nu.tiktok.reacties, label: "reacties" },
+              { icoon: "↗", waarde: nu.tiktok.gedeeld, label: "gedeeld" },
+            ].map((x) => (
+              <div key={x.label} className="rounded-xl bg-paneel-2 px-1 py-1.5">
+                <div className="text-sm font-bold text-tekst">{x.icoon} {telling(x.waarde)}</div>
+                <div className="text-[10px] text-tekst-3">{x.label}</div>
+              </div>
+            ))}
+          </div>
+          <a href={nu.url} target="_blank" rel="noreferrer" className="block text-center text-xs text-blue-500 hover:text-blue-400">
+            @{nu.tiktok.maker} op TikTok ↗
+          </a>
+        </div>
+      )}
       {items.length > 1 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
           {items.map((it, i) => (
@@ -67,7 +91,9 @@ export default function TrendVoorbeeld({ links, trendvideo }: { links: BronLink[
               ) : (
                 <span className="flex w-full h-full items-center justify-center bg-paneel-2 text-lg">▶</span>
               )}
-              {it.soort !== "beeld" && <span className="absolute bottom-0.5 right-0.5 text-[10px] bg-black/60 text-white rounded px-1">▶</span>}
+              {it.soort !== "beeld" && (
+                <span className="absolute bottom-0.5 inset-x-0.5 text-[9px] text-center bg-black/60 text-white rounded px-0.5">▶ {it.tiktok ? telling(it.tiktok.weergaven) : ""}</span>
+              )}
             </button>
           ))}
         </div>
