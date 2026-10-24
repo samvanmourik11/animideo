@@ -70,7 +70,7 @@ export default function TrendVoorbeeld({ links, trendvideo }: { links: BronLink[
             ))}
           </div>
           <a href={nu.url} target="_blank" rel="noreferrer" className="block text-center text-xs text-blue-500 hover:text-blue-400">
-            @{nu.tiktok.maker} op TikTok ↗
+            {speel ? "Speelt hij niet af? Bekijk hem op TikTok ↗" : `@${nu.tiktok.maker} op TikTok ↗`}
           </a>
         </div>
       )}

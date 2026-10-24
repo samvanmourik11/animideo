@@ -83,6 +83,23 @@ export async function controleerTikTok(url: string): Promise<TikTokInfo | null> 
   }
 }
 
+/**
+ * Controleert video's één voor één, met een pauze ertussen. Op 25-10-2026 vroegen we er
+ * tientallen tegelijk op, en blokkeerde TikTok de hele internetverbinding ("Access Denied",
+ * ook voor gewoon TikTok kijken). Krijgen we geen antwoord meer, dan stoppen we meteen.
+ */
+async function naElkaar(urls: string[], pauzeMs = 1500): Promise<TikTokInfo[]> {
+  const uit: TikTokInfo[] = [];
+  let missers = 0;
+  for (const url of urls) {
+    const v = await controleerTikTok(url);
+    if (v) uit.push(v);
+    else if (++missers >= 3 && uit.length === 0) break;
+    await new Promise((r) => setTimeout(r, pauzeMs));
+  }
+  return uit;
+}
+
 /** Alle TikTok-video-adressen in een stuk tekst, zonder dubbele. */
 export function tiktoksIn(tekst: string): string[] {
   return [...new Set((tekst.match(VIDEO) ?? []).map((u) => u.replace(/^https?:\/\/(?:m\.)?(?:www\.)?/, "https://www.")))];
@@ -125,7 +142,7 @@ Geef aan het eind alleen een lijstje met de video-adressen, één per regel. Nie
     if (m.stop_reason !== "pause_turn") break;
     messages.push({ role: "assistant", content: m.content });
   }
-  const gevonden = (await Promise.all(tiktoksIn(tekst).slice(0, 20).map(controleerTikTok))).filter((v): v is TikTokInfo => !!v);
+  const gevonden = await naElkaar(tiktoksIn(tekst).slice(0, 10));
   return kiesBeste(trend, gevonden.filter(goedVoorbeeld)).slice(0, max);
 }
 
@@ -154,8 +171,7 @@ export function voegToe(links: BronLink[], tiktoks: TikTokInfo[]): BronLink[] {
  */
 export async function ververs(trend: { titel: string; uitleg: string; waarom_viral?: string | null; bron_links: BronLink[] }, max = 3): Promise<BronLink[]> {
   const isTikTok = (l: BronLink) => /tiktok\.com\/@[\w.-]+\/video\/\d+/.test(l.url);
-  const nagelopen = await Promise.all(trend.bron_links.filter(isTikTok).map((l) => controleerTikTok(l.url)));
-  const goed = nagelopen.filter((v): v is TikTokInfo => !!v && goedVoorbeeld(v));
+  const goed = (await naElkaar(trend.bron_links.filter(isTikTok).map((l) => l.url))).filter(goedVoorbeeld);
   const extra = goed.length >= max ? [] : await zoekTikToks(trend, max).catch(() => []);
   const samen = kiesBeste(trend, [...goed, ...extra.filter((e) => !goed.some((g) => g.url === e.url))]).slice(0, max);
   // De beelden van de video's die blijven, nemen we mee (niet opnieuw ophalen).
