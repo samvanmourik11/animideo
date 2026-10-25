@@ -1,4 +1,5 @@
-import { PLAN_CREDITS } from "@/lib/credit-costs";
+import { CREDIT_PAKKETTEN, PLAN_CREDITS } from "@/lib/credit-costs";
+import { addCredits } from "@/lib/credits";
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isTeruggeboekt, verwerkAchterstandBetaling, verwerkTerugboeking } from "@/lib/achterstand";
@@ -71,6 +72,23 @@ export async function POST(req: NextRequest) {
   // ── Betaling van een openstaand bedrag via de betaallink ──────────────────
   if (metadata?.achterstand) {
     await verwerkAchterstandBetaling(payment);
+    return NextResponse.json({ received: true });
+  }
+
+  // ── Losse credits (eenmalig, alleen abonnees) ────────────────────────────
+  // Mollie roept de webhook vaker aan voor dezelfde betaling; het transactielogboek met het
+  // betalings-id erin voorkomt dat de credits twee keer worden bijgeschreven.
+  if (metadata?.creditPakket) {
+    const pakket = CREDIT_PAKKETTEN.find((p) => p.id === metadata.creditPakket);
+    if (status === "paid" && userId && pakket) {
+      const reden = `Losse credits gekocht (${paymentId})`;
+      const { count } = await supabase
+        .from("credit_transactions")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("reason", reden);
+      if (!count) await addCredits(userId, pakket.credits, reden, { service: true });
+    }
     return NextResponse.json({ received: true });
   }
 

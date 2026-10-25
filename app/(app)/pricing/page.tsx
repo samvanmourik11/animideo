@@ -1,12 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/credits";
 import PricingCards from "@/components/PricingCards";
+import CreditPakketten from "@/components/CreditPakketten";
 
-export default async function PricingPage() {
+export default async function PricingPage({ searchParams }: { searchParams: Promise<{ gekocht?: string }> }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const profile = user ? await getProfile(user.id) : null;
   const currentPlan = profile?.plan ?? "free";
+  const abonnee = currentPlan !== "free" && profile?.subscription_status === "active";
+  const gekocht = Number((await searchParams).gekocht) || null;
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -22,6 +25,8 @@ export default async function PricingPage() {
       </div>
 
       <PricingCards currentPlan={currentPlan} />
+
+      <CreditPakketten magKopen={abonnee} gekocht={gekocht} />
 
       {/* Footer note */}
       <div className="mt-10 text-center space-y-2">
