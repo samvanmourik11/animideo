@@ -58,7 +58,7 @@ export interface Doelgroep {
   vragen: Vraag[];
 }
 
-const OPSLAG = "https://suuskaaobsbttahqcoct.supabase.co/storage/v1/object/public/scene-assets/e5f6f9ae-1bd7-424f-adc0-037b6fe9600d/creaties";
+const VB = `${VIDEO_BASIS}/voorbeelden`;
 
 // Vragen die op elke pagina terugkomen: geld, opzeggen, wat je mag met wat je maakt.
 const ALGEMENE_VRAGEN: Vraag[] = [
@@ -104,9 +104,9 @@ export const DOELGROEPEN: Record<DoelgroepId, Doelgroep> = {
     ],
     voorbeeldenKop: "Gemaakt met Animideo",
     voorbeelden: [
-      { titel: "Trailer: Het Fluisteren van de Draken", url: `${OPSLAG}/aad0b8cf-5b09-4c6b-bc59-c18ea3a555ad.mp4`, vorm: "liggend" },
-      { titel: "Film: Het Zwaard van de Smid", url: `${OPSLAG}/98690d53-371b-414c-9da6-e4935b217fd3.mp4`, vorm: "liggend" },
-      { titel: "Schakel of automaat?", url: `${OPSLAG}/030c5489-7a8e-4daf-9ae3-4ce4fc6bcfb7.mp4`, vorm: "staand" },
+      { titel: "Documentaire: de Watersnoodramp", url: `${VB}/watersnoodramp.mp4`, vorm: "liggend" },
+      { titel: "Trailer: Het Fluisteren van de Draken", url: `${VB}/trailer-draken.mp4`, vorm: "liggend" },
+      { titel: "Short: schakel of automaat?", url: `${VB}/schakel-of-automaat.mp4`, vorm: "staand" },
     ],
     rekensommen: [
       { wat: "YouTube-video van 8 minuten (±40 scènes + voice-over)", credits: 180 },
@@ -142,10 +142,10 @@ export const DOELGROEPEN: Record<DoelgroepId, Doelgroep> = {
     ],
     voorbeeldenKop: "Echte resultaten uit Animideo",
     voorbeelden: [
-      { titel: "Reclame: De Zoete Zwaan", url: `${OPSLAG}/40a007ab-ca36-4a81-bdf7-e54765b8783e.mp4`, vorm: "staand" },
-      { titel: "UGC: stroopwafels (creator Jeroen)", url: `${OPSLAG}/c7ea575d-d226-4080-8323-68a01d1c4926.mp4`, vorm: "staand" },
-      { titel: "Reclame: Google-reviewkaart", url: `${OPSLAG}/ac520a81-717c-4140-8766-8f45b37b99e5.mp4`, vorm: "staand" },
-      { titel: "UGC: chocolade (creator Sanne)", url: `${OPSLAG}/8601034d-36d6-4e66-af0a-10c1b656eed1.mp4`, vorm: "staand" },
+      { titel: "Reclame: De Zoete Zwaan", url: `${VB}/reclame-zoete-zwaan.mp4`, vorm: "liggend" },
+      { titel: "UGC: stroopwafels (creator Jeroen)", url: `${VB}/ugc-stroopwafels.mp4`, vorm: "staand" },
+      { titel: "Reclame uit een link: reviewkaart", url: `${VB}/reclame-reviewkaart.mp4`, vorm: "staand" },
+      { titel: "UGC: chocolade (creator Sanne)", url: `${VB}/ugc-chocolade.mp4`, vorm: "staand" },
     ],
     rekensommen: [
       { wat: "Reclamevideo van 15 seconden met voice-over", credits: 51 },
@@ -181,9 +181,9 @@ export const DOELGROEPEN: Record<DoelgroepId, Doelgroep> = {
     ],
     voorbeeldenKop: "Verhalen gemaakt met Animideo",
     voorbeelden: [
-      { titel: "Bella redt het feest", url: `${OPSLAG}/7ba78e3f-2054-4a8a-8951-9ff3fdaca0ad.mp4`, vorm: "liggend" },
-      { titel: "Bella: aankomst", url: `${OPSLAG}/86f60432-9821-438c-9a5f-a74da386f370.mp4`, vorm: "liggend" },
-      { titel: "Kamp Sterrenrijk", url: `${OPSLAG}/5fa06cdb-9791-448e-8948-cacb2be2a628.mp4`, vorm: "staand" },
+      { titel: "De prinses die naar school gaat", url: `${VB}/prinses-naar-school.mp4`, vorm: "liggend" },
+      { titel: "Het schoolreisje naar het bos", url: `${VB}/schoolreisje.mp4`, vorm: "liggend" },
+      { titel: "Geschiedenis voor kinderen: Suriname", url: `${VB}/suriname.mp4`, vorm: "liggend" },
     ],
     rekensommen: [
       { wat: "Voorleesverhaal van 3 minuten (±20 getekende scènes)", credits: 90 },
@@ -217,12 +217,12 @@ export const DOELGROEPEN: Record<DoelgroepId, Doelgroep> = {
       { titel: "Klinkt écht Nederlands", tekst: "100 Nederlandse en Vlaamse stemmen, en teksten zonder Engelse vertaalfouten. Of train je eigen stem.", clip: "nederlands-3.mp4" },
       { titel: "Hulp van mensen", tekst: "25 videolessen in de Academy, en kom je er niet uit, dan app je met ons supportteam. In het Nederlands.", clip: "nederlands-4.mp4" },
     ],
-    voorbeeldenKop: "Wat anderen maken met Animideo",
+    voorbeeldenKop: "Wat je maakt met Animideo",
     voorbeelden: [
-      { titel: "Reclame: De Zoete Zwaan", url: `${OPSLAG}/40a007ab-ca36-4a81-bdf7-e54765b8783e.mp4`, vorm: "staand" },
-      { titel: "Bella redt het feest", url: `${OPSLAG}/7ba78e3f-2054-4a8a-8951-9ff3fdaca0ad.mp4`, vorm: "liggend" },
-      { titel: "UGC: stroopwafels", url: `${OPSLAG}/c7ea575d-d226-4080-8323-68a01d1c4926.mp4`, vorm: "staand" },
-      { titel: "Logo komt tot leven", url: `${OPSLAG}/92d3a545-7685-40dd-8ed5-2a0b60e0af4e.mp4`, vorm: "staand" },
+      { titel: "Reclame: De Zoete Zwaan", url: `${VB}/reclame-zoete-zwaan.mp4`, vorm: "liggend" },
+      { titel: "De prinses die naar school gaat", url: `${VB}/prinses-naar-school.mp4`, vorm: "liggend" },
+      { titel: "UGC: stroopwafels", url: `${VB}/ugc-stroopwafels.mp4`, vorm: "staand" },
+      { titel: "Logo komt tot leven", url: `${VB}/logo-tot-leven.mp4`, vorm: "staand" },
     ],
     rekensommen: [
       { wat: "Reclamevideo van 15 seconden", credits: 51 },

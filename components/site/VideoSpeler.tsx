@@ -70,7 +70,7 @@ export function Voorbeeld({ src, titel, staand }: { src: string; titel: string; 
   return (
     <figure className="group">
       <div className={`relative overflow-hidden rounded-2xl bg-slate-900 ring-1 ring-slate-200 ${staand ? "aspect-[9/16]" : "aspect-video"}`}>
-        <video ref={ref} src={`${src}#t=0.5`} muted={!aan} loop playsInline preload="metadata" controls={aan} className="w-full h-full object-cover" />
+        <video ref={ref} src={`${src}#t=2`} muted={!aan} loop playsInline preload="metadata" controls={aan} className="w-full h-full object-cover" />
         {!aan && (
           <button
             onClick={() => { setAan(true); const v = ref.current; if (v) { v.muted = false; v.currentTime = 0; void v.play(); } }}

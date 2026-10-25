@@ -23,6 +23,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(`${APP_ADRES}${pathname}${search}`, 307);
   }
 
+  // Het oude adres blijft draaien voor wat er automatisch binnenkomt: lopende Mollie-abonnementen
+  // melden betalingen op ai.jouwanimatievideo.nl/api/mollie/webhook en Claude-koppelingen van
+  // klanten wijzen naar /api/mcp. Een doorverwijzing volgen die niet (een POST raakt zoek).
+  // Mensen in de browser gaan wel naar het nieuwe adres.
+  if (host === "ai.jouwanimatievideo.nl" && !pathname.startsWith("/api") && !pathname.startsWith("/.well-known") && !pathname.startsWith("/_next")) {
+    return NextResponse.redirect(`${APP_ADRES}${pathname}${search}`, 308);
+  }
+
   // Op het app-adres (en lokaal) werken de landingspagina's ook, onder hun eigen naam.
   if (SITE_PADEN.has(pathname)) {
     const url = request.nextUrl.clone();

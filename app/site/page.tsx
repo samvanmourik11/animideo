@@ -30,8 +30,8 @@ export default function Voorpagina() {
             kop: "Zeg wat je wilt maken. Animideo maakt de video.",
             kopAccent: "Animideo maakt de video.",
             sub: "Reclames, YouTube-video's, kinderverhalen en social posts: je typt in gewoon Nederlands wat je nodig hebt, en de Regisseur maakt het met de beste AI voor beeld, video en stem. Met 100 Nederlandse stemmen en support van echte mensen.",
-            video: "home.mp4",
-            poster: "home.jpg",
+            video: "nederlands.mp4",
+            poster: "nederlands.jpg",
           }}
         />
 
