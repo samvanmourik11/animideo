@@ -191,6 +191,8 @@ export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLe
 
       <nav className="space-y-0.5 px-2">
         {MAKEN.map((i) => <Regel key={i.href} item={i} />)}
+        {/* Klanten met de losse cursus zien de e-learning niet (hide_leren). */}
+        {!hideLeren && <Regel item={{ href: "/academy", label: "Academy", icoon: "🎓", ook: ["/leren"] }} />}
       </nav>
 
       <div className="mt-6 px-5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-tekst-3">Studio&apos;s</div>
@@ -227,7 +229,7 @@ export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLe
           <div className="mt-2 text-center text-xs font-semibold text-blue-500">Upgraden →</div>
         </Link>
         <div className="flex flex-wrap gap-x-3 gap-y-1 px-1 text-xs text-tekst-3">
-          {!hideLeren && <Link href="/leren" className="hover:text-tekst">Leren</Link>}
+          {!hideLeren && <Link href="/academy" className="hover:text-tekst">Academy</Link>}
           <Link href="/account" className="hover:text-tekst">Account</Link>
           <Link href="/support" className="hover:text-tekst">Hulp</Link>
           <button onClick={uitloggen} className="hover:text-tekst">Uitloggen</button>

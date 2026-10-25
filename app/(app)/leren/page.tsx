@@ -19,6 +19,8 @@ export default async function LerenPage() {
     .eq("id", user!.id)
     .single();
   if (profile?.hide_leren) redirect("/dashboard");
+  // Sinds 25-10-2026 staat de nieuwe e-learning in de Academy.
+  redirect("/academy");
 
   return (
     <div>
