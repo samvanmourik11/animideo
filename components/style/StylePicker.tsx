@@ -52,7 +52,7 @@ export default function StylePicker({
             title={disabled ? hint : `${s.name} — ${s.tagline}`}
             className={`rounded-lg border overflow-hidden text-left transition disabled:opacity-50 disabled:cursor-not-allowed ${
               s.id === value
-                ? "border-orange-400 ring-1 ring-orange-400/40"
+                ? "border-blue-500 ring-1 ring-blue-500/40"
                 : "border-rand hover:border-rand"
             }`}
           >
@@ -63,7 +63,7 @@ export default function StylePicker({
               className="w-full aspect-video object-cover bg-paneel-2"
               loading="lazy"
             />
-            <span className={`block px-2 py-1.5 ${s.id === value ? "bg-orange-500/10" : "bg-paneel"}`}>
+            <span className={`block px-2 py-1.5 ${s.id === value ? "bg-blue-500/10" : "bg-paneel"}`}>
               <span className="block text-xs text-tekst font-medium">{s.name}</span>
               <span className="block text-[10px] text-tekst-3 leading-tight">{s.tagline}</span>
             </span>

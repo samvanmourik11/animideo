@@ -170,33 +170,33 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
 
   function getButtonStyle(plan: Plan): string {
     if (plan.id === currentPlan) {
-      return "bg-white/5 text-slate-600 cursor-default border border-white/[0.05]";
+      return "bg-paneel-2/60 text-tekst-3 cursor-default border border-rand";
     }
     if (plan.id === "free") {
-      if (currentPlan === "free") return "bg-white/5 text-slate-600 cursor-default border border-white/[0.05]";
-      return "bg-white/5 hover:bg-white/10 text-slate-400 border border-white/10 hover:border-white/20";
+      if (currentPlan === "free") return "bg-paneel-2/60 text-tekst-3 cursor-default border border-rand";
+      return "bg-paneel-2/60 hover:bg-paneel-2 text-tekst-3 border border-rand hover:border-rand";
     }
     const currentRank = PLAN_RANK[currentPlan] ?? 0;
     const targetRank = PLAN_RANK[plan.id] ?? 0;
     if (targetRank < currentRank) {
-      return "bg-white/5 hover:bg-white/10 text-slate-400 border border-white/10 hover:border-white/20 disabled:opacity-60";
+      return "bg-paneel-2/60 hover:bg-paneel-2 text-tekst-3 border border-rand hover:border-rand disabled:opacity-60";
     }
     if (plan.highlight) {
       return "bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:shadow-[0_0_30px_rgba(59,130,246,0.5)] disabled:opacity-60";
     }
-    return "bg-white/10 hover:bg-white/15 text-white border border-white/10 hover:border-white/20 disabled:opacity-60";
+    return "bg-paneel-2 hover:bg-paneel-2 text-tekst border border-rand hover:border-rand disabled:opacity-60";
   }
 
   return (
     <div>
       {upgraded && (
-        <div className="mb-6 bg-green-500/10 border border-green-500/20 text-green-400 text-sm rounded-2xl px-4 py-3 text-center">
+        <div className="mb-6 bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-sm rounded-2xl px-4 py-3 text-center">
           Betaling ontvangen — je abonnement en credits worden bijgewerkt…
         </div>
       )}
 
       {error && (
-        <div className="mb-6 bg-red-500/10 border border-red-500/20 text-red-400 text-sm rounded-2xl px-4 py-3 text-center">
+        <div className="mb-6 bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm rounded-2xl px-4 py-3 text-center">
           {error}
         </div>
       )}
@@ -210,7 +210,7 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
               className={`relative flex flex-col rounded-2xl border p-6 transition-all duration-200 ${
                 plan.highlight
                   ? "bg-gradient-to-b from-blue-600/10 to-blue-500/5 border-blue-500/40 shadow-[0_0_40px_rgba(59,130,246,0.15)]"
-                  : "bg-[#0c1428] border-white/[0.07] hover:border-white/15"
+                  : "bg-paneel border-rand hover:border-rand"
               }`}
             >
               {/* Badge */}
@@ -225,7 +225,7 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
               {/* Current plan indicator */}
               {isCurrent && (
                 <div className="absolute -top-3 right-4">
-                  <span className="bg-green-500/20 border border-green-500/30 text-green-400 text-[10px] font-bold px-3 py-1 rounded-full">
+                  <span className="bg-green-500/20 border border-green-500/30 text-green-600 dark:text-green-400 text-[10px] font-bold px-3 py-1 rounded-full">
                     Huidig plan
                   </span>
                 </div>
@@ -233,19 +233,19 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
 
               {/* Price */}
               <div className="mb-5">
-                <h3 className="text-base font-bold text-white mb-2">{plan.name}</h3>
+                <h3 className="text-base font-bold text-tekst mb-2">{plan.name}</h3>
                 <div className="flex items-baseline gap-1">
-                  <span className="text-3xl font-extrabold text-white">{plan.price}</span>
-                  {plan.period && <span className="text-slate-500 text-sm">{plan.period}</span>}
+                  <span className="text-3xl font-extrabold text-tekst">{plan.price}</span>
+                  {plan.period && <span className="text-tekst-3 text-sm">{plan.period}</span>}
                 </div>
-                <p className="mt-1 text-xs font-semibold text-blue-400">{plan.credits}</p>
+                <p className="mt-1 text-xs font-semibold text-blue-600 dark:text-blue-400">{plan.credits}</p>
               </div>
 
               {/* Features */}
               <ul className="flex-1 space-y-2 mb-6">
                 {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-sm text-slate-400">
-                    <span className="text-blue-400 mt-0.5 shrink-0">✓</span>
+                  <li key={f} className="flex items-start gap-2 text-sm text-tekst-3">
+                    <span className="text-blue-600 dark:text-blue-400 mt-0.5 shrink-0">✓</span>
                     {f}
                   </li>
                 ))}
@@ -265,18 +265,18 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
       </div>
 
       {/* Credits explanation */}
-      <div className="mt-10 bg-[#0c1428] border border-white/[0.07] rounded-2xl p-6">
-        <h3 className="font-semibold text-white mb-4">Hoe werken credits?</h3>
+      <div className="mt-10 bg-paneel border border-rand rounded-2xl p-6">
+        <h3 className="font-semibold text-tekst mb-4">Hoe werken credits?</h3>
         <div className="grid grid-cols-3 gap-4">
           {[
             { action: "Script genereren", cost: "gratis", icon: "📝" },
             { action: "Afbeelding genereren", cost: `vanaf ${CREDIT_COSTS.IMAGE_GENERATION} credit`, icon: "🎨" },
             { action: "Video beweging", cost: `vanaf ${CREDIT_COSTS.VIDEO_GENERATION} credits`, icon: "🎬" },
           ].map((item) => (
-            <div key={item.action} className="text-center bg-white/[0.03] rounded-xl p-4">
+            <div key={item.action} className="text-center bg-paneel-2/60 rounded-xl p-4">
               <div className="text-2xl mb-2">{item.icon}</div>
-              <p className="text-sm font-bold text-white">{item.cost}</p>
-              <p className="text-xs text-slate-500 mt-1">{item.action}</p>
+              <p className="text-sm font-bold text-tekst">{item.cost}</p>
+              <p className="text-xs text-tekst-3 mt-1">{item.action}</p>
             </div>
           ))}
         </div>

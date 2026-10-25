@@ -61,13 +61,13 @@ function VoorwerpKaart({
   const beschrijvingGewijzigd = uiterlijk.trim() !== voorwerp.uiterlijk.trim();
 
   return (
-    <div className="bg-slate-950/60 border border-white/10 rounded-lg overflow-hidden flex flex-col">
-      <div className="aspect-video bg-slate-900 relative flex items-center justify-center">
+    <div className="bg-paneel border border-rand rounded-lg overflow-hidden flex flex-col">
+      <div className="aspect-video bg-paneel relative flex items-center justify-center">
         {eersteBlad ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={eersteBlad} alt={voorwerp.naam} className="w-full h-full object-contain" />
         ) : (
-          <p className="text-[10px] text-slate-500 text-center px-3">
+          <p className="text-[10px] text-tekst-3 text-center px-3">
             Nog niet getekend. Dat gebeurt in de eerste video waarin hij voorkomt.
           </p>
         )}
@@ -87,17 +87,17 @@ function VoorwerpKaart({
               value={naam}
               onChange={(e) => setNaam(e.target.value)}
               maxLength={MAX_NAAM}
-              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white"
+              className="bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst"
             />
             <textarea
               value={uiterlijk}
               onChange={(e) => setUiterlijk(e.target.value)}
               maxLength={MAX_UITERLIJK}
               rows={4}
-              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white resize-y"
+              className="bg-paneel border border-rand rounded px-2 py-1 text-[11px] text-tekst resize-y"
             />
             {beschrijvingGewijzigd && stijlen.length > 0 && (
-              <p className="text-[10px] text-amber-300">
+              <p className="text-[10px] text-amber-600 dark:text-amber-300">
                 Een andere beschrijving is een ander voorwerp: de getekende versies vervallen en worden opnieuw getekend.
               </p>
             )}
@@ -105,13 +105,13 @@ function VoorwerpKaart({
               <button
                 onClick={bewaar}
                 disabled={bezig || !naam.trim() || !uiterlijk.trim()}
-                className="text-[11px] rounded px-2 py-1 bg-orange-500 hover:bg-orange-400 text-white disabled:opacity-40"
+                className="text-[11px] rounded px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
               >
                 {bezig ? "Bezig…" : "Bewaren"}
               </button>
               <button
                 onClick={() => { setBewerken(false); setNaam(voorwerp.naam); setUiterlijk(voorwerp.uiterlijk); }}
-                className="text-[10px] text-slate-500 hover:text-white"
+                className="text-[10px] text-tekst-3 hover:text-tekst"
               >
                 Annuleren
               </button>
@@ -119,17 +119,17 @@ function VoorwerpKaart({
           </>
         ) : (
           <>
-            <p className="text-xs font-medium text-white truncate">{voorwerp.naam}</p>
-            <p className="text-[10px] text-slate-500 line-clamp-3">{voorwerp.uiterlijk}</p>
-            <p className="text-[10px] text-slate-600">
+            <p className="text-xs font-medium text-tekst truncate">{voorwerp.naam}</p>
+            <p className="text-[10px] text-tekst-3 line-clamp-3">{voorwerp.uiterlijk}</p>
+            <p className="text-[10px] text-tekst-3">
               {stijlen.length ? `Getekend in: ${stijlen.map(stijlNaam).join(", ")}` : "Nog in geen enkele stijl getekend"}
             </p>
-            <button onClick={() => setBewerken(true)} className="self-start text-[10px] text-slate-400 hover:text-orange-300">
+            <button onClick={() => setBewerken(true)} className="self-start text-[10px] text-tekst-3 hover:text-blue-600 dark:hover:text-blue-300">
               ✎ Aanpassen
             </button>
           </>
         )}
-        {fout && <p className="text-[10px] text-red-400">{fout}</p>}
+        {fout && <p className="text-[10px] text-red-600 dark:text-red-400">{fout}</p>}
       </div>
     </div>
   );
@@ -178,15 +178,15 @@ export default function VoorwerpenClient({
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-white">Voorwerpen</h1>
-        <p className="text-sm text-slate-400 mt-0.5">
+        <h1 className="text-xl font-bold text-tekst">Voorwerpen</h1>
+        <p className="text-sm text-tekst-3 mt-0.5">
           Voorwerpen die in elke video hetzelfde moeten zijn, zoals een wagen, een knuffel of een kaart. In de Dialoogmodus
           kiest de opzet ze uit deze bibliotheek.
         </p>
       </div>
 
       {nietActief && (
-        <div className="mb-4 bg-amber-500/10 border border-amber-400/30 text-amber-200 text-sm rounded-lg px-3 py-2">
+        <div className="mb-4 bg-amber-500/10 border border-amber-400/30 text-amber-600 dark:text-amber-200 text-sm rounded-lg px-3 py-2">
           De voorwerpenbibliotheek is nog niet actief: de databasetabel moet nog aangemaakt worden.
         </div>
       )}
@@ -201,8 +201,8 @@ export default function VoorwerpenClient({
         }}
       />
 
-      <div className="bg-white/5 border border-white/10 rounded-xl p-5 mb-5">
-        <h2 className="text-sm font-semibold text-white mb-3">Of zelf beschrijven</h2>
+      <div className="bg-paneel-2/60 border border-rand rounded-xl p-5 mb-5">
+        <h2 className="text-sm font-semibold text-tekst mb-3">Of zelf beschrijven</h2>
         <form onSubmit={voegToe} className="flex flex-col gap-2">
           <input
             value={naam}
@@ -210,7 +210,7 @@ export default function VoorwerpenClient({
             maxLength={MAX_NAAM}
             placeholder="Naam, bijv. Wonderwagen"
             disabled={nietActief}
-            className="bg-slate-900/60 border border-white/10 rounded px-3 py-2 text-sm text-white placeholder:text-slate-600 disabled:opacity-50"
+            className="bg-paneel border border-rand rounded px-3 py-2 text-sm text-tekst placeholder:text-tekst-3 disabled:opacity-50"
           />
           <textarea
             value={uiterlijk}
@@ -219,28 +219,28 @@ export default function VoorwerpenClient({
             rows={3}
             placeholder="Hoe ziet het eruit? Wat voor ding, hoofdkleur, twee opvallende details en hoe groot naast de personages. Het liefst in het Engels, bijv. an old wooden covered wagon on four big red wheels, big enough for three people to sit inside"
             disabled={nietActief}
-            className="bg-slate-900/60 border border-white/10 rounded px-3 py-2 text-sm text-white placeholder:text-slate-600 resize-y disabled:opacity-50"
+            className="bg-paneel border border-rand rounded px-3 py-2 text-sm text-tekst placeholder:text-tekst-3 resize-y disabled:opacity-50"
           />
           <div className="flex items-center gap-3">
             <button
               type="submit"
               disabled={bezig || nietActief || !naam.trim() || !uiterlijk.trim()}
-              className="text-sm rounded px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white disabled:opacity-40"
+              className="text-sm rounded px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
             >
               {bezig ? "Bezig…" : "Toevoegen"}
             </button>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[11px] text-tekst-3">
               Kost niets. Het voorwerp wordt getekend in de eerste video waarin het voorkomt.
             </span>
           </div>
-          {melding && <p className="text-xs text-red-400">{melding}</p>}
+          {melding && <p className="text-xs text-red-600 dark:text-red-400">{melding}</p>}
         </form>
       </div>
 
-      <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-white mb-3">Mijn voorwerpen ({voorwerpen.length})</h2>
+      <div className="bg-paneel-2/60 border border-rand rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-tekst mb-3">Mijn voorwerpen ({voorwerpen.length})</h2>
         {voorwerpen.length === 0 ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-tekst-3">
             Nog geen voorwerpen. Voeg er hierboven een toe, of bewaar een voorwerp vanuit een video met &ldquo;Bewaar in bibliotheek&rdquo;.
           </p>
         ) : (

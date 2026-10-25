@@ -119,68 +119,68 @@ export default function NewProjectButton({ userId }: { userId: string }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-56 bg-[#0c1428] border border-white/[0.09] rounded-xl shadow-2xl z-50 overflow-hidden">
+        <div className="absolute right-0 mt-2 w-56 bg-paneel border border-rand rounded-xl shadow-2xl z-50 overflow-hidden">
           {/* Creator Studio blijft open voor alle huidige gebruikers. */}
           <button
             onClick={openStudio}
-            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-cyan-500/10 to-transparent"
+            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-paneel-2/60 transition-colors text-left bg-gradient-to-r from-cyan-500/10 to-transparent"
           >
             <span className="text-lg leading-none mt-0.5">🎬</span>
             <div>
-              <p className="text-sm font-medium text-white">
+              <p className="text-sm font-medium text-tekst">
                 Creator Studio
               </p>
-              <p className="text-xs text-slate-500 mt-0.5">Karakter en stijl consistent door alle scenes</p>
+              <p className="text-xs text-tekst-3 mt-0.5">Karakter en stijl consistent door alle scenes</p>
             </div>
           </button>
-          <div className="h-px bg-white/[0.06] mx-3" />
+          <div className="h-px bg-paneel-2/60 mx-3" />
           <button
             onClick={openStorytelling}
-            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-violet-500/10 to-transparent"
+            className="w-full flex items-start gap-3 px-4 py-3 hover:bg-paneel-2/60 transition-colors text-left bg-gradient-to-r from-violet-500/10 to-transparent"
           >
             <span className="text-lg leading-none mt-0.5">📖</span>
             <div>
-              <p className="text-sm font-medium text-white">Storytelling-infographic</p>
-              <p className="text-xs text-slate-500 mt-0.5">AI-verhaalvideo uit tekst of PDF, met voice-over</p>
+              <p className="text-sm font-medium text-tekst">Storytelling-infographic</p>
+              <p className="text-xs text-tekst-3 mt-0.5">AI-verhaalvideo uit tekst of PDF, met voice-over</p>
             </div>
           </button>
           {studioAllowed && (
             <>
-              <div className="h-px bg-white/[0.06] mx-3" />
+              <div className="h-px bg-paneel-2/60 mx-3" />
               <button
                 onClick={openInfographics}
-                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
+                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-paneel-2/60 transition-colors text-left"
               >
                 <span className="text-lg leading-none mt-0.5">📊</span>
                 <div>
-                  <p className="text-sm font-medium text-white">Infographic</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Zakelijk: data, cijfers en grafieken, geen poppetjes</p>
+                  <p className="text-sm font-medium text-tekst">Infographic</p>
+                  <p className="text-xs text-tekst-3 mt-0.5">Zakelijk: data, cijfers en grafieken, geen poppetjes</p>
                 </div>
               </button>
-              <div className="h-px bg-white/[0.06] mx-3" />
+              <div className="h-px bg-paneel-2/60 mx-3" />
               <button
                 onClick={openExplainer}
-                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-amber-500/10 to-transparent"
+                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-paneel-2/60 transition-colors text-left bg-gradient-to-r from-amber-500/10 to-transparent"
               >
                 <span className="text-lg leading-none mt-0.5">🎞️</span>
                 <div>
-                  <p className="text-sm font-medium text-white">Explainer-video</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Flat animated uitleg-video met voice-over, geen poppetjes</p>
+                  <p className="text-sm font-medium text-tekst">Explainer-video</p>
+                  <p className="text-xs text-tekst-3 mt-0.5">Flat animated uitleg-video met voice-over, geen poppetjes</p>
                 </div>
               </button>
             </>
           )}
           {dialoogAllowed && (
             <>
-              <div className="h-px bg-white/[0.06] mx-3" />
+              <div className="h-px bg-paneel-2/60 mx-3" />
               <button
                 onClick={openDialogue}
-                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left bg-gradient-to-r from-emerald-500/10 to-transparent"
+                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-paneel-2/60 transition-colors text-left bg-gradient-to-r from-emerald-500/10 to-transparent"
               >
                 <span className="text-lg leading-none mt-0.5">💬</span>
                 <div>
-                  <p className="text-sm font-medium text-white">Dialoogmodus <span className="text-[10px] text-emerald-400/80 align-middle">bèta</span></p>
-                  <p className="text-xs text-slate-500 mt-0.5">Pratende personages met lip-sync</p>
+                  <p className="text-sm font-medium text-tekst">Dialoogmodus <span className="text-[10px] text-emerald-400/80 align-middle">bèta</span></p>
+                  <p className="text-xs text-tekst-3 mt-0.5">Pratende personages met lip-sync</p>
                 </div>
               </button>
             </>
@@ -189,19 +189,19 @@ export default function NewProjectButton({ userId }: { userId: string }) {
           {/* Alleen intern: de upload-tool staat niet meer in het klantmenu. */}
           {adminAllowed && (
             <>
-              <div className="px-4 pt-3 pb-1.5 mt-1 border-t border-white/[0.09]">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+              <div className="px-4 pt-3 pb-1.5 mt-1 border-t border-rand">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-tekst-3">
                   Alleen voor jou
                 </p>
               </div>
               <button
                 onClick={createFree}
-                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-white/[0.05] transition-colors text-left"
+                className="w-full flex items-start gap-3 px-4 py-3 hover:bg-paneel-2/60 transition-colors text-left"
               >
                 <span className="text-lg leading-none mt-0.5">🖼️</span>
                 <div>
-                  <p className="text-sm font-medium text-white">Upload eigen afbeeldingen</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Eigen foto&apos;s omzetten naar video</p>
+                  <p className="text-sm font-medium text-tekst">Upload eigen afbeeldingen</p>
+                  <p className="text-xs text-tekst-3 mt-0.5">Eigen foto&apos;s omzetten naar video</p>
                 </div>
               </button>
             </>

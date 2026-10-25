@@ -72,9 +72,9 @@ export default function FotoNaarItem({
   }
 
   return (
-    <div className="bg-white/5 border border-white/10 rounded-xl p-5 mb-5">
-      <h2 className="text-sm font-semibold text-white mb-1">Uit een foto</h2>
-      <p className="text-[11px] text-slate-400 mb-3">
+    <div className="bg-paneel-2/60 border border-rand rounded-xl p-5 mb-5">
+      <h2 className="text-sm font-semibold text-tekst mb-1">Uit een foto</h2>
+      <p className="text-[11px] text-tekst-3 mb-3">
         {voorbeeldTekst} De AI kijkt wat erop staat en tekent het na in de stijl die je kiest. De foto zelf komt niet in
         de video.
       </p>
@@ -84,10 +84,10 @@ export default function FotoNaarItem({
       {voorbeeld ? (
         <div className="flex items-start gap-3 mb-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={voorbeeld} alt="gekozen foto" className="w-40 rounded border border-white/10" />
+          <img src={voorbeeld} alt="gekozen foto" className="w-40 rounded border border-rand" />
           <button
             onClick={() => { setFoto(null); setVoorbeeld(null); }}
-            className="text-[11px] text-slate-400 hover:text-white underline"
+            className="text-[11px] text-tekst-3 hover:text-tekst underline"
           >
             andere foto
           </button>
@@ -97,7 +97,7 @@ export default function FotoNaarItem({
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={disabled}
-          className="text-sm rounded px-4 py-2 bg-white/10 hover:bg-white/15 text-white disabled:opacity-40 mb-3"
+          className="text-sm rounded px-4 py-2 bg-paneel-2 hover:bg-paneel-2 text-tekst disabled:opacity-40 mb-3"
         >
           📸 Foto kiezen
         </button>
@@ -109,10 +109,10 @@ export default function FotoNaarItem({
             value={naam}
             onChange={(e) => setNaam(e.target.value)}
             placeholder={`Naam (leeg laten = de AI verzint er een)`}
-            className="w-full bg-slate-900/60 border border-white/10 rounded px-3 py-2 text-sm text-white placeholder:text-slate-600 mb-3"
+            className="w-full bg-paneel border border-rand rounded px-3 py-2 text-sm text-tekst placeholder:text-tekst-3 mb-3"
           />
           <div className="mb-3">
-            <span className="block text-[11px] text-slate-400 mb-1">In welke stijl tekenen?</span>
+            <span className="block text-[11px] text-tekst-3 mb-1">In welke stijl tekenen?</span>
             <StylePicker value={styleId} onChange={setStyleId} presets={stijlenVoor(magRealistisch)} />
           </div>
           <div className="flex items-center gap-3">
@@ -123,13 +123,13 @@ export default function FotoNaarItem({
             >
               {bezig ? "Omzetten…" : `Maak er een ${woord} van`}
             </button>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[11px] text-tekst-3">
               {CREDIT_COSTS.IMAGE_GENERATION} credit, daarna in al je video&apos;s te gebruiken.
             </span>
           </div>
         </>
       )}
-      {melding && <p className="text-xs text-red-400 mt-2">{melding}</p>}
+      {melding && <p className="text-xs text-red-600 dark:text-red-400 mt-2">{melding}</p>}
     </div>
   );
 }

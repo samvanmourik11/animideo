@@ -32,8 +32,8 @@ export default async function DashboardPage() {
             <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
               <span className="text-base">✨</span>
             </div>
-            <p className="text-sm text-slate-300">
-              Je gebruikt de <span className="text-white font-semibold">gratis versie</span> — upgrade voor meer credits en video&apos;s zonder watermark.
+            <p className="text-sm text-tekst-2">
+              Je gebruikt de <span className="text-tekst font-semibold">gratis versie</span> — upgrade voor meer credits en video&apos;s zonder watermark.
             </p>
           </div>
           <Link href="/pricing" className="shrink-0 ml-4 btn-primary text-sm py-2 px-4">
@@ -44,8 +44,8 @@ export default async function DashboardPage() {
 
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-white">Mijn projecten</h1>
-          <p className="text-sm text-slate-300 mt-0.5">
+          <h1 className="text-xl font-bold text-tekst">Mijn projecten</h1>
+          <p className="text-sm text-tekst-2 mt-0.5">
             {projects?.length ?? 0} project{(projects?.length ?? 0) !== 1 ? "en" : ""}
           </p>
         </div>

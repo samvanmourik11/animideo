@@ -9,10 +9,10 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 const PLAN_COLORS: Record<string, string> = {
-  free:    "bg-slate-500/15 text-slate-400 border-slate-500/20",
-  starter: "bg-blue-500/15 text-blue-400 border-blue-500/20",
-  pro:     "bg-purple-500/15 text-purple-400 border-purple-500/20",
-  agency:  "bg-amber-500/15 text-amber-400 border-amber-500/20",
+  free:    "bg-slate-500/15 text-tekst-3 border-slate-500/20",
+  starter: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/20",
+  pro:     "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/20",
+  agency:  "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20",
 };
 
 function formatDate(iso: string) {
@@ -55,19 +55,19 @@ export default async function AccountOverviewPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold text-white">{greeting}</h2>
-        <p className="text-sm text-slate-500 mt-0.5">{profile.email}</p>
+        <h2 className="text-lg font-semibold text-tekst">{greeting}</h2>
+        <p className="text-sm text-tekst-3 mt-0.5">{profile.email}</p>
       </div>
 
       {/* Stat cards */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Credits</p>
-          <p className="text-3xl font-bold text-white">{profile.credits}</p>
+        <div className="bg-paneel border border-rand rounded-2xl p-4">
+          <p className="text-xs font-semibold text-tekst-3 uppercase tracking-wider mb-3">Credits</p>
+          <p className="text-3xl font-bold text-tekst">{profile.credits}</p>
           {resetDate && (
-            <p className="text-xs text-slate-400 mt-1">Reset op {resetDate}</p>
+            <p className="text-xs text-tekst-3 mt-1">Reset op {resetDate}</p>
           )}
-          <div className="mt-3 w-full bg-white/[0.06] rounded-full h-1.5">
+          <div className="mt-3 w-full bg-paneel-2/60 rounded-full h-1.5">
             <div
               className="bg-blue-500 h-1.5 rounded-full transition-all"
               style={{ width: `${100 - usedPct}%` }}
@@ -75,25 +75,25 @@ export default async function AccountOverviewPage() {
           </div>
         </div>
 
-        <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Projecten</p>
-          <p className="text-3xl font-bold text-white">{projectCount ?? 0}</p>
-          <Link href="/dashboard" className="text-xs text-blue-400 hover:text-blue-300 mt-1 block transition-colors">
+        <div className="bg-paneel border border-rand rounded-2xl p-4">
+          <p className="text-xs font-semibold text-tekst-3 uppercase tracking-wider mb-3">Projecten</p>
+          <p className="text-3xl font-bold text-tekst">{projectCount ?? 0}</p>
+          <Link href="/dashboard" className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 mt-1 block transition-colors">
             Bekijk alle →
           </Link>
         </div>
 
-        <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-4">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Plan</p>
+        <div className="bg-paneel border border-rand rounded-2xl p-4">
+          <p className="text-xs font-semibold text-tekst-3 uppercase tracking-wider mb-3">Plan</p>
           <span className={`inline-block text-sm font-semibold px-3 py-1 rounded-full border ${PLAN_COLORS[profile.plan] ?? PLAN_COLORS.free}`}>
             {PLAN_LABELS[profile.plan] ?? profile.plan}
           </span>
           {profile.plan === "free" ? (
-            <Link href="/pricing" className="text-xs text-blue-400 hover:text-blue-300 mt-2 block transition-colors">
+            <Link href="/pricing" className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 mt-2 block transition-colors">
               Upgraden →
             </Link>
           ) : (
-            <Link href="/account/billing" className="text-xs text-slate-500 hover:text-slate-300 mt-2 block transition-colors">
+            <Link href="/account/billing" className="text-xs text-tekst-3 hover:text-tekst-2 mt-2 block transition-colors">
               Abonnement beheren →
             </Link>
           )}
@@ -103,29 +103,29 @@ export default async function AccountOverviewPage() {
       {/* Recente activiteit */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-sm font-semibold text-white">Recente activiteit</p>
-          <Link href="/account/credits" className="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+          <p className="text-sm font-semibold text-tekst">Recente activiteit</p>
+          <Link href="/account/credits" className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors">
             Alles bekijken →
           </Link>
         </div>
 
         {!transactions || transactions.length === 0 ? (
-          <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-6 text-center">
-            <p className="text-sm text-slate-500">Nog geen activiteit</p>
+          <div className="bg-paneel border border-rand rounded-2xl p-6 text-center">
+            <p className="text-sm text-tekst-3">Nog geen activiteit</p>
           </div>
         ) : (
-          <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl divide-y divide-white/[0.04]">
+          <div className="bg-paneel border border-rand rounded-2xl divide-y divide-rand">
             {transactions.map((tx) => (
               <div key={tx.id} className="flex items-center justify-between px-5 py-3.5">
                 <div>
-                  <p className="text-sm text-slate-300">{tx.reason ?? "Credits"}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-sm text-tekst-2">{tx.reason ?? "Credits"}</p>
+                  <p className="text-xs text-tekst-3 mt-0.5">
                     {new Date(tx.created_at).toLocaleDateString("nl-NL", {
                       day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
                     })}
                   </p>
                 </div>
-                <span className={`text-sm font-semibold ${tx.amount < 0 ? "text-red-400" : "text-green-400"}`}>
+                <span className={`text-sm font-semibold ${tx.amount < 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
                   {formatAmount(tx.amount)} cr
                 </span>
               </div>
@@ -138,17 +138,17 @@ export default async function AccountOverviewPage() {
       <div className="grid grid-cols-2 gap-3">
         <Link
           href="/account/settings"
-          className="bg-[#0c1428] border border-white/[0.07] hover:border-white/20 rounded-2xl p-4 transition-colors group"
+          className="bg-paneel border border-rand hover:border-rand rounded-2xl p-4 transition-colors group"
         >
-          <p className="text-sm font-semibold text-white group-hover:text-blue-300 transition-colors">Instellingen</p>
-          <p className="text-xs text-slate-500 mt-1">Naam, e-mail, wachtwoord</p>
+          <p className="text-sm font-semibold text-tekst group-hover:text-blue-300 transition-colors">Instellingen</p>
+          <p className="text-xs text-tekst-3 mt-1">Naam, e-mail, wachtwoord</p>
         </Link>
         <Link
           href="/brand"
-          className="bg-[#0c1428] border border-white/[0.07] hover:border-white/20 rounded-2xl p-4 transition-colors group"
+          className="bg-paneel border border-rand hover:border-rand rounded-2xl p-4 transition-colors group"
         >
-          <p className="text-sm font-semibold text-white group-hover:text-blue-300 transition-colors">Huisstijlen</p>
-          <p className="text-xs text-slate-500 mt-1">Brand kits beheren</p>
+          <p className="text-sm font-semibold text-tekst group-hover:text-blue-300 transition-colors">Huisstijlen</p>
+          <p className="text-xs text-tekst-3 mt-1">Brand kits beheren</p>
         </Link>
       </div>
     </div>

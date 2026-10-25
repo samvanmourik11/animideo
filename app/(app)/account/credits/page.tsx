@@ -55,12 +55,12 @@ export default async function CreditsPage() {
     <div className="space-y-6">
 
       {/* Balance card */}
-      <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-6">
+      <div className="bg-paneel border border-rand rounded-2xl p-6">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Huidig saldo</p>
-            <p className="text-5xl font-bold text-white">{profile.credits}</p>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-xs font-semibold text-tekst-3 uppercase tracking-wider mb-1">Huidig saldo</p>
+            <p className="text-5xl font-bold text-tekst">{profile.credits}</p>
+            <p className="text-sm text-tekst-3 mt-1">
               van de {planMax} credits op je plan
             </p>
           </div>
@@ -71,28 +71,28 @@ export default async function CreditsPage() {
           )}
         </div>
 
-        <div className="w-full bg-white/[0.06] rounded-full h-2 mb-2">
+        <div className="w-full bg-paneel-2/60 rounded-full h-2 mb-2">
           <div
             className="bg-blue-500 h-2 rounded-full transition-all shadow-[0_0_8px_rgba(59,130,246,0.4)]"
             style={{ width: `${Math.min(100, Math.round((profile.credits / planMax) * 100))}%` }}
           />
         </div>
-        <div className="flex justify-between text-xs text-slate-400">
+        <div className="flex justify-between text-xs text-tekst-3">
           <span>{profile.credits} beschikbaar</span>
           {resetDate && <span>Nieuwe credits op {resetDate}</span>}
         </div>
         {profile.plan !== "free" && (
-          <p className="text-xs text-slate-500 mt-2">
+          <p className="text-xs text-tekst-3 mt-2">
             Credits die je niet gebruikt blijven staan: bij je verlenging komen er {planMax} bij.
-            Meer nodig? <Link href="/pricing" className="text-blue-400 hover:text-blue-300">Koop losse credits bij</Link>.
+            Meer nodig? <Link href="/pricing" className="text-blue-600 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300">Koop losse credits bij</Link>.
           </p>
         )}
       </div>
 
       {/* Usage breakdown */}
       {totalSpent > 0 && (
-        <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-5">
-          <p className="text-sm font-semibold text-white mb-4">Verbruik per categorie</p>
+        <div className="bg-paneel border border-rand rounded-2xl p-5">
+          <p className="text-sm font-semibold text-tekst mb-4">Verbruik per categorie</p>
           <div className="space-y-3">
             {Object.entries(usage)
               .sort((a, b) => b[1] - a[1])
@@ -102,10 +102,10 @@ export default async function CreditsPage() {
                 return (
                   <div key={reason}>
                     <div className="flex justify-between text-sm mb-1">
-                      <span className="text-slate-300">{cat?.label ?? reason}</span>
-                      <span className="text-slate-500">{spent} cr · {pct}%</span>
+                      <span className="text-tekst-2">{cat?.label ?? reason}</span>
+                      <span className="text-tekst-3">{spent} cr · {pct}%</span>
                     </div>
-                    <div className="w-full bg-white/[0.06] rounded-full h-1.5">
+                    <div className="w-full bg-paneel-2/60 rounded-full h-1.5">
                       <div
                         className={`h-1.5 rounded-full ${cat?.color ?? "bg-slate-500"}`}
                         style={{ width: `${pct}%` }}
@@ -120,20 +120,20 @@ export default async function CreditsPage() {
 
       {/* Transaction log */}
       <div>
-        <p className="text-sm font-semibold text-white mb-3">Transactiegeschiedenis</p>
+        <p className="text-sm font-semibold text-tekst mb-3">Transactiegeschiedenis</p>
         {!transactions || transactions.length === 0 ? (
-          <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-8 text-center">
-            <p className="text-slate-500 text-sm">Nog geen transacties</p>
+          <div className="bg-paneel border border-rand rounded-2xl p-8 text-center">
+            <p className="text-tekst-3 text-sm">Nog geen transacties</p>
           </div>
         ) : (
-          <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl divide-y divide-white/[0.04]">
+          <div className="bg-paneel border border-rand rounded-2xl divide-y divide-rand">
             {transactions.map((tx) => (
               <div key={tx.id} className="flex items-center justify-between px-5 py-3.5">
                 <div>
-                  <p className="text-sm text-slate-300">{tx.reason ?? "Credits"}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{formatDate(tx.created_at)}</p>
+                  <p className="text-sm text-tekst-2">{tx.reason ?? "Credits"}</p>
+                  <p className="text-xs text-tekst-3 mt-0.5">{formatDate(tx.created_at)}</p>
                 </div>
-                <span className={`text-sm font-bold tabular-nums ${tx.amount < 0 ? "text-red-400" : "text-green-400"}`}>
+                <span className={`text-sm font-bold tabular-nums ${tx.amount < 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
                   {formatAmount(tx.amount)} cr
                 </span>
               </div>

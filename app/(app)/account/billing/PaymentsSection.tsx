@@ -37,37 +37,37 @@ export default function PaymentsSection() {
   }, []);
 
   return (
-    <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-5">
-      <p className="text-sm font-semibold text-white mb-1">Betaalbewijzen</p>
-      <p className="text-sm text-slate-500 mb-4">
+    <div className="bg-paneel border border-rand rounded-2xl p-5">
+      <p className="text-sm font-semibold text-tekst mb-1">Betaalbewijzen</p>
+      <p className="text-sm text-tekst-3 mb-4">
         Download een bonnetje (incl. 21% btw) van elke betaling voor je administratie.
       </p>
 
       {error && (
-        <p className="text-sm text-slate-500">Kon je betalingen even niet ophalen. Probeer het later opnieuw.</p>
+        <p className="text-sm text-tekst-3">Kon je betalingen even niet ophalen. Probeer het later opnieuw.</p>
       )}
 
       {!error && payments === null && (
-        <p className="text-sm text-slate-500">Laden…</p>
+        <p className="text-sm text-tekst-3">Laden…</p>
       )}
 
       {!error && payments?.length === 0 && (
-        <p className="text-sm text-slate-500">Je hebt nog geen betalingen.</p>
+        <p className="text-sm text-tekst-3">Je hebt nog geen betalingen.</p>
       )}
 
       {!error && payments && payments.length > 0 && (
-        <ul className="divide-y divide-white/[0.06]">
+        <ul className="divide-y divide-rand">
           {payments.map((p) => (
             <li key={p.id} className="flex items-center justify-between gap-4 py-3">
               <div className="min-w-0">
-                <p className="text-sm text-slate-200 truncate">{p.description}</p>
-                <p className="text-xs text-slate-500">{formatDate(p.date)}</p>
+                <p className="text-sm text-tekst truncate">{p.description}</p>
+                <p className="text-xs text-tekst-3">{formatDate(p.date)}</p>
               </div>
               <div className="flex items-center gap-4 shrink-0">
-                <span className="text-sm text-slate-300">{formatAmount(p.amount)}</span>
+                <span className="text-sm text-tekst-2">{formatAmount(p.amount)}</span>
                 <a
                   href={`/api/account/receipt/${p.id}`}
-                  className="text-blue-400 hover:text-blue-300 transition-colors text-sm font-medium"
+                  className="text-blue-600 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors text-sm font-medium"
                 >
                   Download PDF
                 </a>

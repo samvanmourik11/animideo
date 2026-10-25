@@ -27,8 +27,8 @@ export default function CharactersClient({
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-white">Personages</h1>
-        <p className="text-sm text-slate-400 mt-0.5">
+        <h1 className="text-xl font-bold text-tekst">Personages</h1>
+        <p className="text-sm text-tekst-3 mt-0.5">
           Maak hier vaste personages die je in alle tools kan kiezen als hoofdpersoon.
         </p>
       </div>

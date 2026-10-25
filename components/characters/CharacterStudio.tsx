@@ -181,13 +181,13 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename,
 
   return (
     <div className="space-y-6">
-      <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-        <div className="flex items-center gap-1 p-1 bg-slate-950/60 border border-white/10 rounded-lg w-fit mb-4">
+      <div className="bg-paneel-2/60 border border-rand rounded-xl p-5">
+        <div className="flex items-center gap-1 p-1 bg-paneel border border-rand rounded-lg w-fit mb-4">
           <button
             type="button"
             onClick={() => setMode("upload")}
             className={`text-xs font-medium px-3 py-1 rounded-md ${
-              mode === "upload" ? "bg-cyan-600 text-white" : "text-slate-300 hover:bg-white/5"
+              mode === "upload" ? "bg-blue-600 text-white" : "text-tekst-2 hover:bg-paneel-2/60"
             }`}
           >
             📸 Upload foto
@@ -196,7 +196,7 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename,
             type="button"
             onClick={() => setMode("generate")}
             className={`text-xs font-medium px-3 py-1 rounded-md ${
-              mode === "generate" ? "bg-cyan-600 text-white" : "text-slate-300 hover:bg-white/5"
+              mode === "generate" ? "bg-blue-600 text-white" : "text-tekst-2 hover:bg-paneel-2/60"
             }`}
           >
             ✨ Genereer met AI
@@ -205,30 +205,30 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename,
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">Naam</label>
+            <label className="block text-xs font-medium text-tekst-2 mb-1.5">Naam</label>
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="Bijv. Sarah de coach"
-              className="w-full bg-slate-900/60 border border-white/10 rounded-md px-3 py-2 text-sm text-white"
+              className="w-full bg-paneel border border-rand rounded-md px-3 py-2 text-sm text-tekst"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">Stijl</label>
+            <label className="block text-xs font-medium text-tekst-2 mb-1.5">Stijl</label>
             <StylePicker value={style} onChange={setStyle} presets={stijlenVoor(magRealistisch)} />
-            <p className="text-[10px] text-slate-500 mt-1">
+            <p className="text-[10px] text-tekst-3 mt-1">
               Kies dezelfde stijl als de video's waarin dit personage meespeelt.
             </p>
           </div>
 
           {mode === "upload" ? (
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Foto</label>
+              <label className="block text-xs font-medium text-tekst-2 mb-1.5">Foto</label>
               {previewUrl ? (
                 <div className="relative inline-block">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={previewUrl} alt="preview" className="w-40 h-40 object-cover rounded-lg border border-white/10" />
+                  <img src={previewUrl} alt="preview" className="w-40 h-40 object-cover rounded-lg border border-rand" />
                   <button
                     type="button"
                     onClick={() => { if (previewUrl) URL.revokeObjectURL(previewUrl); setFile(null); setPreviewUrl(""); }}
@@ -240,16 +240,16 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename,
                   type="file"
                   accept="image/*"
                   onChange={handleFile}
-                  className="block w-full text-sm text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-cyan-600 file:text-white"
+                  className="block w-full text-sm text-tekst-2 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-sm file:bg-blue-600 file:text-white"
                 />
               )}
-              <p className="text-[11px] text-slate-500 mt-1.5">Portretfoto werkt het beste. Achtergrond wordt automatisch verwijderd.</p>
+              <p className="text-[11px] text-tekst-3 mt-1.5">Portretfoto werkt het beste. Achtergrond wordt automatisch verwijderd.</p>
             </div>
           ) : null}
 
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1.5">
-              Beschrijving {mode === "generate" ? "" : <span className="text-slate-500 font-normal">(optioneel — AI vult aan)</span>}
+            <label className="block text-xs font-medium text-tekst-2 mb-1.5">
+              Beschrijving {mode === "generate" ? "" : <span className="text-tekst-3 font-normal">(optioneel — AI vult aan)</span>}
             </label>
             <textarea
               value={description}
@@ -258,18 +258,18 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename,
               placeholder={mode === "generate"
                 ? "Bijv. een vriendelijke vrouw rond de 35 met kort donker haar, blauwe blouse, zelfverzekerde uitstraling"
                 : "Laat leeg om AI te laten beschrijven, of voeg eigen tekst toe"}
-              className="w-full bg-slate-900/60 border border-white/10 rounded-md px-3 py-2 text-sm text-white placeholder:text-slate-500"
+              className="w-full bg-paneel border border-rand rounded-md px-3 py-2 text-sm text-tekst placeholder:text-tekst-3"
               required={mode === "generate"}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Geslacht (optioneel)</label>
+              <label className="block text-xs font-medium text-tekst-2 mb-1.5">Geslacht (optioneel)</label>
               <select
                 value={gender}
                 onChange={e => setGender(e.target.value)}
-                className="w-full bg-slate-900/60 border border-white/10 rounded-md px-3 py-2 text-sm text-white"
+                className="w-full bg-paneel border border-rand rounded-md px-3 py-2 text-sm text-tekst"
               >
                 <option value="">Onbepaald</option>
                 <option value="man">Man</option>
@@ -277,11 +277,11 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename,
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1.5">Leeftijd (optioneel)</label>
+              <label className="block text-xs font-medium text-tekst-2 mb-1.5">Leeftijd (optioneel)</label>
               <select
                 value={ageRange}
                 onChange={e => setAgeRange(e.target.value)}
-                className="w-full bg-slate-900/60 border border-white/10 rounded-md px-3 py-2 text-sm text-white"
+                className="w-full bg-paneel border border-rand rounded-md px-3 py-2 text-sm text-tekst"
               >
                 <option value="">Onbepaald</option>
                 <option value="20-30">20-30</option>
@@ -295,16 +295,16 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename,
 
           <div className="flex flex-wrap gap-4">
             {mode === "upload" && (
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer" title="Een gestyleerde versie van je foto met dezelfde persoon, in de gekozen stijl">
+              <label className="flex items-center gap-2 text-xs text-tekst-2 cursor-pointer" title="Een gestyleerde versie van je foto met dezelfde persoon, in de gekozen stijl">
                 <input type="checkbox" checked={transformStyle} onChange={e => setTransformStyle(e.target.checked)} />
-                Transformeer naar {stijlNaam(style)} <span className="text-slate-500">(+{creditLabel(CREDIT_COSTS.IMAGE_GENERATION)})</span>
+                Transformeer naar {stijlNaam(style)} <span className="text-tekst-3">(+{creditLabel(CREDIT_COSTS.IMAGE_GENERATION)})</span>
               </label>
             )}
-            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+            <label className="flex items-center gap-2 text-xs text-tekst-2 cursor-pointer">
               <input type="checkbox" checked={removeBg} onChange={e => setRemoveBg(e.target.checked)} />
               Achtergrond verwijderen
             </label>
-            <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+            <label className="flex items-center gap-2 text-xs text-tekst-2 cursor-pointer">
               <input type="checkbox" checked={autoDescribe} onChange={e => setAutoDescribe(e.target.checked)} />
               AI-beschrijving toevoegen
             </label>
@@ -313,26 +313,26 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename,
           <button
             type="submit"
             disabled={submitting}
-            className="w-full bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 text-white font-medium py-2.5 rounded-lg"
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-rand text-white font-medium py-2.5 rounded-lg"
           >
             {submitting ? (progress || "Bezig...") : mode === "upload" ? "Karakter opslaan" : "Genereer karakter"}
           </button>
 
           {error && (
-            <div className="bg-red-950/50 border border-red-700/50 text-red-200 text-sm rounded-lg px-3 py-2">{error}</div>
+            <div className="bg-red-950/50 border border-red-700/50 text-red-600 dark:text-red-200 text-sm rounded-lg px-3 py-2">{error}</div>
           )}
         </form>
       </div>
 
-      <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-white mb-3">Mijn karakters ({characters.length})</h2>
+      <div className="bg-paneel-2/60 border border-rand rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-tekst mb-3">Mijn karakters ({characters.length})</h2>
         {characters.length === 0 ? (
-          <p className="text-xs text-slate-500">Nog geen karakters. Maak er hierboven een aan.</p>
+          <p className="text-xs text-tekst-3">Nog geen karakters. Maak er hierboven een aan.</p>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {characters.map(c => (
-              <div key={c.id} className="bg-slate-950/60 border border-white/10 rounded-lg overflow-hidden">
-                <div className="aspect-square bg-slate-900 relative">
+              <div key={c.id} className="bg-paneel border border-rand rounded-lg overflow-hidden">
+                <div className="aspect-square bg-paneel relative">
                   {c.image_url && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={c.image_url} alt={c.name} className="w-full h-full object-cover" />
@@ -369,26 +369,26 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename,
                           if (e.key === "Enter") { e.preventDefault(); saveRename(c.id); }
                           if (e.key === "Escape") { e.preventDefault(); cancelRename(); }
                         }}
-                        className="w-full bg-slate-900/60 border border-cyan-600/60 rounded px-1.5 py-1 text-xs text-white disabled:opacity-60"
+                        className="w-full bg-paneel border border-blue-500/60 rounded px-1.5 py-1 text-xs text-tekst disabled:opacity-60"
                       />
                       <div className="flex gap-1 mt-1">
                         <button
                           onClick={() => saveRename(c.id)}
                           disabled={savingName}
-                          className="flex-1 bg-cyan-600 hover:bg-cyan-700 disabled:bg-slate-700 text-white text-[10px] font-medium py-1 rounded"
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-rand text-white text-[10px] font-medium py-1 rounded"
                         >
                           {savingName ? "Opslaan..." : "Opslaan"}
                         </button>
                         <button
                           onClick={cancelRename}
                           disabled={savingName}
-                          className="flex-1 bg-white/5 hover:bg-white/10 text-slate-300 text-[10px] py-1 rounded disabled:opacity-50"
+                          className="flex-1 bg-paneel-2/60 hover:bg-paneel-2 text-tekst-2 text-[10px] py-1 rounded disabled:opacity-50"
                         >
                           Annuleer
                         </button>
                       </div>
                       {renameError && (
-                        <p className="text-[10px] text-red-300 mt-1">{renameError}</p>
+                        <p className="text-[10px] text-red-600 dark:text-red-300 mt-1">{renameError}</p>
                       )}
                     </div>
                   ) : (
@@ -396,11 +396,11 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename,
                       <p
                         onClick={() => startRename(c)}
                         title="Klik om de naam te wijzigen"
-                        className="text-xs font-medium text-white truncate cursor-pointer hover:text-cyan-300"
+                        className="text-xs font-medium text-tekst truncate cursor-pointer hover:text-blue-600 dark:hover:text-blue-300"
                       >
                         {c.name}
                       </p>
-                      <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5">
+                      <p className="text-[10px] text-tekst-3 line-clamp-2 mt-0.5">
                         {[c.gender, c.age_range, c.style ? stijlNaam(c.style) : ""].filter(Boolean).join(" · ")}
                       </p>
                     </>

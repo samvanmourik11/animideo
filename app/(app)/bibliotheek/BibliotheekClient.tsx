@@ -56,12 +56,12 @@ export default function BibliotheekClient({
 
   return (
     <div className="max-w-[1100px] mx-auto p-6">
-      <h1 className="text-xl font-bold text-white mb-1">Bibliotheek</h1>
-      <p className="text-sm text-slate-400 mb-4">
+      <h1 className="text-xl font-bold text-tekst mb-1">Bibliotheek</h1>
+      <p className="text-sm text-tekst-3 mb-4">
         Wat je hier vastlegt, ziet er in al je video&apos;s hetzelfde uit.
       </p>
 
-      <div className="flex flex-wrap gap-1.5 border-b border-white/10 mb-5">
+      <div className="flex flex-wrap gap-1.5 border-b border-rand mb-5">
         {tabs.map((t) => {
           const dicht = !magObjecten && t.id !== "personages";
           if (dicht) return null;
@@ -72,8 +72,8 @@ export default function BibliotheekClient({
               title={t.uitleg}
               className={`px-3 py-2 text-sm rounded-t-lg border-b-2 transition ${
                 tab === t.id
-                  ? "border-orange-400 text-white bg-white/5"
-                  : "border-transparent text-slate-400 hover:text-white hover:bg-white/5"
+                  ? "border-blue-500 text-tekst bg-paneel-2/60"
+                  : "border-transparent text-tekst-3 hover:text-tekst hover:bg-paneel-2/60"
               }`}
             >
               {t.label}

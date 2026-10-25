@@ -67,13 +67,13 @@ function OmgevingKaart({
   const beschrijvingGewijzigd = beschrijving.trim() !== omgeving.beschrijving.trim();
 
   return (
-    <div className="bg-slate-950/60 border border-white/10 rounded-lg overflow-hidden flex flex-col">
-      <div className="aspect-video bg-slate-900 relative flex items-center justify-center">
+    <div className="bg-paneel border border-rand rounded-lg overflow-hidden flex flex-col">
+      <div className="aspect-video bg-paneel relative flex items-center justify-center">
         {eerste ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={eerste} alt={omgeving.naam} className="w-full h-full object-cover" />
         ) : (
-          <p className="text-[10px] text-slate-500 text-center px-3">
+          <p className="text-[10px] text-tekst-3 text-center px-3">
             Nog niet getekend. Dat gebeurt in de video waarin je deze plek vastlegt.
           </p>
         )}
@@ -87,14 +87,14 @@ function OmgevingKaart({
         </button>
       </div>
       {beelden.length > 1 && (
-        <div className="flex gap-1 p-1 bg-slate-900/60">
+        <div className="flex gap-1 p-1 bg-paneel">
           {OMGEVING_VARIANTEN.map((soort) => {
             const b = beelden.find((v) => v.soort === soort);
             return b ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img key={soort} src={b.url} alt={soort} title={soort} className="w-1/3 h-10 object-cover rounded" />
             ) : (
-              <div key={soort} className="w-1/3 h-10 rounded bg-slate-800" />
+              <div key={soort} className="w-1/3 h-10 rounded bg-paneel-2" />
             );
           })}
         </div>
@@ -106,17 +106,17 @@ function OmgevingKaart({
               value={naam}
               onChange={(e) => setNaam(e.target.value)}
               maxLength={MAX_OMGEVING_NAAM}
-              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-xs text-white"
+              className="bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst"
             />
             <textarea
               value={beschrijving}
               onChange={(e) => setBeschrijving(e.target.value)}
               maxLength={MAX_OMGEVING_BESCHRIJVING}
               rows={4}
-              className="bg-slate-900/60 border border-white/10 rounded px-2 py-1 text-[11px] text-white resize-y"
+              className="bg-paneel border border-rand rounded px-2 py-1 text-[11px] text-tekst resize-y"
             />
             {beschrijvingGewijzigd && stijlen.length > 0 && (
-              <p className="text-[10px] text-amber-300">
+              <p className="text-[10px] text-amber-600 dark:text-amber-300">
                 Een andere beschrijving is een andere plek: de getekende beelden vervallen en worden opnieuw getekend.
               </p>
             )}
@@ -124,13 +124,13 @@ function OmgevingKaart({
               <button
                 onClick={bewaar}
                 disabled={bezig || !naam.trim() || !beschrijving.trim()}
-                className="text-[11px] rounded px-2 py-1 bg-orange-500 hover:bg-orange-400 text-white disabled:opacity-40"
+                className="text-[11px] rounded px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
               >
                 {bezig ? "Bezig…" : "Bewaren"}
               </button>
               <button
                 onClick={() => { setBewerken(false); setNaam(omgeving.naam); setBeschrijving(omgeving.beschrijving); }}
-                className="text-[10px] text-slate-500 hover:text-white"
+                className="text-[10px] text-tekst-3 hover:text-tekst"
               >
                 Annuleren
               </button>
@@ -138,17 +138,17 @@ function OmgevingKaart({
           </>
         ) : (
           <>
-            <p className="text-xs font-medium text-white truncate">{omgeving.naam}</p>
-            <p className="text-[10px] text-slate-500 line-clamp-3">{omgeving.beschrijving}</p>
-            <p className="text-[10px] text-slate-600">
+            <p className="text-xs font-medium text-tekst truncate">{omgeving.naam}</p>
+            <p className="text-[10px] text-tekst-3 line-clamp-3">{omgeving.beschrijving}</p>
+            <p className="text-[10px] text-tekst-3">
               {stijlen.length ? `Getekend in: ${stijlen.map(stijlNaam).join(", ")}` : "Nog in geen enkele stijl getekend"}
             </p>
-            <button onClick={() => setBewerken(true)} className="self-start text-[10px] text-slate-400 hover:text-orange-300">
+            <button onClick={() => setBewerken(true)} className="self-start text-[10px] text-tekst-3 hover:text-blue-600 dark:hover:text-blue-300">
               ✎ Aanpassen
             </button>
           </>
         )}
-        {fout && <p className="text-[10px] text-red-400">{fout}</p>}
+        {fout && <p className="text-[10px] text-red-600 dark:text-red-400">{fout}</p>}
       </div>
     </div>
   );
@@ -197,8 +197,8 @@ export default function OmgevingenClient({
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-white">Omgevingen</h1>
-        <p className="text-sm text-slate-400 mt-0.5">
+        <h1 className="text-xl font-bold text-tekst">Omgevingen</h1>
+        <p className="text-sm text-tekst-3 mt-0.5">
           De plekken waar je video&rsquo;s zich afspelen: het voetbalveld, de kleedkamer, oma&rsquo;s woonkamer. Een plek
           wordt één keer getekend — van veraf, van halverwege en van dichtbij — en daarna blijft de achtergrond in elk
           beeld dezelfde plek.
@@ -206,7 +206,7 @@ export default function OmgevingenClient({
       </div>
 
       {nietActief && (
-        <div className="mb-4 bg-amber-500/10 border border-amber-400/30 text-amber-200 text-sm rounded-lg px-3 py-2">
+        <div className="mb-4 bg-amber-500/10 border border-amber-400/30 text-amber-600 dark:text-amber-200 text-sm rounded-lg px-3 py-2">
           De omgevingenbibliotheek is nog niet actief: de databasetabel moet nog aangemaakt worden.
         </div>
       )}
@@ -221,8 +221,8 @@ export default function OmgevingenClient({
         }}
       />
 
-      <div className="bg-white/5 border border-white/10 rounded-xl p-5 mb-5">
-        <h2 className="text-sm font-semibold text-white mb-3">Of zelf beschrijven</h2>
+      <div className="bg-paneel-2/60 border border-rand rounded-xl p-5 mb-5">
+        <h2 className="text-sm font-semibold text-tekst mb-3">Of zelf beschrijven</h2>
         <form onSubmit={voegToe} className="flex flex-col gap-2">
           <input
             value={naam}
@@ -230,7 +230,7 @@ export default function OmgevingenClient({
             maxLength={MAX_OMGEVING_NAAM}
             placeholder="Naam, bijv. Het voetbalveld"
             disabled={nietActief}
-            className="bg-slate-900/60 border border-white/10 rounded px-3 py-2 text-sm text-white placeholder:text-slate-600 disabled:opacity-50"
+            className="bg-paneel border border-rand rounded px-3 py-2 text-sm text-tekst placeholder:text-tekst-3 disabled:opacity-50"
           />
           <textarea
             value={beschrijving}
@@ -239,28 +239,28 @@ export default function OmgevingenClient({
             rows={3}
             placeholder="Hoe ziet de plek eruit? Noem de grond, de lucht en drie dingen die er altijd staan. Het liefst in het Engels, bijv. a sunny neighbourhood soccer field: green grass with white lines, a small white goal, tall trees and a low hedge around it"
             disabled={nietActief}
-            className="bg-slate-900/60 border border-white/10 rounded px-3 py-2 text-sm text-white placeholder:text-slate-600 resize-y disabled:opacity-50"
+            className="bg-paneel border border-rand rounded px-3 py-2 text-sm text-tekst placeholder:text-tekst-3 resize-y disabled:opacity-50"
           />
           <div className="flex items-center gap-3">
             <button
               type="submit"
               disabled={bezig || nietActief || !naam.trim() || !beschrijving.trim()}
-              className="text-sm rounded px-4 py-2 bg-orange-500 hover:bg-orange-400 text-white disabled:opacity-40"
+              className="text-sm rounded px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40"
             >
               {bezig ? "Bezig…" : "Toevoegen"}
             </button>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[11px] text-tekst-3">
               Kost niets. De plek wordt getekend in de video waarin je hem vastlegt.
             </span>
           </div>
-          {melding && <p className="text-xs text-red-400">{melding}</p>}
+          {melding && <p className="text-xs text-red-600 dark:text-red-400">{melding}</p>}
         </form>
       </div>
 
-      <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-        <h2 className="text-sm font-semibold text-white mb-3">Mijn plekken ({omgevingen.length})</h2>
+      <div className="bg-paneel-2/60 border border-rand rounded-xl p-5">
+        <h2 className="text-sm font-semibold text-tekst mb-3">Mijn plekken ({omgevingen.length})</h2>
         {omgevingen.length === 0 ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-tekst-3">
             Nog geen plekken. Voeg er hierboven een toe, of leg een plek vast vanuit het storyboard met &ldquo;Deze plek
             vastleggen&rdquo;.
           </p>

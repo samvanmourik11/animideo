@@ -25,8 +25,8 @@ export default function AccountSideNav() {
               href={item.href}
               className={`flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 active
-                  ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                  : "text-slate-400 hover:text-white hover:bg-white/[0.04] border border-transparent"
+                  ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                  : "text-tekst-3 hover:text-tekst hover:bg-paneel-2/60 border border-transparent"
               }`}
             >
               <span className="text-xs opacity-60">{item.icon}</span>
@@ -46,8 +46,8 @@ export default function AccountSideNav() {
               href={item.href}
               className={`shrink-0 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                 active
-                  ? "bg-blue-500/10 text-blue-400 border border-blue-500/20"
-                  : "text-slate-400 border border-white/10 hover:text-white"
+                  ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                  : "text-tekst-3 border border-rand hover:text-tekst"
               }`}
             >
               {item.label}

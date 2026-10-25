@@ -61,15 +61,15 @@ export default async function BillingPage() {
       <div className={`border rounded-2xl p-6 ${plan.color}`}>
         <div className="flex items-start justify-between mb-4">
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Huidig plan</p>
-            <p className="text-2xl font-bold text-white">{plan.label}</p>
-            <p className="text-slate-400 text-sm mt-0.5">{plan.price}</p>
+            <p className="text-xs font-semibold text-tekst-3 uppercase tracking-wider mb-1">Huidig plan</p>
+            <p className="text-2xl font-bold text-tekst">{plan.label}</p>
+            <p className="text-tekst-3 text-sm mt-0.5">{plan.price}</p>
           </div>
           {isPaid && (
             <span className={`text-xs font-medium px-3 py-1 rounded-full border ${
               profile.subscription_status === "active"
-                ? "bg-green-500/15 text-green-400 border-green-500/20"
-                : "bg-red-500/15 text-red-400 border-red-500/20"
+                ? "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/20"
+                : "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/20"
             }`}>
               {profile.subscription_status === "active" ? "Actief" : profile.subscription_status ?? "Onbekend"}
             </span>
@@ -78,30 +78,30 @@ export default async function BillingPage() {
 
         <ul className="space-y-2 mb-4">
           {plan.features.map((f) => (
-            <li key={f} className="flex items-center gap-2 text-sm text-slate-300">
-              <span className="text-green-400 text-xs">✓</span>
+            <li key={f} className="flex items-center gap-2 text-sm text-tekst-2">
+              <span className="text-green-600 dark:text-green-400 text-xs">✓</span>
               {f}
             </li>
           ))}
         </ul>
 
         {isPaid && resetDate && (
-          <div className="pt-4 border-t border-white/[0.06]">
+          <div className="pt-4 border-t border-rand">
             <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Volgende factuurdatum</span>
-              <span className="text-slate-300">{resetDate}</span>
+              <span className="text-tekst-3">Volgende factuurdatum</span>
+              <span className="text-tekst-2">{resetDate}</span>
             </div>
           </div>
         )}
       </div>
 
       {/* Actions */}
-      <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-5 space-y-4">
-        <p className="text-sm font-semibold text-white">Plan wijzigen</p>
+      <div className="bg-paneel border border-rand rounded-2xl p-5 space-y-4">
+        <p className="text-sm font-semibold text-tekst">Plan wijzigen</p>
 
         {profile.plan === "free" ? (
           <div>
-            <p className="text-sm text-slate-400 mb-3">
+            <p className="text-sm text-tekst-3 mb-3">
               Upgrade naar een betaald plan voor meer credits en video&apos;s zonder watermark.
             </p>
             <Link href="/pricing" className="btn-primary inline-block text-sm">
@@ -110,7 +110,7 @@ export default async function BillingPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-tekst-3">
               Je kunt upgraden of downgraden via de prijzenpagina.
             </p>
             <Link href="/pricing" className="btn-secondary inline-block text-sm">
@@ -125,9 +125,9 @@ export default async function BillingPage() {
 
       {/* Cancel subscription */}
       {isPaid && profile.subscription_status === "active" && (
-        <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-5">
-          <p className="text-sm font-semibold text-white mb-1">Abonnement opzeggen</p>
-          <p className="text-sm text-slate-500 mb-4">
+        <div className="bg-paneel border border-rand rounded-2xl p-5">
+          <p className="text-sm font-semibold text-tekst mb-1">Abonnement opzeggen</p>
+          <p className="text-sm text-tekst-3 mb-4">
             Na opzegging gaat je account terug naar het gratis plan. Je resterende credits blijven behouden tot het einde van je factureringsperiode.
           </p>
           <CancelSubscriptionButton />

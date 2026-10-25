@@ -24,23 +24,23 @@ export default function CreditPakketten({ magKopen, gekocht }: { magKopen: boole
   }
 
   return (
-    <div className="mt-10 bg-[#0c1428] border border-white/[0.07] rounded-2xl p-6">
-      <h3 className="font-semibold text-white">Credits bijkopen</h3>
-      <p className="text-sm text-slate-400 mt-1">
+    <div className="mt-10 bg-paneel border border-rand rounded-2xl p-6">
+      <h3 className="font-semibold text-tekst">Credits bijkopen</h3>
+      <p className="text-sm text-tekst-3 mt-1">
         Even meer nodig dan je abonnement geeft? Koop losse credits bij. Ze komen bovenop je saldo en blijven staan, ook na je maandelijkse aanvulling.
       </p>
       {gekocht ? (
-        <p className="mt-4 text-sm rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-3 py-2">
+        <p className="mt-4 text-sm rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-300 px-3 py-2">
           Bedankt! Zodra de betaling binnen is, staan er {gekocht} credits extra op je saldo (meestal binnen een minuut).
         </p>
       ) : null}
       <div className="grid sm:grid-cols-3 gap-4 mt-5">
         {CREDIT_PAKKETTEN.map((p) => (
-          <div key={p.id} className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-4 text-center">
-            <p className="text-2xl font-extrabold text-white">{p.credits.toLocaleString("nl-NL")}</p>
-            <p className="text-xs text-slate-500">credits</p>
-            <p className="mt-3 text-lg font-bold text-white">€{p.prijs}</p>
-            <p className="text-[11px] text-slate-500">€{(p.prijs / p.credits).toFixed(3).replace(".", ",")} per credit</p>
+          <div key={p.id} className="rounded-xl border border-rand bg-paneel-2/60 p-4 text-center">
+            <p className="text-2xl font-extrabold text-tekst">{p.credits.toLocaleString("nl-NL")}</p>
+            <p className="text-xs text-tekst-3">credits</p>
+            <p className="mt-3 text-lg font-bold text-tekst">€{p.prijs}</p>
+            <p className="text-[11px] text-tekst-3">€{(p.prijs / p.credits).toFixed(3).replace(".", ",")} per credit</p>
             <button
               onClick={() => koop(p.id)}
               disabled={!magKopen || !!bezig}
@@ -51,8 +51,8 @@ export default function CreditPakketten({ magKopen, gekocht }: { magKopen: boole
           </div>
         ))}
       </div>
-      {!magKopen && <p className="mt-4 text-xs text-slate-500">Losse credits zijn er voor abonnees. Kies hierboven eerst een abonnement.</p>}
-      {fout && <p className="mt-4 text-sm text-red-400">{fout}</p>}
+      {!magKopen && <p className="mt-4 text-xs text-tekst-3">Losse credits zijn er voor abonnees. Kies hierboven eerst een abonnement.</p>}
+      {fout && <p className="mt-4 text-sm text-red-600 dark:text-red-400">{fout}</p>}
     </div>
   );
 }

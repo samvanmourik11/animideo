@@ -117,9 +117,9 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
         <div className="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto mb-4">
           <span className="text-3xl">🎬</span>
         </div>
-        <p className="text-white font-semibold text-lg mb-1">Nog geen projecten</p>
-        <p className="text-slate-500 text-sm mb-6">
-          Klik op <strong className="text-slate-300">Nieuw project</strong> om te beginnen.
+        <p className="text-tekst font-semibold text-lg mb-1">Nog geen projecten</p>
+        <p className="text-tekst-3 text-sm mb-6">
+          Klik op <strong className="text-tekst-2">Nieuw project</strong> om te beginnen.
         </p>
         <div className="flex justify-center">
           <NewProjectButton userId={userId} />
@@ -137,22 +137,22 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
           placeholder="Zoek project…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-0 bg-[#0c1428] border border-white/[0.07] rounded-xl px-4 py-2 text-sm text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+          className="flex-1 min-w-0 bg-paneel border border-rand rounded-xl px-4 py-2 text-sm text-tekst placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
         />
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value as ProjectStatus | "all")}
-          className="bg-[#0c1428] border border-white/[0.07] rounded-xl px-3 py-2 text-sm text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+          className="bg-paneel border border-rand rounded-xl px-3 py-2 text-sm text-tekst-2 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
         >
           {STATUS_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
         {/* View toggle */}
-        <div className="flex items-center gap-1 bg-[#0c1428] border border-white/[0.07] rounded-xl p-1">
+        <div className="flex items-center gap-1 bg-paneel border border-rand rounded-xl p-1">
           <button
             onClick={() => setView("grid")}
-            className={`p-1.5 rounded-lg transition-colors ${view === "grid" ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-slate-300"}`}
+            className={`p-1.5 rounded-lg transition-colors ${view === "grid" ? "bg-blue-500/20 text-blue-600 dark:text-blue-400" : "text-tekst-3 hover:text-tekst-2"}`}
             title="Grid"
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -161,7 +161,7 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
           </button>
           <button
             onClick={() => setView("list")}
-            className={`p-1.5 rounded-lg transition-colors ${view === "list" ? "bg-blue-500/20 text-blue-400" : "text-slate-500 hover:text-slate-300"}`}
+            className={`p-1.5 rounded-lg transition-colors ${view === "list" ? "bg-blue-500/20 text-blue-600 dark:text-blue-400" : "text-tekst-3 hover:text-tekst-2"}`}
             title="Lijst"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -172,7 +172,7 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
       </div>
 
       {filtered.length === 0 && (
-        <div className="text-center py-12 text-slate-500 text-sm">
+        <div className="text-center py-12 text-tekst-3 text-sm">
           Geen projecten gevonden voor je zoekopdracht.
         </div>
       )}
@@ -185,11 +185,11 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
             return (
               <div
                 key={project.id}
-                className="group relative bg-[#0c1428] border border-white/[0.07] hover:border-blue-500/30 rounded-2xl overflow-hidden transition-all hover:shadow-[0_4px_24px_rgba(59,130,246,0.1)]"
+                className="group relative bg-paneel border border-rand hover:border-blue-500/30 rounded-2xl overflow-hidden transition-all hover:shadow-[0_4px_24px_rgba(59,130,246,0.1)]"
               >
                 <Link href={projectHref(project)}>
                   {/* Thumbnail */}
-                  <div className="aspect-video bg-[#060d1f] relative flex items-center justify-center overflow-hidden">
+                  <div className="aspect-video bg-vlak relative flex items-center justify-center overflow-hidden">
                     {thumb ? (
                       <Image src={thumb} alt="" fill className="object-cover" unoptimized />
                     ) : (
@@ -203,14 +203,14 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
 
                   {/* Info */}
                   <div className="p-4">
-                    <p className="font-semibold text-white text-sm group-hover:text-blue-300 transition-colors truncate">
+                    <p className="font-semibold text-tekst text-sm group-hover:text-blue-300 transition-colors truncate">
                       {project.title}
                     </p>
-                    <p className="text-xs text-slate-300 mt-1">
+                    <p className="text-xs text-tekst-2 mt-1">
                       {project.format} · {project.language} · {formatDate(project.created_at)}
                     </p>
                     {project.scenes && project.scenes.length > 0 && (
-                      <p className="text-xs text-slate-400 mt-0.5">{project.scenes.length} scenes</p>
+                      <p className="text-xs text-tekst-3 mt-0.5">{project.scenes.length} scenes</p>
                     )}
                   </div>
                 </Link>
@@ -222,13 +222,13 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
                       <button
                         onClick={() => handleDelete(project.id)}
                         disabled={deletingId === project.id}
-                        className="text-xs px-2 py-1 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30"
+                        className="text-xs px-2 py-1 rounded-lg bg-red-500/20 border border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/30"
                       >
                         {deletingId === project.id ? "…" : "Ja"}
                       </button>
                       <button
                         onClick={() => setConfirmDelete(null)}
-                        className="text-xs px-2 py-1 rounded-lg bg-white/10 text-slate-400 hover:bg-white/20"
+                        className="text-xs px-2 py-1 rounded-lg bg-paneel-2 text-tekst-3 hover:bg-paneel-2"
                       >
                         Nee
                       </button>
@@ -238,7 +238,7 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
                     <button
                       onClick={(e) => { e.preventDefault(); void handleCopy(project); }}
                       disabled={copyingId === project.id}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg bg-black/60 border border-white/10 text-slate-400 hover:text-white flex items-center justify-center disabled:opacity-40"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg bg-black/60 border border-rand text-tekst-3 hover:text-white flex items-center justify-center disabled:opacity-40"
                       title="Kopie maken onder een andere naam"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -247,7 +247,7 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
                     </button>
                     <button
                       onClick={(e) => { e.preventDefault(); setConfirmDelete(project.id); }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg bg-black/60 border border-white/10 text-slate-400 hover:text-red-400 flex items-center justify-center"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-lg bg-black/60 border border-rand text-tekst-3 hover:text-red-600 dark:hover:text-red-400 flex items-center justify-center"
                       title="Verwijderen"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -269,11 +269,11 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
           {filtered.map((project) => (
             <div
               key={project.id}
-              className="group flex items-center justify-between bg-[#0c1428] border border-white/[0.07] hover:border-blue-500/30 rounded-2xl px-5 py-4 transition-all hover:shadow-[0_4px_24px_rgba(59,130,246,0.1)]"
+              className="group flex items-center justify-between bg-paneel border border-rand hover:border-blue-500/30 rounded-2xl px-5 py-4 transition-all hover:shadow-[0_4px_24px_rgba(59,130,246,0.1)]"
             >
               <Link href={projectHref(project)} className="flex items-center gap-4 min-w-0 flex-1">
                 {/* Mini thumb */}
-                <div className="w-14 h-9 rounded-lg overflow-hidden bg-[#060d1f] shrink-0 relative">
+                <div className="w-14 h-9 rounded-lg overflow-hidden bg-vlak shrink-0 relative">
                   {project.scenes?.find((s) => s.image_url)?.image_url ? (
                     <Image
                       src={project.scenes.find((s) => s.image_url)!.image_url!}
@@ -290,10 +290,10 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
                 </div>
 
                 <div className="min-w-0">
-                  <p className="font-semibold text-white group-hover:text-blue-300 transition-colors truncate text-sm">
+                  <p className="font-semibold text-tekst group-hover:text-blue-300 transition-colors truncate text-sm">
                     {project.title}
                   </p>
-                  <p className="text-xs text-slate-300 mt-0.5">
+                  <p className="text-xs text-tekst-2 mt-0.5">
                     {project.language} · {project.format} · {formatDate(project.created_at)}
                     {project.scenes && project.scenes.length > 0 && ` · ${project.scenes.length} scenes`}
                   </p>
@@ -307,11 +307,11 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
                     <button
                       onClick={() => handleDelete(project.id)}
                       disabled={deletingId === project.id}
-                      className="text-xs px-2 py-1 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 hover:bg-red-500/30"
+                      className="text-xs px-2 py-1 rounded-lg bg-red-500/20 border border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-500/30"
                     >
                       {deletingId === project.id ? "…" : "Verwijderen"}
                     </button>
-                    <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-1 rounded-lg bg-white/10 text-slate-400">
+                    <button onClick={() => setConfirmDelete(null)} className="text-xs px-2 py-1 rounded-lg bg-paneel-2 text-tekst-3">
                       Annuleren
                     </button>
                   </div>
@@ -320,7 +320,7 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
                   <button
                     onClick={() => void handleCopy(project)}
                     disabled={copyingId === project.id}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-white disabled:opacity-40"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-tekst-3 hover:text-tekst disabled:opacity-40"
                     title="Kopie maken onder een andere naam"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -329,7 +329,7 @@ export default function ProjectLibrary({ projects: initial, userId }: Props) {
                   </button>
                   <button
                     onClick={() => setConfirmDelete(project.id)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-red-400"
+                    className="opacity-0 group-hover:opacity-100 transition-opacity text-tekst-3 hover:text-red-600 dark:hover:text-red-400"
                     title="Verwijderen"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

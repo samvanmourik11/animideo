@@ -131,8 +131,8 @@ export default function SettingsClient({ email, name: initialName }: Props) {
     <div className="space-y-8">
 
       {/* Profiel */}
-      <section className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-6">
-        <h3 className="text-sm font-semibold text-white mb-4">Profiel</h3>
+      <section className="bg-paneel border border-rand rounded-2xl p-6">
+        <h3 className="text-sm font-semibold text-tekst mb-4">Profiel</h3>
         <div className="space-y-4">
           <div>
             <label className="label">Naam</label>
@@ -152,14 +152,14 @@ export default function SettingsClient({ email, name: initialName }: Props) {
               value={email}
               disabled
             />
-            <p className="text-xs text-slate-400 mt-1">Wijzig je e-mailadres hieronder.</p>
+            <p className="text-xs text-tekst-3 mt-1">Wijzig je e-mailadres hieronder.</p>
           </div>
           <div className="flex items-center gap-3">
             <button onClick={saveName} disabled={nameSaving} className="btn-primary text-sm">
               {nameSaving ? "Opslaan…" : "Naam opslaan"}
             </button>
             {nameMsg && (
-              <p className={`text-sm ${nameMsg.includes("mis") ? "text-red-400" : "text-green-400"}`}>
+              <p className={`text-sm ${nameMsg.includes("mis") ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
                 {nameMsg}
               </p>
             )}
@@ -168,9 +168,9 @@ export default function SettingsClient({ email, name: initialName }: Props) {
       </section>
 
       {/* E-mail wijzigen */}
-      <section className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-6">
-        <h3 className="text-sm font-semibold text-white mb-1">E-mailadres wijzigen</h3>
-        <p className="text-xs text-slate-500 mb-4">
+      <section className="bg-paneel border border-rand rounded-2xl p-6">
+        <h3 className="text-sm font-semibold text-tekst mb-1">E-mailadres wijzigen</h3>
+        <p className="text-xs text-tekst-3 mb-4">
           Er wordt een bevestigingsmail gestuurd naar je nieuwe adres.
         </p>
         <div className="space-y-3">
@@ -189,7 +189,7 @@ export default function SettingsClient({ email, name: initialName }: Props) {
               {emailSaving ? "Verzenden…" : "Bevestigingsmail sturen"}
             </button>
             {emailMsg && (
-              <p className={`text-sm ${emailMsg.includes("mis") || emailMsg.includes("geldig") ? "text-red-400" : "text-green-400"}`}>
+              <p className={`text-sm ${emailMsg.includes("mis") || emailMsg.includes("geldig") ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"}`}>
                 {emailMsg}
               </p>
             )}
@@ -198,8 +198,8 @@ export default function SettingsClient({ email, name: initialName }: Props) {
       </section>
 
       {/* Wachtwoord */}
-      <section className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-6">
-        <h3 className="text-sm font-semibold text-white mb-4">Wachtwoord wijzigen</h3>
+      <section className="bg-paneel border border-rand rounded-2xl p-6">
+        <h3 className="text-sm font-semibold text-tekst mb-4">Wachtwoord wijzigen</h3>
         <div className="space-y-3">
           <div>
             <label className="label">Huidig wachtwoord</label>
@@ -242,8 +242,8 @@ export default function SettingsClient({ email, name: initialName }: Props) {
             {passwordMsg && (
               <p className={`text-sm ${
                 passwordMsg.includes("mis") || passwordMsg.includes("onjuist") || passwordMsg.includes("overeen") || passwordMsg.includes("minimaal")
-                  ? "text-red-400"
-                  : "text-green-400"
+                  ? "text-red-600 dark:text-red-400"
+                  : "text-green-600 dark:text-green-400"
               }`}>
                 {passwordMsg}
               </p>
@@ -254,14 +254,14 @@ export default function SettingsClient({ email, name: initialName }: Props) {
 
       {/* Gevaar zone */}
       <section className="border border-red-500/20 rounded-2xl p-6">
-        <h3 className="text-sm font-semibold text-red-400 mb-1">Account verwijderen</h3>
-        <p className="text-sm text-slate-500 mb-4">
+        <h3 className="text-sm font-semibold text-red-600 dark:text-red-400 mb-1">Account verwijderen</h3>
+        <p className="text-sm text-tekst-3 mb-4">
           Dit verwijdert je account en alle bijbehorende projecten, brand kits en data permanent. Deze actie kan niet ongedaan worden gemaakt.
         </p>
         <div className="space-y-3">
           <div>
             <label className="label">
-              Typ <span className="text-red-400 font-mono">VERWIJDER</span> om te bevestigen
+              Typ <span className="text-red-600 dark:text-red-400 font-mono">VERWIJDER</span> om te bevestigen
             </label>
             <input
               type="text"
@@ -271,11 +271,11 @@ export default function SettingsClient({ email, name: initialName }: Props) {
               onChange={(e) => setDeleteConfirm(e.target.value)}
             />
           </div>
-          {deleteError && <p className="text-sm text-red-400">{deleteError}</p>}
+          {deleteError && <p className="text-sm text-red-600 dark:text-red-400">{deleteError}</p>}
           <button
             onClick={deleteAccount}
             disabled={deleteConfirm !== "VERWIJDER" || deleting}
-            className="text-sm px-4 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="text-sm px-4 py-2 rounded-xl border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {deleting ? "Verwijderen…" : "Account definitief verwijderen"}
           </button>

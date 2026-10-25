@@ -8,8 +8,8 @@ export default async function NewBrandKitPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-xl font-bold text-white">Nieuwe huisstijl</h1>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <h1 className="text-xl font-bold text-tekst">Nieuwe huisstijl</h1>
+        <p className="text-sm text-tekst-3 mt-0.5">
           Upload sfeerbeelden en laat AI de huisstijl analyseren.
         </p>
       </div>

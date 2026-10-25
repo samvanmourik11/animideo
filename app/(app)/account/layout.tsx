@@ -4,8 +4,8 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-xl font-bold text-white">Account</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Beheer je profiel, credits en abonnement</p>
+        <h1 className="text-xl font-bold text-tekst">Account</h1>
+        <p className="text-sm text-tekst-3 mt-0.5">Beheer je profiel, credits en abonnement</p>
       </div>
 
       {/* Mobile tabs */}

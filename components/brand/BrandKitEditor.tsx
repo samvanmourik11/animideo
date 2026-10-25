@@ -197,8 +197,8 @@ export default function BrandKitEditor({ initial, userId }: Props) {
       {/* Referentieafbeeldingen + Analyseer */}
       <div className="card space-y-4">
         <div>
-          <h3 className="text-sm font-semibold text-white mb-1">Sfeerbeelden / Website screenshots</h3>
-          <p className="text-xs text-slate-500">
+          <h3 className="text-sm font-semibold text-tekst mb-1">Sfeerbeelden / Website screenshots</h3>
+          <p className="text-xs text-tekst-3">
             Upload 1-3 afbeeldingen. GPT-4o analyseert kleuren, stijl en tone of voice automatisch.
           </p>
         </div>
@@ -217,18 +217,18 @@ export default function BrandKitEditor({ initial, userId }: Props) {
           {refPreviews.length < 3 && (
             <button
               onClick={() => refInputRef.current?.click()}
-              className="w-24 h-16 rounded-xl border-2 border-dashed border-white/10 hover:border-blue-500/40 flex items-center justify-center text-slate-600 hover:text-slate-400 transition-colors text-2xl"
+              className="w-24 h-16 rounded-xl border-2 border-dashed border-rand hover:border-blue-500/40 flex items-center justify-center text-tekst-3 hover:text-tekst-2 transition-colors text-2xl"
             >+</button>
           )}
           <input ref={refInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addRefImages(e.target.files)} />
         </div>
 
-        {analyzeError && <p className="text-xs text-red-400">{analyzeError}</p>}
+        {analyzeError && <p className="text-xs text-red-600 dark:text-red-400">{analyzeError}</p>}
 
         <button
           onClick={handleAnalyze}
           disabled={analyzing || refPreviews.length === 0}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 hover:bg-blue-500/20 transition-colors text-sm font-semibold disabled:opacity-40"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 transition-colors text-sm font-semibold disabled:opacity-40"
         >
           {analyzing ? (
             <><div className="w-3.5 h-3.5 border border-blue-400 border-t-transparent rounded-full animate-spin" />Analyseren…</>
@@ -256,7 +256,7 @@ export default function BrandKitEditor({ initial, userId }: Props) {
         <div className="grid grid-cols-2 gap-3">
           {(["primary", "secondary", "accent", "background"] as const).map((key) => (
             <div key={key}>
-              <label className="text-xs text-slate-500 capitalize mb-1 block">{key === "primary" ? "Primair" : key === "secondary" ? "Secundair" : key === "accent" ? "Accent" : "Achtergrond"}</label>
+              <label className="text-xs text-tekst-3 capitalize mb-1 block">{key === "primary" ? "Primair" : key === "secondary" ? "Secundair" : key === "accent" ? "Accent" : "Achtergrond"}</label>
               <input
                 className="input text-sm"
                 placeholder={`bijv. donkerblauw (#1a3c6e)`}
@@ -273,11 +273,11 @@ export default function BrandKitEditor({ initial, userId }: Props) {
         <label className="label mb-3 block">Lettertypes</label>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-slate-500 mb-1 block">Primair lettertype</label>
+            <label className="text-xs text-tekst-3 mb-1 block">Primair lettertype</label>
             <input className="input text-sm" placeholder="bijv. Montserrat" value={kit.fonts?.primary ?? ""} onChange={(e) => set("fonts", { ...kit.fonts, primary: e.target.value || undefined })} />
           </div>
           <div>
-            <label className="text-xs text-slate-500 mb-1 block">Secundair lettertype</label>
+            <label className="text-xs text-tekst-3 mb-1 block">Secundair lettertype</label>
             <input className="input text-sm" placeholder="bijv. Open Sans" value={kit.fonts?.secondary ?? ""} onChange={(e) => set("fonts", { ...kit.fonts, secondary: e.target.value || undefined })} />
           </div>
         </div>
@@ -299,9 +299,9 @@ export default function BrandKitEditor({ initial, userId }: Props) {
         <label className="label">Merkwaarden</label>
         <div className="flex flex-wrap gap-2 mb-2">
           {kit.brand_values.map((v, i) => (
-            <span key={i} className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs px-2.5 py-1 rounded-full">
+            <span key={i} className="flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-300 text-xs px-2.5 py-1 rounded-full">
               {v}
-              <button onClick={() => set("brand_values", kit.brand_values.filter((_, j) => j !== i))} className="hover:text-white">×</button>
+              <button onClick={() => set("brand_values", kit.brand_values.filter((_, j) => j !== i))} className="hover:text-tekst">×</button>
             </span>
           ))}
         </div>
@@ -354,7 +354,7 @@ export default function BrandKitEditor({ initial, userId }: Props) {
         <div className="flex items-center gap-4">
           {kit.logo_url && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={kit.logo_url} alt="Logo" className="h-12 rounded-lg object-contain bg-white/5 p-1" />
+            <img src={kit.logo_url} alt="Logo" className="h-12 rounded-lg object-contain bg-paneel-2/60 p-1" />
           )}
           <button onClick={() => logoInputRef.current?.click()} className="btn-secondary text-sm">
             {kit.logo_url ? "Logo wijzigen" : "Logo uploaden"}
@@ -380,7 +380,7 @@ export default function BrandKitEditor({ initial, userId }: Props) {
         </div>
       </div>
 
-      {saveError && <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{saveError}</p>}
+      {saveError && <p className="text-sm text-red-600 dark:text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{saveError}</p>}
 
       <div className="flex gap-3 pb-8">
         <button onClick={() => router.push("/brand")} className="btn-secondary">Annuleren</button>
