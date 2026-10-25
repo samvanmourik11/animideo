@@ -55,12 +55,15 @@ export async function betaal(
   userId: string,
   credits: number,
   reden: string,
+  opties?: { zonderSessie?: boolean },
 ): Promise<{ ok: boolean; betaald: number; betalerId: string }> {
   const team = await mijnTeam(userId);
   const betalerId = team?.eigenaar_id ?? userId;
   const ander = betalerId !== userId;
-  const saldoVoor = await getCredits(betalerId, { service: ander });
-  const r = await deductCredits(betalerId, credits, ander ? `${reden} (teamlid)` : reden, { service: ander });
+  // Zonder sessie (een cron, zoals de trendproef) is er geen ingelogde gebruiker om mee te lezen.
+  const service = ander || !!opties?.zonderSessie;
+  const saldoVoor = await getCredits(betalerId, { service });
+  const r = await deductCredits(betalerId, credits, ander ? `${reden} (teamlid)` : reden, { service });
   // deductCredits zet de eigenaar als "wie" in het kostenlogboek; het was de collega.
   zetKostenContext(userId, reden);
   if (!r.success) return { ok: false, betaald: 0, betalerId };

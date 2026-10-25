@@ -56,7 +56,7 @@ export async function startProef(trendId: string): Promise<Poging> {
   const t = await haalTrend(trendId);
   if (!t) throw new Error("Trend bestaat niet");
   const fotos = t.velden.fotos.map((_, i) => (i % 2 === 0 ? TESTPERSONEN.vrouw : TESTPERSONEN.man));
-  const c = await startTrend(PROEF_GEBRUIKER, { trendId, fotos, tekst: voorbeeldTekst(t), toestemming: true });
+  const c = await startTrend(PROEF_GEBRUIKER, { trendId, fotos, tekst: voorbeeldTekst(t), toestemming: true }, null, { zonderSessie: true });
   const poging: Poging = { creatieId: c.id, gestart: new Date().toISOString() };
   const proef = proefVan(t);
   await createServiceClient().from("trends").update({ proef: { pogingen: [...proef.pogingen, poging] }, updated_at: new Date().toISOString() }).eq("id", trendId);

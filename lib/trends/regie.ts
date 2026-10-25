@@ -67,7 +67,12 @@ export function leesKlantInvoer(t: Trend, ruw: Record<string, unknown>): KlantIn
   return { fotos, tekst, toestemming: ruw.toestemming === true };
 }
 
-export async function startTrend(userId: string, ruw: Record<string, unknown>, ouderId?: string | null): Promise<Creatie> {
+export async function startTrend(
+  userId: string,
+  ruw: Record<string, unknown>,
+  ouderId?: string | null,
+  opties?: { zonderSessie?: boolean },
+): Promise<Creatie> {
   const t = await haalTrend(String(ruw.trendId ?? ""));
   if (!t) throw new WachtrijFout("Deze trend bestaat niet (meer).", 404);
   const db = createServiceClient();
@@ -90,7 +95,7 @@ export async function startTrend(userId: string, ruw: Record<string, unknown>, o
   }
 
   const credits = trendCredits(t);
-  const { ok, betaald, betalerId } = await betaal(userId, credits, `Nieuwe app: trend ${t.titel}`);
+  const { ok, betaald, betalerId } = await betaal(userId, credits, `Nieuwe app: trend ${t.titel}`, opties);
   if (!ok) throw new WachtrijFout("Niet genoeg credits.", 402);
 
   const scene = sceneStap(t, klant);
