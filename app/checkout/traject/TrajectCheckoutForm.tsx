@@ -55,7 +55,7 @@ export default function TrajectCheckoutForm() {
       </div>
 
       <div className="space-y-2.5">
-        <label className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer">
+        <label className="flex items-start gap-2.5 text-xs text-tekst-2 cursor-pointer">
           <input
             type="checkbox"
             checked={agreeTerms}
@@ -65,18 +65,18 @@ export default function TrajectCheckoutForm() {
           />
           <span>
             Ik ga akkoord met de{" "}
-            <Link href="/algemene-voorwaarden" target="_blank" className="text-blue-400 underline hover:text-blue-300">
+            <Link href="/algemene-voorwaarden" target="_blank" className="text-blue-600 underline hover:text-blue-700">
               algemene voorwaarden
             </Link>{" "}
             en het{" "}
-            <Link href="/privacybeleid" target="_blank" className="text-blue-400 underline hover:text-blue-300">
+            <Link href="/privacybeleid" target="_blank" className="text-blue-600 underline hover:text-blue-700">
               privacybeleid
-            </Link>, en begrijp dat dit een <strong className="text-white">eenmalige betaling van €246</strong> is
-            waarmee ik <strong className="text-white">3000 credits</strong> ontvang (geen doorlopend abonnement).
+            </Link>, en begrijp dat dit een <strong className="text-tekst">eenmalige betaling van €246</strong> is
+            waarmee ik <strong className="text-tekst">3000 credits</strong> ontvang (geen doorlopend abonnement).
           </span>
         </label>
 
-        <label className="flex items-start gap-2.5 text-xs text-slate-400 cursor-pointer">
+        <label className="flex items-start gap-2.5 text-xs text-tekst-3 cursor-pointer">
           <input
             type="checkbox"
             checked={newsletter}
@@ -88,7 +88,7 @@ export default function TrajectCheckoutForm() {
       </div>
 
       {error && (
-        <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{error}</p>
+        <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>
       )}
 
       <button

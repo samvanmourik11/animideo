@@ -61,7 +61,7 @@ export default function WebinarCheckoutForm() {
       </div>
 
       <div className="space-y-2.5">
-        <label className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer">
+        <label className="flex items-start gap-2.5 text-xs text-tekst-2 cursor-pointer">
           <input
             type="checkbox"
             checked={agreeSubscription}
@@ -70,13 +70,13 @@ export default function WebinarCheckoutForm() {
             required
           />
           <span>
-            Ik begrijp dat dit een <strong className="text-white">doorlopend maandelijks abonnement</strong> is:
-            ik betaal nu <strong className="text-white">€1</strong> voor de eerste maand en daarna automatisch
-            <strong className="text-white"> €49 per maand</strong>, totdat ik opzeg. Ik kan op elk moment maandelijks opzeggen.
+            Ik begrijp dat dit een <strong className="text-tekst">doorlopend maandelijks abonnement</strong> is:
+            ik betaal nu <strong className="text-tekst">€1</strong> voor de eerste maand en daarna automatisch
+            <strong className="text-tekst"> €49 per maand</strong>, totdat ik opzeg. Ik kan op elk moment maandelijks opzeggen.
           </span>
         </label>
 
-        <label className="flex items-start gap-2.5 text-xs text-slate-300 cursor-pointer">
+        <label className="flex items-start gap-2.5 text-xs text-tekst-2 cursor-pointer">
           <input
             type="checkbox"
             checked={agreeTerms}
@@ -86,17 +86,17 @@ export default function WebinarCheckoutForm() {
           />
           <span>
             Ik ga akkoord met de{" "}
-            <Link href="/algemene-voorwaarden" target="_blank" className="text-blue-400 underline hover:text-blue-300">
+            <Link href="/algemene-voorwaarden" target="_blank" className="text-blue-600 underline hover:text-blue-700">
               algemene voorwaarden
             </Link>{" "}
             en het{" "}
-            <Link href="/privacybeleid" target="_blank" className="text-blue-400 underline hover:text-blue-300">
+            <Link href="/privacybeleid" target="_blank" className="text-blue-600 underline hover:text-blue-700">
               privacybeleid
             </Link>.
           </span>
         </label>
 
-        <label className="flex items-start gap-2.5 text-xs text-slate-400 cursor-pointer">
+        <label className="flex items-start gap-2.5 text-xs text-tekst-3 cursor-pointer">
           <input
             type="checkbox"
             checked={newsletter}
@@ -108,7 +108,7 @@ export default function WebinarCheckoutForm() {
       </div>
 
       {error && (
-        <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{error}</p>
+        <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>
       )}
 
       <button

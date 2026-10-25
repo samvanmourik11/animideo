@@ -46,7 +46,7 @@ export default function TrialCheckoutForm() {
       </div>
 
       {error && (
-        <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">{error}</p>
+        <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">{error}</p>
       )}
 
       <button

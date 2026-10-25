@@ -13,11 +13,11 @@ const FEATURES = [
 export default function TrajectCheckoutPage() {
   return (
     <div
-      className="min-h-screen bg-[#060d1f] flex items-start sm:items-center justify-center px-4 py-8"
+      className="min-h-screen bg-vlak flex items-start sm:items-center justify-center px-4 py-8"
       style={{ backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34,197,94,0.15) 0%, transparent 70%)" }}
     >
       <div className="w-full max-w-md">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-300 transition-colors mb-8">
+        <Link href="/" className="inline-flex items-center gap-2 text-sm text-tekst-3 hover:text-tekst transition-colors mb-8">
           <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 12H5m7-7-7 7 7 7" />
           </svg>
@@ -33,7 +33,7 @@ export default function TrajectCheckoutPage() {
             <div className="p-6 sm:p-7">
               <p className="text-[#4bb37c] font-extrabold tracking-wide text-sm mb-2">HET STARTTRAJECT</p>
               <p className="text-white font-black text-5xl leading-none mb-2">€246</p>
-              <p className="text-slate-400 text-sm mb-6">6 mnd software vooruit · begeleiding inbegrepen</p>
+              <p className="text-tekst-3 text-sm mb-6">6 mnd software vooruit · begeleiding inbegrepen</p>
               <ul className="space-y-3.5">
                 {FEATURES.map((f) => (
                   <li key={f} className="flex gap-3 text-white font-bold text-[15px] leading-snug">
@@ -47,16 +47,16 @@ export default function TrajectCheckoutPage() {
         </div>
 
         {/* Checkout */}
-        <div className="bg-[#0c1428] border border-white/[0.07] rounded-2xl p-6 shadow-[0_16px_60px_rgba(0,0,0,0.5)]">
-          <h1 className="text-xl font-bold text-white mb-1">Het Starttraject afrekenen</h1>
-          <p className="text-sm text-slate-400 mb-4">
-            Eenmalig <strong className="text-white">€246</strong> · je krijgt direct <strong className="text-white">3000 credits</strong> ingeladen.
+        <div className="bg-paneel border border-rand rounded-2xl p-6 shadow-[0_8px_30px_rgba(15,23,42,0.08)]">
+          <h1 className="text-xl font-bold text-tekst mb-1">Het Starttraject afrekenen</h1>
+          <p className="text-sm text-tekst-3 mb-4">
+            Eenmalig <strong className="text-tekst">€246</strong> · je krijgt direct <strong className="text-tekst">3000 credits</strong> ingeladen.
             Vul je e-mail in om door te gaan naar de betaling.
           </p>
 
           <TrajectCheckoutForm />
 
-          <p className="text-xs text-slate-400 text-center mt-4">
+          <p className="text-xs text-tekst-3 text-center mt-4">
             Beveiligd via Mollie, iDEAL / SEPA. Eenmalige betaling van €246 — geen abonnement.
           </p>
         </div>
