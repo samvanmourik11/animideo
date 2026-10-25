@@ -181,3 +181,13 @@ describe("trends: echte TikToks", () => {
     expect(goedVoorbeeld(v("ok sorry I lied", 20_000))).toBe(false);
   });
 });
+
+import { voorbeeldTekst } from "./types";
+
+describe("trends: proef", () => {
+  it("vult het tekstveld met een voorbeeld uit de placeholder", () => {
+    expect(voorbeeldTekst({ velden: { fotos: [], tekst: { label: "Kleur", placeholder: "bijv. donkerblauw, rood, wit" } } })).toBe("donkerblauw");
+    expect(voorbeeldTekst({ velden: { fotos: [], tekst: { label: "Naam", placeholder: "", verplicht: true } } })).toBe("iets leuks");
+    expect(voorbeeldTekst({ velden: { fotos: [], tekst: null } })).toBe("");
+  });
+});

@@ -9,9 +9,10 @@ import { METHODES, METHODE_INFO, MAX_CLIP_SEC, TREND_FORMATEN, telling, type Met
 // nalopen, aanpassen, de trendvideo erbij zetten, uitproberen en live zetten.
 
 type Rij = Trend & { credits: number; nogNodig: string | null };
-type Tab = "voorstel" | "live" | "archief" | "afgewezen";
+type Tab = "proef" | "voorstel" | "live" | "archief" | "afgewezen";
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: "proef", label: "In proef" },
   { id: "voorstel", label: "Te keuren" },
   { id: "live", label: "Live" },
   { id: "archief", label: "Archief" },
@@ -27,6 +28,13 @@ async function post(body: Record<string, unknown>): Promise<{ trends?: Rij[]; er
 export default function TrendBeheer() {
   const [trends, setTrends] = useState<Rij[]>([]);
   const [tab, setTab] = useState<Tab>("voorstel");
+  // Na de eerste lading: staat er niets te keuren maar wel iets in proef, open dan die tab.
+  const [gekozen, setGekozen] = useState(false);
+  useEffect(() => {
+    if (gekozen || !trends.length) return;
+    setGekozen(true);
+    if (!trends.some((t) => t.status === "voorstel") && trends.some((t) => t.status === "proef")) setTab("proef");
+  }, [trends, gekozen]);
   const [tip, setTip] = useState("");
   const [melding, setMelding] = useState<string | null>(null);
 
@@ -41,14 +49,14 @@ export default function TrendBeheer() {
   async function zoek() {
     setMelding(null);
     const d = await post({ actie: "zoek" });
-    setMelding(d.error ?? "Ik zoek nu wat er viral gaat (2 tot 5 minuten). Ververs de pagina straks voor de voorstellen.");
+    setMelding(d.error ?? "Ik zoek nu wat er viral gaat en zoek de beste uit (5 tot 10 minuten). Daarna test ik hem zelf; je ziet hem bij In proef, en bij Te keuren als de test goed is.");
   }
   async function stuurTip() {
     setMelding(null);
     const d = await post({ actie: "tip", tip });
     if (d.error) return setMelding(d.error);
     setTip("");
-    setMelding("Ik zoek deze trend uit (1 tot 3 minuten). Ververs de pagina straks; hij staat dan bij Te keuren.");
+    setMelding("Ik zoek deze trend grondig uit (2 tot 5 minuten) en test hem daarna zelf. Je ziet hem straks bij In proef.");
   }
 
   const zichtbaar = trends.filter((t) => t.status === tab);
@@ -60,7 +68,7 @@ export default function TrendBeheer() {
           <Link href="/studios/trends" className="text-xs text-blue-500 hover:text-blue-400">← Trends-studio</Link>
           <h1 className="text-3xl font-extrabold text-tekst tracking-tight">🔥 Trends keuren</h1>
           <p className="text-sm text-tekst-2 mt-1 max-w-2xl">
-            Elke ochtend zoek ik wat er viral gaat en zet ik het hier klaar, met een maakmethode die bij die trend past. Klanten zien een trend pas als jij hem live zet.
+            Elke ochtend zoek ik één virale AI-trend, zoek grondig uit hoe hij gemaakt is, en test hem eerst zelf met een testpersoon. Alleen wat goed uit de test komt, staat bij Te keuren. Klanten zien een trend pas als jij hem live zet.
           </p>
         </div>
         <button onClick={zoek} className="btn-primary text-sm self-start sm:self-auto">🔎 Zoek nu</button>
@@ -347,6 +355,15 @@ function TrendKaart({ trend: t, onLijst }: { trend: Rij; onLijst: (l: Rij[]) => 
         </div>
       </div>
 
+      {(t.proef?.pogingen?.length ?? 0) > 0 && (
+        <div className="space-y-1">
+          {t.proef!.pogingen.map((p, i) => (
+            <p key={i} className="text-xs text-tekst-2">
+              🧪 Proef {i + 1}: {p.oordeel ? `${p.oordeel}${p.score ? ` (${p.score}/10)` : ""} — ${p.opmerking ?? ""}` : "loopt (video's duren tot 20 min)…"}
+            </p>
+          ))}
+        </div>
+      )}
       {t.nogNodig && !gewijzigd && <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-500/10 rounded-lg px-3 py-2">⚠️ {t.nogNodig}</p>}
       {fout && <p className="text-xs text-red-600 dark:text-red-300 bg-red-500/10 rounded-lg px-3 py-2">{fout}</p>}
 
@@ -355,7 +372,12 @@ function TrendKaart({ trend: t, onLijst }: { trend: Rij; onLijst: (l: Rij[]) => 
         {!gewijzigd && (
           <Link href={`/studios/trends/${t.id}`} className="n-knop2 text-sm">🧪 Uitproberen</Link>
         )}
-        {!gewijzigd && t.status !== "live" && t.status !== "afgewezen" && (
+        {!gewijzigd && t.status !== "proef" && t.status !== "live" && (
+          <button onClick={() => doe({ actie: "test" }, "test")} disabled={!!bezig || !!t.nogNodig} className="n-knop2 text-sm disabled:opacity-50">
+            {bezig === "test" ? "Starten…" : "🧪 Laat mij testen"}
+          </button>
+        )}
+        {!gewijzigd && t.status !== "proef" && t.status !== "live" && t.status !== "afgewezen" && (
           <button onClick={() => doe({ actie: "live" }, "live")} disabled={!!bezig || !!t.nogNodig} className="btn-primary text-sm disabled:opacity-50">✓ Live zetten</button>
         )}
         {t.status === "voorstel" && <button onClick={() => doe({ actie: "afgewezen" }, "status")} className="n-knop2 text-sm">Afwijzen</button>}

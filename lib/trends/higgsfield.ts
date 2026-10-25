@@ -19,6 +19,7 @@ import path from "node:path";
 import { createServiceClient } from "@/lib/supabase/service";
 import { uploadNaarOpslag } from "@/lib/creaties/wachtrij";
 import { verwerkClip } from "./clip";
+import { startProef } from "./proef";
 import { METHODE_INFO, leesOpdracht, leesVelden } from "./types";
 
 const MODEL = "claude-opus-5-5";
@@ -145,11 +146,13 @@ export async function importeer(h: HiggsfieldTrend): Promise<string> {
     voorbeeld_url,
     voorbeeld_soort: "video",
     ...(clip ? { voorbeeldclip: clip.voorbeeldclip, geluid: clip.geluid, clip_sec: clip.clip_sec } : {}),
-    status: "voorstel",
+    // Eerst zelf testen; pas als dat goed is, ziet Sam hem (lib/trends/proef.ts).
+    status: "proef",
     bron: "higgsfield",
   };
   if (!METHODE_INFO[rij.methode as keyof typeof METHODE_INFO]) throw new Error("Onbekende methode");
-  const { error } = await createServiceClient().from("trends").insert(rij);
-  if (error) throw new Error(error.message);
-  return rij.titel;
+  const { data, error } = await createServiceClient().from("trends").insert(rij).select("id").single();
+  if (error || !data) throw new Error(error?.message ?? "Opslaan mislukt");
+  await startProef(data.id);
+  return `${rij.titel} (proef gestart)`;
 }

@@ -127,6 +127,8 @@ export interface Trend extends Omit<PubliekeTrend, "credits"> {
   clip_sec: number | null;
   bron: string;
   updated_at: string;
+  /** Zie lib/trends/proef.ts en migratie 116. */
+  proef?: { pogingen: { creatieId: string; gestart: string; oordeel?: string; score?: number; opmerking?: string }[] };
 }
 
 export const PUBLIEKE_KOLOMMEN =
@@ -239,4 +241,10 @@ export function lijktOp(a: string, b: string): boolean {
   if (!x.size || !y.size) return false;
   const samen = [...x].filter((w) => y.has(w)).length;
   return samen / Math.min(x.size, y.size) >= 0.6;
+}
+
+/** Een voorbeeldinvulling voor het tekstveld, uit de placeholder ("bv. rood, wit" → "rood"). */
+export function voorbeeldTekst(t: Pick<Trend, "velden">): string {
+  const p = t.velden.tekst?.placeholder?.replace(/^(bv\.|bijv\.|bijvoorbeeld|b\.v\.)\s*/i, "").split(/[,;]| of /)[0]?.trim() ?? "";
+  return t.velden.tekst?.verplicht ? p || "iets leuks" : p;
 }

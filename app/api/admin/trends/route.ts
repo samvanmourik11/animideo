@@ -6,6 +6,7 @@ import { speurtocht, voegToeVanuit } from "@/lib/trends/speuren";
 import { verwerkClip } from "@/lib/trends/clip";
 import { vulLinksAan } from "@/lib/trends/voorbeelden";
 import { controleerTikTok, ververs, voegToe } from "@/lib/trends/tiktok";
+import { startProef } from "@/lib/trends/proef";
 import { isMethode, leesOpdracht, leesVelden, nogNodig, trendCredits, type Trend } from "@/lib/trends/types";
 
 export const runtime = "nodejs";
@@ -78,7 +79,10 @@ export async function POST(req: NextRequest) {
     // De browser zette de video al in de opslag; hier het goede stuk eruit knippen.
     try {
       const { clip16, ...clip } = await verwerkClip(String(b.url ?? ""), Number(b.start) || 0, Number(b.lengte) || undefined);
-      await db.from("trends").update({ ...clip, opdracht: { ...t.opdracht, clip16 }, updated_at: nu }).eq("id", id);
+      // Een trend die op zijn video wachtte en nog niet getest is: nu kan de proef beginnen.
+      const testen = t.status === "voorstel" && !(t.proef?.pogingen ?? []).some((p) => p.oordeel === "goed");
+      await db.from("trends").update({ ...clip, opdracht: { ...t.opdracht, clip16 }, ...(testen ? { status: "proef" } : {}), updated_at: nu }).eq("id", id);
+      if (testen) await startProef(id);
     } catch (e) {
       return NextResponse.json({ error: `De video verwerken lukte niet: ${e instanceof Error ? e.message : e}` }, { status: 400 });
     }
@@ -115,6 +119,12 @@ export async function POST(req: NextRequest) {
     const url = String(b.url ?? "");
     if (url && !/^https:\/\//.test(url)) return NextResponse.json({ error: "Ongeldig voorbeeld." }, { status: 400 });
     await db.from("trends").update({ voorbeeld_url: url || null, voorbeeld_soort: url ? (b.soort === "beeld" ? "beeld" : "video") : null, updated_at: nu }).eq("id", id);
+  } else if (b.actie === "test") {
+    // (Opnieuw) zelf testen: de trend gaat terug op 'proef', met een frisse teller.
+    const reden = nogNodig(t);
+    if (reden) return NextResponse.json({ error: reden }, { status: 400 });
+    await db.from("trends").update({ status: "proef", proef: { pogingen: [] }, updated_at: nu }).eq("id", id);
+    await startProef(id);
   } else if (b.actie === "live") {
     const reden = nogNodig(t);
     if (reden) return NextResponse.json({ error: reden }, { status: 400 });

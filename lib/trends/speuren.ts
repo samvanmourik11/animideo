@@ -9,14 +9,14 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/service";
-import { ADMIN_ACCOUNTS } from "@/lib/studio/access";
 import { METHODES, METHODE_INFO, MAX_CLIP_SEC, isMethode, leesOpdracht, leesVelden, lijktOp } from "./types";
 import { vulLinksAan } from "./voorbeelden";
 import { voegToe, zoekTikToks } from "./tiktok";
+import { MAX_PROEVEN_PER_DAG, proevenVandaag, startProef } from "./proef";
 
 const MODEL = "claude-opus-5-5";
-const AFZENDER = "Animideo <noreply@jouwanimatievideo.nl>";
-const MAX_VOORSTELLEN = 5;
+/** Kandidaten uit de brede zoekronde; daarvan wordt er hooguit één uitgezocht en getest. */
+const MAX_KANDIDATEN = 3;
 
 const BOUWSTENEN = METHODES.map((m) => `- "${m}" — ${METHODE_INFO[m].naam}: ${METHODE_INFO[m].wanneer}`).join("\n");
 
@@ -58,8 +58,10 @@ const SCHEMA = {
           gezicht: { type: "boolean", description: "Staat er een herkenbaar gezicht van de klant in?" },
           hotness: { type: "integer", description: "1-10: hoe hard het nu gaat." },
           clip_zoeken: { type: "string", description: "Bij 'beweging'/'pratend': welke clip Sam moet downloaden als voorbeeld (welke video, welk fragment, max 15 s). Anders leeg." },
+          model_origineel: { type: "string", description: "Met welk AI-model / welke preset het origineel gemaakt is (bv. 'Higgsfield Viral-preset Vanish (Kling-gebaseerd)', 'Veo 3 tekst-naar-video', 'ChatGPT-beeld + Kling 2.1'), met de bron waar dat uit blijkt." },
+          zekerheid: { type: "string", enum: ["hoog", "midden", "laag"], description: "Hoe zeker weten we hoe het gemaakt is én dat onze route hetzelfde resultaat geeft?" },
         },
-        required: ["titel", "uitleg", "waarom_viral", "origineel", "bron_links", "icoon", "methode", "fotos", "tekstveld", "scenePrompt", "bewegingPrompt", "formaat", "gezicht", "hotness", "clip_zoeken"],
+        required: ["model_origineel", "zekerheid", "titel", "uitleg", "waarom_viral", "origineel", "bron_links", "icoon", "methode", "fotos", "tekstveld", "scenePrompt", "bewegingPrompt", "formaat", "gezicht", "hotness", "clip_zoeken"],
       },
     },
   },
@@ -82,6 +84,8 @@ export interface Voorstel {
   gezicht: boolean;
   hotness: number;
   clip_zoeken: string;
+  model_origineel: string;
+  zekerheid: "hoog" | "midden" | "laag";
 }
 
 function tekstUit(m: Anthropic.Message): string {
@@ -125,7 +129,7 @@ ${bekend || "(nog geen)"}`;
 }
 
 /** Ronde 2: uitschrijven in het vaste formaat, met de opdrachten erbij. */
-async function schrijfUit(client: Anthropic, verslag: string): Promise<Voorstel[]> {
+async function schrijfUit(client: Anthropic, verslag: string, max = MAX_KANDIDATEN): Promise<Voorstel[]> {
   const m = await client.messages
     .stream({
       model: MODEL,
@@ -140,17 +144,17 @@ Hoe de bouwstenen werken:
 - foto / foto-video: Nano Banana Pro bewerkt de foto('s) van de klant met scenePrompt ("the person from the reference photo …"). foto-video laat dat beeld daarna 5 s bewegen met Kling 2.5 (bewegingPrompt).
 - video-effect: Kling 2.5 laat de foto van de klant 5 s bewegen met bewegingPrompt (geen scène).
 - tekst-foto / tekst-video: geen foto; scenePrompt (beeld) of bewegingPrompt (5 s video) komt helemaal uit de tekst, met {tekst} voor wat de klant invult.
-- beweging: Kling Motion Control neemt de beweging over uit de trendvideo die Sam erbij zet (houding volgt de video, het geluid van de trend blijft). Optioneel eerst een scenePrompt om de klant in het juiste decor/de juiste kleding te zetten (bv. voetbaltenue op een stadionveld). bewegingPrompt mag kort zijn of leeg.
+- beweging: Wan Animate Replace — de originele trendvideo (die Sam erbij zet) blijft staan, alleen de hoofdpersoon wordt de klant; het geluid blijft. Optioneel eerst een scenePrompt die de klant de kleding van de trend aantrekt. bewegingPrompt mag leeg.
 - pratend: Kling Avatar laat de foto (of de scène) het geluid van de trend playbacken. Optioneel een scenePrompt.
 Video's vanuit een stilstaande foto kunnen slecht iets toevoegen dat er niet is (sneeuw die valt, een sprong door de lucht): kies dan liever "beweging" of een foto-trend.
 
 ${REGELS}
 
-Alleen trends die écht na te maken zijn; twijfel je, laat hem weg. Hooguit ${MAX_VOORSTELLEN}, de heetste eerst. Niets geschikts? Een lege lijst is een goed antwoord.`,
+Alleen trends die écht na te maken zijn en waarvan duidelijk is met welk model ze gemaakt zijn; twijfel je, laat hem weg of zet zekerheid op laag. Hooguit ${max}, de heetste en best na te maken eerst. Niets geschikts? Een lege lijst is een goed antwoord.`,
       messages: [{ role: "user", content: `Het verslag van vandaag:\n\n${verslag}` }],
     })
     .finalMessage();
-  return ((JSON.parse(tekstUit(m) || "{}") as { trends?: Voorstel[] }).trends ?? []).slice(0, MAX_VOORSTELLEN);
+  return ((JSON.parse(tekstUit(m) || "{}") as { trends?: Voorstel[] }).trends ?? []).slice(0, max);
 }
 
 function naarRij(v: Voorstel, bron: string) {
@@ -165,7 +169,7 @@ function naarRij(v: Voorstel, bron: string) {
     titel: v.titel.trim().slice(0, 80),
     uitleg: (v.uitleg ?? "").trim().slice(0, 300),
     waarom_viral: [v.waarom_viral?.trim(), clip ? `🎬 Trendvideo nodig: ${clip}` : ""].filter(Boolean).join("\n\n").slice(0, 2000),
-    origineel: (v.origineel ?? "").trim().slice(0, 600),
+    origineel: [v.model_origineel?.trim() ? `Model: ${v.model_origineel.trim()}` : "", (v.origineel ?? "").trim()].filter(Boolean).join(" — ").slice(0, 900),
     bron_links: (v.bron_links ?? []).filter((l) => /^https?:\/\//.test(l.url)).slice(0, 6),
     icoon: (v.icoon ?? "🔥").trim().slice(0, 8) || "🔥",
     methode: v.methode,
@@ -188,64 +192,78 @@ async function bekendeTrends(): Promise<string> {
   return (data ?? []).map((t) => `- ${t.titel}${t.status === "afgewezen" ? " (afgewezen)" : ""}`).join("\n");
 }
 
-/** Zoeken en uitschrijven, zonder iets op te slaan (ook voor een proefronde). */
-export async function zoekVoorstellen(bekend: string): Promise<Voorstel[]> {
+/**
+ * Ronde 1½: één kandidaat grondig uitzoeken. Sam (25-10-2026): "voordat je een viral voorstelt
+ * echt goed onderzoeken hoe het gemaakt is, welk model, en hoe je dat vervolgens maakt".
+ */
+async function verdiep(client: Anthropic, v: Voorstel): Promise<string> {
+  return zoek(
+    client,
+    `Zoek grondig uit hoe deze AI-trend gemaakt wordt, zodat wij hem precies kunnen namaken.
+
+Trend: ${v.titel} — ${v.uitleg}
+Wat we al weten: ${v.waarom_viral}
+Vermoedelijk gemaakt met: ${v.model_origineel}
+
+Zoek naar: de preset- of modelpagina (Higgsfield, Kling, Veo, Sora, Seedance …), wat makers zelf in hun beschrijving zetten, tutorials en prompts die ermee gemaakt zijn (tutorials mag je hier lezen, ze zijn bron, geen voorbeeld). Beschrijf daarna: welk model/preset, welke invoer (één foto? een video? tekst?), de stappen, typische prompts, wat het moeilijk maakt, en met welke van onze bouwstenen we het het dichtst benaderen. Wees eerlijk als je het niet zeker weet.`,
+    "",
+  );
+}
+
+type Rij = NonNullable<ReturnType<typeof naarRij>>;
+
+/** Zoekt TikToks als voorbeeld van het origineel, slaat op en zet de proef in gang. */
+async function bewaarEnTest(r: Rij, status: "proef" | "voorstel"): Promise<string> {
+  const tiktoks = await zoekTikToks(r).catch((e) => (console.error("[trends] TikToks zoeken mislukt:", e), []));
+  const rij = { ...r, status, bron_links: await vulLinksAan(voegToe(r.bron_links, tiktoks)) };
+  const { data, error } = await createServiceClient().from("trends").insert(rij).select("id").single();
+  if (error || !data) throw new Error(error?.message ?? "Opslaan mislukt");
+  if (status === "proef") await startProef(data.id);
+  return data.id;
+}
+
+/**
+ * De dagelijkse ronde: breed zoeken, de beste kandidaat diep uitzoeken, één recept, en dat
+ * eerst zelf testen. Sam krijgt pas een mail als de proef goed is (lib/trends/proef.ts).
+ */
+export async function speurtocht(): Promise<{ nieuw: number; titels: string[]; reden?: string }> {
+  if ((await proevenVandaag()) >= MAX_PROEVEN_PER_DAG) return { nieuw: 0, titels: [], reden: "dagplafond proeven bereikt" };
   const client = new Anthropic();
   const verslag = await zoek(
     client,
-    `Vandaag is het ${new Date().toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}. Wat gaat er nu viral dat mensen massaal namaken? Zoek de 5-10 sterkste kandidaten.`,
-    bekend,
+    `Vandaag is het ${new Date().toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}. Welke met AI gemaakte video's of beelden gaan nu viral en worden massaal nagemaakt? Zoek de 3-5 sterkste kandidaten en zoek bij elk uit met welk model of welke preset ze gemaakt zijn.`,
+    await bekendeTrends(),
   );
-  return schrijfUit(client, verslag);
+  const bekend = await bekendeTitels();
+  // Zonder trendvideo kunnen we 'beweging' en 'pratend' niet zelf testen: die vallen hier af
+  // (Sam kan ze via een tip met een video toevoegen, of ze komen via Higgsfield binnen).
+  const kandidaten = (await schrijfUit(client, verslag)).filter(
+    (v) => v.zekerheid !== "laag" && isMethode(v.methode) && !METHODE_INFO[v.methode].clipNodig && !bekend.some((t) => lijktOp(t, v.titel)),
+  );
+  for (const k of kandidaten.slice(0, 2)) {
+    const diep = await verdiep(client, k);
+    const [v] = await schrijfUit(client, `Kandidaat uit de brede zoekronde:\n${JSON.stringify(k)}\n\nGrondig onderzoek naar hoe hij gemaakt is:\n${diep}`, 1);
+    const r = v && v.zekerheid !== "laag" && isMethode(v.methode) && !METHODE_INFO[v.methode].clipNodig ? naarRij(v, "speurtocht") : null;
+    if (!r) continue;
+    await bewaarEnTest(r, "proef");
+    return { nieuw: 1, titels: [r.titel] };
+  }
+  return { nieuw: 0, titels: [], reden: "geen kandidaat waarvan we zeker weten hoe hij gemaakt is" };
 }
 
-/** De dagelijkse ronde: zoeken, uitschrijven, opslaan, Sam mailen. */
-export async function speurtocht(): Promise<{ nieuw: number; titels: string[] }> {
-  return bewaar(await zoekVoorstellen(await bekendeTrends()), "speurtocht");
-}
-
-/** Sam zag zelf iets (een link of een omschrijving): zoek het uit en maak er een voorstel van. */
+/** Sam zag zelf iets (een link of een omschrijving): grondig uitzoeken en testen. */
 export async function voegToeVanuit(tip: string): Promise<{ nieuw: number; titels: string[] }> {
   const client = new Anthropic();
   const verslag = await zoek(
     client,
-    `Sam (de eigenaar) zag deze trend en wil hem in de app: "${tip.slice(0, 1000)}". Zoek uit wat het precies is, hoe groot het is, hoe het origineel gemaakt is en waar je hem ziet. Beschrijf alleen deze ene trend (ook als hij al op de lijst lijkt te staan: dan in een nieuwe variant).`,
+    `Sam (de eigenaar) zag deze trend en wil hem in de app: "${tip.slice(0, 1000)}". Zoek grondig uit wat het precies is, hoe groot het is, met welk AI-model of welke preset het origineel gemaakt is (met bronnen), in welke stappen, en waar je hem ziet. Beschrijf alleen deze ene trend (ook als hij al op de lijst lijkt te staan: dan in een nieuwe variant).`,
     "",
   );
-  return bewaar(await schrijfUit(client, verslag), "handmatig", 1);
-}
-
-async function bewaar(voorstellen: Voorstel[], bron: string, max = MAX_VOORSTELLEN) {
-  // Claude krijgt de lijst al mee, maar twee zoekrondes tegelijk (de ochtendronde en "Zoek
-  // nu") zagen elkaars vondsten niet: zo stonden er op 25-10 twee keer "Pray For Me".
-  const bekend = bron === "speurtocht" ? await bekendeTitels() : [];
-  const ruw = voorstellen.map((v) => naarRij(v, bron)).filter((r): r is NonNullable<typeof r> => !!r);
-  const uniek = ruw.filter((r, i) => !bekend.some((t) => lijktOp(t, r.titel)) && !ruw.slice(0, i).some((x) => lijktOp(x.titel, r.titel))).slice(0, max);
-  // Bij elke trend echte TikToks als voorbeeld (Sam: veel beter dan screenshots). Lukt het
-  // zoeken niet, dan gaat de trend gewoon door met wat er wel is.
-  const rijen = await Promise.all(
-    uniek.map(async (r) => {
-      const tiktoks = await zoekTikToks(r).catch((e) => (console.error("[trends] TikToks zoeken mislukt:", e), []));
-      return { ...r, bron_links: await vulLinksAan(voegToe(r.bron_links, tiktoks)) };
-    }),
-  );
-  if (rijen.length) {
-    const { error } = await createServiceClient().from("trends").insert(rijen);
-    if (error) throw new Error(error.message);
-    if (bron === "speurtocht") await mailSam(rijen.map((r) => `${r.icoon} ${r.titel} — ${METHODE_INFO[r.methode as keyof typeof METHODE_INFO].naam}`));
-  }
-  return { nieuw: rijen.length, titels: rijen.map((r) => r.titel) };
-}
-
-async function mailSam(regels: string[]) {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) return;
-  const link = `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.jouwanimatievideo.nl").replace(/\/$/, "")}/admin/trends`;
-  const tekst = `Ik vond vandaag ${regels.length} nieuwe trend${regels.length === 1 ? "" : "s"} die klanten kunnen namaken:\n\n${regels.join("\n")}\n\nKeur ze op de beheerpagina; pas daarna zien klanten ze.`;
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: AFZENDER, to: [...ADMIN_ACCOUNTS], subject: `🔥 ${regels.length} nieuwe trend${regels.length === 1 ? "" : "s"} om te keuren`, text: `${tekst}\n\nNaar de trends: ${link}` }),
-  });
-  if (!res.ok) console.error("[trends] mail mislukt:", res.status, (await res.text().catch(() => "")).slice(0, 200));
+  const [v] = await schrijfUit(client, verslag, 1);
+  const r = v ? naarRij(v, "handmatig") : null;
+  if (!r) return { nieuw: 0, titels: [] };
+  // Een beweging- of playbacktrend kunnen we pas testen als Sam de trendvideo erbij zet; dat
+  // start de proef dan alsnog (zie de actie 'clip' op /api/admin/trends).
+  await bewaarEnTest(r, METHODE_INFO[r.methode as keyof typeof METHODE_INFO].clipNodig ? "voorstel" : "proef");
+  return { nieuw: 1, titels: [r.titel] };
 }
