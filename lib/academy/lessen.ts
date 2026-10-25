@@ -258,6 +258,18 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
         ],
         opdracht: { tekst: "Vraag de Regisseur om drie Instagram-posts voor je bedrijf.", link: "/regisseur", knop: "Naar de Regisseur", check: "regisseur" },
       },
+      {
+        slug: "praktijk-posts",
+        titel: "Praktijk: Instagram-posts voor je zaak",
+        kort: "We maken samen drie posts voor een koffiebar, en sturen er daarna één bij.",
+        punten: [
+          "Vertel wie je bent, wat je wilt, en wat je níet wilt.",
+          "Kijk naar het plan voordat er credits gaan.",
+          "Is iets nog niet goed? Stuur bij in hetzelfde gesprek.",
+          "Bijsturen kost alleen wat opnieuw gemaakt moet worden.",
+        ],
+        opdracht: { tekst: "Vraag de Regisseur om drie posts voor je eigen bedrijf, en stuur er daarna één bij.", link: "/regisseur", knop: "Naar de Regisseur", check: "regisseur" },
+      },
     ],
   },
   {
