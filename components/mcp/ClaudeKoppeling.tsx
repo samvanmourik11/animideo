@@ -1,5 +1,6 @@
 "use client";
 
+import PakketSlot from "@/components/PakketSlot";
 import { useCallback, useEffect, useState } from "react";
 
 // Animideo koppelen aan Claude Code (en andere MCP-programma's): een persoonlijke sleutel
@@ -22,12 +23,12 @@ function Kopieer({ tekst }: { tekst: string }) {
   );
 }
 
-export default function ClaudeKoppeling() {
+export default function ClaudeKoppeling({ magClaude = true, magSleutels = true }: { magClaude?: boolean; magSleutels?: boolean }) {
   const [sleutels, setSleutels] = useState<Sleutel[]>([]);
   const [nieuw, setNieuw] = useState<string | null>(null);
   const [naam, setNaam] = useState("Claude Code");
   const [fout, setFout] = useState<string | null>(null);
-  const [adres, setAdres] = useState("https://ai.jouwanimatievideo.nl/api/mcp");
+  const [adres, setAdres] = useState("https://ai.animideo.com/api/mcp");
   const [gevorderd, setGevorderd] = useState(false);
 
   const laad = useCallback(async () => {
@@ -81,6 +82,8 @@ export default function ClaudeKoppeling() {
         </p>
       </div>
 
+      {!magClaude && <PakketSlot recht="claude" />}
+
       <section className="n-kaart space-y-3">
         <h2 className="font-semibold text-tekst">Zo voeg je Animideo toe aan Claude</h2>
         <ol className="text-sm text-tekst-2 list-decimal pl-5 space-y-1.5">
@@ -103,7 +106,8 @@ export default function ClaudeKoppeling() {
         <button onClick={() => setGevorderd((x) => !x)} className="text-sm text-tekst-3 hover:text-tekst">
           {gevorderd ? "▾" : "▸"} Voor gevorderden: Claude Code, Cursor en andere programma&apos;s (met een sleutel)
         </button>
-        {gevorderd && (
+        {gevorderd && !magSleutels && <PakketSlot recht="apiSleutels" compact />}
+        {gevorderd && magSleutels && (
           <div className="space-y-4">
             <div className="n-kaart space-y-3">
               <h3 className="font-semibold text-tekst text-sm">1. Maak een sleutel</h3>

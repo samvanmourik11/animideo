@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { controleerAanvraag, maakCode, OAuthFout } from "@/lib/mcp/oauth";
+import { magGebruiker } from "@/lib/plan-rechten-server";
 
 export const runtime = "nodejs";
 
@@ -27,7 +28,10 @@ export async function POST(req: NextRequest) {
   if (!user) return new NextResponse("Log eerst in.", { status: 401 });
 
   const terug = new URL(a.redirect_uri);
-  if (f.get("besluit") !== "ja") {
+  // Zonder Pro geen verbinding: dan krijgt Claude een nette weigering in plaats van een
+  // koppeling die bij elke vraag 403 geeft.
+  const magHet = await magGebruiker(user.id, "claude");
+  if (f.get("besluit") !== "ja" || !magHet) {
     terug.searchParams.set("error", "access_denied");
   } else {
     terug.searchParams.set("code", await maakCode(user.id, a));

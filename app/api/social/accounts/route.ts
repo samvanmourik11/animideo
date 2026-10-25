@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { accountsVan, koppelUrl, ontkoppel, ZernioFout } from "@/lib/social/zernio";
 import { PLATFORMS, type PlatformId } from "@/lib/social/types";
+import { planVan } from "@/lib/plan-rechten-server";
+import { SOCIAL_ACCOUNTS, upgradeTekst } from "@/lib/plan-rechten";
 
 export const runtime = "nodejs";
 
@@ -26,6 +28,11 @@ export async function GET(req: NextRequest) {
   try {
     if (koppel) {
       if (!PLATFORMS.some((p) => p.id === koppel)) return NextResponse.json({ error: "Onbekend platform." }, { status: 400 });
+      const max = SOCIAL_ACCOUNTS[await planVan(user.id)];
+      if (!max) return NextResponse.json({ error: upgradeTekst("vooruitPosten") }, { status: 403 });
+      if ((await accountsVan(user.id)).length >= max) {
+        return NextResponse.json({ error: `Je pakket heeft ruimte voor ${max} gekoppelde accounts. Met Agency koppel je er onbeperkt.` }, { status: 403 });
+      }
       const terug = `${req.nextUrl.origin}/studios/social?gekoppeld=${koppel}`;
       // Na een eerdere opruiming (abonnement gestopt) begint de klant met een schone lei;
       // betaalt hij nog steeds niet, dan waarschuwt de dagelijkse ronde opnieuw.

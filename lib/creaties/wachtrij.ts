@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { magGebruiker } from "@/lib/plan-rechten-server";
+import { upgradeTekst } from "@/lib/plan-rechten";
 import { fal } from "@/lib/fal";
 import { createServiceClient } from "@/lib/supabase/service";
 import { betaal, betaalTerug } from "@/lib/team/team";
@@ -54,6 +56,10 @@ export async function startCreatie(
   if (maker === "film") return startFilm(userId, ruweInvoer);
   if (maker === "montage") return startMontage(userId, ruweInvoer);
   if (maker === "trend") return startTrend(userId, ruweInvoer, ouderId);
+
+  if ((maker === "stem-kloon" || maker === "pratende-foto") && !(await magGebruiker(userId, "stemKlonen"))) {
+    throw new WachtrijFout(upgradeTekst("stemKlonen"), 403);
+  }
 
   let opdracht;
   try {

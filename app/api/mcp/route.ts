@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { gebruikerVan } from "@/lib/mcp/sleutels";
 import { verwerk } from "@/lib/mcp/server";
 import { origin } from "@/lib/mcp/origin";
+import { magGebruiker } from "@/lib/plan-rechten-server";
+import { upgradeTekst } from "@/lib/plan-rechten";
 
 export const runtime = "nodejs";
 // Sommige gereedschappen (een productpagina lezen, een contentkalender bedenken) duren even.
@@ -17,6 +19,9 @@ export async function POST(req: NextRequest) {
       // Zo vindt de Claude-app de inlogpagina (RFC 9728, verplicht in de MCP-specificatie).
       { status: 401, headers: { "WWW-Authenticate": `Bearer resource_metadata="${origin(req)}/.well-known/oauth-protected-resource"` } },
     );
+  }
+  if (!(await magGebruiker(userId, "claude"))) {
+    return NextResponse.json({ jsonrpc: "2.0", id: null, error: { code: -32003, message: upgradeTekst("claude") } }, { status: 403 });
   }
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Ongeldige JSON." } }, { status: 400 });

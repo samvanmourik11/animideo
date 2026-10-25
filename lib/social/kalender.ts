@@ -15,6 +15,8 @@ import type { Creatie } from "@/lib/creaties/types";
 import { leesGeheugen } from "@/lib/regisseur/tools";
 import { nlMoment } from "@/lib/regisseur/taken";
 import { ALLEEN_VIDEO, MAX_FOTOS, PLATFORMS, type Kalender, type Kanaal, type Post } from "./types";
+import { magGebruiker } from "@/lib/plan-rechten-server";
+import { upgradeTekst } from "@/lib/plan-rechten";
 import { accountsVan, plaatsPost, standVan, ZernioFout } from "./zernio";
 
 const MODEL = "claude-opus-5-5";
@@ -281,6 +283,8 @@ async function verderMaken(p: Rij, k: Kalender, creaties: Map<string, Creatie>):
 
 /** Naar Zernio: ingepland op het geplande moment (ligt dat al achter ons, dan meteen). */
 export async function plan(p: Rij, k: Pick<Kalender, "kanalen">, mediaUrl?: string): Promise<void> {
+  // Na een downgrade naar Starter plannen we niets meer in; de post zelf blijft te downloaden.
+  if (!(await magGebruiker(p.user_id, "vooruitPosten"))) return void (await zet(p.id, { status: "mislukt", foutmelding: upgradeTekst("vooruitPosten") }));
   const db = createServiceClient();
   let url = mediaUrl;
   if (!url) {

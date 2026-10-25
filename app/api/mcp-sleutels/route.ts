@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { lijstSleutels, maakSleutel, trekIn } from "@/lib/mcp/sleutels";
+import { magGebruiker } from "@/lib/plan-rechten-server";
+import { upgradeTekst } from "@/lib/plan-rechten";
 
 export const runtime = "nodejs";
 
@@ -20,6 +22,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = await gebruiker();
   if (!user) return NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 });
+  if (!(await magGebruiker(user.id, "apiSleutels"))) return NextResponse.json({ error: upgradeTekst("apiSleutels") }, { status: 403 });
   const { naam } = (await req.json().catch(() => ({}))) as { naam?: unknown };
   try {
     return NextResponse.json(await maakSleutel(user.id, String(naam ?? "")));

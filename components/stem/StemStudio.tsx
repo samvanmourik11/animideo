@@ -1,5 +1,6 @@
 "use client";
 
+import PakketSlot from "@/components/PakketSlot";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Creatie } from "@/lib/creaties/types";
@@ -276,7 +277,7 @@ function Opnemer({ onKlaar }: { onKlaar: (c: Creatie, sec: number) => void }) {
 const VOORLEESTEKST =
   "Hallo! Ik neem nu mijn eigen stem op voor Animideo. Ik praat rustig en duidelijk, zoals ik normaal ook praat. Vandaag is het een mooie dag: de zon schijnt, de koffie is warm en de fiets staat klaar. Ik vertel graag over wat we maken, over onze klanten en over de plannen voor het komende jaar. Wist je dat een goede stem een verhaal pas echt tot leven brengt? Daarom neem ik de tijd, adem ik rustig, en lees ik deze tekst één keer helemaal voor.";
 
-export default function StemStudio() {
+export default function StemStudio({ magKlonen = true }: { magKlonen?: boolean }) {
   const [tab, setTab] = useState<Tab>("stemmen");
   const [stem, setStem] = useState<GekozenStem | null>(null);
   const [tekst, setTekst] = useState("");
@@ -427,7 +428,9 @@ export default function StemStudio() {
         </div>
       )}
 
-      {tab === "eigen" && (
+      {(tab === "eigen" || tab === "lipsync") && !magKlonen && <PakketSlot recht="stemKlonen" />}
+
+      {tab === "eigen" && magKlonen && (
         <div className="grid lg:grid-cols-[minmax(0,560px)_1fr] gap-6 items-start">
           <div className="n-kaart space-y-4">
             <div>
@@ -483,7 +486,7 @@ export default function StemStudio() {
         </div>
       )}
 
-      {tab === "lipsync" && (
+      {tab === "lipsync" && magKlonen && (
         <div className="grid lg:grid-cols-[minmax(0,560px)_1fr] gap-6 items-start">
           <div className="n-kaart space-y-4">
             <div>

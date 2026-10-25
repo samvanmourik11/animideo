@@ -1,3 +1,5 @@
+import { magGebruiker } from "@/lib/plan-rechten-server";
+import { upgradeTekst } from "@/lib/plan-rechten";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { CREDIT_PAKKETTEN } from "@/lib/credit-costs";
@@ -29,6 +31,7 @@ export async function POST(req: NextRequest) {
   if (!profiel || profiel.plan === "free" || profiel.subscription_status !== "active") {
     return NextResponse.json({ error: "Losse credits kun je bijkopen met een abonnement." }, { status: 403 });
   }
+  if (!(await magGebruiker(user.id, "losseCredits"))) return NextResponse.json({ error: upgradeTekst("losseCredits") }, { status: 403 });
 
   const betaling = async (metKlant: boolean) =>
     fetch(`${MOLLIE_BASE}/payments`, {
