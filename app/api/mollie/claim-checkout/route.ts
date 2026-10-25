@@ -1,6 +1,7 @@
 import { PLAN_CREDITS } from "@/lib/credit-costs";
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { GRATIS_WEEK_CREDITS, isGratisWeek } from "@/lib/gratis-week";
 
 
 export async function POST(req: NextRequest) {
@@ -24,7 +25,9 @@ export async function POST(req: NextRequest) {
   // Starttraject: eenmalige aankoop → 3000 credits + Starter-toegang, géén
   // doorlopend abonnement (geen mollie_subscription_id, geen credit-reset).
   const isTraject = pending.plan === "traject";
-  const credits = isTraject ? 3000 : (PLAN_CREDITS[pending.plan] ?? 100);
+  // De gratis week krijgt 200 credits; de maandbundel komt bij de eerste echte incasso.
+  const gratisWeek = !isTraject && (await isGratisWeek(pending.id));
+  const credits = isTraject ? 3000 : gratisWeek ? GRATIS_WEEK_CREDITS : (PLAN_CREDITS[pending.plan] ?? 100);
   const planForProfile = isTraject ? "starter" : pending.plan;
 
   // Link to user account
@@ -43,7 +46,7 @@ export async function POST(req: NextRequest) {
   await supabase.from("credit_transactions").insert({
     user_id: userId,
     amount: credits,
-    reason: isTraject ? "Starttraject geactiveerd: 3000 credits" : `Abonnement gekoppeld na registratie: ${pending.plan}`,
+    reason: isTraject ? "Starttraject geactiveerd: 3000 credits" : gratisWeek ? `Gratis week gestart: ${pending.plan}` : `Abonnement gekoppeld na registratie: ${pending.plan}`,
   });
 
   // Mark checkout as claimed

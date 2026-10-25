@@ -2,6 +2,7 @@ import { CREDIT_PAKKETTEN, PLAN_CREDITS } from "@/lib/credit-costs";
 import { addCredits } from "@/lib/credits";
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { verwerkGratisWeek } from "@/lib/gratis-week";
 import { isTeruggeboekt, verwerkAchterstandBetaling, verwerkTerugboeking } from "@/lib/achterstand";
 
 const MOLLIE_BASE = "https://api.mollie.com/v2";
@@ -103,6 +104,12 @@ export async function POST(req: NextRequest) {
         .update({ status: "paid" })
         .eq("id", guestCheckoutId);
     }
+    return NextResponse.json({ received: true });
+  }
+
+  // ── Gratis week: verificatie terugstorten + abonnement over 7 dagen ─────
+  if (metadata?.gratisWeek) {
+    await verwerkGratisWeek(payment);
     return NextResponse.json({ received: true });
   }
 

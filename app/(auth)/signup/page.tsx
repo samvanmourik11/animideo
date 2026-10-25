@@ -33,7 +33,7 @@ function SignupForm() {
   // Gratis registratie is afgeschaft: wie niet via een betaalde (€1-)checkout
   // komt (geen guest_email), wordt doorgestuurd naar het €1-aanbod.
   useEffect(() => {
-    if (!guestEmail) router.replace("/checkout/webinar");
+    if (!guestEmail) router.replace("/start");
   }, [guestEmail, router]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -45,7 +45,7 @@ function SignupForm() {
     // (€1-)checkout worden aangemaakt. Zonder guest_email hoort niemand hier;
     // stuur die door naar het €1-aanbod.
     if (!guestEmail) {
-      router.replace("/checkout/webinar");
+      router.replace("/start");
       return;
     }
 
@@ -74,7 +74,7 @@ function SignupForm() {
       }
       // 422 (no_paid_checkout): betaling (nog) niet gevonden. NOOIT een gratis
       // account aanmaken — laat de gebruiker de betaling afronden of retryen.
-      setError("We konden je €1-betaling nog niet vinden. Net betaald? Wacht een paar seconden en klik nogmaals op “Account aanmaken”.");
+      setError("We konden je betaling of verificatie nog niet vinden. Net afgerond? Wacht een paar seconden en klik nogmaals op “Account aanmaken”.");
       setLoading(false);
       return;
     } catch {
