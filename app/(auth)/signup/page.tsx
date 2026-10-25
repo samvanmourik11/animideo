@@ -105,7 +105,7 @@ function SignupForm() {
   // Directe (gratis) bezoeker: toon niets, de effect stuurt door naar het €1-aanbod.
   if (!guestEmail) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4 text-slate-400 text-sm">
+      <div className="min-h-screen flex items-center justify-center px-4 text-tekst-3 text-sm">
         Een moment…
       </div>
     );
@@ -117,30 +117,30 @@ function SignupForm() {
         style={{ backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(59,130,246,0.18) 0%, transparent 70%)" }}>
         <div className="w-full max-w-sm text-center">
           <div className="text-5xl mb-4">📬</div>
-          <h1 className="text-2xl font-bold text-white mb-2">Check je inbox</h1>
-          <div className="card shadow-[0_8px_40px_rgba(0,0,0,0.5)]">
-            <p className="text-slate-300 font-medium">Bevestigingslink verstuurd</p>
-            <p className="text-slate-500 text-sm mt-1">
-              We hebben een link gestuurd naar <strong className="text-white">{email}</strong>.
+          <h1 className="text-2xl font-bold text-tekst mb-2">Check je inbox</h1>
+          <div className="card shadow-[0_8px_30px_rgba(15,23,42,0.08)]">
+            <p className="text-tekst-2 font-medium">Bevestigingslink verstuurd</p>
+            <p className="text-tekst-3 text-sm mt-1">
+              We hebben een link gestuurd naar <strong className="text-tekst">{email}</strong>.
             </p>
-            <p className="text-slate-500 text-xs mt-3">
+            <p className="text-tekst-3 text-xs mt-3">
               Geen mail na een paar minuten? Check je spam-map of vraag een nieuwe link aan.
             </p>
             <button
               type="button"
               onClick={handleResend}
               disabled={resending}
-              className="text-blue-400 hover:text-blue-300 transition-colors text-sm font-medium mt-2"
+              className="text-blue-600 hover:text-blue-700 transition-colors text-sm font-medium mt-2"
             >
               {resending ? "Versturen…" : "Nieuwe link versturen"}
             </button>
             {resendMsg && (
-              <p className="text-slate-400 text-xs mt-2">{resendMsg}</p>
+              <p className="text-tekst-3 text-xs mt-2">{resendMsg}</p>
             )}
           </div>
-          <p className="text-center text-sm text-slate-500 mt-5">
+          <p className="text-center text-sm text-tekst-3 mt-5">
             Al bevestigd?{" "}
-            <Link href="/login" className="text-blue-400 hover:text-blue-300 transition-colors font-medium">
+            <Link href="/login" className="text-blue-600 hover:text-blue-700 transition-colors font-medium">
               Inloggen
             </Link>
           </p>
@@ -154,13 +154,13 @@ function SignupForm() {
       style={{ backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(59,130,246,0.18) 0%, transparent 70%)" }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent mb-1">
-            JouwAnimatieVideo A.I.
+          <h1 className="text-3xl font-extrabold tracking-tight text-tekst mb-1">
+            Animideo<span className="text-blue-500">.</span>
           </h1>
-          <p className="text-slate-500 text-sm">Rond je account af en ga direct aan de slag</p>
+          <p className="text-tekst-3 text-sm">Rond je account af en ga direct aan de slag</p>
         </div>
 
-        <div className="card shadow-[0_8px_40px_rgba(0,0,0,0.5)]">
+        <div className="card shadow-[0_8px_30px_rgba(15,23,42,0.08)]">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="label">E-mailadres</label>
@@ -175,7 +175,7 @@ function SignupForm() {
                 aria-readonly={!!guestEmail}
               />
               {guestEmail && (
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-tekst-3 mt-1">
                   Gekoppeld aan je betaling — niet wijzigbaar.
                 </p>
               )}
@@ -195,7 +195,7 @@ function SignupForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors text-sm"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-tekst-3 hover:text-tekst transition-colors text-sm"
                   tabIndex={-1}
                 >
                   {showPassword ? "Verberg" : "Toon"}
@@ -204,7 +204,7 @@ function SignupForm() {
             </div>
 
             {error && (
-              <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+              <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">
                 {error}
               </p>
             )}
@@ -215,9 +215,9 @@ function SignupForm() {
           </form>
         </div>
 
-        <p className="text-center text-sm text-slate-500 mt-5">
+        <p className="text-center text-sm text-tekst-3 mt-5">
           Al een account?{" "}
-          <Link href="/login" className="text-blue-400 hover:text-blue-300 transition-colors font-medium">
+          <Link href="/login" className="text-blue-600 hover:text-blue-700 transition-colors font-medium">
             Inloggen
           </Link>
         </p>

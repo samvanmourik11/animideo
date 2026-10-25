@@ -22,8 +22,8 @@ function FreeSignupForm() {
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="w-full max-w-sm text-center">
           <div className="text-4xl mb-3">🔒</div>
-          <h1 className="text-xl font-bold text-white mb-2">Deze link is niet geldig</h1>
-          <p className="text-slate-500 text-sm">Vraag JouwAnimatieVideo A.I. om een geldige uitnodigingslink.</p>
+          <h1 className="text-xl font-bold text-tekst mb-2">Deze link is niet geldig</h1>
+          <p className="text-tekst-3 text-sm">Vraag Animideo om een geldige uitnodigingslink.</p>
         </div>
       </div>
     );
@@ -68,13 +68,13 @@ function FreeSignupForm() {
       style={{ backgroundImage: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(59,130,246,0.18) 0%, transparent 70%)" }}>
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent mb-1">
-            JouwAnimatieVideo A.I.
+          <h1 className="text-3xl font-extrabold tracking-tight text-tekst mb-1">
+            Animideo<span className="text-blue-500">.</span>
           </h1>
-          <p className="text-slate-500 text-sm">Maak je gratis account aan en ga aan de slag</p>
+          <p className="text-tekst-3 text-sm">Maak je gratis account aan en ga aan de slag</p>
         </div>
 
-        <div className="card shadow-[0_8px_40px_rgba(0,0,0,0.5)]">
+        <div className="card shadow-[0_8px_30px_rgba(15,23,42,0.08)]">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="label">E-mailadres</label>
@@ -103,7 +103,7 @@ function FreeSignupForm() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors text-sm"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-tekst-3 hover:text-tekst transition-colors text-sm"
                   tabIndex={-1}
                 >
                   {showPassword ? "Verberg" : "Toon"}
@@ -112,7 +112,7 @@ function FreeSignupForm() {
             </div>
 
             {error && (
-              <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2">
+              <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">
                 {error}
               </p>
             )}
@@ -123,9 +123,9 @@ function FreeSignupForm() {
           </form>
         </div>
 
-        <p className="text-center text-sm text-slate-500 mt-5">
+        <p className="text-center text-sm text-tekst-3 mt-5">
           Al een account?{" "}
-          <Link href="/login" className="text-blue-400 hover:text-blue-300 transition-colors font-medium">
+          <Link href="/login" className="text-blue-600 hover:text-blue-700 transition-colors font-medium">
             Inloggen
           </Link>
         </p>
