@@ -83,8 +83,8 @@ export default async function CreditsPage() {
         </div>
         {profile.plan !== "free" && (
           <p className="text-xs text-slate-500 mt-2">
-            Credits die je niet gebruikt blijven staan: bij je verlenging komen er {planMax} bij,
-            tot maximaal {planMax * 2} in totaal.
+            Credits die je niet gebruikt blijven staan: bij je verlenging komen er {planMax} bij.
+            Meer nodig? <Link href="/pricing" className="text-blue-400 hover:text-blue-300">Koop losse credits bij</Link>.
           </p>
         )}
       </div>
