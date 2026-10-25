@@ -70,6 +70,8 @@ export interface TrendOpdracht {
   formaat?: TrendFormaat;
   /** Bij 'beweging': de trendvideo op 16 beelden per seconde (zo rekent Wan; 30 fps kost bijna het dubbele). */
   clip16?: string;
+  /** De video die Sam plakte of uploadde, op onze opslag: wat de proef als origineel naast ons resultaat legt. Nooit voor klanten. */
+  referentie?: string;
 }
 
 /** Een plek waar de trend te zien is, met (als het lukte) een beeld en een speler erbij. */
@@ -225,6 +227,7 @@ export function leesOpdracht(ruw: unknown): TrendOpdracht {
     ...(s(o.scenePrompt) ? { scenePrompt: s(o.scenePrompt) } : {}),
     ...(s(o.bewegingPrompt) ? { bewegingPrompt: s(o.bewegingPrompt) } : {}),
     ...(/^https:\/\//.test(s(o.clip16)) ? { clip16: s(o.clip16) } : {}),
+    ...(/^https:\/\//.test(s(o.referentie)) ? { referentie: s(o.referentie) } : {}),
     formaat,
   };
 }

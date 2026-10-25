@@ -2,11 +2,12 @@ import { NextRequest, NextResponse, after } from "next/server";
 import { isAdminAccount } from "@/lib/studio/access";
 import { gebruiker } from "@/lib/delen/route-hulp";
 import { createServiceClient } from "@/lib/supabase/service";
-import { speurtocht, voegToeVanuit } from "@/lib/trends/speuren";
+import { bekijkVanuit, speurtocht, voegToeVanuit } from "@/lib/trends/speuren";
+import { BekijkFout, haalVideo } from "@/lib/trends/bekijk";
 import { verwerkClip } from "@/lib/trends/clip";
 import { vulLinksAan } from "@/lib/trends/voorbeelden";
 import { controleerTikTok, ververs, voegToe } from "@/lib/trends/tiktok";
-import { startProef } from "@/lib/trends/proef";
+import { mailBeheer, startProef } from "@/lib/trends/proef";
 import { isMethode, leesOpdracht, leesVelden, nogNodig, trendCredits, type Trend } from "@/lib/trends/types";
 
 export const runtime = "nodejs";
@@ -46,6 +47,31 @@ export async function POST(req: NextRequest) {
     if (tip.length < 8) return NextResponse.json({ error: "Plak een link of beschrijf de trend iets uitgebreider." }, { status: 400 });
     after(() => voegToeVanuit(tip).then((r) => console.log("[trends] tip:", r)).catch((e) => console.error("[trends] tip mislukt:", e)));
     return NextResponse.json({ ok: true });
+  }
+
+  if (b.actie === "bekijk") {
+    // De video ophalen gaat snel, dus meteen: zo ziet Sam direct of de link werkt (Instagram
+    // geeft lang niet alles vrij). Bekijken, uitzoeken en testen duurt minuten: daarna.
+    let video: Awaited<ReturnType<typeof haalVideo>>;
+    try {
+      video = await haalVideo(String(b.url ?? ""), typeof b.upload === "string" ? b.upload : undefined);
+    } catch (e) {
+      const reden = e instanceof BekijkFout ? e.message : "De video ophalen lukte niet. Upload hem anders zelf.";
+      if (!(e instanceof BekijkFout)) console.error("[trends] video ophalen mislukt:", e);
+      return NextResponse.json({ error: reden }, { status: 400 });
+    }
+    after(() =>
+      bekijkVanuit(video)
+        .then(async (r) => {
+          console.log("[trends] bekeken:", r);
+          if (!r.nieuw) await mailBeheer("Trend uit jouw video: niets na te maken", `Ik bekeek ${video.link}, maar vond er geen trend in die we goed kunnen namaken (${r.reden ?? "onbekend"}).`);
+        })
+        .catch(async (e) => {
+          console.error("[trends] bekijken mislukt:", e);
+          await mailBeheer("Trend uit jouw video: mislukt", `Het bekijken van ${video.link} liep vast: ${String(e).slice(0, 300)}`);
+        }),
+    );
+    return NextResponse.json({ ok: true, duur: Math.round(video.duur) });
   }
 
   const { data: huidig } = await db.from("trends").select("*").eq("id", id).maybeSingle();

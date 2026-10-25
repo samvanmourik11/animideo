@@ -9,10 +9,12 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/service";
-import { METHODES, METHODE_INFO, MAX_CLIP_SEC, isMethode, leesOpdracht, leesVelden, lijktOp } from "./types";
+import { METHODES, METHODE_INFO, MAX_CLIP_SEC, isMethode, type BronLink, leesOpdracht, leesVelden, lijktOp } from "./types";
 import { vulLinksAan } from "./voorbeelden";
 import { voegToe, zoekTikToks } from "./tiktok";
-import { MAX_PROEVEN_PER_DAG, proevenVandaag, startProef } from "./proef";
+import { MAX_PROEVEN_PER_DAG, beelden, proevenVandaag, startProef } from "./proef";
+import { verwerkClip } from "./clip";
+import type { OpgehaaldeVideo } from "./bekijk";
 
 const MODEL = "claude-opus-5-5";
 /** Kandidaten uit de brede zoekronde; daarvan wordt er hooguit één uitgezocht en getest. */
@@ -58,10 +60,11 @@ const SCHEMA = {
           gezicht: { type: "boolean", description: "Staat er een herkenbaar gezicht van de klant in?" },
           hotness: { type: "integer", description: "1-10: hoe hard het nu gaat." },
           clip_zoeken: { type: "string", description: "Bij 'beweging'/'pratend': welke clip Sam moet downloaden als voorbeeld (welke video, welk fragment, max 15 s). Anders leeg." },
+          clip_start: { type: "integer", description: "Alleen als Sam een video aanleverde en de methode 'beweging'/'pratend' is: vanaf welke seconde het stuk (max 15 s) begint dat de klant naspeelt. Anders 0." },
           model_origineel: { type: "string", description: "Met welk AI-model / welke preset het origineel gemaakt is (bv. 'Higgsfield Viral-preset Vanish (Kling-gebaseerd)', 'Veo 3 tekst-naar-video', 'ChatGPT-beeld + Kling 2.1'), met de bron waar dat uit blijkt." },
           zekerheid: { type: "string", enum: ["hoog", "midden", "laag"], description: "Hoe zeker weten we hoe het gemaakt is én dat onze route hetzelfde resultaat geeft?" },
         },
-        required: ["model_origineel", "zekerheid", "titel", "uitleg", "waarom_viral", "origineel", "bron_links", "icoon", "methode", "fotos", "tekstveld", "scenePrompt", "bewegingPrompt", "formaat", "gezicht", "hotness", "clip_zoeken"],
+        required: ["clip_start", "model_origineel", "zekerheid", "titel", "uitleg", "waarom_viral", "origineel", "bron_links", "icoon", "methode", "fotos", "tekstveld", "scenePrompt", "bewegingPrompt", "formaat", "gezicht", "hotness", "clip_zoeken"],
       },
     },
   },
@@ -84,6 +87,7 @@ export interface Voorstel {
   gezicht: boolean;
   hotness: number;
   clip_zoeken: string;
+  clip_start: number;
   model_origineel: string;
   zekerheid: "hoog" | "midden" | "laag";
 }
@@ -96,7 +100,7 @@ function tekstUit(m: Anthropic.Message): string {
  * Ronde 1: zoeken. Web search draait bij Anthropic zelf; bij een lange zoektocht pauzeert
  * Claude de beurt (pause_turn) en gaan we gewoon door met hetzelfde gesprek.
  */
-async function zoek(client: Anthropic, opdracht: string, bekend: string): Promise<string> {
+async function zoek(client: Anthropic, opdracht: string | Anthropic.ContentBlockParam[], bekend: string): Promise<string> {
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: opdracht }];
   const system = `Je bent de trendspotter van Animideo, een Nederlandse app waarmee mensen en bedrijven met AI beelden en video's maken. Je zoekt op internet uit welke MET AI GEMAAKTE video's en beelden NU viral gaan op TikTok, Instagram Reels en YouTube Shorts (in Nederland en wereldwijd) en die mensen massaal namaken: effecten en presets van Higgsfield (Genjutsu/motion transfer, Viral-effecten), Kling, Veo, Sora, Seedance, Hailuo, Nano Banana of ChatGPT-beelden — bijvoorbeeld jezelf in een bekende dans of goal via motion transfer, een surrealistisch effect (verdwijnen, smelten, klonen), AI-personages, AI-fototrends. Gewone virale video's zonder AI tellen niet: wij verkopen het namaken met AI.
 
@@ -213,7 +217,7 @@ Zoek naar: de preset- of modelpagina (Higgsfield, Kling, Veo, Sora, Seedance …
 type Rij = NonNullable<ReturnType<typeof naarRij>>;
 
 /** Zoekt TikToks als voorbeeld van het origineel, slaat op en zet de proef in gang. */
-async function bewaarEnTest(r: Rij, status: "proef" | "voorstel"): Promise<string> {
+async function bewaarEnTest(r: Omit<Rij, "bron_links"> & { bron_links: BronLink[] }, status: "proef" | "voorstel"): Promise<string> {
   const tiktoks = await zoekTikToks(r).catch((e) => (console.error("[trends] TikToks zoeken mislukt:", e), []));
   const rij = { ...r, status, bron_links: await vulLinksAan(voegToe(r.bron_links, tiktoks)) };
   const { data, error } = await createServiceClient().from("trends").insert(rij).select("id").single();
@@ -265,5 +269,46 @@ export async function voegToeVanuit(tip: string): Promise<{ nieuw: number; titel
   // Een beweging- of playbacktrend kunnen we pas testen als Sam de trendvideo erbij zet; dat
   // start de proef dan alsnog (zie de actie 'clip' op /api/admin/trends).
   await bewaarEnTest(r, METHODE_INFO[r.methode as keyof typeof METHODE_INFO].clipNodig ? "voorstel" : "proef");
+  return { nieuw: 1, titels: [r.titel] };
+}
+
+/**
+ * Sam plakte een TikTok- of Instagram-link (of uploadde de video): Claude bekijkt de video
+ * zelf, zoekt uit met welk model hij gemaakt is, en we testen het recept. Bij een
+ * bewegingstrend is zijn video meteen de trendvideo, dus die kunnen we nu ook testen.
+ */
+export async function bekijkVanuit(v: OpgehaaldeVideo): Promise<{ nieuw: number; titels: string[]; reden?: string }> {
+  const client = new Anthropic();
+  const frames = await beelden(v.video, 12, v.duur);
+  const info = [
+    `Link: ${v.link}`,
+    `Lengte: ${Math.round(v.duur)} s`,
+    v.maker && `Maker: @${v.maker}`,
+    v.beschrijving && `Beschrijving van de maker: "${v.beschrijving}"`,
+    v.geluid && `Geluid eronder: "${v.geluid}"`,
+    v.tiktok && `Weergaven ${v.tiktok.weergaven}, likes ${v.tiktok.likes}, gedeeld ${v.tiktok.gedeeld}`,
+  ].filter(Boolean).join("\n");
+  const verslag = await zoek(
+    client,
+    [
+      {
+        type: "text",
+        text: `Sam (de eigenaar) zag deze video en wil de trend erachter in de app. Hieronder 12 beelden uit de video, op volgorde, gelijk verdeeld over de hele lengte.\n\n${info}\n\nBekijk eerst goed wat er gebeurt (beeld voor beeld: wie, wat, decor, camera, het effect of de beweging, de pointe). Zoek daarna op internet uit wat voor trend dit is, hoe groot hij is, en vooral met welk AI-model of welke preset hij gemaakt is (met bronnen), in welke stappen. Beschrijf hoe wij hem het dichtst benaderen met onze bouwstenen. Bij een bewegingstrend: zeg vanaf welke seconde het stuk van maximaal ${MAX_CLIP_SEC} s begint dat de klant moet naspelen. Beschrijf alleen deze ene trend (ook als hij al op de lijst lijkt te staan: dan in een nieuwe variant).`,
+      },
+      ...frames.map((b) => ({ type: "image" as const, source: { type: "base64" as const, media_type: "image/jpeg" as const, data: b.toString("base64") } })),
+    ],
+    "",
+  );
+  const [voorstel] = await schrijfUit(client, `Sam leverde deze video aan (de video zelf hebben we, dus een bewegingstrend kan).\n${info}\n\nWat Claude zag en uitzocht:\n${verslag}`, 1);
+  const r = voorstel ? naarRij(voorstel, "handmatig") : null;
+  if (!r) return { nieuw: 0, titels: [], reden: "geen na te maken trend in deze video" };
+  // Sams video vooraan: dat is het voorbeeld dat hij zelf koos.
+  const eigen = v.tiktok ? voegToe([], [v.tiktok]) : [{ url: v.link, titel: v.maker ? `@${v.maker}` : "Toegevoegd door jou" }];
+  const rij = { ...r, bron_links: [...eigen, ...r.bron_links.filter((l) => l.url !== v.link)], opdracht: { ...r.opdracht, referentie: v.video } };
+  if (METHODE_INFO[r.methode as keyof typeof METHODE_INFO].clipNodig) {
+    const { clip16, ...clip } = await verwerkClip(v.video, Math.max(0, Number(voorstel.clip_start) || 0));
+    Object.assign(rij, clip, { opdracht: { ...rij.opdracht, clip16 } });
+  }
+  await bewaarEnTest(rij, "proef");
   return { nieuw: 1, titels: [r.titel] };
 }

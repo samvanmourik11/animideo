@@ -70,11 +70,11 @@ async function ffmpeg(args: string[]) {
 }
 
 /** Beelden uit een video (of het beeld zelf), klein genoeg om Claude te laten kijken. */
-async function beelden(url: string, aantal: number): Promise<Buffer[]> {
+export async function beelden(url: string, aantal: number, duur = 12): Promise<Buffer[]> {
   const map = await mkdtemp(path.join(tmpdir(), "proef-"));
   try {
     const isVideo = /\.(mp4|mov|webm)(\?|$)/i.test(url);
-    await ffmpeg(["-i", url, ...(isVideo ? ["-vf", `fps=${aantal}/12,scale=400:-2`, "-frames:v", String(aantal)] : ["-vf", "scale=600:-2", "-frames:v", "1"]), "-q:v", "4", path.join(map, "b%02d.jpg")]);
+    await ffmpeg(["-i", url, ...(isVideo ? ["-vf", `fps=${aantal}/${Math.max(1, Math.round(duur))},scale=400:-2`, "-frames:v", String(aantal)] : ["-vf", "scale=600:-2", "-frames:v", "1"]), "-q:v", "4", path.join(map, "b%02d.jpg")]);
     const namen = (await readdir(map)).filter((n) => n.endsWith(".jpg")).sort();
     return Promise.all(namen.map((n) => readFile(path.join(map, n))));
   } finally {
@@ -100,9 +100,9 @@ const OORDEEL = {
   required: ["score", "wat_goed", "wat_mis", "verbeterd"],
 };
 
-/** Waar we het origineel van kennen: de trendvideo, het Higgsfield-voorbeeld, of een TikTok-omslag. */
+/** Waar we het origineel van kennen: de trendvideo, de video die Sam plakte, het Higgsfield-voorbeeld, of een TikTok-omslag. */
 function referentie(t: Trend): string | null {
-  return t.voorbeeldclip ?? (t.bron === "higgsfield" ? t.voorbeeld_url : null) ?? t.bron_links.find((l) => l.beeld)?.beeld ?? null;
+  return t.voorbeeldclip ?? t.opdracht.referentie ?? (t.bron === "higgsfield" ? t.voorbeeld_url : null) ?? t.bron_links.find((l) => l.beeld)?.beeld ?? null;
 }
 
 async function beoordeel(t: Trend, resultaat: string) {
@@ -211,15 +211,21 @@ export async function proevenVandaag(): Promise<number> {
   return count ?? 0;
 }
 
+const BASIS = (process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.jouwanimatievideo.nl").replace(/\/$/, "");
+
 async function mailSam(t: Trend, p: Poging) {
+  const tekst = `Nieuwe trend, door mij getest (${p.score}/10): ${t.icoon} ${t.titel}\n\n${t.uitleg}\n\nHoe het gemaakt is: ${t.origineel ?? ""}\n\nUit de test: ${p.opmerking ?? ""}\n\nBekijk het testresultaat en zet hem live: ${BASIS}/studios/trends/${t.id}`;
+  await mailBeheer(`🔥 Getest en klaar om te keuren: ${t.titel}`, tekst);
+}
+
+/** Een mail aan Sam over de trends (ook als iets in de achtergrond misging). */
+export async function mailBeheer(onderwerp: string, tekst: string) {
   const key = process.env.RESEND_API_KEY;
   if (!key) return;
-  const basis = (process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.jouwanimatievideo.nl").replace(/\/$/, "");
-  const tekst = `Nieuwe trend, door mij getest (${p.score}/10): ${t.icoon} ${t.titel}\n\n${t.uitleg}\n\nHoe het gemaakt is: ${t.origineel ?? ""}\n\nUit de test: ${p.opmerking ?? ""}\n\nBekijk het testresultaat en zet hem live: ${basis}/studios/trends/${t.id}`;
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: AFZENDER, to: [...ADMIN_ACCOUNTS], subject: `🔥 Getest en klaar om te keuren: ${t.titel}`, text: tekst }),
+    body: JSON.stringify({ from: AFZENDER, to: [...ADMIN_ACCOUNTS], subject: onderwerp, text: `${tekst}\n\n${BASIS}/admin/trends` }),
   });
   if (!res.ok) console.error("[trends] mail mislukt:", res.status);
 }

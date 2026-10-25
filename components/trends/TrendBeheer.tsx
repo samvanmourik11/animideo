@@ -37,6 +37,7 @@ export default function TrendBeheer() {
   }, [trends, gekozen]);
   const [tip, setTip] = useState("");
   const [melding, setMelding] = useState<string | null>(null);
+  const [ophalen, setOphalen] = useState(false);
 
   const laad = useCallback(async () => {
     const d = await fetch("/api/admin/trends", { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
@@ -51,12 +52,47 @@ export default function TrendBeheer() {
     const d = await post({ actie: "zoek" });
     setMelding(d.error ?? "Ik zoek nu wat er viral gaat en zoek de beste uit (5 tot 10 minuten). Daarna test ik hem zelf; je ziet hem bij In proef, en bij Te keuren als de test goed is.");
   }
+  // Een TikTok- of Instagram-link: dan bekijk ik de video zelf. Anders is het een omschrijving
+  // en zoek ik op internet (Sam, 25-10-2026: "laat jou naar een trend kijken").
+  const isVideoLink = /^https?:\/\/\S*(tiktok\.com|instagram\.com)\//i.test(tip.trim());
+
+  async function bekijk(body: Record<string, unknown>) {
+    setOphalen(true);
+    const d = (await post({ actie: "bekijk", ...body })) as { error?: string; duur?: number };
+    setOphalen(false);
+    if (d.error) return setMelding(d.error);
+    setTip("");
+    setMelding(`Ik heb de video (${d.duur ?? "?"} s) en bekijk hem nu: wat er gebeurt, met welk model hij gemaakt is, en hoe wij hem namaken (3 tot 5 minuten). Daarna test ik hem zelf; je ziet hem bij In proef. Lukt het niet, dan krijg je een mail.`);
+  }
+
   async function stuurTip() {
     setMelding(null);
+    if (isVideoLink) return bekijk({ url: tip.trim() });
     const d = await post({ actie: "tip", tip });
     if (d.error) return setMelding(d.error);
     setTip("");
     setMelding("Ik zoek deze trend grondig uit (2 tot 5 minuten) en test hem daarna zelf. Je ziet hem straks bij In proef.");
+  }
+
+  // Instagram geeft niet elke video vrij zonder inlog: dan zet Sam het bestand zelf erin.
+  async function uploadVideo(f: File | undefined) {
+    if (!f) return;
+    setMelding(null);
+    if (f.size > 150 * 1024 * 1024) return setMelding("De video mag maximaal 150 MB zijn.");
+    setOphalen(true);
+    try {
+      const sb = createClient();
+      const { data: { user } } = await sb.auth.getUser();
+      if (!user) throw new Error("Sessie ongeldig — log opnieuw in.");
+      const pad = `${user.id}/creaties/${crypto.randomUUID()}.${(f.name.split(".").pop() || "mp4").toLowerCase()}`;
+      const { error } = await sb.storage.from("scene-assets").upload(pad, f, { contentType: f.type || "video/mp4" });
+      if (error) throw new Error(error.message);
+      // Een geplakte link blijft erbij als bron, zodat klanten het origineel op TikTok/Instagram zien.
+      await bekijk({ upload: sb.storage.from("scene-assets").getPublicUrl(pad).data.publicUrl, url: tip.trim() });
+    } catch (e) {
+      setMelding(e instanceof Error ? e.message : String(e));
+      setOphalen(false);
+    }
   }
 
   const zichtbaar = trends.filter((t) => t.status === tab);
@@ -74,14 +110,25 @@ export default function TrendBeheer() {
         <button onClick={zoek} className="btn-primary text-sm self-start sm:self-auto">🔎 Zoek nu</button>
       </div>
 
-      <div className="n-kaart flex flex-col sm:flex-row gap-2">
-        <input
-          value={tip}
-          onChange={(e) => setTip(e.target.value)}
-          placeholder="Zelf iets gezien? Plak een TikTok-link of beschrijf het: 'iedereen maakt de goal van Özil na'"
-          className="n-invoer flex-1"
-        />
-        <button onClick={stuurTip} disabled={tip.trim().length < 8} className="n-knop2 text-sm disabled:opacity-50">Uitzoeken</button>
+      <div className="n-kaart space-y-2">
+        <div className="text-sm font-semibold text-tekst">Zelf een trend gezien?</div>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <input
+            value={tip}
+            onChange={(e) => setTip(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && tip.trim().length >= 8 && !ophalen && stuurTip()}
+            placeholder="Plak een TikTok- of Instagram-link, of beschrijf hem: 'iedereen maakt de goal van Özil na'"
+            className="n-invoer flex-1"
+          />
+          <button onClick={stuurTip} disabled={tip.trim().length < 8 || ophalen} className="n-knop2 text-sm disabled:opacity-50">
+            {ophalen ? "Video ophalen…" : isVideoLink ? "🎬 Bekijk de video" : "Uitzoeken"}
+          </button>
+          <label className={`n-knop2 text-sm cursor-pointer text-center ${ophalen ? "opacity-50 pointer-events-none" : ""}`}>
+            Video uploaden
+            <input type="file" accept="video/*" className="hidden" disabled={ophalen} onChange={(e) => uploadVideo(e.target.files?.[0])} />
+          </label>
+        </div>
+        <p className="text-xs text-tekst-3">Met een link of video kijk ik zelf naar de video, zoek ik uit met welk model hij gemaakt is, en test ik hem. Geeft Instagram de video niet vrij, sla hem dan op en upload hem.</p>
       </div>
       {melding && <p className="text-sm text-tekst-2 bg-paneel-2 rounded-xl px-3 py-2">{melding}</p>}
 
