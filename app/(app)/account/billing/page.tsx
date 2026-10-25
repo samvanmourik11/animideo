@@ -133,6 +133,10 @@ export default async function BillingPage() {
           <CancelSubscriptionButton />
         </div>
       )}
+
+      <p className="text-xs text-tekst-3 text-center">
+        Animideo is powered by JouwAnimatieVideo: op je bankafschrift en factuur zie je die naam.
+      </p>
     </div>
   );
 }

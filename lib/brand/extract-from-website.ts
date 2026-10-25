@@ -40,7 +40,7 @@ export async function fetchHtml(url: string): Promise<string | null> {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 12000);
     const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; JouwAnimatieVideoBot/1.0)", Accept: "text/html,*/*;q=0.8" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; AnimideoBot/1.0)", Accept: "text/html,*/*;q=0.8" },
       signal: ctrl.signal,
       redirect: "follow",
     });
@@ -93,7 +93,7 @@ async function fetchImageB64(url: string): Promise<{ b64: string; mime: string }
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 10000);
-    const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": "Mozilla/5.0 (compatible; JouwAnimatieVideoBot/1.0)" } });
+    const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": "Mozilla/5.0 (compatible; AnimideoBot/1.0)" } });
     clearTimeout(timer);
     if (!res.ok) return null;
     const ct = res.headers.get("content-type") ?? "image/jpeg";

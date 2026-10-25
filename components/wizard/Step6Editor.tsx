@@ -877,7 +877,7 @@ export default function Step6Editor({ project, onUpdate, onBack, plan = "free" }
                 {plan === "free" && (
                   <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
                     <span className="text-white/50 text-sm font-semibold bg-black/30 px-3 py-1 rounded backdrop-blur-sm">
-                      JouwAnimatieVideo A.I.
+                      Animideo
                     </span>
                   </div>
                 )}

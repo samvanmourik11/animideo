@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
     if (!ik?.length) continue;
     const { data: u } = await db.auth.admin.getUserById(r.user_id);
     if (!u.user?.email) continue;
-    const link = `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.jouwanimatievideo.nl").replace(/\/$/, "")}/regisseur?project=${p.id}`;
+    const link = `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.animideo.com").replace(/\/$/, "")}/regisseur?project=${p.id}`;
     const fout = await mailMelding(u.user.email, m, p.titel.replace(/^🔁 /, ""), link, m === "klaar" ? laatsteTekst(p) : "");
     if (fout) console.error("[cron/regie-taken] mail mislukt:", fout);
     else gemaild.push(p.id);

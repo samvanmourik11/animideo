@@ -161,13 +161,13 @@ function inleiding(d: Dossier, soort: MailSoort): string[] {
   if (d.toon === "bewust") {
     return [
       `We zagen dat ${meer ? `de incasso's van ${datums}` : `de incasso van ${datums}`} voor uw abonnement op ` +
-        `JouwAnimatieVideo A.I. via uw bank ${meer ? "zijn" : "is"} teruggeboekt. Misschien is dat per vergissing gebeurd.`,
+        `Animideo via uw bank ${meer ? "zijn" : "is"} teruggeboekt. Misschien is dat per vergissing gebeurd.`,
       `Uw abonnement liep in die periode gewoon door, dus ${meer ? "deze bedragen staan" : "dit bedrag staat"} nog open.`,
     ];
   }
   return [
     `${meer ? `De incasso's van ${datums}` : `De incasso van ${datums}`} voor uw abonnement op ` +
-      `JouwAnimatieVideo A.I. ${meer ? "zijn" : "is"} niet gelukt (${redenInGewoneTaal(d.redenCode)}).`,
+      `Animideo ${meer ? "zijn" : "is"} niet gelukt (${redenInGewoneTaal(d.redenCode)}).`,
     `Dat kan gebeuren. U kunt het openstaande bedrag eenvoudig zelf betalen via de knop hieronder.`,
   ];
 }
@@ -287,7 +287,7 @@ function aanhef(d: Dossier): string {
 const AFSLUITING = [
   "Heeft u vragen? Antwoord gerust op deze e-mail.",
   "Met vriendelijke groet,",
-  "JouwAnimatieVideo",
+  "Team Animideo",
 ];
 
 export function bouwMail(d: Dossier, soort: MailSoort): { onderwerp: string; text: string; html: string } {

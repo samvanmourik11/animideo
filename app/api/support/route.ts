@@ -5,7 +5,7 @@ import { getProfile } from "@/lib/credits";
 // Adres waar nieuwe support-tickets binnenkomen.
 const TICKET_INBOX = "ticket@jouwanimatievideo.nl";
 // Afzender. Moet op een in Resend geverifieerd domein zitten.
-const TICKET_FROM = "JouwAnimatieVideo A.I. Support <noreply@jouwanimatievideo.nl>";
+const TICKET_FROM = "Animideo Support <noreply@jouwanimatievideo.nl>";
 
 const CATEGORIES = [
   "Vraag over gebruik",
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
   const verzonden = new Date().toLocaleString("nl-NL", { timeZone: "Europe/Amsterdam" });
 
   const text =
-    `Nieuw support-ticket via JouwAnimatieVideo A.I.\n\n` +
+    `Nieuw support-ticket via Animideo\n\n` +
     `Van: ${email}\n` +
     `Plan: ${plan}\n` +
     `Categorie: ${category}\n` +

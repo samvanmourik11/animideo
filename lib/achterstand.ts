@@ -28,7 +28,7 @@ export const ACHTERSTAND_START = "2026-10-15T00:00:00+02:00";
 const DAG = 24 * 60 * 60 * 1000;
 export const HERINNERING_NA_DAGEN = 7;
 
-const AFZENDER = "JouwAnimatieVideo <noreply@jouwanimatievideo.nl>";
+const AFZENDER = "Animideo <noreply@jouwanimatievideo.nl>";
 const ANTWOORD_NAAR = "info@jouwanimatievideo.nl";
 
 /**
@@ -127,7 +127,7 @@ export async function recenteTerugboekingen(sinds: string): Promise<{ paymentId:
 }
 
 function appUrl(): string {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.jouwanimatievideo.nl").replace(/\/$/, "");
+  return (process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.animideo.com").replace(/\/$/, "");
 }
 
 export function betaalUrl(postId: string): string {
@@ -344,7 +344,7 @@ export async function stelDossierSamen(posten: Post[]): Promise<Dossier | null> 
     aanmelding: eersteBetaling
       ? {
           datum: eersteBetaling.paidAt ?? eersteBetaling.createdAt,
-          omschrijving: eersteBetaling.description ?? "JouwAnimatieVideo A.I.",
+          omschrijving: eersteBetaling.description ?? "Animideo",
           bedrag: Number(eersteBetaling.amount.value),
           methode: eersteBetaling.method ?? null,
           rekeninghouder: eersteBetaling.details?.consumerName ?? null,
@@ -502,7 +502,7 @@ export async function startBetaling(post: Post): Promise<string | null> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       amount: { currency: "EUR", value: bedrag.toFixed(2) },
-      description: `JouwAnimatieVideo A.I., openstaand bedrag (${n} teruggeboekte incasso${n > 1 ? "'s" : ""})`,
+      description: `Animideo (JouwAnimatieVideo), openstaand bedrag (${n} teruggeboekte incasso${n > 1 ? "'s" : ""})`,
       redirectUrl: `${appUrl()}/betalen/${post.id}?terug=1`,
       webhookUrl: `${appUrl()}/api/mollie/webhook`,
       ...(post.mollie_customer_id ? { customerId: post.mollie_customer_id } : {}),

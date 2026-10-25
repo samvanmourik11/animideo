@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SELLER } from "@/lib/receipt";
 
 export const metadata = {
-  title: "Algemene voorwaarden — JouwAnimatieVideo A.I.",
+  title: "Algemene voorwaarden — Animideo",
 };
 
 const LAST_UPDATED = "24 juni 2026";
@@ -41,21 +41,21 @@ export default function AlgemeneVoorwaardenPage() {
           <p>
             KvK: {SELLER.kvk} &middot; BTW: {SELLER.vat} &middot; E-mail:{" "}
             <a href={`mailto:${SELLER.email}`} className="text-blue-400 underline">{SELLER.email}</a> &middot; Website:{" "}
-            {SELLER.website}. Hierna: &ldquo;wij&rdquo;, &ldquo;ons&rdquo; of &ldquo;JouwAnimatieVideo&rdquo;.
+            {SELLER.website}. Hierna: &ldquo;wij&rdquo;, &ldquo;ons&rdquo; of &ldquo;Animideo&rdquo;. Animideo is een dienst van JouwAnimatieVideo.
           </p>
         </Article>
 
         <Article n={2} title="Toepasselijkheid">
           <p>
             Deze voorwaarden zijn van toepassing op elk gebruik van onze website en software (de &ldquo;Dienst&rdquo;)
-            en op elke overeenkomst tussen jou en JouwAnimatieVideo. Door een account aan te maken of een abonnement af
+            en op elke overeenkomst tussen jou en Animideo. Door een account aan te maken of een abonnement af
             te sluiten, ga je akkoord met deze voorwaarden.
           </p>
         </Article>
 
         <Article n={3} title="De Dienst">
           <p>
-            JouwAnimatieVideo is een online softwaredienst (SaaS) waarmee je met behulp van AI animatie- en
+            Animideo is een online softwaredienst (SaaS) waarmee je met behulp van AI animatie- en
             uitlegvideo&apos;s genereert. De Dienst werkt met een creditsysteem: je abonnement bevat een maandelijks
             tegoed aan credits waarmee je video&apos;s en beelden genereert.
           </p>

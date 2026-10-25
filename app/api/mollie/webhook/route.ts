@@ -15,9 +15,9 @@ const PLAN_AMOUNT: Record<string, string> = {
 };
 
 const PLAN_DESCRIPTION: Record<string, string> = {
-  starter: "JouwAnimatieVideo A.I., Starter",
-  pro: "JouwAnimatieVideo A.I., Pro",
-  agency: "JouwAnimatieVideo A.I., Agency",
+  starter: "Animideo (JouwAnimatieVideo), Starter",
+  pro: "Animideo (JouwAnimatieVideo), Pro",
+  agency: "Animideo (JouwAnimatieVideo), Agency",
 };
 
 // Mollie webhooks are publicly accessible — no auth required

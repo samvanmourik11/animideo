@@ -69,7 +69,7 @@ export default function NavBar({ email, credits, plan, creditsResetDate, hideLer
         {/* Logo + nav */}
         <div className="flex items-center gap-6">
           <Link href="/dashboard" className="font-bold text-lg bg-gradient-to-r from-blue-400 to-blue-300 bg-clip-text text-transparent">
-            JouwAnimatieVideo A.I.
+            Animideo
           </Link>
           {/* Personages, voorwerpen en omgevingen staan samen onder Bibliotheek:
               voor de gebruiker is het één ding — wat er in elke video hetzelfde

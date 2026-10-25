@@ -37,7 +37,7 @@ export default function TrialCheckoutPage() {
           <TrialCheckoutForm />
 
           <p className="text-xs text-tekst-3 text-center mt-4">
-            Beveiligd via Mollie, iDEAL / SEPA. €1 nu, daarna €49/maand na 7 dagen.
+            Beveiligd via Mollie, iDEAL / SEPA. €1 nu, daarna €49/maand na 7 dagen.<br />Powered by JouwAnimatieVideo: op je afschrift en factuur zie je die naam.
           </p>
         </div>
       </div>

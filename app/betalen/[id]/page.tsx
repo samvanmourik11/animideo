@@ -8,7 +8,7 @@ import { datum, euro } from "@/lib/achterstand-mail";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Openstaand bedrag — JouwAnimatieVideo A.I.", robots: { index: false } };
+export const metadata = { title: "Openstaand bedrag — Animideo", robots: { index: false } };
 
 function Kader({ children }: { children: React.ReactNode }) {
   return (
@@ -68,7 +68,7 @@ export default async function BetaalPagina({
         </p>
       ) : null}
       <h1 className="text-xl font-bold text-white mb-1">Openstaand bedrag</h1>
-      <p className="text-sm mb-5">JouwAnimatieVideo A.I. · {post.email}</p>
+      <p className="text-sm mb-5">Animideo · {post.email}</p>
 
       <ul className="divide-y divide-white/10 border-y border-white/10 text-sm mb-4">
         {open.map((p) => (

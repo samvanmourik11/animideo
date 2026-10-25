@@ -2,7 +2,7 @@ import Link from "next/link";
 import { SELLER } from "@/lib/receipt";
 
 export const metadata = {
-  title: "Privacybeleid — JouwAnimatieVideo A.I.",
+  title: "Privacybeleid — Animideo",
 };
 
 const LAST_UPDATED = "24 juni 2026";

@@ -489,14 +489,14 @@ function buildFinalCommand(a: FinalCmdArgs): string[] {
 }
 
 function buildWatermarkFilter(): string {
-  // Centred semi-transparent box with "JouwAnimatieVideo A.I." in Inter Bold.
+  // Centred semi-transparent box with "Animideo" in Inter Bold.
   // Visual parity with the old browser-canvas watermark (480x56 box, 35% black,
   // white text 55% opacity). On Linux the fontfile path must be absolute; we
   // escape ':' so ffmpeg's filter-arg parser doesn't read it as a separator.
   const fontEscaped = FONT_PATH.replace(/\\/g, "\\\\").replace(/:/g, "\\:");
   return [
     `drawtext=fontfile='${fontEscaped}'`,
-    `text='JouwAnimatieVideo A.I.'`,
+    `text='Animideo'`,
     `fontsize=26`,
     `fontcolor=white@0.55`,
     `box=1`,

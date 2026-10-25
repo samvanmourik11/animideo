@@ -1184,7 +1184,7 @@ export default function CreateForm({ userId, brandKits, characters, onSwitchToCh
               type="text"
               value={outro.website ?? ""}
               onChange={e => setOutroField("website", e.target.value)}
-              placeholder="www.jouwanimatievideo.nl"
+              placeholder="www.jouwbedrijf.nl"
               className="w-full bg-slate-900/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500"
             />
           </div>

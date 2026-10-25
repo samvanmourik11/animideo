@@ -124,7 +124,7 @@ function beeldOpdracht(r: ReclameInvoer, i: number) {
 // modellen moeten hem drie keer kunnen ophalen. Dus eerst naar onze eigen opslag.
 export async function eigenKopie(userId: string, url: string): Promise<string> {
   if (url.includes(".supabase.co/storage/")) return url;
-  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; JouwAnimatieVideoBot/1.0)" } });
+  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (compatible; AnimideoBot/1.0)" } });
   const mime = (res.headers.get("content-type") ?? "").split(";")[0].trim();
   if (!res.ok || !mime.startsWith("image/")) {
     throw new WachtrijFout("We konden deze productfoto niet ophalen. Upload hem zelf.", 400);

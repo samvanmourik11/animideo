@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "JouwAnimatieVideo A.I.",
+  title: "Animideo",
   description: "Maak animatievideo's met AI in minuten.",
 };
 

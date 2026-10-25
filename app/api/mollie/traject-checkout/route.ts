@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       amount: { currency: "EUR", value: TRAJECT_AMOUNT },
-      description: "JouwAnimatieVideo A.I., Starttraject (6 maanden + begeleiding)",
+      description: "Animideo (JouwAnimatieVideo), Starttraject (6 maanden + begeleiding)",
       redirectUrl: `${appUrl}/checkout/traject/success?checkout_id=${pending.id}&email=${encodeURIComponent(pending.email)}`,
       webhookUrl: `${appUrl}/api/mollie/webhook`,
       metadata: {

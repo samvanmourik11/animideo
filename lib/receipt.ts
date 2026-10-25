@@ -16,7 +16,7 @@ export const SELLER = {
   kvk: process.env.RECEIPT_SELLER_KVK ?? "76306933",
   vat: process.env.RECEIPT_SELLER_VAT ?? "NL003074988B57",
   email: process.env.RECEIPT_SELLER_EMAIL ?? "info@jouwanimatievideo.nl",
-  website: process.env.RECEIPT_SELLER_WEBSITE ?? "ai.jouwanimatievideo.nl",
+  website: process.env.RECEIPT_SELLER_WEBSITE ?? "ai.animideo.com",
 };
 
 export const VAT_RATE = 0.21; // 21% btw

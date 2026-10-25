@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         amount: { currency: "EUR", value: pakket.prijs.toFixed(2) },
-        description: `JouwAnimatieVideo A.I., ${pakket.credits} losse credits`,
+        description: `Animideo (JouwAnimatieVideo), ${pakket.credits} losse credits`,
         // Met de klant erbij staat de betaling in Mollie bij zijn abonnement.
         ...(metKlant && profiel.mollie_customer_id ? { customerId: profiel.mollie_customer_id } : {}),
         redirectUrl: `${appUrl}/pricing?gekocht=${pakket.credits}`,

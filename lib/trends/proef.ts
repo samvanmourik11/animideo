@@ -211,7 +211,7 @@ export async function proevenVandaag(): Promise<number> {
   return count ?? 0;
 }
 
-const BASIS = (process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.jouwanimatievideo.nl").replace(/\/$/, "");
+const BASIS = (process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.animideo.com").replace(/\/$/, "");
 
 async function mailSam(t: Trend, p: Poging) {
   const tekst = `Nieuwe trend, door mij getest (${p.score}/10): ${t.icoon} ${t.titel}\n\n${t.uitleg}\n\nHoe het gemaakt is: ${t.origineel ?? ""}\n\nUit de test: ${p.opmerking ?? ""}\n\nBekijk het testresultaat en zet hem live: ${BASIS}/studios/trends/${t.id}`;

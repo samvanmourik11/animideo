@@ -37,7 +37,7 @@ export default function WebinarCheckoutPage() {
           <WebinarCheckoutForm />
 
           <p className="text-xs text-tekst-3 text-center mt-4">
-            Beveiligd via Mollie, iDEAL / SEPA. Eerste maand €1, daarna €49/maand.
+            Beveiligd via Mollie, iDEAL / SEPA. Eerste maand €1, daarna €49/maand.<br />Powered by JouwAnimatieVideo: op je afschrift en factuur zie je die naam.
           </p>
         </div>
       </div>

@@ -57,7 +57,7 @@ export default function TrajectCheckoutPage() {
           <TrajectCheckoutForm />
 
           <p className="text-xs text-tekst-3 text-center mt-4">
-            Beveiligd via Mollie, iDEAL / SEPA. Eenmalige betaling van €246 — geen abonnement.
+            Beveiligd via Mollie, iDEAL / SEPA. Eenmalige betaling van €246 — geen abonnement.<br />Powered by JouwAnimatieVideo: op je afschrift en factuur zie je die naam.
           </p>
         </div>
       </div>

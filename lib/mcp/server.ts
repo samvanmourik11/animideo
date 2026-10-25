@@ -294,7 +294,7 @@ function schermBij(naam: string, tekst: string, input: Record<string, unknown>):
   return undefined;
 }
 
-export async function roepAan(userId: string, naam: string, args: Record<string, unknown>, basis = "https://ai.jouwanimatievideo.nl"): Promise<{ content: Inhoud[]; isError?: boolean; structuredContent?: Record<string, unknown> }> {
+export async function roepAan(userId: string, naam: string, args: Record<string, unknown>, basis = "https://ai.animideo.com"): Promise<{ content: Inhoud[]; isError?: boolean; structuredContent?: Record<string, unknown> }> {
   const tekst = (t: string, isError = false) => ({ content: [{ type: "text" as const, text: t }], ...(isError ? { isError } : {}) });
   try {
     if (naam === "status") return await status(userId, args.creatie_ids);

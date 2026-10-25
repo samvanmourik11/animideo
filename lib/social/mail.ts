@@ -46,7 +46,7 @@ export async function meldTeKeuren(): Promise<number> {
       db.auth.admin.getUserById(mijn[0].user_id),
     ]);
     if (!u.user?.email) continue;
-    const link = `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.jouwanimatievideo.nl").replace(/\/$/, "")}/studios/social/${kalenderId}`;
+    const link = `${(process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.animideo.com").replace(/\/$/, "")}/studios/social/${kalenderId}`;
     const m = keurMail(k?.titel ?? "je contentkalender", mijn, link);
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -83,7 +83,7 @@ export async function mailOpruimen(userId: string, soort: "waarschuwing" | "ontk
   if (!key) return;
   const { data: u } = await createServiceClient().auth.admin.getUserById(userId);
   if (!u.user?.email) return;
-  const basis = (process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.jouwanimatievideo.nl").replace(/\/$/, "");
+  const basis = (process.env.NEXT_PUBLIC_APP_URL ?? "https://ai.animideo.com").replace(/\/$/, "");
   const m = opruimMail(soort, accounts, soort === "waarschuwing" ? `${basis}/pricing` : `${basis}/studios/social`);
   const html = `<div style="font-family:Inter,Arial,sans-serif;max-width:480px;margin:0 auto;color:#0f172a">
 <h2 style="margin:0 0 12px">${ontsnap(m.onderwerp)}</h2>

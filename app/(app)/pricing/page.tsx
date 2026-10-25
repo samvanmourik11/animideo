@@ -33,6 +33,9 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
         <p className="text-sm text-tekst-3">
           Alle prijzen zijn exclusief btw. Credits worden elke maand automatisch vernieuwd.
         </p>
+        <p className="text-xs text-tekst-3">
+          Animideo is powered by JouwAnimatieVideo: op je bankafschrift en factuur zie je die naam.
+        </p>
         <p className="text-sm text-tekst-3">
           💡 <strong className="text-tekst-3">Jaarlijks betalen?</strong> Bespaar 20% — neem contact op via{" "}
           <a href="mailto:info@jouwanimatievideo.ai" className="text-blue-600 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition-colors">

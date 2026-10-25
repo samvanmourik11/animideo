@@ -55,7 +55,7 @@ export async function GET(
     receiptNumber: receiptNumber(payment.id, date),
     dateLabel: dateLabelNL(date),
     customerEmail: profile.email ?? user.email ?? "",
-    description: payment.description ?? "JouwAnimatieVideo A.I.",
+    description: payment.description ?? "Animideo",
     inclCents: incl,
     exclCents,
     vatCents,

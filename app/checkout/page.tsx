@@ -97,7 +97,7 @@ function CheckoutForm() {
           </form>
 
           <p className="text-xs text-tekst-3 text-center mt-4">
-            Beveiligd via Mollie · SEPA / iDEAL · Maandelijks opzegbaar
+            Beveiligd via Mollie · SEPA / iDEAL · Maandelijks opzegbaar<br />Powered by JouwAnimatieVideo: op je afschrift en factuur zie je die naam.
           </p>
         </div>
       </div>

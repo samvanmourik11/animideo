@@ -508,7 +508,7 @@ export default function SetupPanel({
           uitleg="Merk- en productnamen die nooit vertaald of verbasterd mogen worden. Scheid met komma's."
           waarden={setup.keepTerms}
           onChange={(v) => zet("keepTerms", v)}
-          placeholder="bijv. JouwAnimatieVideo, Creator Studio"
+          placeholder="bijv. Bakkerij Jansen, Creator Studio"
           disabled={uit}
         />
         <Termen

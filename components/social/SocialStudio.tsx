@@ -200,7 +200,7 @@ export default function SocialStudio() {
         </div>
         <label className="block space-y-1">
           <span className="text-sm text-tekst-2">Op het eind van je video&apos;s <span className="text-tekst-3">(bv. je website; leeg = dat bedenkt de Regisseur)</span></span>
-          <input value={eindkaart} onChange={(e) => setEindkaart(e.target.value)} maxLength={40} placeholder="jouwanimatievideo.nl" className="w-full sm:w-80 rounded-xl border border-rand bg-paneel px-3 py-1.5 text-sm text-tekst" />
+          <input value={eindkaart} onChange={(e) => setEindkaart(e.target.value)} maxLength={40} placeholder="jouwbedrijf.nl" className="w-full sm:w-80 rounded-xl border border-rand bg-paneel px-3 py-1.5 text-sm text-tekst" />
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <label className="space-y-1 text-sm text-tekst-2">
