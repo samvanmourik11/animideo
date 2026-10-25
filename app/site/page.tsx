@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://animideo.com" },
 };
 
+// Per tegel een fragment dat meteen iets laat zien (bij "beeld bij elke zin" begint het
+// fragment met lege vakken die nog gemaakt worden).
+const TEGEL_CLIP: Record<string, string> = { youtube: "youtube-4.mp4", bedrijven: "bedrijven-3.mp4", kinderen: "kinderen-2.mp4", nederlands: "nederlands-3.mp4" };
+
 const TEGELS: Record<string, { emoji: string; tekst: string }> = {
   youtube: { emoji: "▶️", tekst: "Complete video's met voice-over en montage, zonder zelf in beeld te komen." },
   bedrijven: { emoji: "🏪", tekst: "Plak je link en krijg een reclame, een UGC-video of een maand aan posts." },
@@ -43,7 +47,7 @@ export default function Voorpagina() {
               {DOELGROEP_IDS.map((id) => (
                 <Link key={id} href={`/${id}`} className="group rounded-3xl ring-1 ring-slate-200 bg-white overflow-hidden hover:ring-blue-400 hover:shadow-[0_25px_60px_-25px_rgba(37,99,235,0.5)] transition">
                   <div className="aspect-video bg-slate-100 overflow-hidden">
-                    <Lus src={video(DOELGROEPEN[id].stappen[2].clip)} className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" />
+                    <Lus src={video(TEGEL_CLIP[id])} className="w-full h-full object-cover group-hover:scale-[1.03] transition duration-500" />
                   </div>
                   <div className="p-6">
                     <p className="text-xl font-extrabold text-slate-900">{TEGELS[id].emoji} {DOELGROEPEN[id].menu}</p>
