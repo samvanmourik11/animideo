@@ -112,7 +112,11 @@ export default function TrendMaker({ trend: t, beheer = false }: { trend: Publie
             </p>
           )}
           <p className="text-[11px] text-tekst-3">
-            {info.soort === "video" ? "Een trendvideo duurt meestal 2 tot 6 minuten. Je kunt ondertussen gewoon verder." : "Meestal binnen een halve minuut klaar."}{" "}
+            {t.methode === "beweging"
+              ? "Jou in de originele video zetten duurt 10 tot 20 minuten. Je kunt ondertussen gewoon verder; hij komt in je bibliotheek."
+              : info.soort === "video"
+                ? "Een trendvideo duurt meestal 2 tot 6 minuten. Je kunt ondertussen gewoon verder."
+                : "Meestal binnen een halve minuut klaar."}{" "}
             Mislukt het, dan krijg je je credits terug.
           </p>
         </div>

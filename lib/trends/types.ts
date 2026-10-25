@@ -18,9 +18,15 @@ export type Methode = (typeof METHODES)[number];
 export const TREND_FORMATEN = ["9:16", "1:1", "16:9"] as const;
 export type TrendFormaat = (typeof TREND_FORMATEN)[number];
 
-/** Beweging overnemen uit de trendvideo (Kling 2.6 Motion Control, $0,07 per seconde). */
-export const BEWEGING_MODEL = "fal-ai/kling-video/v2.6/standard/motion-control";
-export const BEWEGING_USD_PER_SEC = 0.07;
+/**
+ * Beweging overnemen uit de trendvideo: Wan 2.2 Animate Replace. Die houdt de originele
+ * video (decor, tegenstander, bal, camera) en vervangt alleen de persoon — zoals Higgsfield
+ * Genjutsu. Eerst gebruikten we Kling Motion Control; dat bouwt de hele scène opnieuw op uit
+ * de foto en gaf bij Sams voetbalproef (25-10-2026) springende decors, een verdwenen bal en
+ * geen tegenstander. $0,08 per seconde bij 720p en 16 beelden per seconde.
+ */
+export const BEWEGING_MODEL = "fal-ai/wan/v2.2-14b/animate/replace";
+export const BEWEGING_USD_PER_SEC = 0.08;
 /** Langer dan dit knippen we de trendvideo af: daarboven wordt het te duur en te traag. */
 export const MAX_CLIP_SEC = 15;
 export const TEKST_VIDEO_MODEL = "fal-ai/kling-video/v2.5-turbo/pro/text-to-video";
@@ -43,7 +49,7 @@ export const METHODE_INFO: Record<Methode, MethodeInfo> = {
   "foto-video": { naam: "Foto → scène → video", wanneer: "Jij in een bekend moment of decor dat daarna beweegt (op beschrijving)", soort: "video", clipNodig: false },
   "video-effect": { naam: "Video-effect op je foto", wanneer: "Je foto direct laten bewegen met een effect (inzoomen, transformatie)", soort: "video", clipNodig: false },
   "tekst-video": { naam: "Video uit tekst", wanneer: "Een AI-videotrend zonder foto (ASMR, brainrot-personages, absurde clips)", soort: "video", clipNodig: false },
-  beweging: { naam: "Beweging namaken", wanneer: "Een dansje, goal, juichgebaar of challenge: de klant doet exact de beweging uit de trendvideo na", soort: "video", clipNodig: true },
+  beweging: { naam: "Persoon vervangen in de trendvideo", wanneer: "Een dansje, goal, juichgebaar of challenge: de originele video blijft, de klant komt in de plaats van de persoon", soort: "video", clipNodig: true },
   pratend: { naam: "Geluid playbacken", wanneer: "Een audio-meme of zin die iedereen nazegt: de foto van de klant praat/zingt het geluid", soort: "video", clipNodig: true },
 };
 
@@ -62,6 +68,8 @@ export interface TrendOpdracht {
   /** Kling: wat er beweegt. */
   bewegingPrompt?: string;
   formaat?: TrendFormaat;
+  /** Bij 'beweging': de trendvideo op 16 beelden per seconde (zo rekent Wan; 30 fps kost bijna het dubbele). */
+  clip16?: string;
 }
 
 /** Een plek waar de trend te zien is, met (als het lukte) een beeld en een speler erbij. */
@@ -214,6 +222,7 @@ export function leesOpdracht(ruw: unknown): TrendOpdracht {
   return {
     ...(s(o.scenePrompt) ? { scenePrompt: s(o.scenePrompt) } : {}),
     ...(s(o.bewegingPrompt) ? { bewegingPrompt: s(o.bewegingPrompt) } : {}),
+    ...(/^https:\/\//.test(s(o.clip16)) ? { clip16: s(o.clip16) } : {}),
     formaat,
   };
 }

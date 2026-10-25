@@ -30,6 +30,8 @@ export interface VerwerkteClip {
   voorbeeldclip: string;
   geluid: string | null;
   clip_sec: number;
+  /** Zelfde stuk op 16 beelden per seconde, zonder geluid: wat Wan Replace krijgt. Hoort in trends.opdracht. */
+  clip16: string;
 }
 
 /**
@@ -63,7 +65,10 @@ export async function verwerkClip(bron: string, start = 0, lengte = MAX_CLIP_SEC
     } catch {
       geluid = null;
     }
-    return { voorbeeldclip, geluid, clip_sec: Math.round(duur * 10) / 10 };
+    const p16 = path.join(map, "clip16.mp4");
+    await ffmpeg(["-i", uitPad, "-vf", "fps=16", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p", "-f", "mp4", p16]);
+    const clip16 = await uploadNaarOpslag("trends", await readFile(p16), "mp4", "video/mp4");
+    return { voorbeeldclip, geluid, clip_sec: Math.round(duur * 10) / 10, clip16 };
   } finally {
     await rm(map, { recursive: true, force: true });
   }

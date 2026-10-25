@@ -103,7 +103,7 @@ Hierboven: beelden uit hun voorbeeldvideo, op volgorde.`,
       max_tokens: 4000,
       output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA } },
       system: `Je zet trending Higgsfield-presets om naar recepten voor de Trends-studio van Animideo (Nederlandse AI-app voor makers en bedrijven). Wij hebben via fal:
-- "beweging": Kling 2.6 Motion Control — de persoon van de klantfoto doet exact de beweging uit de originele video na (houding, dans, actie), met het geluid van de video. Optioneel eerst een scenePrompt (Nano Banana Pro) die de klant in het decor/de kleding van de trend zet.
+- "beweging": Wan Animate Replace — de originele video blijft (decor, andere mensen, camera, geluid) en alleen de hoofdpersoon wordt vervangen door de persoon van de klantfoto. Optioneel eerst een scenePrompt (Nano Banana Pro) die de klant de kleding van de trend aantrekt (het decor van de foto doet er niet toe, dat komt uit de video).
 - "video-effect": Kling 2.5 maakt van de klantfoto een video van 5 s met bewegingPrompt.
 - "foto-video": eerst scenePrompt (Nano Banana Pro bewerkt de klantfoto), dan Kling 2.5 met bewegingPrompt.
 Bij Genjutsu kies je altijd "beweging" (de originele video krijgen we mee). Kijk goed naar de beelden: wat gebeurt er, welk decor, welke kleding hoort bij de trend? Schrijf de Kling-opdracht als een vakman: wat beweegt, in welke volgorde, camera, tempo. Video's vanuit een stilstaande foto kunnen slecht dingen toevoegen die er niet zijn; beschrijf het effect daarom expliciet en concreet.
@@ -138,13 +138,13 @@ export async function importeer(h: HiggsfieldTrend): Promise<string> {
     icoon: String(r.icoon || "🔥").slice(0, 8),
     methode,
     velden: leesVelden({ fotos: [{ label: r.fotoLabel || "Een foto van jezelf" }], tekst: r.tekstveld?.label ? r.tekstveld : null }),
-    opdracht: leesOpdracht({ scenePrompt: r.scenePrompt, bewegingPrompt: r.bewegingPrompt, formaat: "9:16" }),
+    opdracht: leesOpdracht({ scenePrompt: r.scenePrompt, bewegingPrompt: r.bewegingPrompt, formaat: "9:16", clip16: clip?.clip16 }),
     gezicht: r.gezicht !== false,
     // Bovenaan de trending-lijst = heetst.
     hotness: Math.max(5, 10 - Math.floor(h.plek / 3)),
     voorbeeld_url,
     voorbeeld_soort: "video",
-    ...(clip ?? {}),
+    ...(clip ? { voorbeeldclip: clip.voorbeeldclip, geluid: clip.geluid, clip_sec: clip.clip_sec } : {}),
     status: "voorstel",
     bron: "higgsfield",
   };

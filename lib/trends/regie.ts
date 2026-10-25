@@ -14,13 +14,14 @@ import { betaal, betaalTerug } from "@/lib/team/team";
 import { isAdminAccount } from "@/lib/studio/access";
 import { MAX_TEGELIJK, WachtrijFout, falReden, markeerMislukt, uploadNaarOpslag } from "@/lib/creaties/wachtrij";
 import type { Creatie } from "@/lib/creaties/types";
-import { METHODE_INFO, trendCredits, type Trend } from "./types";
+import { BEWEGING_MODEL, METHODE_INFO, trendCredits, type Trend } from "./types";
 import { sceneStap, videoStap, type KlantInvoer } from "./opdracht";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
-// Beweging overnemen uit een clip van 15 s kan bij een drukke fal een kwartier duren.
-const TIJDSLIMIET_MS = 40 * 60 * 1000;
+// Iemand in een trendvideo van 15 s zetten (Wan Replace) duurde in de proef 14 minuten;
+// bij een drukke fal kan dat oplopen.
+const TIJDSLIMIET_MS = 50 * 60 * 1000;
 const VASTGELOPEN_MS = 4 * 60 * 1000;
 
 interface Voortgang {
@@ -155,13 +156,47 @@ async function resultaatVan(endpoint: string, id: string): Promise<string> {
   return url;
 }
 
-async function rondAf(c: Creatie, tijdelijk: string): Promise<Creatie> {
+/**
+ * Wan Replace levert de video zonder geluid. Zonder de muziek of het geluid van de trend
+ * herkent niemand hem, dus zetten we het geluid van de originele trendvideo eronder.
+ */
+async function metGeluid(video: Buffer, geluid: string): Promise<Buffer> {
+  const { mkdtemp, readFile, rm, writeFile } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const ff = (await import("ffmpeg-static")).default as unknown as string;
+  const { execFile } = await import("node:child_process");
+  const map = await mkdtemp(path.join(tmpdir(), "trend-"));
+  try {
+    await writeFile(path.join(map, "in.mp4"), video);
+    const uit = path.join(map, "uit.mp4");
+    await new Promise<void>((ok, fout) =>
+      execFile(ff, ["-y", "-i", path.join(map, "in.mp4"), "-i", geluid, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-shortest", "-movflags", "+faststart", uit], { timeout: 120000 }, (e, _o, err) =>
+        e ? fout(new Error(String(err).slice(-300))) : ok(),
+      ),
+    );
+    return await readFile(uit);
+  } finally {
+    await rm(map, { recursive: true, force: true });
+  }
+}
+
+async function rondAf(c: Creatie, tijdelijk: string, geluid?: string | null): Promise<Creatie> {
   let url = tijdelijk;
   try {
     const res = await fetch(tijdelijk);
     if (!res.ok) throw new Error(`Download mislukt (HTTP ${res.status})`);
     const video = c.soort === "video";
-    url = await uploadNaarOpslag(c.user_id, Buffer.from(await res.arrayBuffer()), video ? "mp4" : "jpg", video ? "video/mp4" : "image/jpeg");
+    let buf: Buffer = Buffer.from(await res.arrayBuffer());
+    if (video && geluid) {
+      try {
+        buf = await metGeluid(buf, geluid);
+      } catch (e) {
+        // Liever zonder geluid dan helemaal niets.
+        console.error("[trend] geluid eronder zetten mislukt:", e);
+      }
+    }
+    url = await uploadNaarOpslag(c.user_id, buf, video ? "mp4" : "jpg", video ? "video/mp4" : "image/jpeg");
   } catch (e) {
     // Liever de tijdelijke link dan niets; die verloopt pas na dagen.
     console.error("[trend] bewaren mislukt, val terug op de tijdelijke link:", e);
@@ -194,7 +229,10 @@ export async function verversTrend(c: Creatie): Promise<Creatie> {
     if (st.status !== "COMPLETED") return c;
     const url = await resultaatVan(v.endpoint, v.verzoek);
 
-    if (v.stap === "video") return await rondAf(c, url);
+    if (v.stap === "video") {
+      const geluid = v.endpoint === BEWEGING_MODEL ? (await haalTrend(r.trendId))?.geluid : null;
+      return await rondAf(c, url, geluid);
+    }
 
     // De scène is klaar. Bij een beeldtrend is dat het eindresultaat; anders de video starten.
     const t = await haalTrend(r.trendId);

@@ -49,7 +49,7 @@ export function sceneStap(t: Trend, k: KlantInvoer): FalStap | null {
   // nodig; zonder die zin sneed Nano Banana de persoon soms af of draaide hem weg.
   const lichaam =
     t.methode === "beweging"
-      ? " Show the person's full body from head to toe, standing, clearly separated from the background, arms and legs fully visible."
+      ? " Show the person's full body from head to toe, standing upright facing the camera, arms slightly away from the body, against a plain neutral background, nothing on the head unless asked."
       : t.methode === "pratend"
         ? " The face is clearly visible, facing the camera, mouth closed and relaxed."
         : "";
@@ -87,14 +87,10 @@ export function videoStap(t: Trend, k: KlantInvoer, beeld: string | null): FalSt
       return {
         endpoint: BEWEGING_MODEL,
         invoer: {
+          video_url: t.opdracht.clip16 ?? t.voorbeeldclip,
           image_url: beeld ?? k.fotos[0],
-          video_url: t.voorbeeldclip,
-          // 'video': de houding volgt de trendvideo; beter bij snelle, ingewikkelde bewegingen
-          // (een dansje, een omhaal) dan de stand van de foto.
-          character_orientation: "video",
-          // Het geluid van de trend hoort erbij: zonder de muziek herkent niemand hem.
-          keep_original_sound: true,
-          ...(beweging ? { prompt: beweging } : {}),
+          resolution: "720p",
+          use_turbo: true,
         },
       };
     case "pratend":

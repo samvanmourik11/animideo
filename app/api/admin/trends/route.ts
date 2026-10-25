@@ -77,8 +77,8 @@ export async function POST(req: NextRequest) {
   } else if (b.actie === "clip") {
     // De browser zette de video al in de opslag; hier het goede stuk eruit knippen.
     try {
-      const clip = await verwerkClip(String(b.url ?? ""), Number(b.start) || 0, Number(b.lengte) || undefined);
-      await db.from("trends").update({ ...clip, updated_at: nu }).eq("id", id);
+      const { clip16, ...clip } = await verwerkClip(String(b.url ?? ""), Number(b.start) || 0, Number(b.lengte) || undefined);
+      await db.from("trends").update({ ...clip, opdracht: { ...t.opdracht, clip16 }, updated_at: nu }).eq("id", id);
     } catch (e) {
       return NextResponse.json({ error: `De video verwerken lukte niet: ${e instanceof Error ? e.message : e}` }, { status: 400 });
     }
@@ -86,7 +86,8 @@ export async function POST(req: NextRequest) {
     if (t.status === "live" && (t.methode === "beweging" || t.methode === "pratend")) {
       return NextResponse.json({ error: "Zonder trendvideo werkt deze trend niet; zet hem eerst uit." }, { status: 400 });
     }
-    await db.from("trends").update({ voorbeeldclip: null, geluid: null, clip_sec: null, updated_at: nu }).eq("id", id);
+    const { clip16: _c, ...opdracht } = t.opdracht;
+    await db.from("trends").update({ voorbeeldclip: null, geluid: null, clip_sec: null, opdracht, updated_at: nu }).eq("id", id);
   } else if (b.actie === "beelden") {
     // Opnieuw beelden en spelers zoeken bij de bronlinks (bv. na een nieuwe link).
     const links = t.bron_links.map(({ beeld: _b, ...l }) => (b.opnieuw === true ? l : { ...l, beeld: _b }));

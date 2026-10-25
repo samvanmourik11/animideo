@@ -32,11 +32,11 @@ function trend(over: Partial<Trend> = {}): Trend {
 
 describe("trends: prijzen", () => {
   it("beweging rekent per seconde met minstens 40% marge, en kapt af op 15 s", () => {
-    expect(bewegingCredits(5)).toBe(6);
-    expect(bewegingCredits(10)).toBe(12);
+    expect(bewegingCredits(5)).toBe(7);
+    expect(bewegingCredits(10)).toBe(14);
     expect(bewegingCredits(60)).toBe(bewegingCredits(15));
     // 1 credit ≈ €0,098 omzet: de inkoop mag hooguit 60% daarvan zijn.
-    for (const s of [1, 3, 7, 12, 15]) expect((s * 0.07) / bewegingCredits(s)).toBeLessThanOrEqual(0.098 * 0.6);
+    for (const s of [1, 3, 7, 12, 15]) expect((s * 0.08) / bewegingCredits(s)).toBeLessThanOrEqual(0.098 * 0.6);
   });
 
   it("een scène vooraf kost een Pro-beeld extra", () => {
@@ -74,7 +74,7 @@ describe("trends: opdrachten", () => {
     expect(vulTekst("A poster.", "")).toBe("A poster.");
   });
 
-  it("beweging: scène met heel lichaam, dan motion control met de trendvideo en het geluid", () => {
+  it("beweging: scène met heel lichaam, dan Wan Replace op de trendvideo van 16 fps", () => {
     const t = trend();
     const k = { fotos: ["https://x/ik.jpg"], tekst: "" };
     const scene = sceneStap(t, k)!;
@@ -82,8 +82,10 @@ describe("trends: opdrachten", () => {
     expect(String(scene.invoer.prompt)).toMatch(/full body/);
     expect(String(scene.invoer.prompt)).toMatch(/exactly recognizable/);
     const video = videoStap(t, k, "https://x/scene.jpg")!;
-    expect(video.endpoint).toMatch(/motion-control/);
-    expect(video.invoer).toMatchObject({ image_url: "https://x/scene.jpg", video_url: t.voorbeeldclip, keep_original_sound: true });
+    expect(video.endpoint).toBe("fal-ai/wan/v2.2-14b/animate/replace");
+    expect(video.invoer).toMatchObject({ image_url: "https://x/scene.jpg", video_url: t.voorbeeldclip, resolution: "720p" });
+    const met16 = videoStap(trend({ opdracht: { ...t.opdracht, clip16: "https://x/clip16.mp4" } }), k, "https://x/scene.jpg")!;
+    expect(met16.invoer.video_url).toBe("https://x/clip16.mp4");
   });
 
   it("beweging zonder scène gebruikt de foto van de klant direct", () => {
