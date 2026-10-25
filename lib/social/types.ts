@@ -1,5 +1,7 @@
 // De Social-studio: wat zowel het scherm als de server kent.
 
+import { CREDIT_COSTS } from "@/lib/credit-costs";
+
 export const PLATFORMS = [
   { id: "instagram", naam: "Instagram", icoon: "📸", video: false },
   { id: "tiktok", naam: "TikTok", icoon: "🎵", video: true },
@@ -79,5 +81,5 @@ export interface Post {
 }
 
 /** Credits van één post: een beeld (standaard); bij video ook de beweging (Seedance Lite) en de voice-over. */
-export const POST_CREDITS = { beeld: 1, video: 4 } as const;
+export const POST_CREDITS = { beeld: CREDIT_COSTS.IMAGE_GENERATION, video: CREDIT_COSTS.IMAGE_GENERATION + CREDIT_COSTS.VIDEO_GENERATION + CREDIT_COSTS.VOICE } as const;
 export const MAX_FOTOS = 6;

@@ -1,3 +1,4 @@
+import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 // Een nep-database (één regieproject + creaties) en een nep-Claude met vooraf
@@ -86,6 +87,8 @@ beforeEach(() => {
   gestart.length = 0;
 });
 
+const PRO = CREDIT_COSTS.IMAGE_GENERATION_PRO;
+
 describe("de Regisseur", () => {
   test("een vraag pauzeert; het antwoord gaat terug als tool-resultaat en hij gaat verder", async () => {
     antwoorden.push(zegt({ type: "text", text: "Even checken." }, tool("v1", "vraag_keuze", { vraag: "Welke stijl?", opties: ["Strak", "Vrolijk"] })));
@@ -114,7 +117,7 @@ describe("de Regisseur", () => {
     expect(db.project!.status).toBe("wacht_op_bevestiging");
     const w = db.project!.wachtend as { totaal: number; stappen: unknown[] };
     expect(w.stappen).toHaveLength(2);
-    expect(w.totaal).toBe(3); // pro 2 + standaard 1
+    expect(w.totaal).toBe(PRO + 1); // pro + standaard
     expect(gestart).toHaveLength(0);
 
     antwoorden.push(zegt({ type: "text", text: "Gestart!" }));
@@ -127,15 +130,15 @@ describe("de Regisseur", () => {
   });
 
   test("vaste taak: binnen het plafond zelf door, daarboven wachten op de gebruiker", async () => {
-    db.run = { project_id: "p1", taak_id: "t1", user_id: "u1", max_credits: 4, uitgegeven: 0, gemeld: null };
+    db.run = { project_id: "p1", taak_id: "t1", user_id: "u1", max_credits: 2 * PRO, uitgegeven: 0, gemeld: null };
     antwoorden.push(zegt(tool("b", "maak_beeld", { prompt: "x", formaat: "1:1", kwaliteit: "pro" }), tool("c", "maak_beeld", { prompt: "y", formaat: "1:1", kwaliteit: "pro" })));
     antwoorden.push(zegt(tool("d", "maak_beeld", { prompt: "z", formaat: "1:1", kwaliteit: "pro" })));
     await draai("p1");
-    // Eerste ronde: 2 + 2 = 4 credits, precies binnen het plafond; de tweede (nog 2) niet meer.
+    // Eerste ronde: twee Pro-beelden, precies binnen het plafond; de tweede (nog een) niet meer.
     expect(gestart).toHaveLength(2);
-    expect(db.run.uitgegeven).toBe(4);
+    expect(db.run.uitgegeven).toBe(2 * PRO);
     expect(db.project!.status).toBe("wacht_op_bevestiging");
-    expect((db.project!.wachtend as { totaal: number }).totaal).toBe(2);
+    expect((db.project!.wachtend as { totaal: number }).totaal).toBe(PRO);
   });
 
   test("nee zeggen: niets gestart, Claude hoort dat het niet mocht", async () => {

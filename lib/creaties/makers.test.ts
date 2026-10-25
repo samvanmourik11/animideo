@@ -1,3 +1,4 @@
+import { KLOON_CREDITS } from "@/lib/stem/types";
 import { describe, expect, it } from "vitest";
 import { maakOpdracht, resultaatUrl, modelNaam } from "./makers";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
@@ -206,9 +207,9 @@ describe("maakOpdracht: stem & lipsync", () => {
     expect(maakOpdracht("voice-over", { tekst: "x", stemId: "a", snelheid: 9 }).falInvoer.speed).toBe(1.5);
   });
 
-  it("stem trainen vraagt naam, opname en toestemming en kost 20 credits", () => {
+  it("stem trainen vraagt naam, opname en toestemming en kost KLOON_CREDITS", () => {
     const basis = { naam: "Sam", audioUrl: "https://x.nl/a.mp3", toestemming: true };
-    expect(maakOpdracht("stem-kloon", basis).credits).toBe(20);
+    expect(maakOpdracht("stem-kloon", basis).credits).toBe(KLOON_CREDITS);
     expect(() => maakOpdracht("stem-kloon", { ...basis, toestemming: "true" })).toThrow(/Bevestig/);
     expect(() => maakOpdracht("stem-kloon", { ...basis, audioUrl: "file:///a" })).toThrow(/Neem eerst/);
     expect(() => maakOpdracht("stem-kloon", { ...basis, naam: "" })).toThrow(/naam/);

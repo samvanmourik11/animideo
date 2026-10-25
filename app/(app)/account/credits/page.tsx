@@ -1,10 +1,8 @@
+import { PLAN_CREDITS } from "@/lib/credit-costs";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/credits";
 import Link from "next/link";
 
-const PLAN_CREDITS: Record<string, number> = {
-  free: 100, starter: 500, pro: 1500, agency: 5000,
-};
 
 const CATEGORY_MAP: Record<string, { label: string; color: string }> = {
   "Script genereren":         { label: "Script",      color: "bg-blue-500" },

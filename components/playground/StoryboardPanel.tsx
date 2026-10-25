@@ -372,7 +372,7 @@ export default function StoryboardPanel({
             </p>
           )}
           <p className="text-[10px] text-slate-600">
-            Gebruikt de tekst die per shot is ingevuld. 1 credit.
+            Gebruikt de tekst die per shot is ingevuld. {creditLabel(CREDIT_COSTS.VOICE)} per 1.000 tekens.
           </p>
 
           <div className="pt-2 mt-2 border-t border-white/[0.06] space-y-1.5">

@@ -6,7 +6,7 @@
 // product) + de stem → lipsync (of een B-roll-clip van het product) → montage met
 // meelopende ondertitels. Eén item in de bibliotheek (lib/ugc/regie.ts).
 
-import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { CREDIT_COSTS, INKOOP_USD, creditsVoorInkoop } from "@/lib/credit-costs";
 import { videoModel } from "@/lib/video-modellen";
 import { lipsyncCredits } from "@/lib/lipsync";
 
@@ -80,7 +80,8 @@ export const UGC_BROLL_MODEL = "kling-2-5";
 
 /** Wat één stukje kost: beeld + stem + lipsync (naar lengte) of een B-roll-clip. */
 export function stukjeCredits(s: Pick<UgcStukje, "soort" | "tekst">): number {
-  const basis = CREDIT_COSTS.IMAGE_GENERATION_PRO + CREDIT_COSTS.VOICE;
+  // De stem naar lengte: een zin van een paar woorden kost bij ElevenLabs een fractie van een cent.
+  const basis = CREDIT_COSTS.IMAGE_GENERATION_PRO + creditsVoorInkoop((s.tekst.length / 1000) * INKOOP_USD.stemPer1000);
   return basis + (s.soort === "broll" ? videoModel(UGC_BROLL_MODEL).credits : lipsyncCredits(geschatteSec(s.tekst)));
 }
 

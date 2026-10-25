@@ -1,11 +1,7 @@
+import { PLAN_CREDITS } from "@/lib/credit-costs";
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 
-const PLAN_CREDITS: Record<string, number> = {
-  starter: 500,
-  pro: 1500,
-  agency: 5000,
-};
 
 export async function POST(req: NextRequest) {
   const { userId, email } = await req.json() as { userId: string; email: string };

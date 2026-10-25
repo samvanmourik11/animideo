@@ -1,14 +1,9 @@
+import { PLAN_CREDITS } from "@/lib/credit-costs";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 const MOLLIE_BASE = "https://api.mollie.com/v2";
 
-const PLAN_CREDITS: Record<string, number> = {
-  free: 100,
-  starter: 500,
-  pro: 1500,
-  agency: 5000,
-};
 
 const PLAN_AMOUNT: Record<string, string> = {
   starter: "49.00",

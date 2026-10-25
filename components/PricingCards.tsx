@@ -1,5 +1,6 @@
 "use client";
 
+import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -24,9 +25,9 @@ const PLANS: Plan[] = [
     credits: "100 credits/maand",
     features: [
       "100 credits per maand",
-      "Script genereren (gratis)",
-      "Afbeelding genereren (1 credit)",
-      "Video beweging (2 credits)",
+      "Script en Regisseur (gratis)",
+      "Afbeelding genereren (vanaf 1 credit)",
+      "Video beweging (vanaf 6 credits)",
       "720p export met watermark",
     ],
     highlight: false,
@@ -39,9 +40,9 @@ const PLANS: Plan[] = [
     credits: "500 credits/maand",
     features: [
       "500 credits per maand",
-      "Script genereren (gratis)",
-      "Afbeelding genereren (1 credit)",
-      "Video beweging (2 credits)",
+      "Script en Regisseur (gratis)",
+      "Afbeelding genereren (vanaf 1 credit)",
+      "Video beweging (vanaf 6 credits)",
       "Geen watermark",
       "1080p export",
       "Email support",
@@ -57,9 +58,9 @@ const PLANS: Plan[] = [
     badge: "MEEST GEKOZEN",
     features: [
       "1.500 credits per maand",
-      "Script genereren (gratis)",
-      "Afbeelding genereren (1 credit)",
-      "Video beweging (2 credits)",
+      "Script en Regisseur (gratis)",
+      "Afbeelding genereren (vanaf 1 credit)",
+      "Video beweging (vanaf 6 credits)",
       "Geen watermark",
       "1080p HD export (hogere kwaliteit)",
       "Prioriteit support",
@@ -71,12 +72,12 @@ const PLANS: Plan[] = [
     name: "Agency",
     price: "€249",
     period: "/maand",
-    credits: "5.000 credits/maand",
+    credits: "4.000 credits/maand",
     features: [
-      "5.000 credits per maand",
-      "Script genereren (gratis)",
-      "Afbeelding genereren (1 credit)",
-      "Video beweging (2 credits)",
+      "4.000 credits per maand",
+      "Script en Regisseur (gratis)",
+      "Afbeelding genereren (vanaf 1 credit)",
+      "Video beweging (vanaf 6 credits)",
       "Geen watermark",
       "1080p HD export (maximale kwaliteit)",
       "Dedicated support",
@@ -269,8 +270,8 @@ export default function PricingCards({ currentPlan }: { currentPlan: string }) {
         <div className="grid grid-cols-3 gap-4">
           {[
             { action: "Script genereren", cost: "gratis", icon: "📝" },
-            { action: "Afbeelding genereren", cost: "1 credit", icon: "🎨" },
-            { action: "Video beweging", cost: "2 credits", icon: "🎬" },
+            { action: "Afbeelding genereren", cost: `vanaf ${CREDIT_COSTS.IMAGE_GENERATION} credit`, icon: "🎨" },
+            { action: "Video beweging", cost: `vanaf ${CREDIT_COSTS.VIDEO_GENERATION} credits`, icon: "🎬" },
           ].map((item) => (
             <div key={item.action} className="text-center bg-white/[0.03] rounded-xl p-4">
               <div className="text-2xl mb-2">{item.icon}</div>

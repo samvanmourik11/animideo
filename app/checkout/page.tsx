@@ -7,7 +7,7 @@ import Link from "next/link";
 const PLANS = {
   starter: { label: "Starter",  price: "€49",  credits: "500",  color: "rgba(255,255,255,.06)" },
   pro:     { label: "Pro",       price: "€99",  credits: "1.500", color: "rgba(37,99,235,.1)" },
-  agency:  { label: "Agency",   price: "€249", credits: "5.000", color: "rgba(99,102,241,.1)" },
+  agency:  { label: "Agency",   price: "€249", credits: "4.000", color: "rgba(99,102,241,.1)" },
 } as const;
 
 type PlanId = keyof typeof PLANS;

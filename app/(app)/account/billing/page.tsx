@@ -1,3 +1,4 @@
+import { PLAN_CREDITS } from "@/lib/credit-costs";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/credits";
 import Link from "next/link";
@@ -35,9 +36,9 @@ const PLAN_INFO: Record<string, {
   agency: {
     label: "Agency",
     price: "€249/maand",
-    credits: 5000,
+    credits: PLAN_CREDITS.agency,
     color: "border-amber-500/30 bg-amber-500/5",
-    features: ["5.000 credits/maand", "Geen watermark", "Onbeperkte brand kits", "Dedicated support"],
+    features: [`${PLAN_CREDITS.agency.toLocaleString("nl-NL")} credits/maand`, "Geen watermark", "Onbeperkte brand kits", "Dedicated support"],
   },
 };
 

@@ -1,3 +1,4 @@
+import { EUR_PER_USD, LAAGSTE_CREDIT_EUR } from "@/lib/credit-costs";
 import { describe, expect, test, vi } from "vitest";
 
 vi.mock("@/lib/openai", () => ({ openai: {} }));
@@ -18,13 +19,14 @@ const film = {
 };
 
 describe("prijs: kosten + minimaal 40% marge", () => {
-  test("een credit is €0,098; 40% marge op de omzet", () => {
-    // $0,50 inkoop (beeld + beweging) → 0,50 / 0,6 / 0,098 = 8,5 → 9 credits
-    expect(creditsVoorKosten(FILM_KOSTEN_USD.beeld + FILM_KOSTEN_USD.beweging)).toBe(9);
+  test("40% marge op de omzet, ook bij de goedkoopste credit (Agency, zonder btw)", () => {
+    // $0,50 inkoop (beeld + beweging) → 0,50 × 0,9 / 0,6 / 0,0514 = 14,6 → 15 credits
+    expect(creditsVoorKosten(FILM_KOSTEN_USD.beeld + FILM_KOSTEN_USD.beweging)).toBe(15);
     // De marge klopt: wat de klant betaalt min de inkoop is minstens 40% van wat hij betaalt.
     for (const usd of [0.12, 0.5, 3.7, 12]) {
-      const omzet = creditsVoorKosten(usd) * (49 / 500);
-      expect((omzet - usd) / omzet).toBeGreaterThanOrEqual(0.4 - 1e-9);
+      const omzet = creditsVoorKosten(usd) * LAAGSTE_CREDIT_EUR;
+      const inkoop = usd * EUR_PER_USD;
+      expect((omzet - inkoop) / omzet).toBeGreaterThanOrEqual(0.4 - 1e-9);
     }
   });
   test("een praatshot rekent lipsync per seconde", () => {

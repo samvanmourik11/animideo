@@ -215,7 +215,7 @@ export default function CreatieDetail({
                 </div>
               )}
 
-              <p className="text-[11px] text-tekst-3 pt-1">Bewerken · 1 credit per keer</p>
+              <p className="text-[11px] text-tekst-3 pt-1">Bewerken · vanaf 1 credit per keer</p>
               <div className="grid grid-cols-2 gap-2">
                 {BEWERKINGEN.map((b) =>
                   b.maker === "belichting" ? (

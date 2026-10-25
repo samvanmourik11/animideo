@@ -41,12 +41,7 @@ const UNLIMITED_ACCOUNTS = new Set([
 // aan API-kosten uitkomen); de aanname is dat lang niet iedereen al z'n credits
 // gebruikt. Bedragen tussen haakjes zijn de echte providerkosten per call.
 // Credits zijn hele getallen (INTEGER), dus posten van 1 blijven 1 (minimum).
-export const PLAN_CREDITS: Record<string, number> = {
-  free: 100,
-  starter: 500,
-  pro: 1500,
-  agency: 5000,
-};
+export { PLAN_CREDITS } from "@/lib/credit-costs";
 
 export interface Profile {
   id: string;

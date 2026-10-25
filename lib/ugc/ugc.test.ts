@@ -4,7 +4,9 @@ vi.mock("@/lib/openai", () => ({ openai: {}, transcribeWords: async () => ({ wor
 
 const { ondertitelBlokken } = await import("./montage");
 const { controleerUgcScript } = await import("./script");
-const { ugcCredits, stukjeCredits, geschatteUgcCredits, geschatteSec } = await import("./types");
+const { ugcCredits, stukjeCredits, geschatteUgcCredits, geschatteSec, UGC_BROLL_MODEL } = await import("./types");
+const { CREDIT_COSTS } = await import("@/lib/credit-costs");
+const { videoModel } = await import("@/lib/video-modellen");
 
 const w = (word: string, start: number, end: number) => ({ word, start, end });
 
@@ -41,7 +43,7 @@ test("prijs: lipsync naar lengte, B-roll vast, en de schatting ligt in de buurt"
   const kort = stukjeCredits({ soort: "praat", tekst: "Dit is echt top" });
   const lang = stukjeCredits({ soort: "praat", tekst: "woord ".repeat(18) });
   expect(lang).toBeGreaterThan(kort);
-  expect(stukjeCredits({ soort: "broll", tekst: "kijk dan" })).toBe(2 + 1 + 4);
+  expect(stukjeCredits({ soort: "broll", tekst: "kijk dan" })).toBe(CREDIT_COSTS.IMAGE_GENERATION_PRO + 1 + videoModel(UGC_BROLL_MODEL).credits);
   expect(geschatteSec("een twee drie vier vijf zes")).toBeCloseTo(2.8, 1);
   const script = { stukjes: [{ soort: "praat" as const, tekst: "woord ".repeat(14), uitleg: "", beeld: "" }, { soort: "broll" as const, tekst: "woord ".repeat(8), uitleg: "", beeld: "" }, { soort: "praat" as const, tekst: "woord ".repeat(14), uitleg: "", beeld: "" }] };
   expect(Math.abs(ugcCredits(script) - geschatteUgcCredits(15, true))).toBeLessThanOrEqual(6);

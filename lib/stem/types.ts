@@ -2,7 +2,7 @@
 // Nederlands, zie scripts/sync-stemmen.ts) staat in bibliotheek.json en komt via
 // /api/stem/bibliotheek, zodat niet elke pagina hem meesleept.
 
-import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { CREDIT_COSTS, INKOOP_USD, creditsVoorInkoop } from "@/lib/credit-costs";
 
 export interface BibliotheekStem {
   id: string;
@@ -77,8 +77,8 @@ export function voiceOverCredits(tekst: string): number {
   return CREDIT_COSTS.VOICE * Math.max(1, Math.ceil(tekst.trim().length / 1000));
 }
 
-/** Je eigen stem trainen: MiniMax voice-clone kost $1,50 (Sam, 21-10-2026: 20 credits). */
-export const KLOON_CREDITS = 20;
+/** Je eigen stem trainen: MiniMax voice-clone kost $1,50 (prijsregel van credit-costs.ts). */
+export const KLOON_CREDITS = creditsVoorInkoop(INKOOP_USD.stemKlonen);
 
 /** Zo lang moet een opname minimaal zijn; 30-60 s geeft een veel betere kloon. */
 export const MIN_OPNAME_SEC = 10;

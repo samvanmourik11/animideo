@@ -10,6 +10,8 @@ import { maakOpdracht, FORMATEN } from "@/lib/creaties/makers";
 import { receptOpdracht } from "@/lib/creaties/recepten-opdrachten";
 import { RECEPTEN, recept } from "@/lib/creaties/recepten";
 import { VIDEO_MODELLEN, STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
+import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { POST_CREDITS } from "@/lib/social/types";
 import { MUSIC_CATEGORIES } from "@/lib/music/library";
 import { UGC_STEMMEN } from "@/lib/ugc/types";
 import { BIBLIOTHEEK, vindStem } from "@/lib/stem/bibliotheek";
@@ -105,7 +107,7 @@ export const TOOLS: Tool[] = [
   {
     name: "maak_voiceover",
     description:
-      "Spreek een tekst in als losse voice-over (mp3, te downloaden; kost 1 credit per 1.000 tekens). Kies de stem eerst samen met de gebruiker (zoek_stemmen, dan vraag_keuze soort 'stem'). Schrijf de tekst zoals hij uitgesproken moet worden; met [fluisterend], [lachend] of [enthousiast] stuur je de toon bij.",
+      `Spreek een tekst in als losse voice-over (mp3, te downloaden; kost ${CREDIT_COSTS.VOICE} credits per 1.000 tekens). Kies de stem eerst samen met de gebruiker (zoek_stemmen, dan vraag_keuze soort 'stem'). Schrijf de tekst zoals hij uitgesproken moet worden; met [fluisterend], [lachend] of [enthousiast] stuur je de toon bij.`,
     input_schema: {
       type: "object",
       properties: {
@@ -136,7 +138,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "monteer",
-    description: `Zet klare clips en/of beelden achter elkaar tot één video, met optioneel titelkaart, eindkaart, Nederlandse voice-over en muziek. Voice-over kost 1 credit. Stem: het stem-id dat de gebruiker koos (eerst zoek_stemmen, dan vraag_keuze soort 'stem'); zonder stem een diepe verteller. Muziek: ${MUSIC_CATEGORIES.map((c) => c.id).join(", ")}.`,
+    description: `Zet klare clips en/of beelden achter elkaar tot één video, met optioneel titelkaart, eindkaart, Nederlandse voice-over en muziek. Voice-over kost ${CREDIT_COSTS.VOICE} credits. Stem: het stem-id dat de gebruiker koos (eerst zoek_stemmen, dan vraag_keuze soort 'stem'); zonder stem een diepe verteller. Muziek: ${MUSIC_CATEGORIES.map((c) => c.id).join(", ")}.`,
     input_schema: {
       type: "object",
       properties: {
@@ -259,7 +261,7 @@ export const TOOLS: Tool[] = [
   {
     name: "maak_contentkalender",
     description:
-      "Zet een contentkalender op in de Social-studio (gratis): jij (een strateeg) bedenkt meteen alle posts met tekst; de gebruiker keurt ze daar goed, daarna maakt Animideo ze per week vooruit (beeldpost 1 credit, videopost met voice-over en muziek 4) en plaatst ze automatisch of na keuring. " +
+      `Zet een contentkalender op in de Social-studio (gratis): jij (een strateeg) bedenkt meteen alle posts met tekst; de gebruiker keurt ze daar goed, daarna maakt Animideo ze per week vooruit (beeldpost ${POST_CREDITS.beeld} credit, videopost met voice-over en muziek ${POST_CREDITS.video}) en plaatst ze automatisch of na keuring. ` +
       "Eerst social_kanalen. Vraag vóór het aanmaken met vraag_keuze één keer akkoord op: kanalen, periode (weken), aantal posts per week en of posts eerst gekeurd moeten worden of meteen geplaatst. Schrijf de briefing volledig (bedrijf, doelgroep, thema's, acties, toon). " +
       "Foto's: creatie-ids van eigen foto's (product, logo) uit dit gesprek, die komen dan echt in beeld.",
     input_schema: {

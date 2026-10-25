@@ -8,27 +8,86 @@
 // Daarom fors omlaag, met de goedkope tussenstappen helemaal gratis: die kostten
 // een fractie van een cent maar maakten elke klik "duur" in beleving.
 // Richtprijs na deze herijking: ~1 credit ≈ $0,09 inkoop.
+// Opnieuw herijkt op 25-10-2026: zie de prijsregel hieronder.
+
+// ── Prijsregel (Sam, 25-10-2026) ─────────────────────────────────────────
+// Elke actie kost zoveel credits dat we er óók bij het grootste abonnement (de goedkoopste
+// credit) minstens 40% op verdienen. Gerekend zonder btw (de abonnementsprijzen zijn incl.
+// 21% btw) en met een voorzichtige dollarkoers (fal rekent in dollars; $1 ≈ €0,88 in
+// oktober 2026). Nieuwe actie of nieuwe providerprijs? Zet de inkoop in INKOOP_USD en laat
+// creditsVoorInkoop() het rekenwerk doen; niet met de hand afronden.
+// De uitleg voor Sam (kosten tegenover opbrengsten) staat in de PDF van 25-10-2026.
+
+/** Credits per maand per abonnement. */
+export const PLAN_CREDITS: Record<string, number> = {
+  free: 100,
+  starter: 500,
+  pro: 1500,
+  // Was 5.000: dan bracht een credit bij Agency maar €0,041 op en verloor elke video geld.
+  agency: 4000,
+};
+
+/** Abonnementsprijzen per maand, incl. btw. */
+export const PLAN_PRIJS_EUR: Record<string, number> = { starter: 49, pro: 99, agency: 249 };
+
+export const BTW = 0.21;
+export const EUR_PER_USD = 0.9;
+export const MARGE = 0.4;
+
+/** Wat een credit ons minimaal oplevert (excl. btw): bij het abonnement met de goedkoopste credit. */
+export const LAAGSTE_CREDIT_EUR = Math.min(
+  ...Object.entries(PLAN_PRIJS_EUR).map(([plan, prijs]) => prijs / (1 + BTW) / PLAN_CREDITS[plan]),
+);
+
+/** Credits voor een actie die ons `usd` dollar kost: minstens 40% marge, ook bij Agency. */
+export function creditsVoorInkoop(usd: number): number {
+  return usd <= 0 ? 0 : Math.max(1, Math.ceil((usd * EUR_PER_USD) / (1 - MARGE) / LAAGSTE_CREDIT_EUR - 1e-9));
+}
+
+/** Echte providerkosten per actie (fal-tarieven, oktober 2026). */
+export const INKOOP_USD = {
+  beeld: 0.039, // Nano Banana (niet-Pro), één beeld
+  beeldPro: 0.15, // Nano Banana Pro 2K
+  // Storytelling-scene: 2 tot 6 Nano Banana-aanroepen (tekenen, opschonen, tekst controleren,
+  // keuren, bij afkeur nog eens), gemiddeld ~3.
+  storyScene: 0.12,
+  verbeteren: 0.02, // CodeFormer / BiRefNet ~$0,002-0,01, IC-Light ~$0,04
+  ondertitels: 0.1, // VEED burned-in
+  stemPer1000: 0.1, // ElevenLabs v3 via fal, per 1.000 tekens
+  upscale: 0.04, // Clarity
+  inpaint: 0.05, // Flux Pro Fill
+  lipsyncPerSec: 0.056, // Kling AI Avatar v2 Standard
+  beweging16PerSec: 0.08, // Wan 2.2 Animate Replace, per seconde op 16 beelden/s
+  stemKlonen: 1.5, // MiniMax voice-clone
+} as const;
 
 export const CREDIT_COSTS = {
-  SCRIPT_GENERATION: 0,     // GRATIS — GPT-4o tekst: script, analyses, spec, AI-regisseur (~$0,02-0,04)
-  IMAGE_GENERATION: 1,      // Nano Banana (niet-Pro): beeld genereren/bewerken/karakter (~$0,039)
-  // Storytelling-scene: één scene is niet één beeld. Per scene tekent de tool het
-  // beeld, haalt er een opschoonronde overheen, controleert de tekst en keurt het
-  // resultaat; wordt het afgekeurd, dan gaat dat allemaal nog een keer. Dat zijn 2
-  // tot 6 Nano Banana-aanroepen (~$0,08-0,23) tegen 1 credit (~€0,10 bij Starter):
-  // op veel scenes legden we geld toe. Vandaar 2 (02-10-2026).
-  STORY_SCENE_IMAGE: 2,
-  IMAGE_GENERATION_PRO: 2,  // Nano Banana Pro 2K (~$0,15) — was 4
-  ENHANCE: 1,               // CodeFormer gezichtsherstel / IC-Light belichting (~$0,002-0,04)
-  SUBTITLES: 1,             // VEED burned-in ondertiteling (~$0,05-0,10/video)
-  VOICE: 1,                 // ElevenLabs v3 voice-over (~$0,10) — was 2
-  UPSCALE: 1,               // Clarity upscaler (~$0,04)
-  INPAINT: 1,               // Flux Pro Fill inpainting (~$0,05)
-  VIDEO_GENERATION: 2,      // Seedance Lite 5s 720p (~$0,18) — was 5, grootste kostenpost voor de klant
-  LIPSYNC: 3,               // Kling AI Avatar Standard v2 pratend personage (~5s, ~$0,28) — was 7
+  SCRIPT_GENERATION: 0,     // GRATIS — tekst: script, analyses, spec, AI-regisseur (~$0,02-0,04)
+  // Uitzondering op de regel: 1 credit blijft 1 credit (de regel zou 2 geven; marge bij
+  // Agency ~32%, bij Starter ~57%). Een gewoon beeld is de instap: dat moet goedkoop voelen.
+  IMAGE_GENERATION: 1,
+  STORY_SCENE_IMAGE: creditsVoorInkoop(INKOOP_USD.storyScene),
+  IMAGE_GENERATION_PRO: creditsVoorInkoop(INKOOP_USD.beeldPro),
+  ENHANCE: creditsVoorInkoop(INKOOP_USD.verbeteren),
+  SUBTITLES: creditsVoorInkoop(INKOOP_USD.ondertitels),
+  VOICE: creditsVoorInkoop(INKOOP_USD.stemPer1000), // per 1.000 tekens
+  UPSCALE: creditsVoorInkoop(INKOOP_USD.upscale),
+  INPAINT: creditsVoorInkoop(INKOOP_USD.inpaint),
+  VIDEO_GENERATION: creditsVoorInkoop(0.18), // Seedance Lite 5 s 720p
+  LIPSYNC: creditsVoorInkoop(INKOOP_USD.lipsyncPerSec * 5), // per 5 seconden pratend personage
   SYNC: 0,                  // GRATIS — Whisper word-timestamps voor autosync (~$0,01)
-  CHAT: 0,                  // GRATIS — AI-buddy chat-beurt (GPT-4o tekst + tool-calls, ~$0,02-0,04)
+  CHAT: 0,                  // GRATIS — AI-buddy chat-beurt (~$0,02-0,04)
 } as const;
+
+// ── Losse credits (Sam, 25-10-2026: "net als Higgsfield") ────────────────────
+// Alleen voor wie een abonnement heeft. Per credit duurder dan een abonnement, zodat
+// upgraden aantrekkelijk blijft. Ze blijven staan: de maandelijkse aanvulling telt op.
+export const CREDIT_PAKKETTEN = [
+  { id: "p100", credits: 100, prijs: 12 },
+  { id: "p500", credits: 500, prijs: 55 },
+  { id: "p1500", credits: 1500, prijs: 149 },
+] as const;
+export type PakketId = (typeof CREDIT_PAKKETTEN)[number]["id"];
 
 /** Label voor in de UI: "· 3 cr." of "· gratis". */
 export function creditLabel(cost: number): string {

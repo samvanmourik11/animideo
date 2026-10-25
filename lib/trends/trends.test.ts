@@ -1,3 +1,4 @@
+import { CREDIT_COSTS, EUR_PER_USD, LAAGSTE_CREDIT_EUR } from "@/lib/credit-costs";
 import { describe, expect, it } from "vitest";
 import { bewegingCredits, heeftScene, leesVelden, nogNodig, publiek, trendCredits, type Trend } from "./types";
 import { sceneStap, videoStap, vulTekst } from "./opdracht";
@@ -32,17 +33,17 @@ function trend(over: Partial<Trend> = {}): Trend {
 
 describe("trends: prijzen", () => {
   it("beweging rekent per seconde met minstens 40% marge, en kapt af op 15 s", () => {
-    expect(bewegingCredits(5)).toBe(7);
-    expect(bewegingCredits(10)).toBe(14);
+    expect(bewegingCredits(5)).toBe(12);
+    expect(bewegingCredits(10)).toBe(24);
     expect(bewegingCredits(60)).toBe(bewegingCredits(15));
-    // 1 credit ≈ €0,098 omzet: de inkoop mag hooguit 60% daarvan zijn.
-    for (const s of [1, 3, 7, 12, 15]) expect((s * 0.08) / bewegingCredits(s)).toBeLessThanOrEqual(0.098 * 0.6);
+    // Een credit levert minstens LAAGSTE_CREDIT_EUR op: de inkoop mag hooguit 60% daarvan zijn.
+    for (const s of [1, 3, 7, 12, 15]) expect((s * 0.08 * EUR_PER_USD) / bewegingCredits(s)).toBeLessThanOrEqual(LAAGSTE_CREDIT_EUR * 0.6 + 1e-9);
   });
 
   it("een scène vooraf kost een Pro-beeld extra", () => {
     const met = trendCredits(trend());
     const zonder = trendCredits(trend({ opdracht: { formaat: "9:16" } }));
-    expect(met - zonder).toBe(2);
+    expect(met - zonder).toBe(CREDIT_COSTS.IMAGE_GENERATION_PRO);
   });
 
   it("elke methode heeft een prijs", () => {

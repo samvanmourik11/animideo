@@ -6,8 +6,10 @@
 // vast (Sam, 21-09-2026). Elk model heeft zijn eigen karakter, dus een ander model is
 // vaak de snelste oplossing.
 //
-// Credits: ~1 credit ≈ $0,09 inkoop (zie credit-costs.ts). De prijzen hieronder zijn per
-// clip van 5 seconden, opgezocht bij fal op 21-09-2026.
+// Credits volgen uit de inkoop via de prijsregel in credit-costs.ts (≥40% marge, ook bij
+// Agency). De prijzen hieronder zijn per clip van 5 seconden, opgezocht bij fal op 21-09-2026.
+
+import { creditsVoorInkoop } from "./credit-costs";
 
 export interface VideoModel {
   /** Wat er in de database en in de statuscontrole staat. */
@@ -30,7 +32,7 @@ export const VIDEO_MODELLEN: VideoModel[] = [
     slug: "fal-ai/bytedance/seedance/v1/lite/image-to-video",
     naam: "Seedance Lite",
     waarvoor: "De standaard: rustige, natuurgetrouwe beweging. Het goedkoopst en meestal genoeg.",
-    credits: 2,
+    credits: creditsVoorInkoop(0.18),
     inkoop: "$0,18",
     invoer: (b) => ({ ...b, duration: "5", resolution: "720p" }),
   },
@@ -39,7 +41,7 @@ export const VIDEO_MODELLEN: VideoModel[] = [
     slug: "fal-ai/minimax/hailuo-02/standard/image-to-video",
     naam: "Hailuo 02",
     waarvoor: "Sterk in echte natuurkunde: vallen, springen, stromend water. Andere look dan Seedance.",
-    credits: 3,
+    credits: creditsVoorInkoop(0.27),
     inkoop: "$0,27",
     // Hailuo rekent per seconde en kent 6 en 10 seconden; 6 is de goedkoopste stap.
     invoer: (b) => ({ ...b, duration: "6", resolution: "768P", prompt_optimizer: true }),
@@ -49,7 +51,7 @@ export const VIDEO_MODELLEN: VideoModel[] = [
     slug: "fal-ai/kling-video/v2.5-turbo/pro/image-to-video",
     naam: "Kling 2.5",
     waarvoor: "De beste beweging van mensen en dieren: soepel lopen, draaien en gebaren.",
-    credits: 4,
+    credits: creditsVoorInkoop(0.35),
     inkoop: "$0,35",
     invoer: (b) => ({ ...b, duration: "5" }),
   },
@@ -58,7 +60,7 @@ export const VIDEO_MODELLEN: VideoModel[] = [
     slug: "fal-ai/bytedance/seedance/v1/pro/image-to-video",
     naam: "Seedance Pro",
     waarvoor: "Dezelfde stijl als Lite, maar scherper en in full-HD. De duurste van de vier.",
-    credits: 8,
+    credits: creditsVoorInkoop(0.62),
     inkoop: "$0,62",
     invoer: (b) => ({ ...b, duration: "5", resolution: "1080p" }),
   },

@@ -1,3 +1,6 @@
+import { CREDIT_COSTS } from "@/lib/credit-costs";
+import { videoModel } from "@/lib/video-modellen";
+import { TRAILER_VIDEOMODEL } from "./types";
 import { describe, expect, test, vi } from "vitest";
 
 vi.mock("@/lib/openai", () => ({ openai: {} }));
@@ -75,9 +78,11 @@ test("stemmen: verteller vast, personages per geslacht", () => {
   expect(stemVoor("Mira", plan)).not.toBe(stemVoor("Lot", plan));
 });
 
+const PRO = CREDIT_COSTS.IMAGE_GENERATION_PRO;
+
 test("prijs telt portretten, clips en zinnen", () => {
   const p = controleerTrailerPlan(ruwPlan(12), 60);
-  expect(trailerCredits(p)).toBe(1 * 2 + 6 * (2 + 4) + 1 * 1);
+  expect(trailerCredits(p)).toBe(1 * PRO + 6 * (PRO + videoModel(TRAILER_VIDEOMODEL).credits) + 1 * CREDIT_COSTS.VOICE);
 });
 
 test("geen zwarte flitsen tussen de snelle shots van de escalatie", () => {
@@ -130,7 +135,7 @@ describe("gaten uit de proeftrailer van 20-10-2026", () => {
     const p = controleerTrailerPlan(r, 60);
     expect(p.wezens).toEqual([{ naam: "De draak", uiterlijk: "huge black dragon with ember-red eyes" }]);
     expect(p.clips[2].personages).toEqual(["De draak"]);
-    expect(trailerCredits(p)).toBe(trailerCredits({ ...p, wezens: [] }) + 2);
+    expect(trailerCredits(p)).toBe(trailerCredits({ ...p, wezens: [] }) + PRO);
   });
 
   test("de openingsstilte is bijna stil, de adem helemaal", () => {

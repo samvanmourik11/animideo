@@ -11,6 +11,7 @@
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { videoModel } from "@/lib/video-modellen";
 import { lipsyncCredits } from "@/lib/lipsync";
+import { creditsVoorInkoop } from "@/lib/credit-costs";
 
 export const METHODES = ["foto", "tekst-foto", "foto-video", "video-effect", "tekst-video", "beweging", "pratend"] as const;
 export type Methode = (typeof METHODES)[number];
@@ -144,7 +145,7 @@ const BEELD_PRO = CREDIT_COSTS.IMAGE_GENERATION_PRO;
  */
 export function bewegingCredits(sec: number): number {
   const s = Math.min(MAX_CLIP_SEC, Math.max(1, sec || 5));
-  return Math.ceil((s * BEWEGING_USD_PER_SEC) / 0.059);
+  return creditsVoorInkoop(s * BEWEGING_USD_PER_SEC);
 }
 
 /** Begint de trend met een bewerkt beeld (scène) vóór de video? */

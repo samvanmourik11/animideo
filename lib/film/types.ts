@@ -6,6 +6,8 @@
 // de klant keurt de scène goed of geeft feedback (dan worden alleen de gewijzigde shots
 // opnieuw gemaakt) → alle goedgekeurde scènes samen worden de film.
 
+import { creditsVoorInkoop } from "@/lib/credit-costs";
+
 /** Een personage of terugkerend wezen/voorwerp, met het beeld dat in elk shot terugkomt. */
 export interface CastLid {
   naam: string;
@@ -112,12 +114,9 @@ export const FILM_KOSTEN_USD = {
   /** De Regisseur (Claude) die de scène uitschrijft en bijstuurt, geschat per scène. */
   regiePerScene: 0.1,
 } as const;
-export const CREDIT_EUR = 49 / 500;
-export const MARGE = 0.4;
-
-export function creditsVoorKosten(usd: number): number {
-  return usd <= 0 ? 0 : Math.ceil(usd / (1 - MARGE) / CREDIT_EUR);
-}
+// Sinds 25-10-2026 dezelfde regel als de rest van de app (credit-costs.ts): zonder btw, met
+// de dollarkoers, en gerekend op de goedkoopste credit (Agency) in plaats van Starter.
+export const creditsVoorKosten = creditsVoorInkoop;
 
 /** Geschatte spreekduur van een zin: ~2,6 woorden per seconde, plus wat lucht. */
 export function spreekSec(tekst: string): number {

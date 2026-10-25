@@ -1,5 +1,6 @@
 "use client";
 
+import { CREDIT_COSTS, creditLabel } from "@/lib/credit-costs";
 import { useState } from "react";
 import { Character, VisualStyle } from "@/lib/types";
 import StylePicker from "@/components/style/StylePicker";
@@ -296,7 +297,7 @@ export default function CharacterStudio({ characters, onAdd, onRemove, onRename,
             {mode === "upload" && (
               <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer" title="Een gestyleerde versie van je foto met dezelfde persoon, in de gekozen stijl">
                 <input type="checkbox" checked={transformStyle} onChange={e => setTransformStyle(e.target.checked)} />
-                Transformeer naar {stijlNaam(style)} <span className="text-slate-500">(+2 credits)</span>
+                Transformeer naar {stijlNaam(style)} <span className="text-slate-500">(+{creditLabel(CREDIT_COSTS.IMAGE_GENERATION)})</span>
               </label>
             )}
             <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
