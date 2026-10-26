@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 const PAKKETTEN = [
-  { id: "starter", naam: "Starter", prijs: 49, credits: "500", punten: ["Alle maak-tools en studio's", "100 Nederlandse stemmen", "1 huisstijl"] },
-  { id: "pro", naam: "Pro", prijs: 99, credits: "1.500", punten: ["Alles van Starter", "Automatisch vooruit posten", "Animideo in Claude", "Je eigen stem klonen", "Team van 3"], badge: "Meest gekozen" },
+  { id: "starter", naam: "Starter", prijs: 49, credits: "500", punten: ["Alle maak-tools en studio's", "100 Nederlandse stemmen", "Je eigen stem klonen", "1 huisstijl"] },
+  { id: "pro", naam: "Pro", prijs: 99, credits: "1.500", punten: ["Alles van Starter", "Automatisch vooruit posten", "Animideo in Claude", "5 huisstijlen", "Team van 3"], badge: "Meest gekozen" },
   { id: "agency", naam: "Agency", prijs: 249, credits: "4.000", punten: ["Alles van Pro", "Onbeperkt accounts en huisstijlen", "Team van 10", "Persoonlijke support"] },
 ] as const;
 

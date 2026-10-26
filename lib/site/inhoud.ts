@@ -192,10 +192,10 @@ export const DOELGROEPEN: Record<DoelgroepId, Doelgroep> = {
       { wat: "Een scène met bewegende animatie erbij", credits: 11 },
     ],
     advies: "starter",
-    adviesReden: "Met Starter maak je elke maand zo'n 5 voorleesverhalen. Wil je een kanaal vullen of personages laten praten met je eigen stem? Kies Pro.",
+    adviesReden: "Met Starter maak je elke maand zo'n 5 voorleesverhalen. Wil je een kanaal vullen of meer verhalen per maand? Kies Pro.",
     vragen: [
       { v: "Is het geschikt voor kinderen?", a: "Jij bepaalt het verhaal, de les en de toon, en je ziet elke scène en hoort de voice-over voordat je iets publiceert. Bevalt een scène niet, dan maak je hem met één klik opnieuw." },
-      { v: "Kan ik mijn eigen stem laten voorlezen?", a: "Ja, met Pro train je je eigen stem in een minuut. Daarna leest jouw stem elk verhaal voor." },
+      { v: "Kan ik mijn eigen stem laten voorlezen?", a: "Ja, in elk abonnement train je je eigen stem in een minuut. Daarna leest jouw stem elk verhaal voor." },
       { v: "Kan ik een verhaal in delen maken, zoals een serie?", a: "Ja. Je personages en decors blijven bewaard, dus aflevering 2 ziet eruit als aflevering 1." },
       ...ALGEMENE_VRAGEN,
     ],
@@ -243,7 +243,7 @@ export const DOELGROEPEN: Record<DoelgroepId, Doelgroep> = {
 export const DOELGROEP_IDS = Object.keys(DOELGROEPEN) as DoelgroepId[];
 
 export const PAKKETTEN = [
-  { id: "starter", naam: "Starter", prijs: 49, credits: 500, punten: ["Alle maak-tools en studio's", "De Regisseur", "100 Nederlandse stemmen", "Contentkalender maken", "1 huisstijl", "Academy + mail-support"] },
-  { id: "pro", naam: "Pro", prijs: 99, credits: 1500, punten: ["Alles van Starter", "Automatisch vooruit posten (3 accounts)", "Animideo in Claude", "Je eigen stem klonen", "5 huisstijlen, team van 3", "Support via WhatsApp"] },
+  { id: "starter", naam: "Starter", prijs: 49, credits: 500, punten: ["Alle maak-tools en studio's", "De Regisseur", "100 Nederlandse stemmen", "Je eigen stem klonen", "Contentkalender maken", "1 huisstijl", "Academy + mail-support"] },
+  { id: "pro", naam: "Pro", prijs: 99, credits: 1500, punten: ["Alles van Starter", "Automatisch vooruit posten (3 accounts)", "Animideo in Claude", "5 huisstijlen, team van 3", "Support via WhatsApp"] },
   { id: "agency", naam: "Agency", prijs: 249, credits: 4000, punten: ["Alles van Pro", "Onbeperkt accounts en huisstijlen", "Team van 10", "Eigen sleutels voor koppelingen", "Persoonlijke support"] },
 ] as const;
