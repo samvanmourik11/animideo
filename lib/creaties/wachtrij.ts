@@ -14,6 +14,7 @@ import { startMontage, verversMontage } from "@/lib/regisseur/montage";
 import { startTrend, verversTrend } from "@/lib/trends/regie";
 import { EIGEN } from "@/lib/stem/types";
 import type { Creatie, CreatieSoort } from "./types";
+import { kortMetEinde } from "./melding";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -273,7 +274,7 @@ export async function verversLopende(lijst: Creatie[]): Promise<Creatie[]> {
 export async function markeerMislukt(c: Creatie, reden: string): Promise<Creatie | null> {
   const { data } = await createServiceClient()
     .from("creaties")
-    .update({ status: "mislukt", foutmelding: reden.slice(0, 500) })
+    .update({ status: "mislukt", foutmelding: kortMetEinde(reden) })
     .eq("id", c.id)
     .eq("status", "bezig")
     .select("*")

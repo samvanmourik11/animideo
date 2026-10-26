@@ -16,6 +16,9 @@ const FFMPEG = ffmpegPath as unknown as string;
 const LETTER = path.join(process.cwd(), "lib/export/Poppins-Bold.ttf");
 const W = 720;
 const H = 1280;
+// Zelfde les als de Regisseur-montage (26-10-2026): met ffmpegs standaard opent elke clip
+// een decoder-thread per kern en liep de montage op de server onderuit. Twee is genoeg.
+const DECODER = ["-threads", "2"];
 
 export interface Woord {
   word: string;
@@ -138,21 +141,23 @@ export async function monteerUgc(m: { clips: string[]; audio: string[]; teksten:
     filters.push(teksten.length ? `[vc]${teksten.join(",")}[v]` : `[vc]null[v]`);
 
     const uit = path.join(map, "ugc.mp4");
-    await run(
-      FFMPEG,
-      [
-        "-hide_banner",
-        ...clips.flatMap((c) => ["-i", c]),
-        ...stemmen.flatMap((s) => ["-i", s]),
-        "-filter_complex", filters.join(";"),
-        "-map", "[v]", "-map", "[a]",
-        "-t", totaal.toFixed(2),
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
-        "-y", uit,
-      ],
-      { maxBuffer: 1 << 24 },
-    );
+    const args = [
+      "-hide_banner", "-loglevel", "error",
+      ...clips.flatMap((c) => [...DECODER, "-i", c]),
+      ...stemmen.flatMap((s) => ["-i", s]),
+      "-filter_complex_threads", "2",
+      "-filter_complex", filters.join(";"),
+      "-map", "[v]", "-map", "[a]",
+      "-t", totaal.toFixed(2),
+      "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p",
+      "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart",
+      "-y", uit,
+    ];
+    // Eén keer opnieuw: een server die net even vol zit, laat ffmpeg soms halverwege stoppen.
+    await run(FFMPEG, args, { maxBuffer: 1 << 24 }).catch(() => run(FFMPEG, args, { maxBuffer: 1 << 24 })).catch((e: { stderr?: string; signal?: string; message?: string }) => {
+      const reden = e.signal ? `gestopt (${e.signal}), waarschijnlijk geheugen vol` : (e.stderr ?? "").trim().split("\n").slice(-3).join(" ") || e.message;
+      throw new Error(`ffmpeg: ${reden}`);
+    });
     return await readFile(uit);
   } finally {
     await rm(map, { recursive: true, force: true }).catch(() => {});
