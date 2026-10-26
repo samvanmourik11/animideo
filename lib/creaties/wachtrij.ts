@@ -15,6 +15,7 @@ import { startTrend, verversTrend } from "@/lib/trends/regie";
 import { EIGEN } from "@/lib/stem/types";
 import type { Creatie, CreatieSoort } from "./types";
 import { kortMetEinde } from "./melding";
+import { huisstijlPrompt, type HuisstijlKort } from "./huisstijl";
 
 fal.config({ credentials: process.env.FAL_KEY });
 
@@ -68,6 +69,15 @@ export async function startCreatie(
     // Recepten bouwen hun opdracht op de server (de verborgen opdrachten); de rest via het
     // client-veilige makers-register.
     opdracht = maker === "recept" ? receptOpdracht(ruweInvoer) : maakOpdracht(maker, ruweInvoer);
+    // Een gekozen huisstijl gaat mee in de beeldopdracht (naam, kleuren, lettertype, vermijden).
+    const huisstijl = ruweInvoer.huisstijl as HuisstijlKort | undefined;
+    if (huisstijl && opdracht.soort === "beeld" && typeof opdracht.falInvoer.prompt === "string") {
+      opdracht = {
+        ...opdracht,
+        falInvoer: { ...opdracht.falInvoer, prompt: opdracht.falInvoer.prompt + huisstijlPrompt(huisstijl) },
+        invoer: { ...opdracht.invoer, huisstijlId: ruweInvoer.huisstijlId },
+      };
+    }
   } catch (e) {
     throw new WachtrijFout(e instanceof Error ? e.message : String(e), 400);
   }
@@ -218,7 +228,15 @@ export async function ververs(c: Creatie): Promise<Creatie> {
  * (alleen van de gebruiker zelf) en de echte lengte van het geluid voor een pratende foto
  * (daar hangt de prijs van af).
  */
-async function vulAanOpServer(userId: string, maker: string, ruw: Record<string, unknown>): Promise<Record<string, unknown>> {
+async function vulAanOpServer(userId: string, maker: string, invoer: Record<string, unknown>): Promise<Record<string, unknown>> {
+  // De huisstijl zelf komt nooit uit de browser: alleen het id, en dan alleen een eigen huisstijl.
+  const { huisstijl: _h, ...ruw } = invoer;
+  const aangevuld = await vulStemAan(userId, maker, ruw);
+  const h = typeof ruw.huisstijlId === "string" && ruw.huisstijlId ? await laadHuisstijl(userId, ruw.huisstijlId) : null;
+  return h ? { ...aangevuld, huisstijl: h } : aangevuld;
+}
+
+async function vulStemAan(userId: string, maker: string, ruw: Record<string, unknown>): Promise<Record<string, unknown>> {
   if (maker === "voice-over" && String(ruw.stemId ?? "").startsWith(EIGEN)) {
     const id = String(ruw.stemId).slice(EIGEN.length);
     const { data } = await createServiceClient()
@@ -239,6 +257,27 @@ async function vulAanOpServer(userId: string, maker: string, ruw: Record<string,
   // Nooit een voice-id uit de browser overnemen.
   const { minimaxVoiceId: _m, audioSec: _a, ...schoon } = ruw;
   return maker === "voice-over" || maker === "pratende-foto" ? schoon : ruw;
+}
+
+async function laadHuisstijl(userId: string, id: string): Promise<HuisstijlKort | null> {
+  const { data } = await createServiceClient()
+    .from("brand_kits")
+    .select("name, description, tone_of_voice, colors, fonts, environment, do_nots")
+    .eq("id", id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!data) return null;
+  const kleuren = Object.values((data.colors ?? {}) as Record<string, string>).filter((k) => /^#[0-9a-f]{3,8}$/i.test(k ?? ""));
+  const lettertypen = Object.values((data.fonts ?? {}) as Record<string, string>).filter((f) => typeof f === "string" && f.trim());
+  return {
+    naam: data.name,
+    beschrijving: data.description ?? undefined,
+    toon: data.tone_of_voice ?? undefined,
+    kleuren,
+    lettertypen,
+    omgeving: data.environment ?? undefined,
+    vermijden: data.do_nots ?? undefined,
+  };
 }
 
 async function audioDuur(url: string): Promise<number> {

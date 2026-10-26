@@ -9,6 +9,7 @@ import CreatieKaart from "./CreatieKaart";
 import CreatieDetail from "./CreatieDetail";
 import BeeldKiezer, { type GekozenBeeld } from "./BeeldKiezer";
 import { startMaker, useCreaties, zetFavoriet } from "./gebruik-creaties";
+import HuisstijlKiezer, { huisstijlVoorServer } from "./HuisstijlKiezer";
 
 // Het scherm van één effect of app: foto erin, (soms) één zinnetje, klikken. De opdracht
 // erachter blijft op de server; de klant ziet alleen wat hij moet aanleveren.
@@ -20,6 +21,9 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
   const [tekst, setTekst] = useState("");
   const [toestemming, setToestemming] = useState(false);
   const [formaat, setFormaat] = useState<string>(r.zonderFoto?.formaat ?? "1:1");
+  const [huisstijl, setHuisstijl] = useState("");
+  // Alleen bij de branche-sjablonen met een beeld als uitkomst: daar hoort de zaak in beeld.
+  const metHuisstijl = r.groep === "branche" && r.soort !== "video";
   const [bezig, setBezig] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
   const [open, setOpen] = useState<Creatie | null>(null);
@@ -42,10 +46,10 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
     setFout(null);
     try {
       const c = r.zonderFoto
-        ? await startMaker("recept", { receptId: r.id, tekst, formaat })
+        ? await startMaker("recept", { receptId: r.id, tekst, formaat, ...(metHuisstijl ? huisstijlVoorServer(huisstijl) : {}) })
         : await startMaker(
             "recept",
-            { receptId: r.id, fotoUrl: foto!.url, tekst, formaat: foto!.formaat, toestemming },
+            { receptId: r.id, fotoUrl: foto!.url, tekst, formaat: foto!.formaat, toestemming, ...(metHuisstijl ? huisstijlVoorServer(huisstijl) : {}) },
             foto!.id ?? null,
           );
       lijst.zetVoor(c);
@@ -119,6 +123,8 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
             </label>
           )}
 
+          {metHuisstijl && <HuisstijlKiezer waarde={huisstijl} onKies={setHuisstijl} />}
+
           <button onClick={maak} disabled={bezig || !klaar} className="btn-primary w-full disabled:opacity-50">
             {bezig ? "Bezig met insturen…" : `Maak · ${r.credits} credit${r.credits === 1 ? "" : "s"}`}
           </button>
@@ -133,7 +139,7 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
           <p className="text-[11px] text-tekst-3">
             {r.soort === "video"
               ? "Een effect duurt meestal 1 tot 3 minuten. Je kunt ondertussen gewoon verder."
-              : "Meestal binnen 20 seconden klaar."}{" "}
+              : "Meestal binnen een halve minuut klaar."}{" "}
             Mislukt het, dan krijg je je credits terug.
           </p>
         </div>

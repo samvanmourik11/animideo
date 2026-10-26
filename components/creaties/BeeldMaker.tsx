@@ -9,6 +9,7 @@ import CreatieKaart from "./CreatieKaart";
 import CreatieDetail from "./CreatieDetail";
 import BeeldKiezer, { type GekozenBeeld } from "./BeeldKiezer";
 import { startMaker, useCreaties, zetFavoriet } from "./gebruik-creaties";
+import HuisstijlKiezer, { huisstijlVoorServer } from "./HuisstijlKiezer";
 
 // Het maakscherm voor beelden. Dezelfde opbouw komt straks terug bij Video en de
 // effecten: links wat je wilt (met de prijs vóór je klikt), rechts je resultaten, die
@@ -23,6 +24,11 @@ const VOORBEELDEN = [
   "Grachtenpanden in Amsterdam in Delfts-blauwe stijl",
 ];
 
+/** Vraagt de opdracht om letters in beeld: iets tussen aanhalingstekens, of een bord, tekst of opschrift. */
+function vraagtTekst(prompt: string): boolean {
+  return /["“”„'‘’][^"“”„'‘’]{2,}["“”„'‘’]|\b(tekst|opschrift|bord|krijtbord|uithangbord|naam op|logo|slogan|titel|kop)\b/i.test(prompt);
+}
+
 export default function BeeldMaker() {
   // "Gebruik als voorbeeld" in de bibliotheek komt hier binnen met ?ref=<url>.
   const zoek = useSearchParams();
@@ -35,6 +41,7 @@ export default function BeeldMaker() {
   const [formaat, setFormaat] = useState<Formaat>("1:1");
   const [kwaliteit, setKwaliteit] = useState<"standaard" | "pro">("standaard");
   const [aantal, setAantal] = useState(1);
+  const [huisstijl, setHuisstijl] = useState("");
   const [bezig, setBezig] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
   const [open, setOpen] = useState<Creatie | null>(null);
@@ -49,7 +56,7 @@ export default function BeeldMaker() {
       // Na elkaar insturen, niet tegelijk: dan houdt de server de grens van het aantal
       // dingen tegelijk in de maak netjes bij, en stopt het bij de eerste fout.
       for (let i = 0; i < aantal; i++) {
-        const c = await startMaker("beeld", { prompt, formaat, kwaliteit, referentieUrl: referentie?.url });
+        const c = await startMaker("beeld", { prompt, formaat, kwaliteit, referentieUrl: referentie?.url, ...huisstijlVoorServer(huisstijl) });
         lijst.zetVoor(c);
       }
     } catch (e) {
@@ -131,6 +138,8 @@ export default function BeeldMaker() {
           )}
         </div>
 
+        <HuisstijlKiezer waarde={huisstijl} onKies={setHuisstijl} />
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="n-label">Kwaliteit</label>
@@ -152,6 +161,15 @@ export default function BeeldMaker() {
             </select>
           </div>
         </div>
+
+        {kwaliteit === "standaard" && vraagtTekst(prompt) && (
+          // Standaard maakt van kleine tekst (een krijtbord, een ondertitel) vaak onzinletters;
+          // Pro spelt Nederlands foutloos (Maxims testronde, 26-10-2026).
+          <p className="text-xs text-amber-700 dark:text-amber-200 bg-amber-400/15 rounded-xl px-3 py-2">
+            Er staat tekst in je beeld. Standaard verhaspelt kleine letters vaak; Pro spelt ze foutloos.{" "}
+            <button onClick={() => setKwaliteit("pro")} className="underline font-semibold">Kies Pro</button>
+          </p>
+        )}
 
         <button onClick={maak} disabled={bezig || !prompt.trim()} className="btn-primary w-full disabled:opacity-50">
           {bezig ? "Bezig met insturen…" : `Maak · ${prijs} credit${prijs === 1 ? "" : "s"}`}

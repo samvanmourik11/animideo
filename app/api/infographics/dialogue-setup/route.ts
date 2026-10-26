@@ -214,7 +214,8 @@ Waarom dit werkt:
 4. Gaat het verhaal over iemand — papa, mama, oma, de juf — dan komt die persoon zelf in beeld en doet mee.
 5. Eén concreet ding (het nachtlampje) komt terug en betekent in het slot iets anders dan aan het begin.
 6. Twee of drie plekken voor het hele verhaal, en er wordt naar teruggekeerd.
-7. De oplossing komt van de HOOFDPERSONEN zelf: ze durven iets, doen iets of zien iets in. Niet van toeval (een sneeuwstorm, een telefoontje, iets wat toevallig gebeurt) en niet van een volwassene die binnenloopt en het voor ze bedenkt. Noor pakt zelf de zaklamp.`;
+7. De oplossing komt van de HOOFDPERSONEN zelf: ze durven iets, doen iets of zien iets in. Niet van toeval (een sneeuwstorm, een telefoontje, iets wat toevallig gebeurt) en niet van een volwassene die binnenloopt en het voor ze bedenkt. Noor pakt zelf de zaklamp.
+8. Gaat de video over een bedrijf, winkel, product of dienst (reclame, een uitnodiging om langs te komen): het probleem en de tegenslag gaan NOOIT over dat product of dat bedrijf. Het product smaakt, werkt en ziet er altijd goed uit — geen klacht, geen mislukking, geen "oh nee" over het product. Het probleem zit ergens anders (haast, een vergeten verjaardag, regen, een klant die twijfelt wat hij moet kiezen), het product of de plek helpt juist in de omslag, en het slot is warm en nodigt uit.`;
 
 // Het tegenovergestelde van VERHAALLES. Bij "Tyrell, Lilly en de Wonderwagen" gaf de
 // gebruiker een compleet verhaal met een reis langs zeven plekken in Paramaribo;
