@@ -31,13 +31,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(`${APP_ADRES}${pathname}${search}`, 308);
   }
 
-  // Op het app-adres (en lokaal) werken de landingspagina's ook, onder hun eigen naam.
-  if (SITE_PADEN.has(pathname)) {
-    const url = request.nextUrl.clone();
-    url.pathname = `/site${pathname}`;
-    return NextResponse.rewrite(url);
-  }
-
   return await updateSession(request);
 }
 

@@ -181,8 +181,9 @@ export const DOELGROEPEN: Record<DoelgroepId, Doelgroep> = {
     ],
     voorbeeldenKop: "Verhalen gemaakt met Animideo",
     voorbeelden: [
+      { titel: "Pratende personages: De Magie van Tekenen", url: `${VB}/magie-van-tekenen.mp4`, vorm: "liggend" },
+      { titel: "Zoey en de muzikale droom", url: `${VB}/zoey-muzikale-droom.mp4`, vorm: "liggend" },
       { titel: "De prinses die naar school gaat", url: `${VB}/prinses-naar-school.mp4`, vorm: "liggend" },
-      { titel: "Het schoolreisje naar het bos", url: `${VB}/schoolreisje.mp4`, vorm: "liggend" },
       { titel: "Geschiedenis voor kinderen: Suriname", url: `${VB}/suriname.mp4`, vorm: "liggend" },
     ],
     rekensommen: [
