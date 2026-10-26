@@ -33,7 +33,7 @@ export default function LoginPage() {
       // Terug naar waar iemand vandaan kwam (bv. een teamuitnodiging). Alleen eigen paden,
       // anders is dit een open deur om na het inloggen naar een nepsite te sturen.
       const volgende = new URLSearchParams(window.location.search).get("volgende") ?? "";
-      router.push(/^\/(?!\/)/.test(volgende) ? volgende : "/dashboard");
+      router.push(/^\/(?!\/)/.test(volgende) ? volgende : "/ontdek");
       router.refresh();
     }
   }

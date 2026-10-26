@@ -45,7 +45,7 @@ function FreeSignupForm() {
         const supabase = createClient();
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) { setError(signInError.message); setLoading(false); return; }
-        router.push("/dashboard");
+        router.push("/welkom");
         router.refresh();
         return;
       }

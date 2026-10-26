@@ -63,7 +63,7 @@ function SignupForm() {
       if (res.ok) {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
         if (signInError) { setError(signInError.message); setLoading(false); return; }
-        router.push("/dashboard");
+        router.push("/welkom");
         router.refresh();
         return;
       }
@@ -92,7 +92,7 @@ function SignupForm() {
     const { error } = await supabase.auth.resend({
       type: "signup",
       email,
-      options: { emailRedirectTo: `${appUrl}/dashboard` },
+      options: { emailRedirectTo: `${appUrl}/welkom` },
     });
     setResendMsg(
       error

@@ -7,6 +7,7 @@ import { leesThema, THEMA_COOKIE, THEMA_ID } from "@/components/app-shell/thema"
 import { getProfile } from "@/lib/credits";
 import { betalerVan } from "@/lib/team/team";
 import AchterstandBalk from "@/components/AchterstandBalk";
+import PendingCheckoutHandler from "@/components/PendingCheckoutHandler";
 
 export default async function AppLayout({
   children,
@@ -27,6 +28,10 @@ export default async function AppLayout({
 
   return (
     <div id={THEMA_ID} data-thema={thema} className="min-h-screen bg-vlak text-tekst">
+      {/* Koppelt een betaling van vóór het account (€1, gratis week, traject) aan het account.
+          Stond op /dashboard, maar nieuwe klanten komen nu op /welkom en terugkerende op
+          /ontdek uit; hier draait hij op welke pagina iemand ook binnenkomt. */}
+      <PendingCheckoutHandler userId={user.id} userEmail={user.email ?? ""} />
       <Zijbalk
         email={user.email ?? ""}
         credits={pot.credits}

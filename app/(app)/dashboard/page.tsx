@@ -5,7 +5,8 @@ import NewProjectButton from "@/components/NewProjectButton";
 import StatusBadge from "@/components/StatusBadge";
 import { getProfile } from "@/lib/credits";
 import PendingIdeaHandler from "@/components/PendingIdeaHandler";
-import PendingCheckoutHandler from "@/components/PendingCheckoutHandler";
+import { redirect } from "next/navigation";
+import { isAdminAccount } from "@/lib/studio/access";
 import ProjectLibrary from "@/components/ProjectLibrary";
 
 export default async function DashboardPage() {
@@ -21,10 +22,14 @@ export default async function DashboardPage() {
     getProfile(user!.id),
   ]);
 
+  // De oude tools staan alleen voor Sam open (26-10-2026). Klanten die er al projecten in
+  // hebben, houden hun lijst wel (eigen werk blijft bereikbaar), maar starten er niets nieuws.
+  const beheer = isAdminAccount(user!.email);
+  if (!beheer && !projects?.length) redirect("/ontdek");
+
   return (
     <div>
       <PendingIdeaHandler userId={user!.id} />
-      <PendingCheckoutHandler userId={user!.id} userEmail={user!.email ?? ""} />
 
       {profile.plan === "free" && (
         <div className="mb-6 flex items-center justify-between bg-gradient-to-r from-blue-600/10 to-blue-500/5 border border-blue-500/20 rounded-2xl px-5 py-4">
@@ -49,7 +54,7 @@ export default async function DashboardPage() {
             {projects?.length ?? 0} project{(projects?.length ?? 0) !== 1 ? "en" : ""}
           </p>
         </div>
-        <NewProjectButton userId={user!.id} />
+        {beheer && <NewProjectButton userId={user!.id} />}
       </div>
 
       <ProjectLibrary projects={(projects ?? []) as Project[]} userId={user!.id} />
