@@ -1,4 +1,4 @@
-// Wat elk pakket mag (Sam, 25-10-2026). Starter kan alles maken; Pro bespaart tijd
+// Wat elk pakket mag (Sam, 25-10-2026; losse credits sinds 26-10 voor elk abonnement). Starter kan alles maken; Pro bespaart tijd
 // (automatisch posten, Claude, je eigen stem, samenwerken); Agency heeft alles onbeperkt
 // plus eigen sleutels. Credits staan los hiervan in lib/credit-costs.ts, teamplaatsen in
 // lib/team/types.ts. Client-veilig: alleen de tabel en pure functies.
@@ -23,7 +23,7 @@ export const VANAF: Record<Recht, Plan> = {
   vooruitPosten: "pro",
   claude: "pro",
   stemKlonen: "pro",
-  losseCredits: "pro",
+  losseCredits: "starter",
   apiSleutels: "agency",
 };
 
