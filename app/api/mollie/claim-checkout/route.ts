@@ -1,12 +1,19 @@
 import { PLAN_CREDITS } from "@/lib/credit-costs";
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { createClient } from "@/lib/supabase/server";
 import { GRATIS_WEEK_CREDITS, isGratisWeek } from "@/lib/gratis-week";
 
 
-export async function POST(req: NextRequest) {
-  const { userId, email } = await req.json() as { userId: string; email: string };
-  if (!userId || !email) return NextResponse.json({ claimed: false });
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function POST(_req: NextRequest) {
+  // Wie het is, komt uit de sessie, niet uit wat de browser meestuurt: eerder stonden userId en
+  // e-mail in de body, en kon iedereen andermans betaalde checkout aan zijn eigen account hangen.
+  const sessie = await createClient();
+  const { data: { user } } = await sessie.auth.getUser();
+  if (!user?.email) return NextResponse.json({ claimed: false }, { status: 401 });
+  const userId = user.id;
+  const email = user.email;
 
   const supabase = createServiceClient();
 
