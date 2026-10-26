@@ -1487,7 +1487,7 @@ export default function StoryPage() {
         {err && <p className="text-red-600 dark:text-red-300 text-sm break-words">{err}</p>}
       </div>
 
-      {loading && <p className="text-tekst-3 text-sm">{scriptModus === "eigen" ? "Even geduld, je script staat vast en de AI tekent er per scene een illustratie bij. Dit duurt ongeveer 20 tot 40 seconden." : "Even geduld, de AI schrijft het script en genereert per scene een illustratie. Dit duurt ongeveer 20 tot 40 seconden."}</p>}
+      {loading && <p className="text-tekst-3 text-sm">{scriptModus === "eigen" ? "Even geduld, je script staat vast en de AI tekent er per scene een illustratie bij. Reken op 2 tot 5 minuten, afhankelijk van het aantal scenes (gemeten: 15 scenes ruim 4 minuten). Laat dit tabblad open." : "Even geduld, de AI schrijft het script en genereert per scene een illustratie. Reken op 2 tot 5 minuten, afhankelijk van het aantal scenes (gemeten: 15 scenes ruim 4 minuten). Laat dit tabblad open."}</p>}
 
       {spec && (
         <div className="space-y-8">

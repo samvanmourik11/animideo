@@ -77,6 +77,8 @@ export default function ContentKalender({ id }: { id: string }) {
   }
 
   if (!k) return <div className="max-w-4xl mx-auto px-4 py-8 text-sm text-tekst-3">{fout ?? "Laden…"}</div>;
+  // Gemaakt zonder gekoppeld kanaal: de posts zijn om te downloaden en zelf te plaatsen.
+  const zelfPlaatsen = k.kanalen.every((x) => !x.accountId);
 
   const weken = new Map<string, Post[]>();
   for (const p of posts) weken.set(weekVan(p.gepland_op), [...(weken.get(weekVan(p.gepland_op)) ?? []), p]);
@@ -89,9 +91,10 @@ export default function ContentKalender({ id }: { id: string }) {
         <h1 className="text-2xl font-bold text-tekst mt-2">{k.titel}</h1>
         <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-tekst-2">
           {k.kanalen.map((x) => (
-            <span key={x.accountId} className="rounded-full bg-paneel-2 px-2 py-0.5 text-xs">{platform(x.platform)?.icoon} {x.naam}</span>
+            <span key={x.accountId || x.platform} className="rounded-full bg-paneel-2 px-2 py-0.5 text-xs">{platform(x.platform)?.icoon} {x.naam}</span>
           ))}
           <span className="text-xs text-tekst-3">· {k.weken} wk × {k.per_week} posts</span>
+{!zelfPlaatsen && (
           <label className="ml-auto flex items-center gap-2 text-xs">
             <span>Als een post af is:</span>
             <select value={k.modus} onChange={(e) => doe({ actie: "modus", modus: e.target.value }, "modus")} className="rounded-lg border border-rand bg-paneel px-2 py-1 text-tekst">
@@ -99,6 +102,7 @@ export default function ContentKalender({ id }: { id: string }) {
               <option value="plaatsen">🚀 gewoon plaatsen</option>
             </select>
           </label>
+          )}
         </div>
       </div>
       {fout && <p className="text-sm text-red-600 dark:text-red-300">{fout}</p>}
@@ -151,6 +155,7 @@ export default function ContentKalender({ id }: { id: string }) {
               p={p}
               media={[p.montage_id, p.video_id, p.beeld_id].map((x) => (x ? creaties[x] : undefined)).find((c) => c?.status === "klaar" && c.url) ?? (p.beeld_id ? creaties[p.beeld_id] : undefined)}
               actief={k.status === "actief"}
+              zelfPlaatsen={zelfPlaatsen}
               bezig={bezig === p.id}
               bewerken={bewerk === p.id}
               onBewerk={(aan) => setBewerk(aan ? p.id : null)}
@@ -176,11 +181,12 @@ export default function ContentKalender({ id }: { id: string }) {
 }
 
 function PostKaart({
-  p, media, actief, bezig, bewerken, onBewerk, onActie,
+  p, media, actief, zelfPlaatsen, bezig, bewerken, onBewerk, onActie,
 }: {
   p: Post;
   media?: CreatieKort;
   actief: boolean;
+  zelfPlaatsen: boolean;
   bezig: boolean;
   bewerken: boolean;
   onBewerk: (aan: boolean) => void;
@@ -259,8 +265,14 @@ function PostKaart({
         )}
         {!bewerken && (
           <div className="flex flex-wrap gap-2 pt-1">
-            {p.status === "te_keuren" && <button onClick={() => onActie({ actie: "plaats" })} disabled={bezig} className="btn-primary text-sm">✓ Goed, plaatsen</button>}
-            {p.status === "mislukt" && klaarMedia && <button onClick={() => onActie({ actie: "plaats" })} disabled={bezig} className="n-knop2 text-sm">↻ Opnieuw plaatsen</button>}
+            {zelfPlaatsen && klaarMedia && (
+              <a href={klaarMedia.url!} download target="_blank" rel="noreferrer" className="btn-primary text-sm">⬇ Downloaden</a>
+            )}
+            {zelfPlaatsen && klaarMedia && (
+              <button onClick={() => navigator.clipboard?.writeText(p.tekst)} className="n-knop2 text-sm">📋 Tekst kopiëren</button>
+            )}
+            {!zelfPlaatsen && p.status === "te_keuren" && <button onClick={() => onActie({ actie: "plaats" })} disabled={bezig} className="btn-primary text-sm">✓ Goed, plaatsen</button>}
+            {!zelfPlaatsen && p.status === "mislukt" && klaarMedia && <button onClick={() => onActie({ actie: "plaats" })} disabled={bezig} className="n-knop2 text-sm">↻ Opnieuw plaatsen</button>}
             {actief && p.status === "gepland" && <button onClick={() => onActie({ actie: "maak_nu" })} disabled={bezig} className="n-knop2 text-sm">▶ Nu maken</button>}
             {actief && (p.status === "te_keuren" || p.status === "mislukt") && <button onClick={() => onActie({ actie: "maak_nu" })} disabled={bezig} className="n-knop2 text-sm">↻ Nieuw beeld</button>}
             {magWijzigen && <button onClick={() => onBewerk(true)} className="n-knop2 text-sm">✏️ Aanpassen</button>}

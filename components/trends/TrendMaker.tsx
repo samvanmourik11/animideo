@@ -82,6 +82,12 @@ export default function TrendMaker({ trend: t, beheer = false }: { trend: Publie
               <div className="mt-1.5">
                 <BeeldKiezer waarde={fotos[i]} onKies={(g) => setFotos(fotos.map((x, j) => (j === i ? g : x)))} leeg={f.label} />
               </div>
+              {/top tot teen|hele lichaam|volledig/i.test(f.label) && fotos[i] && fotos[i]!.formaat !== "9:16" && (
+                // Maxims testronde: met een bijgesneden personage kwam er een ander figuur uit (40 credits).
+                <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-200 bg-amber-400/15 rounded-xl px-3 py-2">
+                  Deze foto is geen staande foto van top tot teen. Dan lijkt de uitkomst vaak minder op de persoon; kies liever een foto waarop iemand helemaal te zien is.
+                </p>
+              )}
             </div>
           ))}
 

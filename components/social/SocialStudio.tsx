@@ -26,6 +26,8 @@ export default function SocialStudio() {
   const [bezig, setBezig] = useState<string | null>(null);
   const [briefing, setBriefing] = useState("");
   const [gekozen, setGekozen] = useState<string[]>([]);
+  // Zonder gekoppeld kanaal: alleen voor welke kanalen de posts zijn (om te downloaden).
+  const [zelfPlatforms, setZelfPlatforms] = useState<string[]>(["instagram"]);
   const [start, setStart] = useState(morgen());
   const [weken, setWeken] = useState(4);
   const [perWeek, setPerWeek] = useState(3);
@@ -99,7 +101,7 @@ export default function SocialStudio() {
     const res = await fetch("/api/social/kalenders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ briefing, accounts: gekozen, start, weken, per_week: perWeek, modus, fotos: fotos.map((f) => f.id), eindkaart }),
+      body: JSON.stringify({ briefing, accounts: gekozen, ...(zelfPlaatsen ? { platforms: zelfPlatforms } : {}), start, weken, per_week: perWeek, modus, fotos: fotos.map((f) => f.id), eindkaart }),
     });
     const d = await res.json().catch(() => ({}));
     setBezig(null);
@@ -108,7 +110,8 @@ export default function SocialStudio() {
   }
 
   const totaal = weken * perWeek;
-  const gekozenPlatforms = new Set((accounts ?? []).filter((a) => gekozen.includes(a.id)).map((a) => a.platform));
+  const zelfPlaatsen = accounts !== null && accounts.length === 0;
+  const gekozenPlatforms = new Set(zelfPlaatsen ? zelfPlatforms : (accounts ?? []).filter((a) => gekozen.includes(a.id)).map((a) => a.platform));
   const allesVideo = [...gekozenPlatforms].some((p) => platform(p)?.video);
 
   return (
@@ -172,7 +175,24 @@ export default function SocialStudio() {
               ))}
             </div>
           ) : (
-            <p className="text-sm text-tekst-3">{accounts === null ? "Laden…" : "Koppel eerst een kanaal hierboven."}</p>
+            accounts === null ? (
+              <p className="text-sm text-tekst-3">Laden…</p>
+            ) : (
+              // Ook zonder koppeling bruikbaar (Starter kan niet koppelen): de posts worden gemaakt
+              // en je downloadt ze om ze zelf te plaatsen. Maxims testronde: de gratis ideeën waren
+              // pas te zien na het koppelen van een kanaal.
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap gap-2">
+                  {PLATFORMS.map((p) => (
+                    <label key={p.id} className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm cursor-pointer ${zelfPlatforms.includes(p.id) ? "border-blue-500 bg-blue-500/10 text-tekst" : "border-rand text-tekst-2"}`}>
+                      <input type="checkbox" className="hidden" checked={zelfPlatforms.includes(p.id)} onChange={() => setZelfPlatforms((g) => (g.includes(p.id) ? g.filter((x) => x !== p.id) : [...g, p.id]))} />
+                      {p.icoon} {p.naam}
+                    </label>
+                  ))}
+                </div>
+                <p className="text-xs text-tekst-3">Geen kanaal gekoppeld: we maken de posts klaar en jij downloadt ze om zelf te plaatsen. Automatisch plaatsen kan na het koppelen van een kanaal hierboven.</p>
+              </div>
+            )
           )}
         </div>
         <div className="space-y-1">
@@ -220,27 +240,29 @@ export default function SocialStudio() {
             </select>
           </label>
         </div>
-        <div className="space-y-1">
-          <span className="text-sm text-tekst-2">Als een post af is</span>
-          <div className="flex flex-col sm:flex-row gap-2">
-            {([
-              ["controleren", "👀 Eerst zelf keuren", "Je krijgt hem eerst te zien; pas na jouw ✓ gaat hij online."],
-              ["plaatsen", "🚀 Gewoon plaatsen", "Hij wordt meteen ingepland op het geplande moment."],
-            ] as const).map(([w, kop, uitleg]) => (
-              <label key={w} className={`flex-1 rounded-xl border p-3 cursor-pointer ${modus === w ? "border-blue-500 bg-blue-500/10" : "border-rand"}`}>
-                <input type="radio" className="hidden" checked={modus === w} onChange={() => setModus(w)} />
-                <div className="text-sm font-semibold text-tekst">{kop}</div>
-                <div className="text-xs text-tekst-3">{uitleg}</div>
-              </label>
-            ))}
+        {!zelfPlaatsen && (
+          <div className="space-y-1">
+            <span className="text-sm text-tekst-2">Als een post af is</span>
+            <div className="flex flex-col sm:flex-row gap-2">
+              {([
+                ["controleren", "👀 Eerst zelf keuren", "Je krijgt hem eerst te zien; pas na jouw ✓ gaat hij online."],
+                ["plaatsen", "🚀 Gewoon plaatsen", "Hij wordt meteen ingepland op het geplande moment."],
+              ] as const).map(([w, kop, uitleg]) => (
+                <label key={w} className={`flex-1 rounded-xl border p-3 cursor-pointer ${modus === w ? "border-blue-500 bg-blue-500/10" : "border-rand"}`}>
+                  <input type="radio" className="hidden" checked={modus === w} onChange={() => setModus(w)} />
+                  <div className="text-sm font-semibold text-tekst">{kop}</div>
+                  <div className="text-xs text-tekst-3">{uitleg}</div>
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-tekst-3">
             {totaal} posts. De ideeën bedenken is gratis; daarna kost een beeldpost {POST_CREDITS.beeld} credit en een videopost (met voice-over en muziek) {POST_CREDITS.video} credits
             {allesVideo ? " (TikTok en YouTube zijn altijd video)" : ""}. Ze worden per week vooruit gemaakt.
           </p>
-          <button onClick={maak} disabled={bezig === "nieuw" || uploaden > 0 || briefing.trim().length < 10 || !gekozen.length} className="btn-primary">
+          <button onClick={maak} disabled={bezig === "nieuw" || uploaden > 0 || briefing.trim().length < 10 || (zelfPlaatsen ? !zelfPlatforms.length : !gekozen.length)} className="btn-primary">
             {bezig === "nieuw" ? "Even…" : "✨ Bedenk de ideeën"}
           </button>
         </div>

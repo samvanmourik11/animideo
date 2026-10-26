@@ -14,7 +14,7 @@ import { MUSIC_CATEGORIES } from "@/lib/music/library";
 import type { Creatie } from "@/lib/creaties/types";
 import { leesGeheugen } from "@/lib/regisseur/tools";
 import { nlMoment } from "@/lib/regisseur/taken";
-import { ALLEEN_VIDEO, MAX_FOTOS, PLATFORMS, type Kalender, type Kanaal, type Post } from "./types";
+import { ALLEEN_VIDEO, MAX_FOTOS, PLATFORMS, type Kalender, type Kanaal, type PlatformId, type Post } from "./types";
 import { magGebruiker } from "@/lib/plan-rechten-server";
 import { upgradeTekst } from "@/lib/plan-rechten";
 import { accountsVan, plaatsPost, standVan, ZernioFout } from "./zernio";
@@ -47,8 +47,14 @@ export async function maakKalender(userId: string, b: Record<string, unknown>): 
   const accounts = await accountsVan(userId);
   // Zonder keuze (de Regisseur zegt "alles"): alle actieve accounts.
   const gekozen = new Set((Array.isArray(b.accounts) ? b.accounts : []).map(String));
-  const kanalen: Kanaal[] = accounts.filter((a) => a.actief && (!gekozen.size || gekozen.has(a.id))).map((a) => ({ platform: a.platform, accountId: a.id, naam: a.naam }));
-  if (!kanalen.length) throw new KalenderFout(accounts.length ? "Kies minstens één gekoppeld account." : "Er is nog geen kanaal gekoppeld. Koppel er eerst een in de Social-studio.");
+  let kanalen: Kanaal[] = accounts.filter((a) => a.actief && (!gekozen.size || gekozen.has(a.id))).map((a) => ({ platform: a.platform, accountId: a.id, naam: a.naam }));
+  // Zonder gekoppeld kanaal (Starter kan niet koppelen, of iemand wil zelf plaatsen): de posts
+  // worden gemaakt om te downloaden. Dan kiest de gebruiker alleen voor welke kanalen.
+  const zelfPlaatsen = !kanalen.length && Array.isArray(b.platforms);
+  if (zelfPlaatsen) {
+    kanalen = PLATFORMS.filter((p) => (b.platforms as unknown[]).includes(p.id)).map((p) => ({ platform: p.id as PlatformId, accountId: "", naam: p.naam }));
+  }
+  if (!kanalen.length) throw new KalenderFout(accounts.length ? "Kies minstens één gekoppeld account." : "Kies voor welke kanalen de posts zijn.");
   const fotoIds = (Array.isArray(b.fotos) ? b.fotos : []).map(String).slice(0, MAX_FOTOS);
   const db = createServiceClient();
   const { data: fs } = fotoIds.length ? await db.from("creaties").select("id, url, prompt").eq("user_id", userId).eq("soort", "beeld").in("id", fotoIds) : { data: [] };
@@ -58,7 +64,7 @@ export async function maakKalender(userId: string, b: Record<string, unknown>): 
     .insert({
       user_id: userId, titel: briefing.slice(0, 60), briefing, kanalen, fotos,
       eindkaart: String(b.eindkaart ?? "").trim().slice(0, 40) || null,
-      modus: b.modus === "plaatsen" ? "plaatsen" : "controleren", start_datum: start, weken, per_week: perWeek, status: "ideeen_maken",
+      modus: !zelfPlaatsen && b.modus === "plaatsen" ? "plaatsen" : "controleren", start_datum: start, weken, per_week: perWeek, status: "ideeen_maken",
     })
     .select("id")
     .single();
@@ -292,8 +298,8 @@ export async function plan(p: Rij, k: Pick<Kalender, "kanalen">, mediaUrl?: stri
     url = data?.url ?? undefined;
   }
   if (!url) return void (await zet(p.id, { status: "mislukt", foutmelding: "Het beeld of de video is er niet meer." }));
-  const kanalen = k.kanalen.filter((x) => p.platforms.includes(x.platform)) as Kanaal[];
-  if (!kanalen.length) return void (await zet(p.id, { status: "mislukt", foutmelding: "Geen gekoppeld account meer voor deze kanalen." }));
+  const kanalen = k.kanalen.filter((x) => x.accountId && p.platforms.includes(x.platform)) as Kanaal[];
+  if (!kanalen.length) return void (await zet(p.id, { status: "mislukt", foutmelding: "Geen gekoppeld account voor deze kanalen. Download de post en plaats hem zelf, of koppel een kanaal in de Social-studio." }));
   try {
     const id = await plaatsPost({ kanalen, tekst: p.tekst, tekstKort: p.tekst_kort, titel: p.titel, mediaUrl: url, op: p.gepland_op, sleutel: p.id });
     await zet(p.id, { status: "ingepland", zernio_post: id, foutmelding: null });
