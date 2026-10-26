@@ -94,6 +94,13 @@ export default function VideoMaker() {
           />
         </div>
 
+        {manier === "tekst" && /["“”„'‘’][^"“”„'‘’]{2,}["“”„'‘’]|\b(tekst|opschrift|bord|naam|logo|slogan)\b/i.test(prompt) && (
+          // Videomodellen spellen letters slecht (Maxims testronde: "De Gouuden Korst").
+          <p className="text-xs text-amber-700 dark:text-amber-200 bg-amber-400/15 rounded-xl px-3 py-2">
+            Tekst in een video wordt vaak verkeerd gespeld. Tip: maak eerst een beeld met kwaliteit Pro waarop de tekst klopt, en maak daar met &ldquo;Van een beeld&rdquo; een video van. Dan blijft de tekst goed.
+          </p>
+        )}
+
         {manier === "beeld" ? (
           <div>
             <label className="n-label">Model</label>

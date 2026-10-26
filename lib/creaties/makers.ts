@@ -159,7 +159,9 @@ export function maakOpdracht(maker: string, ruw: Record<string, unknown>): Opdra
     return {
       soort: "video",
       endpoint: "fal-ai/bytedance/seedance/v1/lite/text-to-video",
-      falInvoer: { prompt, aspect_ratio: formaat, duration: "5", resolution: "720p" },
+      // Maxims testronde: een gevraagd bord kreeg een spelfout en er verscheen een tweede bord
+      // met onzinletters. Geen extra tekst vragen helpt tegen dat tweede bord.
+      falInvoer: { prompt: `${prompt}\n\nNo signs, captions or text other than what is described above.`, aspect_ratio: formaat, duration: "5", resolution: "720p" },
       credits: CREDIT_COSTS.VIDEO_GENERATION,
       prompt,
       invoer: { prompt, formaat },

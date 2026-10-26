@@ -36,9 +36,9 @@ const BEELD: Record<string, (tekst: string) => string> = {
   "product-sfeer": (t) =>
     `Realistic lifestyle photograph of the exact product from the reference photo, placed naturally ${t || "on a table in a bright, modern Dutch living room"}. Keep the product's shape, colors, label and logo exactly the same. Natural daylight, shallow depth of field, editorial advertising quality.`,
   billboard: () =>
-    "A large roadside billboard along a Dutch highway (the A2) displaying exactly the image from the reference photo as the advertisement. Flat green polder landscape, cloudy Dutch sky, a few cars passing. Photorealistic, the advert is clearly visible and undistorted.",
+    "A large roadside billboard along a Dutch highway (the A2) displaying exactly the image from the reference photo as the advertisement. Flat green polder landscape, cloudy Dutch sky, a few cars passing. Photorealistic, the advert is clearly visible and undistorted; every letter of its text stays exactly as in the reference.",
   abri: () =>
-    "An illuminated advertising poster inside a city bus shelter in a Dutch city at dusk, showing exactly the image from the reference photo as the poster. Wet street reflections, bicycles parked nearby, photorealistic.",
+    "An illuminated advertising poster inside a city bus shelter in a Dutch city at dusk, showing exactly the image from the reference photo as the poster, every letter of its text exactly as in the reference. Wet street reflections, bicycles parked nearby, photorealistic.",
   profielfoto: () =>
     `Professional corporate headshot of the person from the reference photo. ${ZELFDE_PERSOON} Neat business-casual clothing, soft studio lighting, plain soft-grey background, looking at the camera with a friendly confident expression, shoulders visible, LinkedIn quality.`,
   vermeer: () =>

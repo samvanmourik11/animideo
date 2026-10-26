@@ -190,6 +190,11 @@ export default function ScriptBoard({
           {teDoen > 0 && <> · ongeveer <span className="text-tekst font-medium">{wachtMinuten} min</span></>}
         </span>
       </div>
+      {/* Maxims testronde zag de Engelse beeldopdrachten tussen de Nederlandse velden als fout.
+          Ze zijn bewust Engels (het tekenmodel volgt dat het nauwkeurigst); zeg dat erbij. */}
+      <p className="text-[11px] text-tekst-3 -mt-3">
+        De omgeving en de 🎬-beeldopdrachten staan in het Engels: daarmee tekent het model het nauwkeurigst. Je mag ze gewoon in het Nederlands aanpassen. Wat er gezegd wordt, blijft Nederlands.
+      </p>
 
       {spec.scenes.map((scene, si) => (
         <div key={scene.id} className="rounded-lg border border-rand bg-paneel-2/60 p-3">
@@ -212,7 +217,8 @@ export default function ScriptBoard({
                 value={scene.setting}
                 onChange={(e) => wijzigScene(si, { setting: e.target.value, twoShotUrl: null })}
                 disabled={disabled}
-                placeholder="omgeving in het Engels, bijv. a modern office with a desk and a laptop"
+                placeholder="omgeving, bijv. a modern office with a desk and a laptop (Nederlands mag ook)"
+                title="Beeldopdracht voor de tekenaar. Engels werkt het nauwkeurigst, Nederlands mag ook."
                 className="w-full bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst placeholder:text-tekst-3 disabled:opacity-60"
               />
               <div className="flex items-center gap-2 mt-1">
@@ -330,7 +336,8 @@ export default function ScriptBoard({
                       onChange={(e) => wijzigInhoud(si, li, { actie: e.target.value })}
                       disabled={disabled}
                       rows={1}
-                      placeholder="wat gebeurt er? in het Engels, bijv. the two of them drive along a country road"
+                      placeholder="wat zie je? bijv. the two of them drive along a country road (Nederlands mag ook)"
+                      title="Beeldopdracht voor de tekenaar. Engels werkt het nauwkeurigst, Nederlands mag ook."
                       className="flex-1 bg-paneel border border-rand rounded px-2 py-1 text-xs text-tekst resize-y min-h-[28px] placeholder:text-tekst-3 disabled:opacity-60"
                     />
                     {/* Zonder stem bepaalt dit veld de lengte; met voice-over doet de
