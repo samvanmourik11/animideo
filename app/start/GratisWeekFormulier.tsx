@@ -35,7 +35,7 @@ export default function GratisWeekFormulier() {
       const res = await fetch("/api/gratis-week", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, plan, akkoordAbonnement: abonnement, akkoordVoorwaarden: voorwaarden, nieuwsbrief, bron: zoek.get("bron") ?? zoek.get("utm_campaign") ?? "" }),
+        body: JSON.stringify({ email, plan, akkoordAbonnement: abonnement, akkoordVoorwaarden: voorwaarden, nieuwsbrief, bron: zoek.get("bron") ?? [zoek.get("utm_campaign"), zoek.get("utm_content")].filter(Boolean).join("/") }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error ?? "Er ging iets mis.");
