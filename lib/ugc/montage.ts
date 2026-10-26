@@ -10,10 +10,10 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { transcribeWords } from "@/lib/openai";
+import { tekstPng } from "@/lib/export/tekst-png";
 
 const run = promisify(execFile);
 const FFMPEG = ffmpegPath as unknown as string;
-const LETTER = path.join(process.cwd(), "lib/export/Poppins-Bold.ttf");
 const W = 720;
 const H = 1280;
 // Zelfde les als de Regisseur-montage (26-10-2026): met ffmpegs standaard opent elke clip
@@ -126,25 +126,31 @@ export async function monteerUgc(m: { clips: string[]; audio: string[]; teksten:
     });
     filters.push(`${clips.map((_, i) => `[v${i}][a${i}]`).join("")}concat=n=${clips.length}:v=1:a=1[vc][a]`);
 
-    const teksten: string[] = [];
+    // Elk ondertitelblokje is een doorzichtige PNG die op zijn moment over het beeld gaat
+    // (drawtext bestaat niet in de ffmpeg op de server, zie lib/export/tekst-png.ts).
+    const lagen: string[] = [];
     for (let i = 0; i < blokken.length; i++) {
-      const f = path.join(map, `t${i}.txt`);
-      // Elke regel als eigen bestand: geen gedoe met apostrofs ("'s ochtends") in het filter.
-      await writeFile(f, blokken[i].tekst);
+      const f = path.join(map, `t${i}.png`);
       // Een website of lang woord past anders niet in de breedte: dan kleinere letters.
       const grootte = Math.min(60, Math.floor((W * 0.9) / (blokken[i].tekst.length * 0.62)));
-      teksten.push(
-        `drawtext=fontfile='${LETTER}':textfile='${f}':expansion=none:fontsize=${grootte}:fontcolor=white:borderw=6:bordercolor=black@0.9:` +
-          `x=(w-text_w)/2:y=h*0.7-text_h/2:enable='between(t,${blokken[i].van.toFixed(2)},${blokken[i].tot.toFixed(2)})'`,
-      );
+      await writeFile(f, tekstPng({ regels: [blokken[i].tekst], breedte: W, hoogte: H, grootte, rand: { dikte: 6, kleur: "black@0.9" }, midden: H * 0.7 }));
+      lagen.push(f);
     }
-    filters.push(teksten.length ? `[vc]${teksten.join(",")}[v]` : `[vc]null[v]`);
+    const eerste = clips.length * 2;
+    let vorige = "vc";
+    lagen.forEach((_, i) => {
+      const naar = i === lagen.length - 1 ? "v" : `o${i}`;
+      filters.push(`[${vorige}][${eerste + i}:v]overlay=0:0:enable='between(t,${blokken[i].van.toFixed(2)},${blokken[i].tot.toFixed(2)})'[${naar}]`);
+      vorige = naar;
+    });
+    if (!lagen.length) filters.push(`[vc]null[v]`);
 
     const uit = path.join(map, "ugc.mp4");
     const args = [
       "-hide_banner", "-loglevel", "error",
       ...clips.flatMap((c) => [...DECODER, "-i", c]),
       ...stemmen.flatMap((s) => ["-i", s]),
+      ...lagen.flatMap((l) => ["-i", l]),
       "-filter_complex_threads", "2",
       "-filter_complex", filters.join(";"),
       "-map", "[v]", "-map", "[a]",
