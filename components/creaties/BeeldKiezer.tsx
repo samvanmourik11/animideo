@@ -28,13 +28,55 @@ function meetFormaat(bestand: File): Promise<string> {
   });
 }
 
-export async function uploadFoto(bestand: File): Promise<Creatie> {
+// Vercel weigert een verzoek boven ~4,5 MB nog vóór onze route iets ziet (dan blijft
+// alleen een kale 413 over). Een telefoonfoto is vaak groter, dus verkleinen we grote
+// foto's eerst in de browser. Meer dan 3072 px heeft geen enkel model nodig.
+const MAX_UPLOAD = 4 * 1024 * 1024;
+const MAX_ZIJDE = 3072;
+
+function laadBeeld(bestand: File): Promise<HTMLImageElement> {
+  return new Promise((ok, mis) => {
+    const img = new Image();
+    img.onload = () => ok(img);
+    img.onerror = () => mis(new Error("Dit bestand is geen geldige foto. Kies een JPG, PNG of WebP."));
+    img.src = URL.createObjectURL(bestand);
+  });
+}
+
+/** Controleert dat het echt een foto is en verkleint hem als hij te groot is. */
+export async function maakUploadKlaar(bestand: File): Promise<File> {
+  if (!/^image\/(jpeg|png|webp)$/.test(bestand.type)) throw new Error("Alleen JPG, PNG of WebP.");
+  const img = await laadBeeld(bestand);
+  URL.revokeObjectURL(img.src);
+  const zijde = Math.max(img.naturalWidth, img.naturalHeight);
+  if (!zijde) throw new Error("Dit bestand is geen geldige foto. Kies een JPG, PNG of WebP.");
+  if (bestand.size <= MAX_UPLOAD && zijde <= MAX_ZIJDE) return bestand;
+
+  const schaal = Math.min(1, MAX_ZIJDE / zijde);
+  const doek = document.createElement("canvas");
+  doek.width = Math.round(img.naturalWidth * schaal);
+  doek.height = Math.round(img.naturalHeight * schaal);
+  doek.getContext("2d")!.drawImage(img, 0, 0, doek.width, doek.height);
+  // PNG kan doorzichtig zijn: dan WebP (houdt de doorzichtigheid), anders JPEG.
+  const type = bestand.type === "image/jpeg" ? "image/jpeg" : "image/webp";
+  for (const kwaliteit of [0.9, 0.8, 0.7]) {
+    const blob = await new Promise<Blob | null>((ok) => doek.toBlob(ok, type, kwaliteit));
+    if (blob && blob.size <= MAX_UPLOAD) {
+      return new File([blob], bestand.name.replace(/\.\w+$/, type === "image/jpeg" ? ".jpg" : ".webp"), { type });
+    }
+  }
+  throw new Error("Deze foto is te groot. Kies een foto van maximaal 4 MB.");
+}
+
+export async function uploadFoto(origineel: File): Promise<Creatie> {
+  const bestand = await maakUploadKlaar(origineel);
   const form = new FormData();
   form.append("bestand", bestand);
   form.append("formaat", await meetFormaat(bestand));
   const res = await fetch("/api/creaties/upload", { method: "POST", body: form });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "Uploaden mislukt");
+  if (res.status === 413) throw new Error("Deze foto is te groot. Kies een foto van maximaal 4 MB.");
+  if (!res.ok) throw new Error(data.error ?? "Uploaden mislukt. Probeer het opnieuw.");
   window.dispatchEvent(new Event(CREATIES_GEWIJZIGD));
   return data.creatie;
 }
@@ -99,7 +141,7 @@ export default function BeeldKiezer({
               📚 Uit bibliotheek
             </button>
           </div>
-          <p className="text-[11px] text-tekst-3">of sleep een foto hierheen</p>
+          <p className="text-[11px] text-tekst-3">of sleep een foto hierheen · JPG, PNG of WebP</p>
         </div>
       )}
       <input

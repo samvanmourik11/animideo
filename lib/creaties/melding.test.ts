@@ -14,3 +14,21 @@ describe("kortMetEinde", () => {
     expect(kort.endsWith("Error: geheugen vol")).toBe(true);
   });
 });
+
+import { klantReden } from "./melding";
+
+describe("klantReden", () => {
+  it("maakt van een ffmpeg-fout een gewone zin", () => {
+    expect(klantReden("Montage mislukt: Command failed: /var/task/ffmpeg -i …")).toMatch(/samenvoegen/);
+  });
+  it("vertaalt een Engelse modelfout", () => {
+    expect(klantReden("Could not generate images with the given prompts and images. Please try again with different inputs.")).toMatch(/andere foto/);
+  });
+  it("laat onze eigen Nederlandse melding staan", () => {
+    expect(klantReden("Het duurde te lang.")).toBe("Het duurde te lang.");
+    expect(klantReden("Het model weigerde deze opdracht (inhoudsfilter). Probeer het anders te omschrijven.")).toMatch(/inhoudsfilter/);
+  });
+  it("heeft een standaardzin zonder melding", () => {
+    expect(klantReden(null)).toBe("Er ging iets mis bij het maken.");
+  });
+});

@@ -2,6 +2,7 @@
 
 import { SCENE_STAP_LABEL, type SceneStap } from "@/lib/film/types";
 import type { Creatie } from "@/lib/creaties/types";
+import { klantReden } from "@/lib/creaties/melding";
 import { STAP_LABEL, type ReclameStap } from "@/lib/reclame/types";
 import { UGC_STAP_LABEL, type UgcStap } from "@/lib/ugc/types";
 import { TRAILER_STAP_LABEL, type TrailerStap } from "@/lib/trailer/types";
@@ -98,7 +99,9 @@ export default function CreatieKaart({
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-4 text-center bg-red-500/5">
             <span className="text-2xl">⚠️</span>
             <span className="text-xs text-red-600 dark:text-red-300">Mislukt</span>
+            <span className="text-[11px] text-tekst-2 line-clamp-3">{klantReden(c.foutmelding)}</span>
             {c.credits > 0 && <span className="text-[11px] text-tekst-3">Credits zijn terug</span>}
+            <span className="text-[11px] text-blue-600 dark:text-blue-400">Klik om opnieuw te proberen</span>
           </div>
         )}
       </button>

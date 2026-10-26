@@ -330,3 +330,55 @@ async function voerMontageUit(c: Creatie, v: Voortgang): Promise<void> {
     await markeerMislukt(c, `Montage mislukt: ${reden}`);
   }
 }
+
+/**
+ * Alleen de montage opnieuw: na een mislukte montage staan de clips (praatclips en B-roll)
+ * nog klaar bij fal. Een nieuwe creatie met dezelfde invoer begint dan meteen bij het
+ * monteren, in plaats van script, beelden, stemmen en clips opnieuw te laten maken.
+ * Kost hetzelfde als de oorspronkelijke video (die credits waren teruggeboekt).
+ */
+export async function monteerUgcOpnieuw(userId: string, id: string): Promise<Creatie> {
+  const db = createServiceClient();
+  const { data: oud } = await db.from("creaties").select("*").eq("id", id).eq("user_id", userId).eq("maker", "ugc").maybeSingle();
+  const c = oud as Creatie | null;
+  const v = c ? rij(c).voortgang : undefined;
+  if (!c || c.status !== "mislukt" || v?.stap !== "monteren" || !v.videos?.length || !v.audio?.length) {
+    throw new WachtrijFout("Deze video kan niet opnieuw gemonteerd worden. Probeer hem helemaal opnieuw.", 400);
+  }
+  const { count } = await db.from("creaties").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "bezig");
+  if ((count ?? 0) >= MAX_TEGELIJK) {
+    throw new WachtrijFout(`Je hebt al ${MAX_TEGELIJK} dingen in de maak. Wacht tot er één klaar is.`, 429);
+  }
+  const r = rij(c);
+  const { ok, betaald, betalerId } = await betaal(userId, ugcCredits(r.script), "Nieuwe app: UGC-video (montage opnieuw)");
+  if (!ok) throw new WachtrijFout("Niet genoeg credits.", 402);
+
+  const naar: Voortgang = { ...v, stap: "monteren", sinds: new Date().toISOString() };
+  const { data: nieuw, error } = await db
+    .from("creaties")
+    .insert({
+      user_id: userId,
+      soort: "video",
+      status: "bezig",
+      maker: "ugc",
+      model: "ugc",
+      prompt: c.prompt,
+      invoer: { ...r, voortgang: naar },
+      credits: betaald,
+      ouder_id: c.id,
+      ...(betalerId !== userId ? { betaald_door: betalerId } : {}),
+    })
+    .select("*")
+    .single();
+  if (error || !nieuw) {
+    await betaalTerug({ user_id: userId, betaald_door: betalerId, credits: betaald }, "Terug: UGC-montage niet gestart");
+    throw new WachtrijFout("Kon de opdracht niet opslaan. Probeer het opnieuw.", 500);
+  }
+  const werk = () => voerMontageUit(nieuw as Creatie, naar);
+  try {
+    after(werk);
+  } catch {
+    void werk();
+  }
+  return nieuw as Creatie;
+}

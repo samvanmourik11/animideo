@@ -31,6 +31,8 @@ const nextConfig: NextConfig = {
     // doorlopen (lib/reclame/montage.ts), met Poppins voor de tekst in beeld.
     "/api/creaties": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf"],
     "/api/creaties/lopend": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf"],
+    // Een mislukte UGC-video opnieuw monteren (lib/ugc/montage.ts, ondertitels in Poppins).
+    "/api/creaties/[id]/monteer-opnieuw": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf"],
     // Stem & Lipsync: opnames omzetten naar mp3.
     "/api/stem/upload": ["./node_modules/ffmpeg-static/ffmpeg"],
     // De Regisseur start makers (ook de montage) vanuit zijn eigen routes.

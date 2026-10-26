@@ -119,6 +119,15 @@ export async function startMaker(
   return data.creatie as Creatie;
 }
 
+/** Een mislukte UGC-video opnieuw monteren met de clips die al klaarstaan. */
+export async function monteerOpnieuw(c: Creatie): Promise<Creatie> {
+  const res = await fetch(`/api/creaties/${c.id}/monteer-opnieuw`, { method: "POST" });
+  const data = await res.json().catch(() => ({}));
+  window.dispatchEvent(new Event(CREATIES_GEWIJZIGD));
+  if (!res.ok) throw new Error(data.error ?? "Opnieuw monteren mislukt");
+  return data.creatie as Creatie;
+}
+
 export async function zetFavoriet(c: Creatie): Promise<Creatie> {
   const res = await fetch(`/api/creaties/${c.id}`, {
     method: "PATCH",

@@ -6,7 +6,8 @@ import type { Creatie, CreatieMap } from "@/lib/creaties/types";
 import { BEWERKINGEN, LICHTRICHTINGEN, beeldCredits, modelNaam } from "@/lib/creaties/makers";
 import { VIDEO_MODELLEN, STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
 import { recept, receptPad } from "@/lib/creaties/recepten";
-import { startMaker, verwijder, zetFavoriet, zetMap } from "./gebruik-creaties";
+import { monteerOpnieuw, startMaker, verwijder, zetFavoriet, zetMap } from "./gebruik-creaties";
+import { klantReden } from "@/lib/creaties/melding";
 import { SCHAAKBORD, isDoorzichtig } from "./CreatieKaart";
 import { heeftGezicht, herkomst } from "@/lib/delen/herkomst";
 import { magFeedback } from "@/lib/creaties/eindmakers";
@@ -18,6 +19,12 @@ import FeedbackBlok from "./FeedbackBlok";
 // deze verwijst, zodat de keten zichtbaar blijft.
 
 type Paneel = null | "video" | "aanpassen" | "licht";
+
+/** Een UGC-video die pas bij het samenvoegen misliep: de clips staan nog klaar. */
+function kanOpnieuwMonteren(c: Creatie): boolean {
+  const v = (c.invoer as { voortgang?: { stap?: string; videos?: unknown[] } }).voortgang;
+  return c.maker === "ugc" && v?.stap === "monteren" && !!v.videos?.length;
+}
 
 export default function CreatieDetail({
   creatie,
@@ -129,8 +136,14 @@ export default function CreatieDetail({
           {c.status === "mislukt" && (
             <div className="max-w-sm text-center space-y-2">
               <div className="text-3xl">⚠️</div>
-              <p className="text-red-300 text-sm">{c.foutmelding ?? "Dit is niet gelukt."}</p>
+              <p className="text-red-300 text-sm">{klantReden(c.foutmelding)}</p>
               {c.credits > 0 && <p className="text-slate-400 text-xs">De {c.credits} credits staan weer op je saldo.</p>}
+              {c.foutmelding && klantReden(c.foutmelding) !== c.foutmelding && (
+                <details className="text-left text-[11px] text-slate-500">
+                  <summary className="cursor-pointer text-center">Technische melding</summary>
+                  <p className="mt-1 break-words">{c.foutmelding}</p>
+                </details>
+              )}
             </div>
           )}
         </div>
@@ -412,6 +425,21 @@ export default function CreatieDetail({
                 )}
               </div>
             </div>
+          )}
+
+          {c.status === "mislukt" && kanOpnieuwMonteren(c) && (
+            <button
+              disabled={bezig}
+              onClick={() =>
+                doe(async () => {
+                  onNieuw(await monteerOpnieuw(c));
+                  setMelding("De montage is opnieuw gestart. De clips stonden al klaar, dus dit duurt maar even.");
+                })
+              }
+              className="btn-primary w-full disabled:opacity-50"
+            >
+              🎬 Alleen de montage opnieuw{c.credits > 0 ? ` · ${c.credits} credits` : ""}
+            </button>
           )}
 
           {c.status === "mislukt" && (
