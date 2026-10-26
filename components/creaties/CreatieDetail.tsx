@@ -6,7 +6,7 @@ import type { Creatie, CreatieMap } from "@/lib/creaties/types";
 import { BEWERKINGEN, LICHTRICHTINGEN, beeldCredits, modelNaam } from "@/lib/creaties/makers";
 import { VIDEO_MODELLEN, STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
 import { recept, receptPad } from "@/lib/creaties/recepten";
-import { monteerOpnieuw, startMaker, verwijder, zetFavoriet, zetMap } from "./gebruik-creaties";
+import { monteerOpnieuw, startMaker, stopCreatie, verwijder, zetFavoriet, zetMap } from "./gebruik-creaties";
 import { klantReden } from "@/lib/creaties/melding";
 import { SCHAAKBORD, isDoorzichtig } from "./CreatieKaart";
 import { heeftGezicht, herkomst } from "@/lib/delen/herkomst";
@@ -19,6 +19,11 @@ import FeedbackBlok from "./FeedbackBlok";
 // deze verwijst, zodat de keten zichtbaar blijft.
 
 type Paneel = null | "video" | "aanpassen" | "licht";
+
+/** Door de gebruiker gestopt, en wat er met de credits gebeurde (lib/creaties/stoppen.ts). */
+export function gestopt(c: Creatie): string | undefined {
+  return (c.invoer as { gestopt?: string }).gestopt;
+}
 
 /** Een UGC-video die pas bij het samenvoegen misliep: de clips staan nog klaar. */
 function kanOpnieuwMonteren(c: Creatie): boolean {
@@ -138,13 +143,27 @@ export default function CreatieDetail({
             <div className="flex flex-col items-center gap-3 text-slate-300">
               <div className="w-10 h-10 rounded-full border-2 border-blue-400/30 border-t-blue-400 animate-spin" />
               Wordt gemaakt… je kunt dit venster gerust sluiten.
+              <button
+                disabled={bezig}
+                onClick={() =>
+                  window.confirm("Stoppen? Is het model al begonnen, dan kan dat credits kosten.") &&
+                  doe(async () => {
+                    const r = await stopCreatie(c);
+                    onGewijzigd(r.creatie);
+                    setMelding(r.melding);
+                  })
+                }
+                className="n-knop2 text-sm disabled:opacity-50"
+              >
+                ⏹ Stoppen
+              </button>
             </div>
           )}
           {c.status === "mislukt" && (
             <div className="max-w-sm text-center space-y-2">
               <div className="text-3xl">⚠️</div>
               <p className="text-red-300 text-sm">{klantReden(c.foutmelding)}</p>
-              {c.credits > 0 && <p className="text-slate-400 text-xs">De {c.credits} credits staan weer op je saldo.</p>}
+              {c.credits > 0 && !gestopt(c) && <p className="text-slate-400 text-xs">De {c.credits} credits staan weer op je saldo.</p>}
               {c.foutmelding && klantReden(c.foutmelding) !== c.foutmelding && (
                 <details className="text-left text-[11px] text-slate-500">
                   <summary className="cursor-pointer text-center">Technische melding</summary>

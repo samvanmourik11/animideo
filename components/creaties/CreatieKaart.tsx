@@ -29,6 +29,10 @@ export function isDoorzichtig(c: Creatie): boolean {
   return !!c.url && /\.png($|\?)/i.test(c.url);
 }
 
+function gestoptAls(c: Creatie): string | undefined {
+  return (c.invoer as { gestopt?: string }).gestopt;
+}
+
 function bezigLabel(c: Creatie): string {
   // Een reclame loopt minutenlang door drie stappen; laat zien waar hij is.
   const stap = (c.invoer as { voortgang?: { stap?: ReclameStap } }).voortgang?.stap;
@@ -93,14 +97,21 @@ export default function CreatieKaart({
           <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-blue-500/10 to-transparent">
             <div className="w-8 h-8 rounded-full border-2 border-blue-500/30 border-t-blue-500 animate-spin" />
             <span className="text-xs text-tekst-3 px-3 text-center">{bezigLabel(c)}</span>
+            <span className="text-[11px] text-tekst-3">Klik om te bekijken of te stoppen</span>
           </div>
         )}
         {c.status === "mislukt" && (
           <div className="w-full h-full flex flex-col items-center justify-center gap-2 p-4 text-center bg-red-500/5">
             <span className="text-2xl">⚠️</span>
-            <span className="text-xs text-red-600 dark:text-red-300">Mislukt</span>
-            <span className="text-[11px] text-tekst-2 line-clamp-3">{klantReden(c.foutmelding)}</span>
-            {c.credits > 0 && <span className="text-[11px] text-tekst-3">Credits zijn terug</span>}
+            <span className="text-xs text-red-600 dark:text-red-300">{gestoptAls(c) ? "Gestopt" : "Mislukt"}</span>
+            {gestoptAls(c) ? (
+              <span className="text-[11px] text-tekst-3">{gestoptAls(c) === "verbruikt" ? "Credits verbruikt" : "Credits zijn terug"}</span>
+            ) : (
+              <>
+                <span className="text-[11px] text-tekst-2 line-clamp-3">{klantReden(c.foutmelding)}</span>
+                {c.credits > 0 && <span className="text-[11px] text-tekst-3">Credits zijn terug</span>}
+              </>
+            )}
             <span className="text-[11px] text-blue-600 dark:text-blue-400">Klik om opnieuw te proberen</span>
           </div>
         )}

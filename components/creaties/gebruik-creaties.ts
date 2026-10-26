@@ -119,6 +119,15 @@ export async function startMaker(
   return data.creatie as Creatie;
 }
 
+/** Een creatie stoppen die nog in de maak is. Geeft ook de melding over de credits terug. */
+export async function stopCreatie(c: Creatie): Promise<{ creatie: Creatie; melding: string }> {
+  const res = await fetch(`/api/creaties/${c.id}/stop`, { method: "POST" });
+  const data = await res.json().catch(() => ({}));
+  window.dispatchEvent(new Event(CREATIES_GEWIJZIGD));
+  if (!res.ok) throw new Error(data.error ?? "Stoppen mislukt");
+  return data;
+}
+
 /** Een mislukte UGC-video opnieuw monteren met de clips die al klaarstaan. */
 export async function monteerOpnieuw(c: Creatie): Promise<Creatie> {
   const res = await fetch(`/api/creaties/${c.id}/monteer-opnieuw`, { method: "POST" });
