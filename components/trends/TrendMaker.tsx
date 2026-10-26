@@ -96,7 +96,7 @@ export default function TrendMaker({ trend: t, beheer = false }: { trend: Publie
             // Regels vooraf in plaats van een controle achteraf: wie een gezicht gebruikt, bevestigt dat het mag.
             <label className="flex items-start gap-2 text-xs text-tekst-2 cursor-pointer">
               <input type="checkbox" checked={toestemming} onChange={(e) => setToestemming(e.target.checked)} className="mt-0.5" />
-              <span>Dit ben ik zelf, of ik heb toestemming van wie er op de foto staat.</span>
+              <span>Dit ben ik zelf, ik heb toestemming van wie er op de foto staat, of het is een door AI bedacht personage.</span>
             </label>
           )}
 

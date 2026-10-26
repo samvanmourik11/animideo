@@ -524,7 +524,13 @@ export default function StemStudio({ magKlonen = true }: { magKlonen?: boolean }
               disabled={bezig || !foto || !geluid || !fotoToestemming}
               className="btn-primary w-full disabled:opacity-50"
             >
-              🗣️ Laat de foto praten · ±{lipsyncCredits(geluidSec)} credits
+              {!foto
+                ? "Kies eerst een foto"
+                : !geluid
+                  ? "Kies eerst de voice-over hierboven"
+                  : !fotoToestemming
+                    ? "Vink eerst de toestemming aan"
+                    : `🗣️ Laat de foto praten · ±${lipsyncCredits(geluidSec)} credits`}
             </button>
             <p className="text-[11px] text-tekst-3">Prijs naar lengte: per begonnen 5 seconden. Duurt meestal 2 tot 4 minuten.</p>
           </div>

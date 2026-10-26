@@ -119,7 +119,13 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
             // bevestigt dat het mag. Zo zetten we geen bekende of onwetende mensen in een effect.
             <label className="flex items-start gap-2 text-xs text-tekst-2 cursor-pointer">
               <input type="checkbox" checked={toestemming} onChange={(e) => setToestemming(e.target.checked)} className="mt-0.5" />
-              <span>Dit ben ik zelf, of ik heb toestemming van wie er op de foto staat.</span>
+              <span>
+                {/ouders/i.test(r.fotoLabel ?? "")
+                  ? "Ik heb toestemming van de ouders van de kinderen op de foto."
+                  : /groep|team|klas/i.test(r.fotoLabel ?? "")
+                    ? "Ik heb toestemming van iedereen die op de foto staat."
+                    : "Dit ben ik zelf, ik heb toestemming van wie er op de foto staat, of het is een door AI bedacht personage."}
+              </span>
             </label>
           )}
 

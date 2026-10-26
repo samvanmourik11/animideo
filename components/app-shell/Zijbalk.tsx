@@ -67,6 +67,13 @@ const PLAN_LABELS: Record<string, string> = { free: "Gratis", starter: "Starter"
 /** Seintje van de maakschermen: er is iets gestart, ververs de wachtrij-teller nu. */
 export const CREATIES_GEWIJZIGD = "creaties:gewijzigd";
 
+function volgendeReset(d: Date): Date {
+  const nu = new Date();
+  const v = new Date(d);
+  for (let i = 0; v <= nu && i < 24; i++) v.setMonth(v.getMonth() + 1);
+  return v;
+}
+
 export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLeren, thema: beginThema }: ZijbalkProps) {
   const pad = usePathname();
   const router = useRouter();
@@ -144,9 +151,9 @@ export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLe
   }
 
   const laag = liveCredits < 20;
-  const resetDatum = creditsResetDate
-    ? new Date(creditsResetDate).toLocaleDateString("nl-NL", { day: "numeric", month: "long" })
-    : null;
+  // De opgeslagen datum is de laatste reset; de klant wil weten wanneer de volgende komt
+  // ("reset 21 oktober" op 26 oktober las als een datum in het verleden).
+  const resetDatum = creditsResetDate ? volgendeReset(new Date(creditsResetDate)).toLocaleDateString("nl-NL", { day: "numeric", month: "long" }) : null;
 
   function isActief(item: Item) {
     return [item.href, ...(item.ook ?? [])].some((p) => pad === p || pad.startsWith(p + "/"));
@@ -222,7 +229,7 @@ export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLe
         >
           <div className="flex items-center justify-between text-xs text-tekst-3">
             <span>{PLAN_LABELS[plan] ?? plan}</span>
-            {resetDatum && <span>reset {resetDatum}</span>}
+            {resetDatum && <span>volgende reset {resetDatum}</span>}
           </div>
           <div className={`mt-1 text-lg font-bold ${laag ? "text-red-500" : "text-tekst"}`}>
             ⚡ {liveCredits} <span className="text-sm font-medium text-tekst-3">credits</span>

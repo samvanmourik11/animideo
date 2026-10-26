@@ -90,10 +90,11 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
       },
       {
         slug: "mislukte-poging",
-        titel: "Waarom een mislukte poging ook credits kost",
+        titel: "Waarom een tegenvallende poging ook credits kost",
         kort: "Een slechte take bij een echte film kost ook geld. Met AI is dat niet anders, en zo voorkom je het.",
         punten: [
-          "Elke poging laat een computer echt werk doen; dat kost ons geld, ook als het resultaat tegenvalt.",
+          "Lukt het technisch niet (de kaart zegt 'Mislukt'), dan krijg je je credits altijd terug.",
+          "Komt er wél iets uit maar vind je het niet mooi, dan heeft een computer echt werk gedaan; dat kost ons geld, en dus credits.",
           "Net als op een filmset: een mislukte take kost de tijd van acteurs, camera en regisseur.",
           "Begin goedkoop: test een idee met een gewoon beeld voordat je er een video van maakt.",
           "Wees concreet: wie, wat, waar, welk licht, welke camera. Hoe duidelijker, hoe minder overnieuw.",

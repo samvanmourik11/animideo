@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Creatie, CreatieMap } from "@/lib/creaties/types";
 import { BEWERKINGEN, LICHTRICHTINGEN, beeldCredits, modelNaam } from "@/lib/creaties/makers";
@@ -105,17 +105,24 @@ export default function CreatieDetail({
     });
   }
 
+  // Escape sluit het venster, zoals elke klant verwacht (Maxims testronde: alleen het kruisje werkte).
+  useEffect(() => {
+    const toets = (e: KeyboardEvent) => e.key === "Escape" && onSluit();
+    window.addEventListener("keydown", toets);
+    return () => window.removeEventListener("keydown", toets);
+  }, [onSluit]);
+
   const gekozenModel = VIDEO_MODELLEN.find((m) => m.id === videoModel) ?? VIDEO_MODELLEN[0];
   const kop = "text-xs font-semibold uppercase tracking-wider text-tekst-3";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/70" onClick={onSluit} />
-      <div className="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto bg-paneel border border-rand rounded-3xl grid md:grid-cols-[1fr_360px]">
+      <div className="relative w-full max-w-5xl max-h-[92vh] overflow-y-auto bg-paneel border border-rand rounded-3xl grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_360px]">
         <div className={`flex items-center justify-center min-h-[300px] p-4 ${isDoorzichtig(c) ? SCHAAKBORD : "bg-black/80"}`}>
           {c.status === "klaar" && c.url && c.soort === "beeld" && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={c.url} alt={c.prompt ?? ""} className="max-h-[80vh] w-auto rounded-xl" />
+            <img src={c.url} alt={c.prompt ?? ""} className="max-h-[80vh] max-w-full w-auto object-contain rounded-xl" />
           )}
           {c.status === "klaar" && c.url && c.soort === "video" && (
             <video src={c.url} controls autoPlay loop playsInline className="max-h-[80vh] w-auto rounded-xl" />
