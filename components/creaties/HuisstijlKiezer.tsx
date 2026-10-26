@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-// Kies met welke huisstijl een beeld gemaakt wordt. De eerste huisstijl staat meteen aan:
-// wie er een heeft vastgelegd, wil hem ook gebruikt zien (Maxims testronde: de huisstijl
-// was nergens te kiezen en het model verzon een eigen bedrijfsnaam op de gevel).
-// Zonder huisstijl verschijnt een klein linkje om er een te maken.
+// Kies met welke huisstijl een beeld gemaakt wordt. Heb je er precies één, dan staat die
+// meteen aan: wie hem heeft vastgelegd, wil hem ook gebruikt zien (Maxims testronde: de
+// huisstijl was nergens te kiezen en het model verzon een eigen bedrijfsnaam op de gevel).
+// Bij meerdere (een bureau met klanten) kies je zelf; anders krijgt een beeld zomaar de
+// stijl van de laatst gemaakte klant. Zonder huisstijl verschijnt een linkje om er een te maken.
 
 interface Kit {
   id: string;
@@ -24,7 +25,7 @@ export default function HuisstijlKiezer({ waarde, onKies }: { waarde: string; on
         if (weg) return;
         const lijst = d.brandKits ?? [];
         setKits(lijst);
-        if (lijst.length && waarde === "") onKies(lijst[0].id);
+        if (waarde === "") onKies(lijst.length === 1 ? lijst[0].id : "geen");
       })
       .catch(() => !weg && setKits([]));
     return () => {
