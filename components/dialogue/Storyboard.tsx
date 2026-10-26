@@ -197,7 +197,7 @@ function SceneKaart({
         )}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         {/* De plek: het beeld waar elk shot van deze scène op voortbouwt. */}
         <div className="flex flex-col gap-2 min-w-0">
           <p className="text-[10px] uppercase tracking-wide text-tekst-3">De plek</p>

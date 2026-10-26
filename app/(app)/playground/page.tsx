@@ -92,7 +92,7 @@ export default function PlaygroundEntryPage() {
       </div>
 
       {/* Keuze: blanco of met brief */}
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <button
           type="button"
           onClick={() => start(false)}

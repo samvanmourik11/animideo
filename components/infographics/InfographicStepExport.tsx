@@ -88,7 +88,7 @@ export default function InfographicStepExport({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,560px)_1fr] gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,560px)_minmax(0,1fr)] gap-6">
       <div className="lg:sticky lg:top-4 self-start space-y-3">
         <div className="rounded-xl overflow-hidden border border-white/10 bg-black/20" style={{ aspectRatio: aspect }}>
           <InfographicVideo spec={spec} frame={frame} totalFrames={totalFrames} style={{ width: "100%", height: "100%" }} />

@@ -102,7 +102,7 @@ function StemKiezer({ eigen, onKies, gekozenId }: { eigen: Creatie[]; onKies: (s
         eigenKlaar.length === 0 ? (
           <p className="text-sm text-tekst-3">Nog geen eigen stem. Train er een bij het tabblad &ldquo;Eigen stem&rdquo;.</p>
         ) : (
-          <div className="grid sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {eigenKlaar.map((c) => {
               const naam = (c.invoer as { naam?: string }).naam ?? "Eigen stem";
               const id = `${EIGEN}${c.id}`;
@@ -144,7 +144,7 @@ function StemKiezer({ eigen, onKies, gekozenId }: { eigen: Creatie[]; onKies: (s
             </select>
           </div>
           <p className="text-[11px] text-tekst-3">{lijst.length ? `${gefilterd.length} stemmen` : "Stemmen laden…"}</p>
-          <div className="grid sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {gefilterd.slice(0, aantal).map((s) => (
               <div key={s.id} className={`flex items-center gap-3 rounded-xl border px-3 py-2 ${gekozenId === s.id ? "border-blue-500 bg-blue-500/10" : "border-rand"}`}>
                 <button onClick={() => speel(s.voorbeeld)} className="w-8 h-8 shrink-0 rounded-full bg-blue-600 text-white text-xs" aria-label={`Luister naar ${s.naam}`}>▶</button>
@@ -350,7 +350,7 @@ export default function StemStudio({ magKlonen = true }: { magKlonen?: boolean }
       )}
 
       {tab === "voice-over" && (
-        <div className="grid lg:grid-cols-[minmax(0,560px)_1fr] gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-6 items-start">
           <div className="n-kaart space-y-4">
             <div>
               <label className="n-label">Stem</label>
@@ -431,7 +431,7 @@ export default function StemStudio({ magKlonen = true }: { magKlonen?: boolean }
       {(tab === "eigen" || tab === "lipsync") && !magKlonen && <PakketSlot recht="stemKlonen" />}
 
       {tab === "eigen" && magKlonen && (
-        <div className="grid lg:grid-cols-[minmax(0,560px)_1fr] gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-6 items-start">
           <div className="n-kaart space-y-4">
             <div>
               <h2 className="font-bold text-tekst">Train je eigen stem</h2>
@@ -487,7 +487,7 @@ export default function StemStudio({ magKlonen = true }: { magKlonen?: boolean }
       )}
 
       {tab === "lipsync" && magKlonen && (
-        <div className="grid lg:grid-cols-[minmax(0,560px)_1fr] gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-6 items-start">
           <div className="n-kaart space-y-4">
             <div>
               <label className="n-label">Foto (een duidelijk gezicht)</label>

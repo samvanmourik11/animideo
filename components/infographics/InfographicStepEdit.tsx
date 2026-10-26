@@ -94,7 +94,7 @@ export default function InfographicStepEdit({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
+    <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-6">
       {/* ── Links: scene-lijst ─────────────────────────────────────── */}
       <aside className="space-y-2">
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wide px-1">Scenes</h3>

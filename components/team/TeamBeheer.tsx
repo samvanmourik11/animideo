@@ -107,7 +107,7 @@ export default function TeamBeheer() {
     <div className="max-w-3xl space-y-6">
       {kop}
 
-      <div className="grid sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="n-kaart">
           <div className="text-xs text-tekst-3">Team</div>
           <div className="font-bold text-tekst mt-1">{o.team.naam}</div>

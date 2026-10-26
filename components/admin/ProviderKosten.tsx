@@ -68,7 +68,7 @@ export default function ProviderKosten() {
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Lijst titel="Per account (7 dagen)" posten={data.perAccount} />
         <Lijst titel="Per soort actie (7 dagen)" posten={data.perActie} />
       </div>

@@ -67,7 +67,7 @@ export default function BeeldMaker() {
   }
 
   return (
-    <div className="grid lg:grid-cols-[360px_1fr] gap-6 items-start">
+    <div className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-6 items-start">
       <div className="n-kaart space-y-5 lg:sticky lg:top-8">
         <div>
           <h1 className="text-xl font-bold text-tekst">🖼️ Beeld maken</h1>

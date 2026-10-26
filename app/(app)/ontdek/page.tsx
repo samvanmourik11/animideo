@@ -57,7 +57,7 @@ export default async function OntdekPagina() {
         <p className="text-tekst-3 mt-2">Beelden, video&apos;s en stemmen met AI. In het Nederlands, zonder gedoe.</p>
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {TEGELS.map((t) => {
           const inhoud = (
             <div className={`relative h-full rounded-3xl p-5 bg-paneel bg-gradient-to-br ${t.kleur} border border-rand ${t.binnenkort ? "opacity-60" : "hover:border-blue-500/50 transition-colors"}`}>

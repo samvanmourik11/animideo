@@ -367,7 +367,7 @@ export default function Step4Motion({ project, onUpdate, onNext, onBack, plan = 
         <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
           Beweegmodel
         </label>
-        <div className="grid gap-2 sm:grid-cols-2 mt-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 mt-2">
           {VIDEO_MODELLEN.map((m) => (
             <button
               key={m.id}

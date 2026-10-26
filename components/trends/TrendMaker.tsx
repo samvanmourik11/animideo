@@ -57,7 +57,7 @@ export default function TrendMaker({ trend: t, beheer = false }: { trend: Publie
 
   return (
     <div className="space-y-10">
-      <div className="grid lg:grid-cols-[380px_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)] gap-6 items-start">
         <div className="n-kaart space-y-5 lg:sticky lg:top-8">
           <Link href="/studios/trends" className="text-xs text-blue-500 hover:text-blue-400">← Trends</Link>
           {t.status !== "live" && (
@@ -122,7 +122,7 @@ export default function TrendMaker({ trend: t, beheer = false }: { trend: Publie
         </div>
 
         <div className="space-y-6">
-          <div className="grid xl:grid-cols-[minmax(0,380px)_1fr] gap-6 items-start">
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,380px)_minmax(0,1fr)] gap-6 items-start">
             <TrendVoorbeeld links={t.bron_links} trendvideo={t.voorbeeldclip} />
             {t.voorbeeld_url && (
               <div className="n-kaart p-4 space-y-3">

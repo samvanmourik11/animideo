@@ -104,7 +104,7 @@ export default function TrailerStudio() {
         </p>
       </div>
 
-      <div className="grid xl:grid-cols-[minmax(0,640px)_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,640px)_minmax(0,1fr)] gap-6 items-start">
         <div className="space-y-4">
           <div className="n-kaart space-y-4">
             <h2 className="font-bold text-tekst">1. Genre en lengte</h2>

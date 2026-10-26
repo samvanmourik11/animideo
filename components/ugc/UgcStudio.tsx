@@ -163,7 +163,7 @@ export default function UgcStudio() {
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-[minmax(0,560px)_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-6 items-start">
         <div className="space-y-4">
           {/* 1. Waar gaat het over */}
           <div className="n-kaart space-y-4">

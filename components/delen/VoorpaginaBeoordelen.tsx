@@ -40,7 +40,7 @@ export default function VoorpaginaBeoordelen() {
       </div>
       {fout && <p className="text-sm text-red-500">{fout}</p>}
       {werk && werk.length === 0 && <p className="text-tekst-3">Niets te beoordelen. 🎉</p>}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {werk?.map((w) => (
           <div key={w.id} className="n-kaart space-y-3">
             {w.soort === "video" ? (

@@ -48,7 +48,7 @@ export default function FilmStudio() {
         <p className="text-tekst-3 mt-1">Maak samen met de Regisseur een film van een paar minuten: verhaal, personages met een vaste stem, scène voor scène goedkeuren, en aan het eind de hele film.</p>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Link href={`/regisseur?start=${encodeURIComponent(START)}`} className="n-kaart hover:border-blue-500/50 transition-colors block">
           <div className="text-2xl">🎬</div>
           <div className="font-bold text-tekst mt-1">Nieuwe film</div>
@@ -102,7 +102,7 @@ export default function FilmStudio() {
                   </div>
                 )}
                 {scenes.length > 0 && (
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {scenes.map((s) => (
                       <div key={s.nummer} className="rounded-xl border border-rand p-2 space-y-1.5">
                         {s.video ? (

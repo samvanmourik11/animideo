@@ -109,7 +109,7 @@ export default function ReclameMaker() {
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-[minmax(0,520px)_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] gap-6 items-start">
         <div className="space-y-4">
           {/* Stap 1 — de link */}
           <div className="n-kaart space-y-3">

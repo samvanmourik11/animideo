@@ -120,7 +120,7 @@ export default function AdminDashboard({ endpoint = "/api/admin/dashboard" }: { 
           </Card>
 
           {/* Plan-mix + Betalingen */}
-          <div className="grid lg:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <Card>
               <SectionTitle>Plan-mix</SectionTitle>
               <div className="grid grid-cols-2 gap-2 items-center">
@@ -148,7 +148,7 @@ export default function AdminDashboard({ endpoint = "/api/admin/dashboard" }: { 
           </div>
 
           {/* Aandacht + Engagement/Activiteit */}
-          <div className="grid lg:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <AttentionPanel data={data} />
             <div className="space-y-5">
               <EngagementPanel data={data} />
@@ -325,7 +325,7 @@ function SkeletonGrid() {
         ))}
       </div>
       <div className="h-72 rounded-2xl bg-[#0c1428] border border-white/[0.05]" />
-      <div className="grid lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="h-56 rounded-2xl bg-[#0c1428] border border-white/[0.05]" />
         <div className="h-56 rounded-2xl bg-[#0c1428] border border-white/[0.05]" />
       </div>

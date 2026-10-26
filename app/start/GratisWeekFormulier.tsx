@@ -48,7 +48,7 @@ export default function GratisWeekFormulier() {
 
   return (
     <form onSubmit={verstuur} className="space-y-6">
-      <div className="grid sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {PAKKETTEN.map((p) => (
           <button
             type="button"

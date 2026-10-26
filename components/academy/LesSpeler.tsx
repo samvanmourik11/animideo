@@ -18,7 +18,7 @@ export default function LesSpeler({ les, video, poster, bekeken: begin, gedaan: 
   }
 
   return (
-    <div className="grid lg:grid-cols-[1fr_300px] gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-4">
       <div className="rounded-2xl overflow-hidden border border-rand bg-black">
         <video
           src={video}

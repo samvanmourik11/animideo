@@ -34,7 +34,7 @@ export default function CreditPakketten({ magKopen, gekocht }: { magKopen: boole
           Bedankt! Zodra de betaling binnen is, staan er {gekocht} credits extra op je saldo (meestal binnen een minuut).
         </p>
       ) : null}
-      <div className="grid sm:grid-cols-3 gap-4 mt-5">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5">
         {CREDIT_PAKKETTEN.map((p) => (
           <div key={p.id} className="rounded-xl border border-rand bg-paneel-2/60 p-4 text-center">
             <p className="text-2xl font-extrabold text-tekst">{p.credits.toLocaleString("nl-NL")}</p>

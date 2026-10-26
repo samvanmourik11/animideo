@@ -58,7 +58,7 @@ export default async function WelkomPagina() {
         </p>
       </div>
 
-      <Link href={`/academy/${eerste.slug}`} className="group grid md:grid-cols-[1.4fr_1fr] rounded-3xl border border-rand bg-paneel overflow-hidden hover:border-blue-500/60 transition">
+      <Link href={`/academy/${eerste.slug}`} className="group grid md:grid-cols-[1.4fr_minmax(0,1fr)] rounded-3xl border border-rand bg-paneel overflow-hidden hover:border-blue-500/60 transition">
         <div className="relative aspect-video bg-paneel-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={posterVan(eerste.slug)} alt="" className="w-full h-full object-cover" />
@@ -76,7 +76,7 @@ export default async function WelkomPagina() {
 
       <div>
         <h2 className="text-lg font-bold text-tekst mb-3">Zo kom je snel op gang</h2>
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {stappen.map((s, i) => (
             <div key={s.titel} className="n-kaart flex flex-col">
               <div className="flex items-center gap-2">

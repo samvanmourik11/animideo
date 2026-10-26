@@ -85,7 +85,7 @@ export default function Bibliotheek() {
     }`;
 
   return (
-    <div className="grid md:grid-cols-[200px_1fr] gap-6 items-start">
+    <div className="grid grid-cols-1 md:grid-cols-[200px_minmax(0,1fr)] gap-6 items-start">
       <aside className="space-y-5 md:sticky md:top-8">
         <h1 className="text-xl font-bold text-tekst">📚 Mijn bibliotheek</h1>
         {teamNaam && (

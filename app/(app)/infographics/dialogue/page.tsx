@@ -1736,7 +1736,7 @@ export default function DialoguePage() {
                   overal dezelfde bomen, muren en meubels. Kost niets, en je houdt de plek voor je volgende video.
                 </p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {plekGroepen(spec).map((g) => (
                   <div key={g.sleutel} className="rounded-lg border border-rand bg-paneel p-2.5">
                     <p className="text-[11px] uppercase tracking-wide text-tekst-3 mb-1">

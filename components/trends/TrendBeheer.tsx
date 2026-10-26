@@ -292,7 +292,7 @@ function TrendKaart({ trend: t, onLijst }: { trend: Rij; onLijst: (l: Rij[]) => 
         {t.live_op && <span>· live sinds {new Date(t.live_op).toLocaleDateString("nl-NL")}</span>}
       </div>
 
-      <div className="grid md:grid-cols-[1fr_260px] gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_260px] gap-4">
         <div className="space-y-3">
           <div className="flex gap-2">
             <input value={icoon} onChange={(e) => setIcoon(e.target.value)} className={`${veld} w-14 text-center`} />
@@ -305,7 +305,7 @@ function TrendKaart({ trend: t, onLijst }: { trend: Rij; onLijst: (l: Rij[]) => 
           {t.origineel && <p className="text-xs text-tekst-2">🛠️ {t.origineel}</p>}
           <Voorbeelden trend={t} doe={doe} bezig={bezig} />
 
-          <div className="grid sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <label className="text-xs text-tekst-3 sm:col-span-2">Methode
               <select value={methode} onChange={(e) => setMethode(e.target.value as Methode)} className={veld}>
                 {METHODES.map((m) => <option key={m} value={m}>{METHODE_INFO[m].naam}</option>)}
@@ -341,7 +341,7 @@ function TrendKaart({ trend: t, onLijst }: { trend: Rij; onLijst: (l: Rij[]) => 
               </div>
             </div>
           )}
-          <div className="grid sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-2 items-end">
             <label className="text-xs text-tekst-3">Invulveld (leeg = geen)
               <input value={velden.tekst?.label ?? ""} onChange={(e) => setVelden({ ...velden, tekst: e.target.value ? { label: e.target.value, placeholder: velden.tekst?.placeholder ?? "", verplicht: velden.tekst?.verplicht } : null })} className={veld} />
             </label>

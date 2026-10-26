@@ -62,7 +62,7 @@ export default function ReceptMaker({ receptId }: { receptId: string }) {
 
   return (
     <div className="space-y-10">
-      <div className="grid lg:grid-cols-[380px_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)] gap-6 items-start">
         <div className="n-kaart space-y-5 lg:sticky lg:top-8">
           <Link href={terug.href} className="text-xs text-blue-500 hover:text-blue-400">← {terug.label}</Link>
           <div className={`rounded-2xl p-4 bg-gradient-to-br ${r.kleur} to-transparent`}>

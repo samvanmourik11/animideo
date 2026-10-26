@@ -206,7 +206,7 @@ function StepScenes({
         <span className="text-[11px] text-slate-500">past alle scenes in één keer aan</span>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] gap-5">
         {/* scene-lijst */}
         <div className="space-y-2">
           {spec.scenes.map((sc, i) => (

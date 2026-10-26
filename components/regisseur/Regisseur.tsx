@@ -190,7 +190,7 @@ function KeuzeMenu({ vraag, opties, meerdere, onKies }: { vraag: string; opties:
           ))}
         </div>
       ) : (
-        <div className="grid sm:grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {opties.map((o) => (
             <button
               key={o.waarde}
@@ -353,7 +353,7 @@ export default function Regisseur() {
   const w = project?.wachtend;
 
   return (
-    <div className="grid lg:grid-cols-[220px_minmax(0,1fr)_300px] gap-5 items-start -mt-2">
+    <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)_300px] gap-5 items-start -mt-2">
       {/* Projecten */}
       <aside className="space-y-2 lg:sticky lg:top-6">
         <button onClick={() => { setActief(null); setFout(null); }} className="btn-primary w-full">＋ Nieuw project</button>
@@ -410,7 +410,7 @@ export default function Regisseur() {
                 Zeg wat je wilt maken. De Regisseur bedenkt een plan, stelt je een paar vragen en maakt het met alle gereedschappen van Animideo: beelden, video&apos;s, apps en montage.
               </p>
             </div>
-            <div className="grid sm:grid-cols-2 gap-2 max-w-2xl w-full">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl w-full">
               {VOORBEELDEN.map((v) => (
                 <button key={v} onClick={() => setInvoer(v)} className="text-left text-sm rounded-2xl border border-rand bg-paneel px-4 py-3 text-tekst-2 hover:border-blue-500/50">
                   {v}
