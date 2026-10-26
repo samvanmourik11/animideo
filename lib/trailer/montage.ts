@@ -6,6 +6,7 @@
 // shots, §3), muziek die zacht begint, onder de stemmen zakt en bij de "adem" helemaal
 // wegvalt, zodat de klap erna binnenkomt (§1.4). Alleen op de server.
 
+import { tekstPng } from "@/lib/export/tekst-png";
 import ffmpegPath from "ffmpeg-static";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -18,7 +19,6 @@ import { beginRuimte } from "./plan";
 
 const run = promisify(execFile);
 const FFMPEG = ffmpegPath as unknown as string;
-const LETTER = path.join(process.cwd(), "lib/export/Arvo-Bold.ttf");
 const W = 1280;
 const H = 720;
 const BALK = 88; // ≈ 2,39:1 binnen 16:9
@@ -306,13 +306,17 @@ export async function monteerTrailer(m: {
      */
     const drift = (i: number, e: Extract<Element, { soort: "shot" }>) =>
       `scale=${Math.round(W * 1.12)}:${Math.round(H * 1.12)}:force_original_aspect_ratio=increase,crop=${W}:${H}:x='(iw-${W})*(${i % 2 ? "0.85-0.7" : "0.15+0.7"}*t/${e.duur.toFixed(2)})':y=(ih-${H})/2`;
-    const tekstFilter = async (t: string, maxGrootte: number, d: number) => {
-      const f = path.join(map, `t${segmenten.length}.txt`);
+    // Een tekstkaart is een plaatje op zwart (drawtext bestaat niet in de ffmpeg op de
+    // server, zie lib/export/tekst-png.ts); een fade naar zwart is dan hetzelfde als een
+    // fade van de letters.
+    const tekstKaart = async (t: string, maxGrootte: number, d: number, label: string) => {
+      const png = path.join(map, `t${segmenten.length}.png`);
       // Een lange titel ("Het Fluisteren van de Draken") liep in de proef buiten beeld.
       const grootte = Math.min(maxGrootte, Math.floor((W * 0.86) / (t.length * 0.66)));
-      await writeFile(f, t.toUpperCase());
-      const fade = `alpha='if(lt(t,0.4),t/0.4,if(gt(t,${(d - 0.4).toFixed(2)}),max(0,(${d.toFixed(2)}-t)/0.4),1))'`;
-      return `drawtext=fontfile='${LETTER}':textfile='${f}':expansion=none:fontsize=${grootte}:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:${fade}`;
+      await writeFile(png, tekstPng({ regels: [t.toUpperCase()], breedte: W, hoogte: H, grootte, lettertype: "Arvo", achtergrond: "black" }));
+      inputs.push("-loop", "1", "-framerate", String(FPS), "-t", d.toFixed(3));
+      const k = invoer(png);
+      return `[${k}:v]fps=${FPS},trim=duration=${d.toFixed(3)},fade=t=in:st=0:d=0.4,fade=t=out:st=${Math.max(0, d - 0.4).toFixed(2)}:d=0.4,setsar=1,format=yuv420p[${label}]`;
     };
 
     for (const [i, e] of tijdlijn.entries()) {
@@ -327,9 +331,9 @@ export async function monteerTrailer(m: {
             `tpad=stop_mode=clone:stop_duration=1,trim=duration=${d},setsar=1,format=yuv420p[${label}]`,
         );
       } else {
-        const tekst =
-          e.soort === "tekst" ? `,${await tekstFilter(e.tekst, 62, e.duur)}` : e.soort === "titel" ? `,${await tekstFilter(m.titel, 84, e.duur)}` : "";
-        filters.push(`color=c=black:s=${W}x${H}:r=${FPS}:d=${d}${tekst},setsar=1,format=yuv420p[${label}]`);
+        if (e.soort === "tekst") filters.push(await tekstKaart(e.tekst, 62, e.duur, label));
+        else if (e.soort === "titel") filters.push(await tekstKaart(m.titel, 84, e.duur, label));
+        else filters.push(`color=c=black:s=${W}x${H}:r=${FPS}:d=${d},setsar=1,format=yuv420p[${label}]`);
       }
       segmenten.push(`[${label}]`);
     }

@@ -10,6 +10,7 @@
 // opnieuw coderen aan elkaar kunnen (een film van 10 minuten opnieuw coderen past niet in
 // de tijd van een serverfunctie).
 
+import { tekstPng } from "@/lib/export/tekst-png";
 import ffmpegPath from "ffmpeg-static";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -23,7 +24,6 @@ import { FILM_CLIP_SEC } from "./types";
 
 const run = promisify(execFile);
 const FFMPEG = ffmpegPath as unknown as string;
-const LETTER = path.join(process.cwd(), "lib/export/Arvo-Bold.ttf");
 const FPS = 24;
 const KLEUR = "eq=contrast=1.05:saturation=0.92";
 /** Dezelfde uitvoer voor elke scène en kaart: dan kan de film zonder hercoderen aan elkaar. */
@@ -237,16 +237,17 @@ export async function monteerScene(m: { shots: SceneShot[]; verteller?: string; 
 /** Een tekstkaart (titel, einde) met dezelfde uitvoer als de scènes. */
 async function kaart(map: string, naam: string, tekst: string, sec: number, formaat: string): Promise<string> {
   const [W, H] = maat(formaat);
-  const f = path.join(map, `${naam}.txt`);
-  await writeFile(f, tekst.toUpperCase());
+  // Een plaatje op zwart in plaats van drawtext (die bestaat niet in de ffmpeg op de server,
+  // zie lib/export/tekst-png.ts); een fade naar zwart is dan een fade van de letters.
+  const png = path.join(map, `${naam}.png`);
   const grootte = Math.min(84, Math.floor((W * 0.86) / (tekst.length * 0.66)));
-  const fade = `alpha='if(lt(t,0.6),t/0.6,if(gt(t,${(sec - 0.6).toFixed(2)}),max(0,(${sec.toFixed(2)}-t)/0.6),1))'`;
+  await writeFile(png, tekstPng({ regels: [tekst.toUpperCase()], breedte: W, hoogte: H, grootte, lettertype: "Arvo", achtergrond: "black" }));
   const uit = path.join(map, `${naam}.mp4`);
   await run(FFMPEG, [
     "-hide_banner",
-    "-f", "lavfi", "-i", `color=c=black:s=${W}x${H}:r=${FPS}:d=${sec}`,
+    "-loop", "1", "-framerate", String(FPS), "-t", String(sec), "-i", png,
     "-f", "lavfi", "-i", `anullsrc=r=44100:cl=stereo`,
-    "-vf", `drawtext=fontfile='${LETTER}':textfile='${f}':expansion=none:fontsize=${grootte}:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:${fade},format=yuv420p`,
+    "-vf", `fade=t=in:st=0:d=0.6,fade=t=out:st=${(sec - 0.6).toFixed(2)}:d=0.6,format=yuv420p`,
     "-t", String(sec), ...UITVOER, "-y", uit,
   ]);
   return uit;

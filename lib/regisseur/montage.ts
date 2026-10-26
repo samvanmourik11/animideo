@@ -8,6 +8,7 @@
 
 import { vindStem } from "@/lib/stem/bibliotheek";
 import { after } from "next/server";
+import { tekstPng } from "@/lib/export/tekst-png";
 import ffmpegPath from "ffmpeg-static";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -28,7 +29,6 @@ fal.config({ credentials: process.env.FAL_KEY });
 
 const run = promisify(execFile);
 const FFMPEG = ffmpegPath as unknown as string;
-const LETTER = path.join(process.cwd(), "lib/export/Arvo-Bold.ttf");
 const VERTELLER = "YXgx21dvgkRwunWFpa5d"; // Jamie, diepe verteller
 const MAX_CLIPS = 24;
 const VASTGELOPEN_MS = 8 * 60 * 1000;
@@ -160,14 +160,16 @@ async function voerUit(c: Creatie, clips: { url: string; soort: string }[], m: M
     const inputs: string[] = [];
     const f: string[] = [];
     const segs: string[] = [];
+    // Titel- en eindkaart als plaatje (drawtext bestaat niet in de ffmpeg op de server, zie
+    // lib/export/tekst-png.ts). De invoer komt achteraan, na clips en geluid; het nummer
+    // vullen we pas in als dat bekend is.
+    const kaarten: { label: string; png: string; d: number }[] = [];
     const kaart = async (tekst: string, d: number, label: string) => {
-      const tf = path.join(map, `${label}.txt`);
-      await writeFile(tf, tekst.toUpperCase());
+      const png = path.join(map, `${label}.png`);
       const grootte = Math.min(72, Math.floor((W * 0.86) / (tekst.length * 0.66)));
-      f.push(
-        `color=c=black:s=${W}x${H}:r=30:d=${d},drawtext=fontfile='${LETTER}':textfile='${tf}':expansion=none:fontsize=${grootte}:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:` +
-          `alpha='if(lt(t,0.4),t/0.4,if(gt(t,${d - 0.4}),max(0,(${d}-t)/0.4),1))',setsar=1,format=yuv420p[${label}]`,
-      );
+      await writeFile(png, tekstPng({ regels: [tekst.toUpperCase()], breedte: W, hoogte: H, grootte, lettertype: "Arvo", achtergrond: "black" }));
+      kaarten.push({ label, png, d });
+      f.push(`§${label}§`);
       segs.push(`[${label}]`);
     };
     if (m.titel) await kaart(m.titel, titelDuur, "titel");
@@ -199,6 +201,12 @@ async function voerUit(c: Creatie, clips: { url: string; soort: string }[], m: M
       audio.push("[mu]");
     }
     f.push(audio.length ? `${audio.join("")}amix=inputs=${audio.length}:duration=longest:normalize=0,apad[a]` : `anullsrc=r=44100:cl=stereo[a]`);
+    for (const k of kaarten) {
+      const nr = inputs.filter((x) => x === "-i").length;
+      inputs.push("-loop", "1", "-framerate", "30", "-t", String(k.d), "-i", k.png);
+      const filter = `[${nr}:v]fps=30,setsar=1,format=yuv420p,trim=duration=${k.d},fade=t=in:st=0:d=0.4,fade=t=out:st=${(k.d - 0.4).toFixed(2)}:d=0.4[${k.label}]`;
+      f.splice(f.indexOf(`§${k.label}§`), 1, filter);
+    }
 
     const uit = path.join(map, "montage.mp4");
     const args = ["-hide_banner", "-loglevel", "error", ...inputs, "-filter_complex_threads", "2", "-filter_complex", f.join(";"), "-map", "[v]", "-map", "[a]", "-t", totaal.toFixed(2),

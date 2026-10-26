@@ -14,6 +14,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { renderMusicBed } from "@/lib/music/bed";
+import { tekstPng } from "@/lib/export/tekst-png";
 import type { ReclameFormaat } from "./types";
 
 const run = promisify(execFile);
@@ -31,7 +32,6 @@ const MATEN: Record<ReclameFormaat, { w: number; h: number }> = {
   "16:9": { w: 1280, h: 720 },
 };
 
-const LETTER = path.join(process.cwd(), "lib/export/Poppins-Bold.ttf");
 
 export interface MontageInvoer {
   formaat: ReclameFormaat;
@@ -45,7 +45,7 @@ export interface MontageInvoer {
   kleur: string;
 }
 
-/** Knipt een tekst in regels van hooguit `max` tekens, op woordgrenzen. drawtext breekt zelf niet af. */
+/** Knipt een tekst in regels van hooguit `max` tekens, op woordgrenzen. De tekstlaag breekt zelf niet af. */
 export function regels(tekst: string, max: number): string[] {
   const uit: string[] = [];
   let regel = "";
@@ -122,42 +122,36 @@ export async function monteer(m: MontageInvoer): Promise<Buffer> {
 
     const { w, h } = MATEN[m.formaat];
     const kort = Math.min(w, h);
-    const kleur = `0x${m.kleur.slice(1)}`;
     const opKleur = letterKleurOp(m.kleur);
 
-    // Elke tekstregel als eigen bestand: zo hoeft er niets ge-escaped te worden (een
-    // apostrof of dubbele punt in "Nu 's avonds: 2 voor 1" breekt anders het filter).
-    let n = 0;
-    async function tekstBestand(t: string): Promise<string> {
-      const p = path.join(map, `t${n++}.txt`);
-      await writeFile(p, t);
-      return p;
-    }
+    // Tekst gaat als doorzichtige PNG over de clip (drawtext bestaat niet in de ffmpeg op de
+    // server, zie lib/export/tekst-png.ts). Elke laag hoort bij één clip en faded in.
+    const lagen: { png: string; clip: number; van: number; tot?: number }[] = [];
     async function blok(
+      clip: number,
       t: string,
       o: { grootte: number; y: number; van: number; tot?: number; box?: string; kleur?: string },
-    ): Promise<string[]> {
+    ): Promise<void> {
       const max = Math.max(10, Math.floor((w * 0.86) / (o.grootte * 0.58)));
-      const lijnen = regels(t, max);
-      const stap = Math.round(o.grootte * 1.45);
-      const begin = o.y - ((lijnen.length - 1) * stap) / 2;
-      const zicht = o.tot ? `between(t,${o.van},${o.tot})` : `gte(t,${o.van})`;
-      const alpha = `if(lt(t,${o.van + 0.35}),max(0,(t-${o.van})/0.35),1)`;
-      return Promise.all(
-        lijnen.map(async (l, i) => {
-          const f = await tekstBestand(l);
-          return [
-            `drawtext=fontfile='${LETTER}':textfile='${f}':expansion=none`,
-            `fontsize=${o.grootte}:fontcolor=${o.kleur ?? "white"}`,
-            o.box ? `box=1:boxcolor=${o.box}:boxborderw=${Math.round(o.grootte * 0.35)}` : "shadowcolor=black@0.6:shadowx=2:shadowy=2",
-            `x=(w-text_w)/2:y=${Math.round(begin + i * stap)}-text_h/2`,
-            `enable='${zicht}':alpha='${alpha}'`,
-          ].join(":");
+      const png = path.join(map, `t${lagen.length}.png`);
+      await writeFile(
+        png,
+        tekstPng({
+          regels: regels(t, max),
+          breedte: w,
+          hoogte: h,
+          grootte: o.grootte,
+          kleur: o.kleur ?? "white",
+          midden: o.y,
+          regelafstand: Math.round(o.grootte * 1.45),
+          ...(o.box ? { vlak: o.box } : { schaduw: true }),
         }),
       );
+      lagen.push({ png, clip, van: o.van, tot: o.tot });
     }
 
     const tekstGrootte = Math.round(kort * 0.068);
+    const laagIn = clips.length + 1 + (muziek ? 1 : 0);
     const filters: string[] = [];
     for (let i = 0; i < clips.length; i++) {
       const laatste = i === clips.length - 1;
@@ -172,37 +166,44 @@ export async function monteer(m: MontageInvoer): Promise<Buffer> {
       // De laatste clip bevriest op zijn eindbeeld en wordt de eindkaart.
       if (laatste) stappen.push(`tpad=stop_mode=clone:stop_duration=${eind.toFixed(2)}`);
       if (m.teksten[i]) {
-        stappen.push(
-          ...(await blok(m.teksten[i], {
-            grootte: tekstGrootte,
-            y: Math.round(h * 0.78),
-            van: 0.4,
-            tot: SHOT_DUUR - 0.25,
-            box: `${kleur}@0.92`,
-            kleur: opKleur,
-          })),
-        );
+        await blok(i, m.teksten[i], {
+          grootte: tekstGrootte,
+          y: Math.round(h * 0.78),
+          van: 0.4,
+          tot: SHOT_DUUR - 0.25,
+          box: `${m.kleur}@0.92`,
+          kleur: opKleur,
+        });
       }
       if (laatste) {
         const t0 = SHOT_DUUR;
         stappen.push(`drawbox=x=0:y=0:w=iw:h=ih:color=black@0.6:t=fill:enable='gte(t,${t0})'`);
-        stappen.push(...(await blok(m.naam, { grootte: Math.round(kort * 0.085), y: Math.round(h * 0.4), van: t0 + 0.15 })));
+        await blok(i, m.naam, { grootte: Math.round(kort * 0.085), y: Math.round(h * 0.4), van: t0 + 0.15 });
         if (m.eindtekst) {
-          stappen.push(
-            ...(await blok(m.eindtekst, {
+          await blok(i, m.eindtekst, {
               grootte: Math.round(kort * 0.058),
               y: Math.round(h * 0.56),
               van: t0 + 0.45,
-              box: `${kleur}@1`,
+              box: `${m.kleur}@1`,
               kleur: opKleur,
-            })),
-          );
+            });
         }
         if (m.website) {
-          stappen.push(...(await blok(m.website, { grootte: Math.round(kort * 0.042), y: Math.round(h * 0.68), van: t0 + 0.7 })));
+          await blok(i, m.website, { grootte: Math.round(kort * 0.042), y: Math.round(h * 0.68), van: t0 + 0.7 });
         }
       }
-      filters.push(`[${i}:v]${stappen.join(",")}[v${i}]`);
+      // De lagen van deze clip er één voor één overheen.
+      const eigen = lagen.map((l, k) => ({ ...l, k })).filter((l) => l.clip === i);
+      let vorige = `b${i}`;
+      filters.push(`[${i}:v]${stappen.join(",")}[${vorige}]`);
+      for (const [j, l] of eigen.entries()) {
+        const naar = j === eigen.length - 1 ? `v${i}` : `b${i}_${j}`;
+        const zicht = l.tot ? `:enable='between(t,${l.van},${l.tot})'` : "";
+        filters.push(`[${laagIn + l.k}:v]format=rgba,fade=t=in:st=${l.van}:d=0.35:alpha=1[l${l.k}]`);
+        filters.push(`[${vorige}][l${l.k}]overlay=0:0${zicht}[${naar}]`);
+        vorige = naar;
+      }
+      if (!eigen.length) filters.push(`[${vorige}]null[v${i}]`);
     }
     filters.push(`${clips.map((_, i) => `[v${i}]`).join("")}concat=n=${clips.length}:v=1:a=0[v]`);
 
@@ -224,6 +225,7 @@ export async function monteer(m: MontageInvoer): Promise<Buffer> {
         ...clips.flatMap((c) => ["-i", c]),
         "-i", stem,
         ...(muziek ? ["-i", muziek] : []),
+        ...lagen.flatMap((l) => ["-loop", "1", "-framerate", "30", "-t", (l.clip === clips.length - 1 ? SHOT_DUUR + eind : SHOT_DUUR).toFixed(2), "-i", l.png]),
         "-filter_complex", filters.join(";"),
         "-map", "[v]",
         "-map", "[a]",

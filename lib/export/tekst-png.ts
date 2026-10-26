@@ -33,6 +33,8 @@ export interface TekstLaag {
   vlak?: string;
   /** Een zachte schaduw onder de letters. */
   schaduw?: boolean;
+  /** Een egale achtergrond (een titelkaart); zonder is de laag doorzichtig. */
+  achtergrond?: string;
 }
 
 function xml(t: string): string {
@@ -51,7 +53,7 @@ export function tekstSvg(l: TekstLaag): string {
   const midden = l.midden ?? l.hoogte / 2;
   const eerste = midden - ((l.regels.length - 1) * stap) / 2;
   const tekst = kleurEn(l.kleur ?? "white");
-  const delen: string[] = [];
+  const delen: string[] = l.achtergrond ? [`<rect width="${l.breedte}" height="${l.hoogte}" fill="${l.achtergrond}"/>`] : [];
   l.regels.forEach((regel, i) => {
     const y = Math.round(eerste + i * stap);
     if (l.vlak) {
