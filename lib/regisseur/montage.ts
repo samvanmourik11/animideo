@@ -32,6 +32,11 @@ const LETTER = path.join(process.cwd(), "lib/export/Arvo-Bold.ttf");
 const VERTELLER = "YXgx21dvgkRwunWFpa5d"; // Jamie, diepe verteller
 const MAX_CLIPS = 24;
 const VASTGELOPEN_MS = 8 * 60 * 1000;
+// Kling-clips komen bijna in 1080x1920 binnen en de concat opent alle clips tegelijk. Met
+// ffmpegs standaard (een decoder-thread per kern, elk met een eigen framebuffer) liep het
+// geheugen op tot ~800 MB en ging de montage op de server af en toe onderuit (26-10-2026).
+// Twee threads per clip: ~250 MB, en nauwelijks trager.
+const DECODER = ["-threads", "2"];
 
 export interface MontageInvoer {
   clipIds: string[];
@@ -169,7 +174,7 @@ async function voerUit(c: Creatie, clips: { url: string; soort: string }[], m: M
     // Elke clip is precies één invoer, in volgorde: invoer i = clip i.
     bestanden.forEach((b, i) => {
       const k = i;
-      if (clips[i].soort === "video") inputs.push("-i", b);
+      if (clips[i].soort === "video") inputs.push(...DECODER, "-i", b);
       else inputs.push("-loop", "1", "-t", "3", "-i", b);
       f.push(`[${k}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=30,setsar=1,format=yuv420p,trim=duration=${duren[i].toFixed(3)},setpts=PTS-STARTPTS[v${i}]`);
       segs.push(`[v${i}]`);
@@ -196,12 +201,13 @@ async function voerUit(c: Creatie, clips: { url: string; soort: string }[], m: M
     f.push(audio.length ? `${audio.join("")}amix=inputs=${audio.length}:duration=longest:normalize=0,apad[a]` : `anullsrc=r=44100:cl=stereo[a]`);
 
     const uit = path.join(map, "montage.mp4");
-    await run(
-      FFMPEG,
-      ["-hide_banner", ...inputs, "-filter_complex", f.join(";"), "-map", "[v]", "-map", "[a]", "-t", totaal.toFixed(2),
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "-y", uit],
-      { maxBuffer: 1 << 25 },
-    );
+    const args = ["-hide_banner", "-loglevel", "error", ...inputs, "-filter_complex_threads", "2", "-filter_complex", f.join(";"), "-map", "[v]", "-map", "[a]", "-t", totaal.toFixed(2),
+      "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "-y", uit];
+    // Eén keer opnieuw: een server die net even vol zit, laat ffmpeg soms halverwege stoppen.
+    await run(FFMPEG, args, { maxBuffer: 1 << 25 }).catch(() => run(FFMPEG, args, { maxBuffer: 1 << 25 })).catch((e: { stderr?: string; signal?: string; message?: string }) => {
+      const reden = e.signal ? `gestopt (${e.signal}), waarschijnlijk geheugen vol` : (e.stderr ?? "").trim().split("\n").slice(-3).join(" ") || e.message;
+      throw new Error(`ffmpeg: ${reden}`);
+    });
     const url = await uploadNaarOpslag(c.user_id, await readFile(uit), "mp4", "video/mp4");
     await createServiceClient().from("creaties").update({ status: "klaar", url, klaar_op: new Date().toISOString() }).eq("id", c.id).eq("status", "bezig");
   } catch (e) {
