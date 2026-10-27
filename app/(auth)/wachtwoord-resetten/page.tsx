@@ -14,8 +14,16 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [sessionReady, setSessionReady] = useState(false);
   const [linkInvalid, setLinkInvalid] = useState(false);
+  // Code uit de resetmail (via /auth/confirm); wordt pas ingewisseld bij het opslaan.
+  const [tokenHash, setTokenHash] = useState<string | null>(null);
 
   useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("token_hash");
+    if (code) {
+      setTokenHash(code);
+      setSessionReady(true);
+      return;
+    }
     const supabase = createClient();
     let cancelled = false;
 
@@ -60,6 +68,14 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     const supabase = createClient();
+    if (tokenHash) {
+      const { error: codeFout } = await supabase.auth.verifyOtp({ type: "recovery", token_hash: tokenHash });
+      if (codeFout) {
+        setLoading(false);
+        setLinkInvalid(true);
+        return;
+      }
+    }
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
@@ -81,7 +97,7 @@ export default function ResetPasswordPage() {
           <h1 className="text-2xl font-bold text-tekst mb-2">Link verlopen of ongeldig</h1>
           <div className="card shadow-[0_8px_30px_rgba(15,23,42,0.08)]">
             <p className="text-tekst-2 text-sm">
-              Deze reset-link werkt niet meer. Vraag een nieuwe link aan.
+              Deze reset-link werkt niet meer: hij is al gebruikt of ouder dan een uur. Vraag een nieuwe link aan en gebruik de nieuwste mail.
             </p>
           </div>
           <Link href="/wachtwoord-vergeten" className="btn-primary inline-block w-full mt-5">

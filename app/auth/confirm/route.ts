@@ -12,6 +12,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL("/login?error=missing_token", origin));
   }
 
+  // Wachtwoord herstellen: de code hier nog niet gebruiken. Mailprogramma's en virusscanners
+  // (vooral Outlook/Hotmail) openen links vooraf; dan was de link al op voordat de klant klikte.
+  // De resetpagina wisselt de code pas in als de klant zijn nieuwe wachtwoord opslaat.
+  if (type === "recovery") {
+    const url = new URL("/wachtwoord-resetten", origin);
+    url.searchParams.set("token_hash", token_hash);
+    url.searchParams.set("type", type);
+    return NextResponse.redirect(url);
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.auth.verifyOtp({ type, token_hash });
 

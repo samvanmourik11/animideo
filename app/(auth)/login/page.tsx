@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -12,6 +12,17 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Teruggestuurd vanaf een link uit een mail die niet meer werkt (al gebruikt of verlopen).
+  useEffect(() => {
+    const fout = new URLSearchParams(window.location.search).get("error");
+    if (!fout) return;
+    setError(
+      /invalid|expired/i.test(fout) ? "Deze link uit je mail werkt niet meer: hij is al gebruikt of verlopen. Wachtwoord vergeten? Vraag hieronder een nieuwe link aan."
+      : /missing_token/i.test(fout) ? "Deze link is niet compleet. Klik op de knop in de mail, of vraag een nieuwe link aan."
+      : fout
+    );
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
