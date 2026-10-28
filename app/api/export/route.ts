@@ -8,6 +8,7 @@ import ffmpegPath from "ffmpeg-static";
 import { createClient } from "@/lib/supabase/server";
 import type { Scene } from "@/lib/types";
 import { renderMusicBed } from "@/lib/music/bed";
+import { isSchijfVol, pastNog, ruimAfgebrokenExportsOp, SCHIJF_VOL_MELDING, vrijeMB, WERKMAP_PREFIX } from "@/lib/export/werkruimte";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -100,7 +101,8 @@ export async function POST(req: NextRequest) {
   let totalExpectedDuration = 0;
   for (const s of videoScenes) totalExpectedDuration += s.duration;
 
-  const workDir = join(tmpdir(), `export-${randomUUID()}`);
+  await ruimAfgebrokenExportsOp();
+  const workDir = join(tmpdir(), `${WERKMAP_PREFIX}${randomUUID()}`);
   await mkdir(workDir, { recursive: true });
 
   const encoder = new TextEncoder();
@@ -115,16 +117,7 @@ export async function POST(req: NextRequest) {
       };
 
       try {
-        emit({ type: "phase", phase: "Clips ophalen", pct: 2 });
-
-        // ── Download clips ────────────────────────────────────────────
-        const clipPaths: string[] = [];
-        for (let i = 0; i < videoScenes.length; i++) {
-          const localPath = join(workDir, `clip${i}.mp4`);
-          await downloadTo(videoScenes[i].video_url!, localPath);
-          clipPaths.push(localPath);
-          emit({ type: "progress", pct: 2 + Math.round(((i + 1) / videoScenes.length) * 12) });
-        }
+        emit({ type: "phase", phase: "Geluid ophalen", pct: 2 });
 
         // ── Download voice + music (best effort) ──────────────────────
         let voicePath: string | null = null;
@@ -146,11 +139,6 @@ export async function POST(req: NextRequest) {
             musicPath = await renderMusicBed(musicSrc, totalExpectedDuration, join(workDir, "music.wav"));
           } catch { musicPath = null; }
         }
-
-        emit({ type: "phase", phase: "Bronlengtes meten", pct: 17 });
-
-        const srcDurations: number[] = [];
-        for (const p of clipPaths) srcDurations.push(await probeDuration(p));
 
         emit({ type: "phase", phase: "Scenes klaarmaken", pct: 20 });
 
@@ -185,7 +173,12 @@ export async function POST(req: NextRequest) {
         // (de tussenbestanden zelf plus het eindbestand, dat er een kopie van is).
         // Past dat niet, dan stoppen we mét uitleg in plaats van met een
         // ffmpeg-dump aan het eind.
-        const SCHIJF_BUDGET_MB = 400;
+        //
+        // De grens is de ruimte die er nu ECHT vrij is (zie lib/export/werkruimte.ts):
+        // de schijf wordt gedeeld met andere exports op dezelfde functie, en een
+        // vaste 400 MB liet een film van 2:59 alsnog op ENOSPC vastlopen.
+        // De clips worden één voor één opgehaald en meteen weer weggegooid; vooraf
+        // alles binnenhalen kostte bij 27 scenes al snel 100+ MB extra.
         let getrimdMB = 0;
         let getrimdeSeconden = 0;
 
@@ -200,12 +193,14 @@ export async function POST(req: NextRequest) {
             : 0;
           const trimDur = sceneDur + transDur;
 
-          const srcDur = srcDurations[i];
+          const clipPath = join(workDir, `clip${i}.mp4`);
+          await downloadTo(videoScenes[i].video_url!, clipPath);
+          const srcDur = await probeDuration(clipPath);
           const speedRatio = srcDur > 0 ? sceneDur / srcDur : 1;
 
           const trimmedPath = join(workDir, `clip${i}_trimmed.mp4`);
           await runFfmpeg([
-            "-i", clipPaths[i],
+            "-i", clipPath,
             "-c:v", "libx264", "-preset", quality.preset, "-crf", quality.crf,
             "-pix_fmt", "yuv420p", "-profile:v", "main", "-level", "4.0",
             // fps vóór tpad: in ffmpeg 7 (Vercel) doet tpad direct na setpts niets, dan
@@ -222,20 +217,23 @@ export async function POST(req: NextRequest) {
           getrimdeSeconden += trimDur;
           const perSeconde = getrimdMB / Math.max(1, getrimdeSeconden);
           const verwachtePiek = perSeconde * totalExpectedDuration * 2;
-          if (verwachtePiek > SCHIJF_BUDGET_MB) {
-            const minuten = Math.floor(totalExpectedDuration / 60);
-            throw new Error(
-              `Deze video is te lang om in één keer te exporteren: ${minuten} minuten ` +
-              `beeld heeft ongeveer ${Math.round(verwachtePiek)} MB werkruimte nodig en er is ` +
-              `${SCHIJF_BUDGET_MB} MB beschikbaar. Splits de film in twee kortere delen en ` +
-              `exporteer die apart, of neem contact op met support.`
-            );
+          await rm(clipPath, { force: true }).catch(() => {});
+          const vrij = await vrijeMB();
+          if (!pastNog({ nodigMB: verwachtePiek, alGebruiktMB: getrimdMB, vrijMB: vrij })) {
+            // Past het ook op een lege schijf (~480 MB) niet, dan is de film echt te lang;
+            // anders is de server even vol en helpt het om het zo opnieuw te proberen.
+            if (verwachtePiek > 440) {
+              const minuten = Math.floor(totalExpectedDuration / 60);
+              throw new Error(
+                `Deze video is te lang om in één keer te exporteren: ${minuten} minuten ` +
+                `beeld heeft ongeveer ${Math.round(verwachtePiek)} MB werkruimte nodig. Splits de film ` +
+                `in twee kortere delen en exporteer die apart, of neem contact op met support.`
+              );
+            }
+            console.warn(`[export] schijf te vol: nodig ~${Math.round(verwachtePiek)} MB, vrij ${Math.round(vrij)} MB`);
+            throw new Error(SCHIJF_VOL_MELDING);
           }
 
-          // De bronclip is nu overbodig en mag van de schijf af. Ze bleven tot het
-          // eind staan en telden bij een film van vier minuten voor ruim 60 MB mee
-          // in een ruimte van 512 MB.
-          await rm(clipPaths[i], { force: true }).catch(() => {});
           emit({ type: "progress", pct: 20 + Math.round(((i + 1) / videoScenes.length) * 30) });
         }
 
@@ -272,6 +270,10 @@ export async function POST(req: NextRequest) {
         await runFfmpegWithProgress(finalCmd, totalExpectedDuration, (frac) => {
           emit({ type: "progress", pct: 50 + Math.round(frac * 30) });
         });
+
+        // De losse scenes zitten nu in het eindbestand; weg ermee vóór het watermerk
+        // (dat nog een kopie maakt) en het uploaden.
+        for (const p of trimmedPaths) await rm(p, { force: true }).catch(() => {});
 
         // ── Watermark for free plan ────────────────────────────────────
         let uploadFile = outputPath;
@@ -322,7 +324,7 @@ export async function POST(req: NextRequest) {
 
         emit({ type: "complete", url: finalUrl, pct: 100 });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+        const msg = isSchijfVol(err) ? SCHIJF_VOL_MELDING : err instanceof Error ? err.message : String(err);
         console.error("[export]", err);
         emit({ type: "error", message: msg });
       } finally {
