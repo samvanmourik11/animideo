@@ -46,7 +46,7 @@ export const TOOLS: Tool[] = [
   {
     name: "vraag_keuze",
     description:
-      "Laat de gebruiker kiezen via een klikbaar menu; het gesprek pauzeert tot er antwoord is (de gebruiker kan ook zelf iets typen). Soorten: 'creator' toont alle UGC-creators met portret (geen opties nodig), 'stem' toont jouw aanraders uit 'stemmen' (3-5 stuks, gevonden met zoek_stemmen, elk met waarom ze bij dit verhaal passen) met luisterknop, 'beeld' toont de beelden uit beeld_ids naast elkaar (bijv. versies om uit te kiezen; met meerdere: true mag de gebruiker er meer kiezen), 'storyboard' toont de schetsbeelden uit beeld_ids op volgorde met per scène een bijschrift en de knoppen Goedkeuren / Aanpassen, 'tekst' toont de opties als knoppen (2-6, eventueel met korte uitleg). Gebruik dit voor alle echte keuzes in plaats van in je tekst te vragen of zelf te kiezen.",
+      "Laat de gebruiker kiezen via een klikbaar menu; het gesprek pauzeert tot er antwoord is (de gebruiker kan ook zelf iets typen). Soorten: 'creator' toont alle UGC-creators met portret (geen opties nodig), 'stem' toont jouw aanraders uit 'stemmen' (3-5 stuks, gevonden met zoek_stemmen, elk met waarom ze bij dit verhaal passen) met luisterknop, 'beeld' toont de beelden uit beeld_ids naast elkaar (bijv. versies om uit te kiezen, alleen als de gebruiker om meerdere versies vroeg; met meerdere: true mag de gebruiker er meer kiezen), 'storyboard' toont de beelden uit beeld_ids op volgorde met per scène een bijschrift en de knoppen Goedkeuren / Aanpassen, 'tekst' toont de opties als knoppen (2-6, eventueel met korte uitleg). Gebruik dit voor alle echte keuzes in plaats van in je tekst te vragen of zelf te kiezen.",
     input_schema: {
       type: "object",
       properties: {
@@ -92,16 +92,15 @@ export const TOOLS: Tool[] = [
   {
     name: "maak_beeld",
     description:
-      "Maak een beeld (kost credits). Geef voorbeelden (creatie-ids of https-adressen) mee om personages, gezichten of producten in elk beeld gelijk te houden; maximaal 4. Kwaliteit 'pro' voor eindbeelden met mensen of tekst, 'standaard' voor snelle schetsen. Schrijf de prompt in het Engels.",
+      `Maak een beeld (${CREDIT_COSTS.IMAGE_GENERATION} credit). Geef voorbeelden (creatie-ids of https-adressen) mee om personages, gezichten of producten in elk beeld gelijk te houden; maximaal 4. Dit beeld is meteen het eindbeeld: maak een scène nooit een tweede keer "mooier". Schrijf de prompt in het Engels.`,
     input_schema: {
       type: "object",
       properties: {
         prompt: { type: "string" },
         formaat: { type: "string", enum: [...FORMATEN] },
-        kwaliteit: { type: "string", enum: ["standaard", "pro"] },
         voorbeelden: { type: "array", items: { type: "string" }, maxItems: 4 },
       },
-      required: ["prompt", "formaat", "kwaliteit"],
+      required: ["prompt", "formaat"],
     },
   },
   {
@@ -120,7 +119,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "maak_video",
-    description: `Laat een bestaand beeld 5 seconden bewegen (kost credits). Beschrijf de beweging in het Engels. Modellen: ${VIDEO_MODELLEN.map((m) => `${m.id} (${m.waarvoor} ${m.credits} cr.)`).join("; ")}. Standaard ${STANDAARD_VIDEO_MODEL}.`,
+    description: `Laat een bestaand beeld 5 seconden bewegen (kost credits). Beschrijf de beweging in het Engels. Modellen: ${VIDEO_MODELLEN.map((m) => `${m.id} (${m.waarvoor} ${m.credits} cr.)`).join("; ")}. Gebruik altijd ${STANDAARD_VIDEO_MODEL} (laat model weg); een duurder model alleen als de gebruiker daar zelf om vraagt.`,
     input_schema: {
       type: "object",
       properties: { beeld_id: { type: "string" }, beweging: { type: "string" }, model: { type: "string", enum: VIDEO_MODELLEN.map((m) => m.id) } },
@@ -284,8 +283,42 @@ export const TOOLS: Tool[] = [
     description: "Wacht tot creaties klaar zijn (beelden duren ~20 s, video's 1-3 min, een montage ~1 min). Je krijgt daarna de resultaten te zien, beelden ook als plaatje, zodat je ze kunt beoordelen. Gebruik dit na het starten van stappen waarop je wilt verder bouwen.",
     input_schema: { type: "object", properties: { creatie_ids: { type: "array", items: { type: "string" }, minItems: 1 } }, required: ["creatie_ids"] },
   },
+  {
+    name: "begroting",
+    description:
+      "Leg de gebruiker vóór het maken één keer voor wat het hele project kost, als lijst met posten (pauzeert tot akkoord). Wat daarna binnen de begroting valt, start zonder nieuwe vraag. " +
+      `Prijzen: beeld ${CREDIT_COSTS.IMAGE_GENERATION} cr.; clip van 5 s ${VIDEO_MODELLEN.find((m) => m.id === STANDAARD_VIDEO_MODEL)!.credits} cr.; voice-over ${CREDIT_COSTS.VOICE} cr. per 1.000 tekens; montage zonder voice-over gratis; reclame ${RECLAME_CREDITS} cr. ` +
+      "Reken precies, zonder reserve. Komt er later iets bij, maak dan een nieuwe begroting met alleen wat erbij komt.",
+    input_schema: {
+      type: "object",
+      properties: {
+        posten: {
+          type: "array",
+          minItems: 1,
+          maxItems: 12,
+          items: {
+            type: "object",
+            properties: { omschrijving: { type: "string", description: "Kort, bv. '6 beelden (storyboard = eindbeelden)'." }, credits: { type: "integer", minimum: 0 } },
+            required: ["omschrijving", "credits"],
+          },
+        },
+      },
+      required: ["posten"],
+    },
+  },
   ...FILM_TOOLS,
 ];
+
+/** De posten van een begroting, gecontroleerd; het totaal rekenen we zelf uit. */
+export function leesBegroting(input: unknown): { posten: { omschrijving: string; credits: number }[]; totaal: number } {
+  const ruw = Array.isArray((input as { posten?: unknown })?.posten) ? (input as { posten: unknown[] }).posten : [];
+  const posten = ruw
+    .slice(0, 12)
+    .map((x) => x as { omschrijving?: unknown; credits?: unknown })
+    .map((x) => ({ omschrijving: String(x.omschrijving ?? "").slice(0, 120), credits: Math.max(0, Math.round(Number(x.credits) || 0)) }))
+    .filter((x) => x.omschrijving);
+  return { posten, totaal: posten.reduce((s, x) => s + x.credits, 0) };
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -416,7 +449,10 @@ export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUs
   const basis = { toolUseId: blok.id, naam: blok.name, input: i };
   if (blok.name === "maak_beeld") {
     const voorbeelden = await Promise.all((Array.isArray(i.voorbeelden) ? i.voorbeelden : []).slice(0, 4).map((v) => naarUrl(userId, v)));
-    const invoer = { prompt: i.prompt, formaat: i.formaat, kwaliteit: i.kwaliteit, referentieUrls: voorbeelden };
+    // Altijd het gewone beeld (1 credit): de Regisseur maakt geen Pro-beelden (Sam, 28-10-2026).
+    // Pro kostte 5 credits per beeld en werd na het storyboard nog eens over elke schets
+    // heen gemaakt, waardoor klanten elk beeld twee keer betaalden.
+    const invoer = { prompt: i.prompt, formaat: i.formaat, kwaliteit: "standaard", referentieUrls: voorbeelden };
     const o = maakOpdracht("beeld", invoer);
     return { ...basis, maker: "beeld", invoer, credits: o.credits, omschrijving: `Beeld${voorbeelden.length ? ` met ${voorbeelden.length} voorbeeld(en)` : ""}: ${String(i.prompt).slice(0, 90)}` };
   }

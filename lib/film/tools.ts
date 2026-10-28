@@ -52,7 +52,7 @@ export const FILM_TOOLS: Tool[] = [
   {
     name: "film_cast",
     description:
-      "Zet personages en terugkerende wezens/voorwerpen in de film (gratis). Elk personage dat praat heeft een vaste stem (stem-id uit zoek_stemmen) en iedereen heeft een portret: maak dat eerst met maak_beeld (kwaliteit pro, neutrale achtergrond, gezicht goed zichtbaar) en geef het creatie-id mee. Wie je niet noemt, blijft staan.",
+      "Zet personages en terugkerende wezens/voorwerpen in de film (gratis). Elk personage dat praat heeft een vaste stem (stem-id uit zoek_stemmen) en iedereen heeft een portret: maak dat eerst met maak_beeld (neutrale achtergrond, gezicht goed zichtbaar) en geef het creatie-id mee. Wie je niet noemt, blijft staan.",
     input_schema: {
       type: "object",
       properties: {

@@ -21,7 +21,7 @@ Beweging (maak_video):
 - Eén kleine gebeurtenis per clip van 5 s. Beschrijf de camera apart van het onderwerp ("slow push-in; the woman looks up and smiles").
 - Laat niets verschijnen dat niet al in het beeld staat (sneeuw, vuur, vallende voorwerpen, een landing): dat mislukt vanuit een foto. Maak dan eerst een beeld waarin het er al is.
 - Rustig: geen snelle camerabewegingen, geen ingewikkelde handelingen, geen tekst die moet veranderen.
-- Mensen en dieren in beweging: kling-2-5. Vallen, water, natuurkunde: hailuo-02. De rest: de standaard.
+- Altijd het standaardmodel; het kan mensen, dieren en water prima aan. Een duurder model (kling-2-5 voor lopen en gebaren, hailuo-02 voor vallen en water) alleen als de gebruiker erom vraagt.
 
 Verhaal en montage:
 - Voice-over: reken op ±2,5 woorden per seconde; een clip van 5 s draagt hoogstens 12 woorden.

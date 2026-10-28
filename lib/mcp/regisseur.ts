@@ -88,7 +88,10 @@ export async function stand(userId: string, projectId: unknown) {
     foutmelding: p.foutmelding,
     regels: regels(p.berichten, p.status === "wacht_op_antwoord").slice(-14),
     vraag: w?.soort === "antwoord" ? { vraag: w.vraag, opties: w.opties, meerdere: w.meerdere } : null,
-    bevestiging: w?.soort === "bevestiging" ? { totaal: w.totaal, stappen: w.stappen.map((s) => ({ omschrijving: s.omschrijving, credits: s.credits, details: s.details })) } : null,
+    bevestiging:
+      w?.soort === "bevestiging" ? { totaal: w.totaal, stappen: w.stappen.map((s) => ({ omschrijving: s.omschrijving, credits: s.credits, details: s.details })) }
+      : w?.soort === "begroting" ? { totaal: w.totaal, stappen: w.posten }
+      : null,
     galerij,
   };
 }

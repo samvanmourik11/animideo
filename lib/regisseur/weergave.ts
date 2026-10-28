@@ -56,6 +56,10 @@ export function regels(berichten: unknown[], openVraag = false): Regel[] {
       if (blok.type === "tool_use" && blok.name === "vraag_keuze") {
         if (!(openVraag && laatste)) uit.push({ wie: "regisseur", tekst: String(blok.input?.vraag ?? "") });
       }
+      else if (blok.type === "tool_use" && blok.name === "begroting") {
+        const posten = (Array.isArray(blok.input?.posten) ? blok.input.posten : []) as { credits?: number }[];
+        uit.push({ wie: "actie", tekst: `💶 Begroting: ${posten.reduce((s, x) => s + (Number(x.credits) || 0), 0)} credits` });
+      }
       else if (blok.type === "tool_use" && blok.name && ICOON[blok.name]) {
         const i = blok.input ?? {};
         const extra = String(i.prompt ?? i.beweging ?? i.url ?? i.titel ?? i.app_id ?? "").slice(0, 80);

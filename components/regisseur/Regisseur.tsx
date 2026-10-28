@@ -22,7 +22,8 @@ interface Stap { toolUseId: string; naam: string; credits: number; omschrijving:
 interface Optie { label: string; waarde: string; uitleg?: string; beeld?: string; geluid?: string; video?: string; storyboard?: { url: string; tekst: string }[] }
 type Wachtend =
   | { soort: "antwoord"; vraag: string; opties: (Optie | string)[]; meerdere?: boolean }
-  | { soort: "bevestiging"; stappen: Stap[]; totaal: number }
+  | { soort: "bevestiging"; stappen: Stap[]; totaal: number; begroting?: { budget: number; besteed: number } }
+  | { soort: "begroting"; posten: { omschrijving: string; credits: number }[]; totaal: number }
   | { soort: "maken"; ids: string[] };
 interface Project {
   id: string;
@@ -33,6 +34,7 @@ interface Project {
   foutmelding: string | null;
   automatisch: boolean;
   gebruik?: { usd?: number };
+  kosten?: { besteed: number; budget?: number };
 }
 
 const VOORBEELDEN = [
@@ -474,9 +476,57 @@ export default function Regisseur() {
               />
             )}
 
+            {w?.soort === "begroting" && project.status === "wacht_op_bevestiging" && (
+              <div className="n-kaart !p-4 space-y-3">
+                <div className="text-sm font-semibold text-tekst">Wat dit project kost:</div>
+                <ul className="space-y-1.5">
+                  {w.posten.map((x, n) => (
+                    <li key={n} className="flex justify-between gap-3 text-sm text-tekst-2">
+                      <span>{x.omschrijving}</span>
+                      <span className="shrink-0 text-tekst-3">{x.credits ? `${x.credits} cr.` : "gratis"}</span>
+                    </li>
+                  ))}
+                  <li className="flex justify-between gap-3 border-t border-rand pt-1.5 text-sm font-semibold text-tekst">
+                    <span>Totaal</span>
+                    <span>{w.totaal} credits</span>
+                  </li>
+                </ul>
+                <p className="text-xs text-tekst-3">Na je akkoord maakt de Regisseur alles binnen dit bedrag zonder het je steeds te vragen. Mislukt er iets, dan krijg je die credits vanzelf terug.</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() =>
+                      doe(async () => {
+                        await stuur(`/api/regisseur/${project.id}`, { actie: "bevestig", ja: true });
+                        setProject({ ...project, status: "denkt", wachtend: null });
+                      })
+                    }
+                    className="btn-primary"
+                  >
+                    ✅ Akkoord · {w.totaal} credits
+                  </button>
+                  <button
+                    onClick={() =>
+                      doe(async () => {
+                        await stuur(`/api/regisseur/${project.id}`, { actie: "bevestig", ja: false });
+                        setProject({ ...project, status: "denkt", wachtend: null });
+                      })
+                    }
+                    className="n-knop2"
+                  >
+                    Te duur / anders
+                  </button>
+                </div>
+              </div>
+            )}
+
             {w?.soort === "bevestiging" && project.status === "wacht_op_bevestiging" && (
               <div className="n-kaart !p-4 space-y-3">
                 <div className="text-sm font-semibold text-tekst">De Regisseur wil dit maken:</div>
+                {w.begroting && (
+                  <p className="text-xs text-tekst-3">
+                    Dit komt bovenop de afgesproken {w.begroting.budget} credits (al gebruikt: {w.begroting.besteed}). Daarom vraagt de Regisseur het je eerst.
+                  </p>
+                )}
                 <ul className="space-y-3">
                   {w.stappen.map((s) => (
                     <li key={s.toolUseId} className="space-y-2">
@@ -682,6 +732,11 @@ export default function Regisseur() {
               Stuur
             </button>
           </div>
+          {!!project?.kosten && (project.kosten.besteed > 0 || project.kosten.budget !== undefined) && (
+            <p className="text-[11px] text-tekst-3 mt-1">
+              Dit project: {project.kosten.besteed} credits gebruikt{project.kosten.budget !== undefined ? ` van de afgesproken ${project.kosten.budget}` : ""}
+            </p>
+          )}
           {project?.gebruik?.usd !== undefined && (
             <p className="text-[11px] text-tekst-3 mt-1">Alleen voor beheer: Claude-tekstkosten dit project ≈ ${project.gebruik.usd.toFixed(3)}</p>
           )}

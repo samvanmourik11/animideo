@@ -30,7 +30,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     : { data: [] };
   const galerij = (await verversLopende((data ?? []) as Creatie[])).sort((a, b) => p.galerij.indexOf(b.id) - p.galerij.indexOf(a.id));
   const { gebruik, ...rest } = p;
-  return NextResponse.json({ project: { ...rest, ...(isAdminAccount(user.email) ? { gebruik } : {}) }, galerij });
+  // De credits van dit project ziet iedereen; de tekstkosten van Claude alleen beheer.
+  const kosten = { besteed: gebruik?.besteed ?? 0, ...(gebruik?.budget !== undefined ? { budget: gebruik.budget } : {}) };
+  return NextResponse.json({ project: { ...rest, kosten, ...(isAdminAccount(user.email) ? { gebruik } : {}) }, galerij });
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

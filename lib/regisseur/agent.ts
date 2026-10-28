@@ -17,7 +17,7 @@ import type { Creatie } from "@/lib/creaties/types";
 import { tijd } from "./video";
 import { binnenBudget, taakRun } from "./taken";
 import { regieboekTekst } from "./regieboek";
-import { BETAALDE_TOOLS, GRATIS_TOOLS, TOOLS, bereidVoor, bouwOpties, gratis, leesGeheugen, voerUit, type Optie, type Stap } from "./tools";
+import { BETAALDE_TOOLS, GRATIS_TOOLS, TOOLS, bereidVoor, bouwOpties, gratis, leesBegroting, leesGeheugen, voerUit, type Optie, type Stap } from "./tools";
 
 const MODEL = "claude-opus-5-5";
 const MAX_RONDES = 12;
@@ -30,7 +30,8 @@ type Resultaat = Anthropic.Beta.BetaToolResultBlockParam;
 
 export type Wachtend =
   | { soort: "antwoord"; toolUseId: string; vraag: string; opties: Optie[]; meerdere: boolean; volgorde: string[]; klaar: Record<string, Resultaat> }
-  | { soort: "bevestiging"; stappen: Stap[]; totaal: number; volgorde: string[]; klaar: Record<string, Resultaat>; wachtId?: string; wachtIds?: string[] }
+  | { soort: "bevestiging"; stappen: Stap[]; totaal: number; volgorde: string[]; klaar: Record<string, Resultaat>; wachtId?: string; wachtIds?: string[]; begroting?: { budget: number; besteed: number } }
+  | { soort: "begroting"; toolUseId: string; posten: { omschrijving: string; credits: number }[]; totaal: number; volgorde: string[]; klaar: Record<string, Resultaat> }
   | { soort: "maken"; toolUseId: string; ids: string[]; volgorde: string[]; klaar: Record<string, Resultaat> };
 
 export interface RegieProject {
@@ -43,19 +44,29 @@ export interface RegieProject {
   foutmelding: string | null;
   galerij: string[];
   automatisch: boolean;
-  gebruik: { input?: number; output?: number; cacheLezen?: number; cacheSchrijven?: number; usd?: number };
+  // Naast de tekstkosten (alleen voor beheer) ook de credits van dit project: de afgesproken
+  // begroting, wat er al gestart is, en welke mislukte creaties al van "besteed" af zijn.
+  gebruik: { input?: number; output?: number; cacheLezen?: number; cacheSchrijven?: number; usd?: number; budget?: number; besteed?: number; terug?: string[] };
 }
 
 const SYSTEEM = `Je bent de Regisseur van Animideo, een Nederlandse app om beelden en video's met AI te maken. Je praat Nederlands, kort en hartelijk, zonder jargon, en je regelt het werk voor de gebruiker met je gereedschappen.
 
 Werkwijze:
 - Begrijp eerst wat de gebruiker wil. Ontbreekt er iets wezenlijks (doel, stijl, lengte, formaat), stel dan één vraag met vraag_keuze in plaats van te gokken. Vraag niet meer dan nodig.
-- Laat de gebruiker zelf kiezen bij persoonlijke smaakkeuzes, met het menu van vraag_keuze: welke creator (soort 'creator'), welke stem (soort 'stem'), welke versie van een beeld (soort 'beeld'), welke stijl of richting (soort 'tekst', met korte uitleg per optie). Kies dat niet zelf, tenzij de gebruiker zegt dat jij mag kiezen of het al in het geheugen staat. Eén vraag per keer. Bij een stem (voice-over of UGC-video): denk eerst na over het verhaal, de toon en het publiek, zoek dan met zoek_stemmen 3-5 stemmen waarvan de typering en beschrijving daar echt bij passen (verschillend genoeg om te kiezen, de beste eerst), en geef ze via vraag_keuze soort 'stem' met per stem één korte zin waarom hij past. Gebruik daarna het gekozen stem-id. Bij een UGC-video: eerst de creator, dan de stem; zet de vaste stem van de creator als één van de opties als die in de bibliotheek staat, anders vermeld je hem in de vraag. Zet de vraag alleen in vraag_keuze, niet ook nog eens in je tekst (die verschijnen allebei op het scherm).
+- Laat de gebruiker zelf kiezen bij persoonlijke smaakkeuzes, met het menu van vraag_keuze: welke creator (soort 'creator'), welke stem (soort 'stem'), welke stijl of richting (soort 'tekst', met korte uitleg per optie). Kies dat niet zelf, tenzij de gebruiker zegt dat jij mag kiezen of het al in het geheugen staat. Eén vraag per keer. Bij een stem (voice-over of UGC-video): denk eerst na over het verhaal, de toon en het publiek, zoek dan met zoek_stemmen 3-5 stemmen waarvan de typering en beschrijving daar echt bij passen (verschillend genoeg om te kiezen, de beste eerst), en geef ze via vraag_keuze soort 'stem' met per stem één korte zin waarom hij past. Gebruik daarna het gekozen stem-id. Bij een UGC-video: eerst de creator, dan de stem; zet de vaste stem van de creator als één van de opties als die in de bibliotheek staat, anders vermeld je hem in de vraag. Zet de vraag alleen in vraag_keuze, niet ook nog eens in je tekst (die verschijnen allebei op het scherm).
 - Gaat het om een bedrijf of merk: kijk eerst met lees_huisstijl (stil, zonder erover te praten) en gebruik kleuren, toon, logo en wat niet mag in alles wat je maakt.
 - Maak een kort plan (welke beelden, welke clips, welke montage) en voer het uit. Elke betaalde stap wordt de gebruiker vooraf voorgelegd; je hoeft niet zelf om toestemming te vragen.
+- Gaat het om meer dan 3 betaalde stappen (bijvoorbeeld een video), leg dan vóór het eerste beeld één keer de begroting voor met begroting: per post wat het kost (beelden, clips, voice-over), precies gerekend. Daarna loopt alles binnen die begroting zonder nieuwe vraag door. Noem het totaal ook in je tekst ("Deze video kost 45 credits").
 - Houd personages, gezichten en producten gelijk door steeds dezelfde voorbeelden (creatie-ids of foto-adressen) mee te geven aan maak_beeld.
-- Start wat tegelijk kan in één keer (bijvoorbeeld alle beelden), en gebruik daarna wacht_op. Bekijk de resultaten kritisch; is iets mislukt of klopt het niet, maak alleen dat opnieuw.
-- Werk zuinig: niet meer beelden of video's dan nodig. Een korte film of reclame: meestal 3-6 clips, dan monteer.
+- Start wat tegelijk kan in één keer, maar hoogstens 4 tegelijk (meer kan er niet in de maak zijn), en gebruik daarna wacht_op.
+- Is iets mislukt (een fout van het model), maak dat één keer opnieuw; de credits van een mislukte poging krijgt de gebruiker vanzelf terug.
+
+Zuinig met credits (de gebruiker wil zien dat er geen credit verspild wordt):
+- Elk beeld maak je één keer, en dat is het eindbeeld. Nooit eerst een schets en daarna dezelfde scène nog eens "mooi".
+- Maak geen extra versies om uit te kiezen, tenzij de gebruiker daarom vraagt.
+- Clips altijd met het standaardmodel; een duurder model alleen als de gebruiker erom vraagt.
+- Niet meer beelden of video's dan nodig. Een korte reclame of uitleg: meestal 3-6 clips, dan monteer.
+- Maak niets opnieuw omdat jij het nog beter wilt; alleen wat mislukt is of wat de gebruiker anders wil, en dan alleen dat ene stuk.
 - Voor een complete productreclame, een UGC-video (een creator die over een product of dienst praat) of een filmtrailer zijn er kant-en-klare studio's: maak_reclame, maak_ugc_video (kies eerst een creator met ugc_creators) en maak_trailer. Die leveren in één stap een afgemonteerde video en zijn meestal beter dan zelf losse clips aan elkaar zetten.
 - Je hebt een geheugen over deze gebruiker (onderaan). Gebruik het: huisstijl, bedrijfsnaam, voorkeuren. Vertelt de gebruiker iets dat ook voor volgende projecten geldt, sla het dan op met onthoud (kort), zonder erover te zeuren.
 - Sluit af met een korte samenvatting van wat er gemaakt is en wat de gebruiker nog kan laten aanpassen.
@@ -68,14 +79,14 @@ Verhaal eerst (bij elke video met een boodschap of verhaal; niet bij losse beeld
 - Lees je eigen script kritisch voor je het laat zien: zit de oplossing al in de eerste regels, gebeurt de omslag buiten beeld, is het saai? Verbeter het dan eerst.
 
 Storyboard (bij video's van 3 of meer scènes, tenzij het project op automatisch staat):
-- Is het script goed, maak dan per scène één schets met maak_beeld in kwaliteit 'standaard' (goedkoop), wacht_op, en laat ze zien met vraag_keuze soort 'storyboard' (beeld_ids op volgorde, bijschriften per scène). Zeg erbij wat dat kostte.
-- Goedgekeurd: maak de eindbeelden in kwaliteit 'pro' met de schets als voorbeeld (zelfde compositie), dan pas de clips. Feedback: maak alleen de scènes opnieuw die anders moeten en laat het storyboard nog één keer zien.
+- Is het script goed en de begroting akkoord, maak dan per scène één beeld met maak_beeld, wacht_op, en laat ze zien met vraag_keuze soort 'storyboard' (beeld_ids op volgorde, bijschriften per scène).
+- Deze storyboardbeelden ZIJN de eindbeelden. Goedgekeurd: maak meteen de clips van precies deze beelden. Feedback: maak alleen de scènes opnieuw die anders moeten en laat het storyboard nog één keer zien.
 - Dit is het controlemoment. Ga na de clips niet zelf op zoek naar fouten om opnieuw te maken; dat kost veel en lost zelden iets op.
 
 Films (de filmstudio): een film van een paar minuten bouw je SAMEN met de gebruiker, scène voor scène. Werkwijze:
 1. Verhaal: begrijp het verhaal. Heeft de gebruiker een script geüpload, lees het en volg het (vraag alleen wat echt ontbreekt). Anders werk je het verhaal samen uit: stel een korte opzet voor (logline + scènes in één regel elk) en vraag of het zo goed is.
 2. film_opzet: titel, logline, de filmlook (stijl, Engels) en de taal. Zelfde film = zelfde look in elk beeld.
-3. Cast: per personage een portret (maak_beeld, kwaliteit pro, neutrale donkere achtergrond, gezicht goed zichtbaar; laat de gebruiker bij hoofdpersonen kiezen uit versies) en een vaste stem (zoek_stemmen, laat de gebruiker kiezen met vraag_keuze soort 'stem'). Terugkerende wezens/voorwerpen krijgen ook een referentiebeeld. Zet alles met film_cast.
+3. Cast: per personage één portret (maak_beeld, neutrale donkere achtergrond, gezicht goed zichtbaar; laat het de gebruiker zien en maak alleen een nieuwe als hij dat wil) en een vaste stem (zoek_stemmen, laat de gebruiker kiezen met vraag_keuze soort 'stem'). Terugkerende wezens/voorwerpen krijgen ook een referentiebeeld. Zet alles met film_cast.
 4. Per scène: film_scene_schrijf (shots van 1,5-4,2 s; wie praat staat in een (medium) close-up in beeld en krijgt lipsync; wissel close-ups, wijde shots en details af; plek en licht per scène vast), daarna film_scene_maak, wacht_op, en stuur de scène ter keuring met vraag_keuze soort 'scene' (scene_nummer). Maak niet meer dan één scène tegelijk zonder dat de gebruiker de vorige heeft gezien, tenzij hij zegt dat het mag.
 5. Keuring: "goedgekeurd" → film_scene_keur goedgekeurd, door naar de volgende scène. Feedback → film_scene_keur met de feedback, herschrijf ALLEEN de shots die anders moeten (houd de id's van de rest gelijk, dan blijven die staan en kosten ze niets), maak hem opnieuw en stuur hem weer ter keuring.
 6. Zijn alle scènes goedgekeurd: film_monteer, wacht_op, en geef de link.
@@ -122,6 +133,11 @@ function resultaatTekst(id: string, tekst: string, fout = false): Resultaat {
 /** De tool-resultaten in de volgorde van de aanroepen, als één gebruikersbericht. */
 function resultatenBericht(volgorde: string[], klaar: Record<string, Resultaat>): Bericht {
   return { role: "user", content: volgorde.map((id) => klaar[id] ?? resultaatTekst(id, "Niet uitgevoerd.", true)) };
+}
+
+/** Past dit nog binnen de begroting waar de gebruiker akkoord op gaf? */
+export function binnenBegroting(g: RegieProject["gebruik"], credits: number): boolean {
+  return g.budget !== undefined && (g.besteed ?? 0) + credits <= g.budget;
 }
 
 /**
@@ -204,6 +220,19 @@ export async function draai(id: string): Promise<void> {
         return;
       }
 
+      // De begroting: één keer akkoord vooraf, daarna loopt alles daarbinnen vanzelf door.
+      const begroting = aanroepen.find((b) => b.name === "begroting");
+      if (begroting) {
+        const { posten, totaal } = leesBegroting(begroting.input);
+        if (!p.automatisch) {
+          for (const b of aanroepen) if (b.id !== begroting.id && !klaar[b.id]) klaar[b.id] = resultaatTekst(b.id, "Uitgesteld: eerst akkoord op de begroting.", true);
+          await bewaar(id, { berichten, gebruik, galerij, status: "wacht_op_bevestiging", wachtend: { soort: "begroting", toolUseId: begroting.id, posten, totaal, volgorde, klaar } });
+          return;
+        }
+        gebruik.budget = (gebruik.besteed ?? 0) + totaal;
+        klaar[begroting.id] = resultaatTekst(begroting.id, `Het project staat op automatisch: begroting van ${totaal} credits vastgelegd, ga meteen door.`);
+      }
+
       const stappen: Stap[] = [];
       for (const b of aanroepen.filter((x) => BETAALDE_TOOLS.has(x.name))) {
         try {
@@ -216,14 +245,17 @@ export async function draai(id: string): Promise<void> {
 
       // Een vaste taak draait zonder iemand erbij: zelf doorgaan zolang het binnen het
       // plafond van deze uitvoering blijft; daarboven wacht hij op de gebruiker (die een mail krijgt).
+      // Binnen een afgesproken begroting ook: dan heeft de gebruiker al ja gezegd.
+      const kosten = stappen.reduce((s, x) => s + x.credits, 0);
       const run = stappen.length ? await taakRun(p.id) : null;
-      const zelf = p.automatisch || (!!run && (await binnenBudget(run, stappen.reduce((s, x) => s + x.credits, 0))));
+      const zelf = p.automatisch || binnenBegroting(gebruik, kosten) || (!!run && (await binnenBudget(run, kosten)));
       if (stappen.length && !zelf) {
         await bewaar(id, {
           berichten, gebruik, galerij, status: "wacht_op_bevestiging",
           wachtend: {
-            soort: "bevestiging", stappen, totaal: stappen.reduce((s, x) => s + x.credits, 0), volgorde, klaar,
+            soort: "bevestiging", stappen, totaal: kosten, volgorde, klaar,
             ...(wacht ? { wachtId: wacht.id, wachtIds: ((wacht.input as { creatie_ids?: string[] }).creatie_ids ?? []).map(String) } : {}),
+            ...(gebruik.budget !== undefined ? { begroting: { budget: gebruik.budget, besteed: gebruik.besteed ?? 0 } } : {}),
           },
         });
         return;
@@ -232,6 +264,7 @@ export async function draai(id: string): Promise<void> {
         try {
           const cid = await voerUit(p.user_id, s);
           galerij.push(cid);
+          gebruik.besteed = (gebruik.besteed ?? 0) + s.credits;
           klaar[s.toolUseId] = resultaatTekst(s.toolUseId, `Gestart: creatie ${cid}. Gebruik wacht_op om het resultaat te zien.`);
         } catch (e) {
           klaar[s.toolUseId] = resultaatTekst(s.toolUseId, e instanceof Error ? e.message : String(e), true);
@@ -339,8 +372,12 @@ export async function nieuwBericht(p: RegieProject, tekst: string, bijlagen: Bij
   const w = p.wachtend;
   if (w?.soort === "antwoord") return beantwoord(p, tekst, bijlagen);
   // Bijlagen bij een "nee" zouden verloren gaan: dan eerst nee, en het bericht erachteraan.
-  if (w?.soort === "bevestiging" && !bijlagen.length) return bevestig(p, false, tekst);
+  if ((w?.soort === "bevestiging" || w?.soort === "begroting") && !bijlagen.length) return bevestig(p, false, tekst);
   const { inhoud, fotoIds } = await maakInhoud(p.user_id, tekst, bijlagen);
+  if (w?.soort === "begroting") {
+    const klaar = { ...w.klaar, [w.toolUseId]: resultaatTekst(w.toolUseId, "De gebruiker stuurde eerst een nieuw bericht; de begroting is niet akkoord.", true) };
+    p = { ...p, berichten: [...p.berichten, resultatenBericht(w.volgorde, klaar)] };
+  }
   if (w?.soort === "bevestiging") {
     const klaar = { ...w.klaar };
     for (const s of w.stappen) klaar[s.toolUseId] = resultaatTekst(s.toolUseId, "De gebruiker stuurde eerst een nieuw bericht; dit is niet gestart.", true);
@@ -369,6 +406,20 @@ export async function beantwoord(p: RegieProject, antwoord: string, bijlagen: Bi
 
 export async function bevestig(p: RegieProject, ja: boolean, reden?: string): Promise<void> {
   const w = p.wachtend;
+  const gebruik = { ...p.gebruik };
+  if (w?.soort === "begroting") {
+    // Het budget telt op bij wat er al gestart is: een begroting voor iets extra's gaat
+    // over alleen dat extra.
+    if (ja) gebruik.budget = (gebruik.besteed ?? 0) + w.totaal;
+    const klaar = {
+      ...w.klaar,
+      [w.toolUseId]: ja
+        ? resultaatTekst(w.toolUseId, `Antwoord van de gebruiker: Akkoord met de begroting (${w.totaal} credits). [waarde: alles binnen deze begroting start zonder nieuwe vraag; ga meteen verder]`)
+        : resultaatTekst(w.toolUseId, `De gebruiker ging niet akkoord met de begroting${reden ? `: ${reden}` : ""}. Vraag wat er anders moet (bijvoorbeeld minder scènes of zonder voice-over).`, true),
+    };
+    await bewaar(p.id, { berichten: [...p.berichten, resultatenBericht(w.volgorde, klaar)], gebruik, wachtend: null });
+    return draai(p.id);
+  }
   if (w?.soort !== "bevestiging") return draai(p.id);
   const klaar = { ...w.klaar };
   const galerij = [...p.galerij];
@@ -380,6 +431,7 @@ export async function bevestig(p: RegieProject, ja: boolean, reden?: string): Pr
     try {
       const cid = await voerUit(p.user_id, s);
       galerij.push(cid);
+      gebruik.besteed = (gebruik.besteed ?? 0) + s.credits;
       klaar[s.toolUseId] = resultaatTekst(s.toolUseId, `Gestart: creatie ${cid}. Gebruik wacht_op om het resultaat te zien.`);
     } catch (e) {
       klaar[s.toolUseId] = resultaatTekst(s.toolUseId, e instanceof Error ? e.message : String(e), true);
@@ -387,7 +439,7 @@ export async function bevestig(p: RegieProject, ja: boolean, reden?: string): Pr
   }
   // Wachten op ids die pas net bestaan, kan niet in hetzelfde antwoord; dat zegt het resultaat.
   if (w.wachtId) klaar[w.wachtId] = resultaatTekst(w.wachtId, "Wachten kan pas als de stappen gestart zijn: roep wacht_op opnieuw aan met de nieuwe ids.", true);
-  await bewaar(p.id, { berichten: [...p.berichten, resultatenBericht(w.volgorde, klaar)], galerij, wachtend: null });
+  await bewaar(p.id, { berichten: [...p.berichten, resultatenBericht(w.volgorde, klaar)], galerij, gebruik, wachtend: null });
   await draai(p.id);
 }
 
@@ -415,7 +467,13 @@ export async function controleerMaken(p: RegieProject): Promise<boolean> {
     inhoud.push({ type: "image", source: { type: "url", url: c.url! } });
   }
   const klaar = { ...w.klaar, [w.toolUseId]: { type: "tool_result" as const, tool_use_id: w.toolUseId, content: inhoud } };
-  await bewaar(p.id, { berichten: [...p.berichten, resultatenBericht(w.volgorde, klaar)], wachtend: null });
+  // Een mislukte creatie krijgt zijn credits terug; dan telt hij ook niet meer mee voor de begroting.
+  const gebruik = { ...p.gebruik };
+  for (const c of lijst.filter((x) => x.status === "mislukt" && !gebruik.terug?.includes(x.id))) {
+    gebruik.besteed = Math.max(0, (gebruik.besteed ?? 0) - (c.credits ?? 0));
+    gebruik.terug = [...(gebruik.terug ?? []), c.id];
+  }
+  await bewaar(p.id, { berichten: [...p.berichten, resultatenBericht(w.volgorde, klaar)], gebruik, wachtend: null });
   await draai(p.id);
   return true;
 }

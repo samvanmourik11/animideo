@@ -87,7 +87,7 @@ beforeEach(() => {
   gestart.length = 0;
 });
 
-const PRO = CREDIT_COSTS.IMAGE_GENERATION_PRO;
+const BEELD = CREDIT_COSTS.IMAGE_GENERATION;
 
 describe("de Regisseur", () => {
   test("een vraag pauzeert; het antwoord gaat terug als tool-resultaat en hij gaat verder", async () => {
@@ -110,39 +110,71 @@ describe("de Regisseur", () => {
       zegt(
         tool("a", "lees_webpagina", { url: "https://x.nl" }),
         tool("b", "maak_beeld", { prompt: "a mug", formaat: "1:1", kwaliteit: "pro", voorbeelden: ["https://x.nl/f.jpg"] }),
-        tool("c", "maak_beeld", { prompt: "a cup", formaat: "1:1", kwaliteit: "standaard" }),
+        tool("c", "maak_beeld", { prompt: "a cup", formaat: "1:1" }),
       ),
     );
     await draai("p1");
     expect(db.project!.status).toBe("wacht_op_bevestiging");
     const w = db.project!.wachtend as { totaal: number; stappen: unknown[] };
     expect(w.stappen).toHaveLength(2);
-    expect(w.totaal).toBe(PRO + 1); // pro + standaard
+    // Ook als Claude toch om Pro vraagt: de Regisseur maakt alleen gewone beelden.
+    expect(w.totaal).toBe(2 * BEELD);
     expect(gestart).toHaveLength(0);
 
     antwoorden.push(zegt({ type: "text", text: "Gestart!" }));
     await bevestig(db.project as never, true);
     expect(gestart.map((g) => g.maker)).toEqual(["beeld", "beeld"]);
     expect(gestart[0].invoer.referentieUrls).toEqual(["https://x.nl/f.jpg"]);
+    expect(gestart[0].invoer.kwaliteit).toBe("standaard");
     const res = (db.project!.berichten as { content: { tool_use_id: string }[] }[])[2].content;
     expect(res.map((r) => r.tool_use_id)).toEqual(["a", "b", "c"]);
     expect(db.project!.galerij).toEqual(["c1", "c2"]);
   });
 
   test("vaste taak: binnen het plafond zelf door, daarboven wachten op de gebruiker", async () => {
-    db.run = { project_id: "p1", taak_id: "t1", user_id: "u1", max_credits: 2 * PRO, uitgegeven: 0, gemeld: null };
-    antwoorden.push(zegt(tool("b", "maak_beeld", { prompt: "x", formaat: "1:1", kwaliteit: "pro" }), tool("c", "maak_beeld", { prompt: "y", formaat: "1:1", kwaliteit: "pro" })));
-    antwoorden.push(zegt(tool("d", "maak_beeld", { prompt: "z", formaat: "1:1", kwaliteit: "pro" })));
+    db.run = { project_id: "p1", taak_id: "t1", user_id: "u1", max_credits: 2 * BEELD, uitgegeven: 0, gemeld: null };
+    antwoorden.push(zegt(tool("b", "maak_beeld", { prompt: "x", formaat: "1:1", kwaliteit: "standaard" }), tool("c", "maak_beeld", { prompt: "y", formaat: "1:1", kwaliteit: "standaard" })));
+    antwoorden.push(zegt(tool("d", "maak_beeld", { prompt: "z", formaat: "1:1", kwaliteit: "standaard" })));
     await draai("p1");
-    // Eerste ronde: twee Pro-beelden, precies binnen het plafond; de tweede (nog een) niet meer.
+    // Eerste ronde: twee beelden, precies binnen het plafond; de tweede (nog een) niet meer.
     expect(gestart).toHaveLength(2);
-    expect(db.run.uitgegeven).toBe(2 * PRO);
+    expect(db.run.uitgegeven).toBe(2 * BEELD);
     expect(db.project!.status).toBe("wacht_op_bevestiging");
-    expect((db.project!.wachtend as { totaal: number }).totaal).toBe(PRO);
+    expect((db.project!.wachtend as { totaal: number }).totaal).toBe(BEELD);
+  });
+
+  test("begroting: één akkoord vooraf, daarna zonder vragen door tot het budget op is", async () => {
+    antwoorden.push(zegt(tool("g", "begroting", { posten: [{ omschrijving: "2 beelden", credits: 2 * BEELD }] }), tool("x", "maak_beeld", { prompt: "te vroeg", formaat: "1:1" })));
+    await draai("p1");
+    expect(db.project!.status).toBe("wacht_op_bevestiging");
+    expect(db.project!.wachtend).toMatchObject({ soort: "begroting", totaal: 2 * BEELD });
+    expect(gestart).toHaveLength(0);
+
+    // Akkoord: twee beelden lopen zonder vraag; het derde valt erbuiten en wordt wél gevraagd.
+    antwoorden.push(zegt(tool("b", "maak_beeld", { prompt: "x", formaat: "1:1" }), tool("c", "maak_beeld", { prompt: "y", formaat: "1:1" })));
+    antwoorden.push(zegt(tool("d", "maak_beeld", { prompt: "z", formaat: "1:1" })));
+    await bevestig(db.project as never, true);
+    const res = (db.project!.berichten as { content: { tool_use_id: string; content: string; is_error?: boolean }[] }[])[2].content;
+    expect(res[0].content).toContain("Akkoord met de begroting");
+    expect(res[1].is_error).toBe(true); // het te vroege beeld is niet gestart
+    expect(gestart).toHaveLength(2);
+    expect(db.project!.gebruik).toMatchObject({ budget: 2 * BEELD, besteed: 2 * BEELD });
+    expect(db.project!.status).toBe("wacht_op_bevestiging");
+    expect(db.project!.wachtend).toMatchObject({ soort: "bevestiging", totaal: BEELD, begroting: { budget: 2 * BEELD, besteed: 2 * BEELD } });
+  });
+
+  test("mislukte creatie telt niet meer mee voor de begroting", async () => {
+    db.project!.gebruik = { budget: 10, besteed: 6 };
+    db.project!.status = "wacht_op_maken";
+    db.project!.wachtend = { soort: "maken", toolUseId: "w", ids: ["m1"], volgorde: ["w"], klaar: {} };
+    db.creaties = [{ id: "m1", status: "mislukt", soort: "video", credits: 6, foutmelding: "kapot" }];
+    antwoorden.push(zegt({ type: "text", text: "Jammer." }));
+    await controleerMaken(db.project as never);
+    expect(db.project!.gebruik).toMatchObject({ besteed: 0, terug: ["m1"] });
   });
 
   test("nee zeggen: niets gestart, Claude hoort dat het niet mocht", async () => {
-    antwoorden.push(zegt(tool("b", "maak_beeld", { prompt: "x", formaat: "1:1", kwaliteit: "pro" })));
+    antwoorden.push(zegt(tool("b", "maak_beeld", { prompt: "x", formaat: "1:1", kwaliteit: "standaard" })));
     await draai("p1");
     antwoorden.push(zegt({ type: "text", text: "Oké." }));
     await bevestig(db.project as never, false, "te duur");
@@ -154,7 +186,7 @@ describe("de Regisseur", () => {
 
   test("automatisch: geen bevestiging; wachten tot klaar, dan krijgt Claude de beelden te zien", async () => {
     db.project!.automatisch = true;
-    antwoorden.push(zegt(tool("b", "maak_beeld", { prompt: "x", formaat: "1:1", kwaliteit: "pro" })));
+    antwoorden.push(zegt(tool("b", "maak_beeld", { prompt: "x", formaat: "1:1", kwaliteit: "standaard" })));
     antwoorden.push(zegt(tool("w", "wacht_op", { creatie_ids: ["c1"] })));
     await draai("p1");
     expect(db.project!.status).toBe("wacht_op_maken");
