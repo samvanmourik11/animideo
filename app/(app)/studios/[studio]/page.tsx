@@ -30,7 +30,21 @@ export default async function StudioStart({ params }: { params: Promise<{ studio
     .order("updated_at", { ascending: false, nullsFirst: false })
     // Alles: bestaande projecten moeten na de overstap gewoon terug te vinden zijn.
     .limit(1000);
-  const projecten = (data ?? []) as unknown as ProjectRij[];
+  let projecten = (data ?? []) as unknown as ProjectRij[];
+
+  // Verhalen uit de oude Creator Studio horen voor klanten bij Storytelling; ze openen
+  // wel in hun eigen editor, want ze zijn anders opgebouwd dan een Storytelling-verhaal.
+  if (s.mode === "story") {
+    const { data: oud } = await supabase
+      .from("projects")
+      .select("id, title, updated_at, created_at, thumb:scenes->0->>image_url")
+      .eq("user_id", user.id)
+      .eq("mode", "studio")
+      .limit(1000);
+    const creator = ((oud ?? []) as unknown as ProjectRij[]).map((p) => ({ ...p, href: `/studio/${p.id}` }));
+    projecten = [...projecten, ...creator].sort((a, b) =>
+      (b.updated_at ?? b.created_at).localeCompare(a.updated_at ?? a.created_at));
+  }
 
   return (
     <div className="space-y-10">

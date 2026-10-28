@@ -9,6 +9,8 @@ export interface ProjectRij {
   updated_at: string | null;
   created_at: string;
   thumb: string | null;
+  /** Eigen adres, voor projecten uit een andere tool (Creator Studio) die hier meelopen. */
+  href?: string;
 }
 
 // Alle projecten van een studio, nieuwste eerst. Klanten die al jaren bezig zijn, hebben
@@ -36,7 +38,7 @@ export default function StudioProjecten({ projecten, pad, icoon, nieuw }: { proj
         {lijst.map((p) => (
           <Link
             key={p.id}
-            href={`${pad}?project=${p.id}`}
+            href={p.href ?? `${pad}?project=${p.id}`}
             className="group rounded-2xl overflow-hidden border border-rand bg-paneel hover:border-blue-500/50 transition-colors"
           >
             <div className="aspect-[4/5] bg-paneel-2 overflow-hidden">
