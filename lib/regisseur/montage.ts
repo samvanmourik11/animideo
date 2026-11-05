@@ -44,7 +44,18 @@ export interface MontageInvoer {
   eindtekst?: string;
   voiceover?: string;
   stem?: string;
-  muziek?: MusicCategory | null;
+  // Een stijl ("episch" → eerste nummer van die stijl) of een nummer op slug/titel ("golden-boots").
+  muziek?: MusicCategory | string | null;
+}
+
+function kiesNummer(muziek: string | null | undefined) {
+  if (!muziek) return null;
+  const k = muziek.trim().toLowerCase();
+  return (
+    MUSIC_TRACKS.find((t) => t.slug === k || t.title.toLowerCase() === k) ??
+    MUSIC_TRACKS.find((t) => t.category === k) ??
+    null
+  );
 }
 
 export function montageCredits(m: Pick<MontageInvoer, "voiceover">): number {
@@ -56,7 +67,7 @@ export function leesMontage(ruw: Record<string, unknown>): MontageInvoer {
   if (!clipIds.length) throw new Error("Kies eerst de clips die in de montage moeten.");
   const t = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
   const stem = t(ruw.stem, 40);
-  const muziek = MUSIC_TRACKS.some((m) => m.category === ruw.muziek) ? (ruw.muziek as MusicCategory) : null;
+  const muziek = kiesNummer(typeof ruw.muziek === "string" ? ruw.muziek : null) ? String(ruw.muziek).trim() : null;
   return {
     clipIds,
     titel: t(ruw.titel, 60) || undefined,
@@ -193,8 +204,8 @@ async function voerUit(c: Creatie, clips: { url: string; soort: string }[], m: M
       audio.push("[st]");
       extra++;
     }
-    if (m.muziek) {
-      const track = MUSIC_TRACKS.find((t) => t.category === m.muziek)!;
+    const track = kiesNummer(m.muziek);
+    if (track) {
       const bed = await renderMusicBed(await download(musicTrackUrl(track.slug), path.join(map, "m.mp3")), totaal, path.join(map, "bed.wav"));
       inputs.push("-i", bed);
       f.push(`[${extra}:a]volume=${stem ? 0.22 : 0.6}[mu]`);

@@ -12,7 +12,7 @@ import { RECEPTEN, recept } from "@/lib/creaties/recepten";
 import { VIDEO_MODELLEN, STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
 import { CREDIT_COSTS } from "@/lib/credit-costs";
 import { POST_CREDITS } from "@/lib/social/types";
-import { MUSIC_CATEGORIES } from "@/lib/music/library";
+import { MUSIC_CATEGORIES, MUSIC_TRACKS } from "@/lib/music/library";
 import { UGC_STEMMEN } from "@/lib/ugc/types";
 import { BIBLIOTHEEK, vindStem } from "@/lib/stem/bibliotheek";
 import { FILM_BETAALD, FILM_GRATIS, FILM_TOOLS, filmBereidVoor, filmGratis, filmOpties } from "@/lib/film/tools";
@@ -137,7 +137,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "monteer",
-    description: `Zet klare clips en/of beelden achter elkaar tot één video, met optioneel titelkaart, eindkaart, Nederlandse voice-over en muziek. Voice-over kost ${CREDIT_COSTS.VOICE} credits. Stem: het stem-id dat de gebruiker koos (eerst zoek_stemmen, dan vraag_keuze soort 'stem'); zonder stem een diepe verteller. Muziek: ${MUSIC_CATEGORIES.map((c) => c.id).join(", ")}.`,
+    description: `Zet klare clips en/of beelden achter elkaar tot één video, met optioneel titelkaart, eindkaart, Nederlandse voice-over en muziek. Voice-over kost ${CREDIT_COSTS.VOICE} credits. Stem: het stem-id dat de gebruiker koos (eerst zoek_stemmen, dan vraag_keuze soort 'stem'); zonder stem een diepe verteller. Muziek: een stijl (${MUSIC_CATEGORIES.map((c) => c.id).join(", ")}) of een specifiek nummer uit de bibliotheek op slug: ${MUSIC_TRACKS.map((t) => `${t.slug} ("${t.title}", ${t.category})`).join("; ")}. Noemt de gebruiker een nummer bij naam, gebruik dan die slug.`,
     input_schema: {
       type: "object",
       properties: {
@@ -146,7 +146,7 @@ export const TOOLS: Tool[] = [
         eindtekst: { type: "string" },
         voiceover: { type: "string", description: "Wat de stem zegt, Nederlands." },
         stem: { type: "string" },
-        muziek: { type: "string", enum: MUSIC_CATEGORIES.map((c) => c.id) },
+        muziek: { type: "string", enum: [...MUSIC_CATEGORIES.map((c) => c.id), ...MUSIC_TRACKS.map((t) => t.slug)] },
       },
       required: ["clip_ids"],
     },
