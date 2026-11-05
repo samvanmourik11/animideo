@@ -73,7 +73,11 @@ const TRACKS = [
   ["dubstep-sport",                "Background Instrumental Music for YouTube Videos  Dubstep Powerful Extreme Sport  FREE DOWNLOAD.mp3"],
   ["house-party-commercial",       "Background Instrumental Royalty Free Music for YouTube Video  Fashion House EDM Party Commercial Ads.mp3"],
   ["electro-lifestyle",            "Background Instrumental Royalty Free Music for YouTube Video  Fashion House Electro Lifestyle Ads.mp3"],
+  ["golden-boots",                 "Golden Boots.mp3"],
 ];
+
+// ONLY=slug1,slug2 → alleen die nummers verwerken (handig bij één nieuw nummer).
+const only = process.env.ONLY?.split(",").map((s) => s.trim()).filter(Boolean);
 
 // ffmpeg meldt de duur alleen op stderr; -i zonder output geeft exit-code 1.
 async function duration(file) {
@@ -94,6 +98,7 @@ const work = mkdtempSync(join(tmpdir(), "music-"));
 let ok = 0;
 try {
   for (const [slug, filename] of TRACKS) {
+    if (only?.length && !only.includes(slug)) continue;
     const src = join(srcDir, filename);
     if (!existsSync(src)) {
       console.log(`OVERGESLAGEN  ${slug} — bronbestand niet gevonden: ${filename}`);

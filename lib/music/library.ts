@@ -61,6 +61,7 @@ export const MUSIC_TRACKS: MusicTrack[] = [
   // ── Vrolijk & upbeat ────────────────────────────────────────────────────
   { slug: "vrolijk-positief-motiverend",   title: "Vrolijk & positief",       category: "vrolijk", duration: 120 },
   { slug: "happy-ukelele",                 title: "Happy ukelele",            category: "vrolijk", duration: 71 },
+  { slug: "golden-boots",                  title: "Golden Boots",             category: "vrolijk", duration: 296 },
 
   // ── Episch & cinematisch ────────────────────────────────────────────────
   { slug: "episch-inspirerend",            title: "Episch inspirerend",       category: "episch", duration: 171 },
