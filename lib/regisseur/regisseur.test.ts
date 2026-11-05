@@ -57,7 +57,7 @@ vi.mock("@/lib/creaties/wachtrij", () => ({
   },
 }));
 vi.mock("@/lib/reclame/pagina", () => ({ leesProductpagina: async () => ({ naam: "Mok", fotos: [] }) }));
-vi.mock("./montage", () => ({ montageCredits: () => 0, leesMontage: (x: { clipIds: string[] }) => ({ ...x, clipIds: x.clipIds }) }));
+vi.mock("./montage", () => ({ MAX_STUKKEN: 60, MAX_VIDEOCLIPS: 24, MAX_VOICEOVER: 6000, montageCredits: () => 0, leesMontage: (x: { clipIds: string[] }) => ({ ...x, clipIds: x.clipIds }) }));
 vi.mock("next/server", () => ({ after: () => {} }));
 vi.mock("@/lib/openai", () => ({ openai: {}, transcribeWords: async () => ({ words: [] }) }));
 vi.mock("@/lib/team/team", () => ({}));

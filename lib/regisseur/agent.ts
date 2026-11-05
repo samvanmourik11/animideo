@@ -10,6 +10,7 @@
 //   - het gesprek wordt alleen aangevuld, nooit herschreven (het meedenken van het model
 //     is aan de geschiedenis gebonden).
 
+import { beperkBeelden } from "./beelden";
 import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/service";
 import { verversLopende } from "@/lib/creaties/wachtrij";
@@ -169,7 +170,7 @@ export async function draai(id: string): Promise<void> {
           ],
           cache_control: { type: "ephemeral" },
           tools: TOOLS,
-          messages: berichten,
+          messages: beperkBeelden(berichten),
           output_config: { effort: "medium" },
           // Weigert het model iets op een beleidsgrond, dan neemt een passend model het over.
           betas: ["server-side-fallback-2026-07-01"],

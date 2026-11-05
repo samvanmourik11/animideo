@@ -19,7 +19,7 @@ import { FILM_BETAALD, FILM_GRATIS, FILM_TOOLS, filmBereidVoor, filmGratis, film
 import { EIGEN, GEBRUIK_LABEL, type BibliotheekStem } from "@/lib/stem/types";
 import { startCreatie } from "@/lib/creaties/wachtrij";
 import { leesProductpagina } from "@/lib/reclame/pagina";
-import { montageCredits, leesMontage } from "./montage";
+import { montageCredits, leesMontage, MAX_STUKKEN, MAX_VIDEOCLIPS, MAX_VOICEOVER } from "./montage";
 import { schrijfUgcScript } from "@/lib/ugc/script";
 import { leesCreator, leesOnderwerp } from "@/lib/ugc/regie";
 import { CREATORS } from "@/lib/ugc/creators";
@@ -137,7 +137,7 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "monteer",
-    description: `Zet klare clips en/of beelden achter elkaar tot één video, met optioneel titelkaart, eindkaart, Nederlandse voice-over en muziek. Voice-over kost ${CREDIT_COSTS.VOICE} credits. Stem: het stem-id dat de gebruiker koos (eerst zoek_stemmen, dan vraag_keuze soort 'stem'); zonder stem een diepe verteller. Muziek: een stijl (${MUSIC_CATEGORIES.map((c) => c.id).join(", ")}) of een specifiek nummer uit de bibliotheek op slug: ${MUSIC_TRACKS.map((t) => `${t.slug} ("${t.title}", ${t.category})`).join("; ")}. Noemt de gebruiker een nummer bij naam, gebruik dan die slug.`,
+    description: `Zet klare clips en/of beelden achter elkaar tot één video, met optioneel titelkaart, eindkaart, Nederlandse voice-over en muziek. Voice-over kost ${CREDIT_COSTS.VOICE} credits per begonnen 1.000 tekens (de volledige tekst wordt altijd helemaal ingesproken, tot ${MAX_VOICEOVER} tekens). Hoogstens ${MAX_STUKKEN} stukken, waarvan hoogstens ${MAX_VIDEOCLIPS} bewegende clips; stilstaande beelden duren elk 3 s, de video wordt vanzelf zo lang als de stem. Een eerder afgemonteerde video (montage, film, reclame e.d.) houdt zijn eigen geluid en stem als je hem als clip meeneemt; losse AI-clips zijn stil. Foto's worden schermvullend bijgesneden. Stem: het stem-id dat de gebruiker koos (eerst zoek_stemmen, dan vraag_keuze soort 'stem'); zonder stem een diepe verteller. Muziek: een stijl (${MUSIC_CATEGORIES.map((c) => c.id).join(", ")}) of een specifiek nummer uit de bibliotheek op slug: ${MUSIC_TRACKS.map((t) => `${t.slug} ("${t.title}", ${t.category})`).join("; ")}. Noemt de gebruiker een nummer bij naam, gebruik dan die slug.`,
     input_schema: {
       type: "object",
       properties: {
