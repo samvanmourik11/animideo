@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { zetThema, type Thema } from "./thema";
-import { isAdminAccount } from "@/lib/studio/access";
+import { canUseMotion, isAdminAccount } from "@/lib/studio/access";
 
 // Het menu van de nieuwe app. Niet langer "start een project" bovenin, maar links een
 // vaste rij met wat je kunt maken — zoals Higgsfield — met je eigen werk eronder.
@@ -37,6 +37,7 @@ const MAKEN: Item[] = [
 const STUDIOS: Item[] = [
   { href: "/studios/storytelling", label: "Storytelling", icoon: "📖", ook: ["/infographics/story"] },
   { href: "/studios/dialoog", label: "Dialoog", icoon: "💬", ook: ["/infographics/dialogue"] },
+  { href: "/studios/motion", label: "Motion graphics", icoon: "✨" },
   { href: "/studios/ugc", label: "UGC", icoon: "🤳" },
   { href: "/studios/film", label: "Film", icoon: "🎬", ook: ["/studios/trailer"] },
   { href: "/studios/social", label: "Social", icoon: "📣" },
@@ -205,7 +206,7 @@ export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLe
 
       <div className="mt-6 px-5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-tekst-3">Studio&apos;s</div>
       <nav className="space-y-0.5 px-2">
-        {STUDIOS.filter((i) => i.href !== "/dashboard" || isAdminAccount(email)).map((i) => <Regel key={i.href} item={i} />)}
+        {STUDIOS.filter((i) => (i.href !== "/dashboard" || isAdminAccount(email)) && (i.href !== "/studios/motion" || canUseMotion(email))).map((i) => <Regel key={i.href} item={i} />)}
       </nav>
 
       <div className="mt-6 px-5 pb-1 text-[11px] font-semibold uppercase tracking-wider text-tekst-3">Van jou</div>

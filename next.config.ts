@@ -29,8 +29,10 @@ const nextConfig: NextConfig = {
     "/api/infographics/scene-voice": ["./node_modules/ffmpeg-static/ffmpeg"],
     // Nieuwe app: de reclame wordt gemonteerd in het verzoek dat de wachtrij laat
     // doorlopen (lib/reclame/montage.ts), met Poppins voor de tekst in beeld.
-    "/api/creaties": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf"],
-    "/api/creaties/lopend": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf"],
+    // Sinds de Motion graphics-studio ook de bouwstenen (public/motion) en de headless
+    // browser: de animatie wordt in deze verzoeken getekend en tot video gemaakt.
+    "/api/creaties": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf", "./public/motion/**", "./node_modules/playwright-core/**", "./node_modules/@sparticuz/chromium/**"],
+    "/api/creaties/lopend": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf", "./public/motion/**", "./node_modules/playwright-core/**", "./node_modules/@sparticuz/chromium/**"],
     // Een mislukte UGC-video opnieuw monteren (lib/ugc/montage.ts, ondertitels in Poppins).
     "/api/creaties/[id]/monteer-opnieuw": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf"],
     // Stem & Lipsync: opnames omzetten naar mp3.

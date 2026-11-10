@@ -1,0 +1,120 @@
+// MOTION GRAPHICS-STUDIO — wat de klant ziet en kiest. Client-veilig: het maakscherm
+// rekent er de prijs mee uit.
+//
+// Het idee (Sam, 11-11-2026): de uitlegvideo's die Claude Code voor ons eigen werk maakt
+// (Lichtveld, Bureau VRIS) zijn volledig in code getekend, zonder AI-beelden. Dat kost
+// geen fal-credits voor beeld en ziet er strakker uit dan gegenereerde clips. Deze studio
+// doet hetzelfde in de app: Claude schrijft het script, Hugo spreekt het in, Claude tekent
+// de animatie op de woordtijden van de stem, bekijkt zijn eigen proefbeelden en verbetert
+// ze, en de app maakt er een video van.
+//
+// Hoe het loopt (lib/motion/regie.ts): stem → animatie → video. Eén item in de bibliotheek
+// dat vanzelf door de stappen loopt.
+
+import { creditsVoorInkoop, INKOOP_USD } from "@/lib/credit-costs";
+
+export const MOTION_FORMATEN = [
+  { id: "16:9", naam: "Liggend", uitleg: "Website, YouTube, presentatie", w: 1920, h: 1080 },
+  { id: "9:16", naam: "Staand", uitleg: "Reels, TikTok, Stories", w: 1080, h: 1920 },
+] as const;
+export type MotionFormaat = (typeof MOTION_FORMATEN)[number]["id"];
+
+export function isMotionFormaat(v: unknown): v is MotionFormaat {
+  return MOTION_FORMATEN.some((f) => f.id === v);
+}
+export function formaatMaat(f: MotionFormaat): { w: number; h: number } {
+  const m = MOTION_FORMATEN.find((x) => x.id === f)!;
+  return { w: m.w, h: m.h };
+}
+
+// Langer dan een minuut past (nog) niet zeker binnen de tijd die de server krijgt om de
+// video beeld voor beeld te maken; eerst op de live-server meten, dan pas oprekken.
+export const MOTION_LENGTES = [
+  { sec: 30, naam: "±30 seconden", uitleg: "Eén boodschap, kort en krachtig" },
+  { sec: 45, naam: "±45 seconden", uitleg: "Probleem, oplossing en hoe het werkt" },
+  { sec: 60, naam: "±60 seconden", uitleg: "Een complete uitlegvideo" },
+] as const;
+export type MotionLengte = (typeof MOTION_LENGTES)[number]["sec"];
+
+export function isMotionLengte(v: unknown): v is MotionLengte {
+  return MOTION_LENGTES.some((l) => l.sec === v);
+}
+
+/** Hugo spreekt in een rustige uitlegvideo zo'n 2,5 woorden per seconde. */
+export const WOORDEN_PER_SEC = 2.5;
+export function maxWoorden(sec: number): number {
+  return Math.round(sec * WOORDEN_PER_SEC);
+}
+
+export interface MotionScene {
+  /** Wat de stem zegt in deze scene. */
+  tekst: string;
+  /** Wat er te zien is, in gewoon Nederlands: dit leest de klant, en Claude tekent het. */
+  beeld: string;
+  /** Korte titel rechtsboven ("01  Het probleem"); mag leeg. */
+  kop: string;
+}
+
+export interface MotionPlan {
+  titel: string;
+  scenes: MotionScene[];
+  eind: {
+    /** Wat de stem zegt op de eindkaart; noemt de bedrijfsnaam. */
+    tekst: string;
+    /** Twee korte regels boven het logo. */
+    regel1: string;
+    regel2: string;
+    /** De tekst op de knop ("Vraag een offerte aan"). */
+    knop: string;
+  };
+}
+
+export const MAX_SCENES = 8;
+
+/** Wat de klant aanleverde: zo staat het in de rij, en zo start "Nog eens" hem opnieuw. */
+export interface MotionInvoer {
+  onderwerp: string;
+  bedrijf: string;
+  website: string;
+  kleur: string;
+  kleur2: string;
+  formaat: MotionFormaat;
+  lengte: MotionLengte;
+  muziek: string;
+  plan: MotionPlan;
+}
+
+/** De muziek waaruit de klant kiest (slugs uit lib/music/library.ts). */
+export const MOTION_MUZIEK = [
+  { slug: "upbeat-corporate-vlog", naam: "Zakelijk & fris" },
+  { slug: "inspirerend-corporate-simpel", naam: "Rustig & inspirerend" },
+  { slug: "vrolijk-positief-motiverend", naam: "Vrolijk" },
+  { slug: "electro-lifestyle", naam: "Modern & elektronisch" },
+  { slug: "", naam: "Geen muziek" },
+] as const;
+
+// ── Prijs ────────────────────────────────────────────────────────────────────
+// Geen beeldmodel, dus geen fal-kosten voor beeld. Wat het ons kost is Claude (schrijven
+// van de animatie plus één of twee controlerondes met proefbeelden), de stem en Whisper.
+// Gemeten op de eerste proefvideo's (11-11-2026): zie MOTION_INKOOP_USD. Bijstellen zodra
+// er meer gemaakt zijn; de echte kosten per video staan in de rij (voortgang.gebruik).
+export const MOTION_INKOOP_USD: Record<MotionLengte, number> = {
+  30: 1.1,
+  45: 1.4,
+  60: 1.7,
+};
+
+export function motionCredits(lengte: MotionLengte): number {
+  // Stem: ±15 tekens per seconde.
+  const stem = ((lengte * 15) / 1000) * INKOOP_USD.stemPer1000;
+  return creditsVoorInkoop(MOTION_INKOOP_USD[lengte] + stem);
+}
+
+export type MotionStap = "stem" | "animatie" | "wacht-video" | "video";
+
+export const MOTION_STAP_LABEL: Record<MotionStap, string> = {
+  stem: "Stap 1 van 3: voice-over inspreken…",
+  animatie: "Stap 2 van 3: animatie tekenen en controleren…",
+  "wacht-video": "Stap 3 van 3: video maken…",
+  video: "Stap 3 van 3: video maken…",
+};

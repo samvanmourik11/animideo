@@ -6,6 +6,7 @@ import { klantReden } from "@/lib/creaties/melding";
 import { STAP_LABEL, type ReclameStap } from "@/lib/reclame/types";
 import { UGC_STAP_LABEL, type UgcStap } from "@/lib/ugc/types";
 import { TRAILER_STAP_LABEL, type TrailerStap } from "@/lib/trailer/types";
+import { MOTION_STAP_LABEL, type MotionStap } from "@/lib/motion/types";
 
 // Eén tegel in de bibliotheek of de resultatenrij: het beeld of de video zelf, met
 // zichtbaar of het nog bezig is of mislukt. Klikken opent de detailweergave.
@@ -40,6 +41,7 @@ function bezigLabel(c: Creatie): string {
   if (c.maker === "trailer" && stap) return TRAILER_STAP_LABEL[stap as unknown as TrailerStap] ?? "Wordt gemaakt…";
   if (c.maker === "ugc" && stap) return UGC_STAP_LABEL[stap as unknown as UgcStap] ?? "Wordt gemaakt…";
   if (c.maker === "film-scene" && stap) return SCENE_STAP_LABEL[stap as unknown as SceneStap] ?? "Wordt gemaakt…";
+  if (c.maker === "motion" && stap) return MOTION_STAP_LABEL[stap as unknown as MotionStap] ?? "Wordt gemaakt…";
   if (c.maker === "film") return "Film wordt gemonteerd…";
   return c.soort === "video" ? "Video wordt gemaakt…" : "Wordt gemaakt…";
 }

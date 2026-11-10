@@ -6,7 +6,9 @@ import type { Creatie } from "@/lib/creaties/types";
 export const runtime = "nodejs";
 // Een reclame wordt na het antwoord gemonteerd (after() in lib/reclame/regie.ts); die
 // montage valt binnen de tijd van dít verzoek.
-export const maxDuration = 300;
+// 800 s sinds de Motion graphics-studio: het tekenen (Claude) en het maken van de video
+// lopen na het antwoord door in dit verzoek (lib/motion/regie.ts).
+export const maxDuration = 800;
 
 // Voor het wachtrij-teller in het menu: hoeveel is er nog in de maak. Laat de wachtrij
 // meteen doorlopen, zodat iets ook klaarkomt als de klant op een heel andere pagina zit.

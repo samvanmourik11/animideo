@@ -10,7 +10,9 @@ export const runtime = "nodejs";
 // van een paar MB, en tot acht tegelijk.
 // Een reclame wordt na het antwoord gemonteerd (after() in lib/reclame/regie.ts); die
 // montage valt binnen de tijd van dít verzoek.
-export const maxDuration = 300;
+// 800 s sinds de Motion graphics-studio: het tekenen (Claude) en het maken van de video
+// lopen na het antwoord door in dit verzoek (lib/motion/regie.ts).
+export const maxDuration = 800;
 
 const PAGINA = 40;
 
