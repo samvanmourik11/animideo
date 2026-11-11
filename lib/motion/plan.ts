@@ -87,7 +87,9 @@ export async function schrijfPlan(v: PlanVraag): Promise<MotionPlan> {
     .beta.messages.stream({
       model: MODEL,
       max_tokens: 16000,
-      output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA } },
+      // "low": het script is een kort stuk tekst; op "medium" wachtte de klant er bijna
+      // twee minuten op (gemeten 11-11-2026).
+      output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
       // Weigert het model iets op een beleidsgrond, dan neemt een passend model het over.
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",

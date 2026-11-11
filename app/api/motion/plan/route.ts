@@ -5,7 +5,7 @@ import { schrijfPlan } from "@/lib/motion/plan";
 import { isMotionLengte } from "@/lib/motion/types";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 // Motion graphics, stap 1: het script. Gratis, zo vaak als de klant wil.
 export async function POST(req: NextRequest) {

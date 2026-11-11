@@ -227,7 +227,7 @@ export default function MotionStudio() {
                 {bezig === "maken" ? "Bezig met insturen…" : `✨ Maak de video · ${credits} credits`}
               </button>
               <p className="text-[11px] text-tekst-3">
-                Dit duurt meestal 6 tot 12 minuten: de animatie wordt speciaal voor jouw script getekend en daarna nagekeken. Je kunt ondertussen
+                Dit duurt meestal 10 tot 15 minuten: de animatie wordt speciaal voor jouw script getekend en daarna nagekeken. Je kunt ondertussen
                 gewoon verder; de video komt vanzelf in je bibliotheek. Mislukt het, dan krijg je je credits terug.
               </p>
             </div>

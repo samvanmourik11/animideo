@@ -96,12 +96,14 @@ export const MOTION_MUZIEK = [
 // ── Prijs ────────────────────────────────────────────────────────────────────
 // Geen beeldmodel, dus geen fal-kosten voor beeld. Wat het ons kost is Claude (schrijven
 // van de animatie plus één of twee controlerondes met proefbeelden), de stem en Whisper.
-// Gemeten op de eerste proefvideo's (11-11-2026): zie MOTION_INKOOP_USD. Bijstellen zodra
-// er meer gemaakt zijn; de echte kosten per video staan in de rij (voortgang.gebruik).
+// Gemeten op de eerste drie proefvideo's van ±35 s (11-11-2026): $1,91 tot $2,09 aan Claude
+// per video, steeds met de eerste versie plus twee controlerondes. De bedragen voor 45 en
+// 60 s zijn daarvan afgeleid (langere code, meer proefbeelden) en nog niet gemeten. De
+// echte kosten per video staan in de rij (voortgang.gebruik); bijstellen zodra er meer zijn.
 export const MOTION_INKOOP_USD: Record<MotionLengte, number> = {
-  30: 1.1,
-  45: 1.4,
-  60: 1.7,
+  30: 2.1,
+  45: 2.6,
+  60: 3.1,
 };
 
 export function motionCredits(lengte: MotionLengte): number {

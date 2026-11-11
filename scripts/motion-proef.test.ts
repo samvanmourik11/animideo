@@ -27,6 +27,6 @@ test("proefbeelden", async () => {
     merk: { naam: process.env.MOTION_NAAM ?? "Kapsalon Knip", website: "kapsalonknip.nl", kleur: process.env.MOTION_KLEUR ?? "#7b3ff2", kleur2: "#ffc21a" },
   });
   console.log("scenes", JSON.stringify(r.scenes), "einde", r.einde);
-  console.log("fouten", JSON.stringify(r.fouten, null, 1));
+  console.log("fouten", JSON.stringify(r.fouten, null, 1)); await writeFile(path.join(uit, "fouten.json"), JSON.stringify(r.fouten, null, 1));
   for (const b of r.beelden) await writeFile(path.join(uit, `${b.scene}_${b.t}.jpg`), b.jpg);
 });

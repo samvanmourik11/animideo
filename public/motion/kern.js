@@ -37,9 +37,17 @@ const nl = n => Math.round(n).toLocaleString('nl-NL');
 const isLicht = k => { const [r, g, b] = hex(k); return (r * 299 + g * 587 + b * 114) / 1000 > 165; };
 
 // ---------- svg-hulpjes ----------
-const tf = (e, x = 0, y = 0, s = 1, r = 0) => e.setAttribute('transform', `translate(${x},${y}) rotate(${r}) scale(${s})`);
-function op(e, o) { e.setAttribute('opacity', cl(o)); e.style.display = o <= 0.002 ? 'none' : ''; }
-function el(tag, at = {}, parent, tekst) { const e = document.createElementNS(NS, tag); for (const k in at) e.setAttribute(k, at[k]); if (tekst != null) e.textContent = tekst; if (parent) parent.appendChild(e); return e; }
+// Een bouwsteen die een object teruggeeft ({ r, zet } e.d.) wordt vaak per ongeluk zelf aan
+// tf of op gegeven; dan pakken we de groep erin. Echt niets gekregen: een fout die zegt wat
+// er mis is, in plaats van "cannot read properties of undefined".
+function elem(e, wie) {
+  if (e && typeof e.setAttribute === 'function') return e;
+  if (e && e.r && typeof e.r.setAttribute === 'function') return e.r;
+  throw new Error(`${wie}() kreeg geen element maar ${e === undefined ? 'undefined' : Object.prototype.toString.call(e)}. Bestaat dit element wel in E, en is het een groep of een object met .r?`);
+}
+const tf = (e, x = 0, y = 0, s = 1, r = 0) => elem(e, 'tf').setAttribute('transform', `translate(${x},${y}) rotate(${r}) scale(${s})`);
+function op(e, o) { e = elem(e, 'op'); e.setAttribute('opacity', cl(o)); e.style.display = o <= 0.002 ? 'none' : ''; }
+function el(tag, at = {}, parent, tekst) { if (parent && typeof parent.appendChild !== 'function') parent = elem(parent, 'el'); const e = document.createElementNS(NS, tag); for (const k in at) e.setAttribute(k, at[k]); if (tekst != null) e.textContent = tekst; if (parent) parent.appendChild(e); return e; }
 const G = (parent, at = {}) => el('g', at, parent);
 const T = (parent, x, y, s, size, at = {}) => el('text', { x, y, 'font-size': size, 'text-anchor': 'middle', fill: C.inkt, 'font-weight': 800, ...at }, parent, s);
 /** Laat een lijn zichzelf tekenen: p van 0 naar 1. Het pad heeft pathLength="1" nodig. */
@@ -74,6 +82,14 @@ const F = k => GR[k] || k;
 // ---------- fouten ----------
 // Alles wat misgaat komt hier terecht; de server leest het uit en laat Claude het herstellen.
 const FOUTEN = window.FOUTEN = window.FOUTEN || [];
+/** Waar in de code van de video ging het mis: het regelnummer en de regel zelf. */
+function waar(err) {
+  const m = err && err.stack && String(err.stack).match(/video\.js:(\d+):\d+/);
+  // Geen regel in de video-code: dan zat het in de kern zelf. De plek erbij, voor ons.
+  if (!m) { const k = err && err.stack && String(err.stack).split('\n').slice(1, 3).map(x => x.trim()).join(' < '); return k ? ` [${k}]` : ''; }
+  const regel = (window.CODE || '').split('\n')[+m[1] - 1];
+  return ` (regel ${m[1]}${regel ? ': `' + regel.trim().slice(0, 220) + '`' : ''})`;
+}
 function meld(tekst) { if (!FOUTEN.includes(tekst) && FOUTEN.length < 40) FOUTEN.push(tekst); }
 
 // ---------- woordtijden ----------
@@ -255,7 +271,9 @@ function logoVol(parent, { s = 1, kleur = '#fff' } = {}) {
 }
 
 // ---------- harnas ----------
-const SC = {}, E = {};
+// E is van de video (Claude bewaart er zijn elementen in); K is van de kern zelf. Eerst
+// deelden ze één object, en een video die zijn eigen E.deel maakte, brak de achtergrond.
+const SC = {}, E = {}, K = {};
 let SCENES = [], END = 10, V = null;
 /** Maakt de groep van een scene; alles wat je erin tekent is alleen in die scene te zien. */
 const sc = id => (SC[id] = SC[id] || G($('scenes'), { id: 'sc_' + id }));
@@ -268,49 +286,49 @@ function bouwHarnas() {
   [['bg', 0], ['vig', 0], ['bgDots', 96]].forEach(([id, extra]) => { $(id).setAttribute('width', W + extra); $(id).setAttribute('height', H + extra); });
   SCENES = sceneTijden();
   const last = WRD[WRD.length - 1]; END = +((last ? last.end : 10) + D + (V.naloop ?? 2.8)).toFixed(2);
-  E.deel = [...Array(16)].map((_, i) => ({ c: el('circle', { r: 3 + (i * 7) % 6, fill: [C.accent, C.accent2, C.groen][i % 3], 'fill-opacity': .32 }, $('deeltjes')), x: (i * 397) % W, y: (i * 251) % H, v: 14 + (i * 13) % 22 }));
-  E.orbs = [[C.accent, .2, .25], [C.accent2, .85, .2], [C.groen, .7, .9]].map(([k, x, y], i) => ({ c: el('circle', { r: Math.max(W, H) * .26, fill: k, 'fill-opacity': .12 }, $('orbs')), x: x * W, y: y * H, i }));
+  K.deel = [...Array(16)].map((_, i) => ({ c: el('circle', { r: 3 + (i * 7) % 6, fill: [C.accent, C.accent2, C.groen][i % 3], 'fill-opacity': .32 }, $('deeltjes')), x: (i * 397) % W, y: (i * 251) % H, v: 14 + (i * 13) % 22 }));
+  K.orbs = [[C.accent, .2, .25], [C.accent2, .85, .2], [C.groen, .7, .9]].map(([k, x, y], i) => ({ c: el('circle', { r: Math.max(W, H) * .26, fill: k, 'fill-opacity': .12 }, $('orbs')), x: x * W, y: y * H, i }));
   SCENES.forEach(([id]) => sc(id));
   V.bouw(E, SC);
   bouwEind();
   // merk linksboven + hoofdstukpil rechtsboven
-  E.bug = G($('hud'));
-  const bp = G(E.bug, { filter: 'url(#sch)' });
+  K.bug = G($('hud'));
+  const bp = G(K.bug, { filter: 'url(#sch)' });
   const bR = el('rect', { x: -14, y: -40, width: 318, height: 80, rx: 40, fill: '#fff' }, bp);
   logoMerk(G(bp, { transform: 'translate(26,0)' }), .48);
   const bt = el('text', { x: 70, y: 11, 'font-size': 30, fill: C.inkt, 'font-weight': 800 }, bp, MERK.naam || '');
   bR.setAttribute('width', 70 + bt.getComputedTextLength() + 44);
-  E.hfdG = {}; for (const k in (V.hfd || {})) if (SC[k]) E.hfdG[k] = pil($('hud'), V.hfd[k], { size: 32, h: 70, padX: 30 });
+  K.hfdG = {}; for (const k in (V.hfd || {})) if (SC[k]) K.hfdG[k] = pil($('hud'), V.hfd[k], { size: 32, h: 70, padX: 30 });
   const wg = G($('wipe'));
-  E.wA = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(C.accent) }, wg);
-  E.wB = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(C.accent2) }, wg);
+  K.wA = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(C.accent) }, wg);
+  K.wB = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(C.accent2) }, wg);
 }
 
 function bouwEind() {
-  const se = sc('eind'), e = V.eind || {}; E.eind = {};
+  const se = sc('eind'), e = V.eind || {}; K.eind = {};
   el('rect', { width: W, height: H, fill: 'url(#gDonker)' }, se);
   el('circle', { cx: MX, cy: STAAND ? H * .5 : 575, r: Math.max(W, H) * .32, fill: C.accent, 'fill-opacity': .28, filter: 'url(#zacht)' }, se);
   el('rect', { x: -48, y: -48, width: W + 96, height: H + 96, fill: 'url(#dotsW)' }, se);
-  E.eind.str = G(se);
-  for (let i = 0; i < 18; i++) el('rect', { x: -3, y: -1400, width: 6, height: 980, rx: 3, fill: C.accent2, 'fill-opacity': .07, transform: `rotate(${i * 20})` }, E.eind.str);
+  K.eind.str = G(se);
+  for (let i = 0; i < 18; i++) el('rect', { x: -3, y: -1400, width: 6, height: 980, rx: 3, fill: C.accent2, 'fill-opacity': .07, transform: `rotate(${i * 20})` }, K.eind.str);
   const na = sStart('eind'), fs = STAAND ? 72 : 68;
   // Te lange regels worden kleiner gezet in plaats van buiten beeld te vallen.
   const pasRegel = z => { if (!z) return; const b = z.t.getComputedTextLength(), max = W - 2 * RAND; if (b > max) z.t.setAttribute('font-size', Math.floor(fs * max / b)); };
-  E.eind.r1 = e.regel1 ? zinAuto(se, MX, STAAND ? 560 : 250, e.regel1, na, fs, { fill: '#fff' }) : null;
-  E.eind.r2 = e.regel2 ? zinAuto(se, MX, STAAND ? 660 : 345, e.regel2, na, fs, { fill: isLicht(C.accent2) ? C.accent2 : mix(C.accent2, '#ffffff', .45) }) : null;
-  pasRegel(E.eind.r1); pasRegel(E.eind.r2);
-  E.eind.logo = logoVol(se, { s: STAAND ? .82 : 1 });
-  E.eind.knop = pil(se, e.knop || 'Meer weten?', { fill: C.accent2, size: STAAND ? 52 : 50, h: 104, padX: 48 });
-  E.eind.url = T(se, MX, STAAND ? 1360 : 905, MERK.website || '', 46, { fill: '#c3cfdf', 'font-weight': 600 });
-  E.eind.logoY = STAAND ? 960 : 575; E.eind.knopY = STAAND ? 1200 : 770;
+  K.eind.r1 = e.regel1 ? zinAuto(se, MX, STAAND ? 560 : 250, e.regel1, na, fs, { fill: '#fff' }) : null;
+  K.eind.r2 = e.regel2 ? zinAuto(se, MX, STAAND ? 660 : 345, e.regel2, na, fs, { fill: isLicht(C.accent2) ? C.accent2 : mix(C.accent2, '#ffffff', .45) }) : null;
+  pasRegel(K.eind.r1); pasRegel(K.eind.r2);
+  K.eind.logo = logoVol(se, { s: STAAND ? .82 : 1 });
+  K.eind.knop = pil(se, e.knop || 'Meer weten?', { fill: C.accent2, size: STAAND ? 52 : 50, h: 104, padX: 48 });
+  K.eind.url = T(se, MX, STAAND ? 1360 : 905, MERK.website || '', 46, { fill: '#c3cfdf', 'font-weight': 600 });
+  K.eind.logoY = STAAND ? 960 : 575; K.eind.knopY = STAAND ? 1200 : 770;
   // Het logo staat er meteen: de slotzin begint vaak met een aanloop ("Heb je ...?") en
   // dan keek je seconden naar een leeg donker vlak. De knop komt als de regels zijn gezegd.
-  E.eind.tLogo = na + .35;
-  const laatste = [E.eind.r1, E.eind.r2].filter(Boolean).flatMap(z => z.spans.map(x => x.tijd)).reduce((a, b) => Math.max(a, b), 0);
-  E.eind.tKnop = Math.max(na + 1, Math.min(Math.max(E.eind.tLogo + 1.1, laatste + .35), END - 1.6));
+  K.eind.tLogo = na + .35;
+  const laatste = [K.eind.r1, K.eind.r2].filter(Boolean).flatMap(z => z.spans.map(x => x.tijd)).reduce((a, b) => Math.max(a, b), 0);
+  K.eind.tKnop = Math.max(na + 1, Math.min(Math.max(K.eind.tLogo + 1.1, laatste + .35), END - 1.6));
 }
 function tekenEind(tt) {
-  const e = E.eind;
+  const e = K.eind;
   e.str.setAttribute('transform', `translate(${MX},${e.logoY}) rotate(${tt * 4})`);
   e.r1 && woordenIn(e.r1, tt); e.r2 && woordenIn(e.r2, tt);
   const lp = pop(tt, e.tLogo, .6); op(e.logo, lp); tf(e.logo, MX, e.logoY, lp);
@@ -323,22 +341,22 @@ function render(t) {
   let cur = SCENES[0][0]; for (const [id, a] of SCENES) if (tt >= a - .02) cur = id;
   for (const k in SC) SC[k].style.display = k === cur ? '' : 'none';
   $('bgDots').setAttribute('transform', `translate(${-(tt * 6) % 48},${-(tt * 4) % 48})`);
-  E.orbs.forEach(o => { o.c.setAttribute('cx', o.x + golf(tt, .03, 120, o.i)); o.c.setAttribute('cy', o.y + golf(tt, .025, 90, o.i + 2)); });
-  E.deel.forEach(d => { d.c.setAttribute('cx', d.x + golf(tt, .05, 40, d.x)); d.c.setAttribute('cy', ((d.y - tt * d.v) % (H + 100) + H + 100) % (H + 100) - 50); });
+  K.orbs.forEach(o => { o.c.setAttribute('cx', o.x + golf(tt, .03, 120, o.i)); o.c.setAttribute('cy', o.y + golf(tt, .025, 90, o.i + 2)); });
+  K.deel.forEach(d => { d.c.setAttribute('cx', d.x + golf(tt, .05, 40, d.x)); d.c.setAttribute('cy', ((d.y - tt * d.v) % (H + 100) + H + 100) % (H + 100) - 50); });
   // veeg tussen de scenes
   let wp = 0; for (const [, a] of SCENES.slice(1)) if (tt > a - .45 && tt < a + .45) wp = P(tt, a - .45, a + .45);
   const wx = wp ? lerp(-(W + H + 1700), W + 800 + H * .3, eio(wp)) : -12000;
-  E.wB.setAttribute('transform', `translate(${wx},0) skewX(-14)`); E.wA.setAttribute('transform', `translate(${wx - 260},0) skewX(-14)`);
+  K.wB.setAttribute('transform', `translate(${wx},0) skewX(-14)`); K.wA.setAttribute('transform', `translate(${wx - 260},0) skewX(-14)`);
   // merk en hoofdstuk
   const s2 = SCENES.length > 1 ? SCENES[1][1] : 0, eind = sStart('eind'), hudAan = tt >= s2 && tt < eind && V.hud !== false;
-  op(E.bug, hudAan ? P(tt, s2 + .2, s2 + .6) : 0); if (hudAan) tf(E.bug, RAND + (1 - eo(P(tt, s2 + .2, s2 + .65))) * -60, STAAND ? 150 : 100);
-  for (const k in E.hfdG) {
-    const a = sStart(k), p = eo(P(tt, a + .3, a + .75)), g = E.hfdG[k];
+  op(K.bug, hudAan ? P(tt, s2 + .2, s2 + .6) : 0); if (hudAan) tf(K.bug, RAND + (1 - eo(P(tt, s2 + .2, s2 + .65))) * -60, STAAND ? 150 : 100);
+  for (const k in K.hfdG) {
+    const a = sStart(k), p = eo(P(tt, a + .3, a + .75)), g = K.hfdG[k];
     op(g, cur === k ? p : 0); tf(g, W - RAND - g.breedte / 2 + (1 - p) * 120, STAAND ? 250 : 100);
   }
   try {
     if (cur === 'eind') tekenEind(tt); else V.teken(tt, cur, E, SC);
-  } catch (err) { meld(`Fout in teken() bij scene ${cur}, t=${tt.toFixed(1)} s: ${err && err.message}`); }
+  } catch (err) { meld(`Fout in teken() bij scene ${cur}, t=${tt.toFixed(1)} s: ${err && err.message}${waar(err)}`); }
 }
 window.render = render;
 
@@ -369,7 +387,7 @@ window.start = function () {
   V = window.VIDEO;
   if (!V || typeof V.bouw !== 'function' || typeof V.teken !== 'function') { meld('window.VIDEO ontbreekt of heeft geen bouw() en teken().'); return klaar(); }
   const begin = () => {
-    try { bouwHarnas(); render(0); } catch (err) { meld(`Fout tijdens het opbouwen (bouw): ${err && err.message}`); }
+    try { bouwHarnas(); render(0); } catch (err) { meld(`Fout tijdens het opbouwen (bouw): ${err && err.message}${waar(err)}`); }
     klaar();
   };
   // Zonder het lettertype meet pil() de tekstbreedtes verkeerd.

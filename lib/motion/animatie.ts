@@ -25,6 +25,8 @@ const MAX_RONDES = 2;
 export interface Gebruik {
   usd: number;
   rondes: number;
+  /** Hoe lang Claude er in totaal over deed, in seconden. */
+  sec?: number;
 }
 
 type Bericht = Anthropic.Beta.BetaMessageParam;
@@ -210,7 +212,7 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
   if (!leeg.scenes.length) throw new Error("De scenes konden niet op de stem worden gelegd.");
   const sys = await systeem();
   const berichten: Bericht[] = [{ role: "user", content: opdracht(v, leeg.scenes, leeg.einde) }];
-  const gebruik: Gebruik = { usd: 0, rondes: 0 };
+  const gebruik: Gebruik = { usd: 0, rondes: 0, sec: 0 };
 
   // De beste versie tot nu toe: de laatste zonder kapotte code. Een verbeterronde die
   // iets stukmaakt, mag een werkende versie niet verdringen.
@@ -219,6 +221,7 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
 
   for (let ronde = 0; ronde <= MAX_RONDES; ronde++) {
     opVoortgang?.(ronde === 0 ? "tekenen" : `controleronde ${ronde}`);
+    const begin = Date.now();
     const antwoord = await claude()
       .beta.messages.stream({
         model: MODEL,
@@ -241,6 +244,7 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
     gebruik.usd +=
       (u.input_tokens * PRIJS.in + u.output_tokens * PRIJS.uit + (u.cache_read_input_tokens ?? 0) * PRIJS.cacheLezen + (u.cache_creation_input_tokens ?? 0) * PRIJS.cacheSchrijven) / 1e6;
     gebruik.rondes = ronde + 1;
+    gebruik.sec = (gebruik.sec ?? 0) + Math.round((Date.now() - begin) / 1000);
     if (antwoord.stop_reason === "refusal") throw new Error("Over dit onderwerp kunnen we geen animatie maken. Probeer het anders te omschrijven.");
 
     // Het hele antwoord terug in het gesprek, ook de denkblokken: die horen erbij.
@@ -258,6 +262,12 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
     }
 
     const p = await proef({ ...v.pagina, code });
+    // Voor onderzoek: elke versie met wat de controle ervan vond (scripts/motion-eind-tot-eind).
+    if (process.env.MOTION_DEBUG_DIR) {
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(path.join(process.env.MOTION_DEBUG_DIR, `ronde${ronde}.js`), code).catch(() => {});
+      await writeFile(path.join(process.env.MOTION_DEBUG_DIR, `ronde${ronde}.fouten.json`), JSON.stringify(p.fouten, null, 1)).catch(() => {});
+    }
     const kapot = p.fouten.filter(ernstig);
     if (!kapot.length && p.beelden.length) beste = { code, proef: p };
     else laatsteFout = kapot[0] ?? "De code gaf geen beeld.";

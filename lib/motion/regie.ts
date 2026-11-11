@@ -141,6 +141,10 @@ export async function startMotion(userId: string, ruw: Record<string, unknown>, 
       invoer: { ...invoer, voortgang },
       credits: betaald,
       fal_endpoint: "motion",
+      // Niet leeg laten: een oudere versie van de app (de live-site op dezelfde database,
+      // zolang deze studio daar nog niet staat) kent maker 'motion' niet, ziet dan een rij
+      // zonder fal-verzoek en keurt hem na twee minuten af. Zo gebeurd bij de eerste proef.
+      fal_request_id: "motion",
       ouder_id: ouderId ?? null,
       ...(betalerId !== userId ? { betaald_door: betalerId } : {}),
     })

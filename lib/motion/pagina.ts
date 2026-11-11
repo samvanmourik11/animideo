@@ -69,7 +69,13 @@ window.SCRIPT = ${json(p.script)};
 window.MERK = ${json(p.merk)};
 </script>
 <script>${veilig(kern)}</script>
-<script>${veilig(p.code)}</script>
+<script>
+// De code van de video draait onder de naam video.js, zodat een foutmelding het regelnummer
+// in díe code noemt en de kern de regel erbij kan zetten.
+window.CODE = ${json(p.code)};
+try { (0, eval)(window.CODE + "\\n//# sourceURL=video.js"); }
+catch (e) { var m = String(e && e.stack || '').match(/video\\.js:(\\d+)/); window.FOUTEN.push('Fout in de code: ' + (e && e.message) + (m ? ' (regel ' + m[1] + ': "' + String(window.CODE.split('\\n')[m[1] - 1] || '').trim().slice(0, 220) + '")' : '')); }
+</script>
 <script>
 if (typeof window.start === 'function') window.start(); else { window.FOUTEN.push('De bouwstenen zijn niet geladen.'); window.READY = true; }
 </script>
