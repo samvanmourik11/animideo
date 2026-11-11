@@ -154,7 +154,7 @@ Opbouw (onze vaste formule):
 Daarna de eindkaart, apart: één of twee zinnen met een duidelijke uitnodiging waarin de bedrijfsnaam letterlijk voorkomt.
 
 Regels:
-- ${aantal} scenes, plus de eindkaart. Samen hooguit ${woorden} woorden gesproken tekst (dat is ±${v.lengte} seconden).
+- ${aantal} scenes, plus de eindkaart. Samen ${Math.round(woorden * 0.85)} tot ${woorden} woorden gesproken tekst (dat is ±${v.lengte} seconden); de klant betaalt voor die lengte, dus blijf er niet ruim onder.
 - "tekst": wat de stem zegt. Gewone spreektaal, korte zinnen, je-vorm, geen jargon en geen opsommingstekens. Getallen voluit geschreven zoals je ze uitspreekt, behalve jaartallen en bedragen.
 - ${beeld}
 - Neem feiten, bedragen en claims van de klant letterlijk over; verzin er geen bij.

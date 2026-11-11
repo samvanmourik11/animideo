@@ -157,3 +157,32 @@ describe("eigen script en huisstijl", () => {
     }
   });
 });
+
+describe("wijzigingen in een controleronde", () => {
+  const code = "const a = 1;\nconst b = 2;\nconst c = 2;\n";
+  const blok = (zoek: string, nieuw: string) => `<<<<<<< ZOEK\n${zoek}\n=======\n${nieuw}\n>>>>>>> KLAAR`;
+
+  it("leest de blokken en past ze in volgorde toe", async () => {
+    const { wijzigingenUit, pasToe } = await import("./animatie");
+    const ws = wijzigingenUit(`${blok("const a = 1;", "const a = 5;")}\n\n${blok("const a = 5;\nconst b = 2;", "const a = 5;\nconst b = 3;\nconst d = 4;")}`);
+    expect(ws).toHaveLength(2);
+    const uit = pasToe(code, ws);
+    expect(uit.mis).toEqual([]);
+    expect(uit.code).toBe("const a = 5;\nconst b = 3;\nconst d = 4;\nconst c = 2;\n");
+  });
+
+  it("slaat een blok over dat niet of vaker dan eens past, en meldt het", async () => {
+    const { wijzigingenUit, pasToe } = await import("./animatie");
+    const uit = pasToe(code, wijzigingenUit(`${blok("= 2;", "= 9;")}\n${blok("const x = 0;", "")}\n${blok("const c = 2;", "const c = '$1';")}`));
+    expect(uit.mis).toHaveLength(2);
+    // Een dollarteken in de vervanging blijft letterlijk staan.
+    expect(uit.code).toBe("const a = 1;\nconst b = 2;\nconst c = '$1';\n");
+  });
+
+  it("een lege vervanging haalt de regel weg", async () => {
+    const { wijzigingenUit, pasToe } = await import("./animatie");
+    const ws = wijzigingenUit("<<<<<<< ZOEK\nconst b = 2;\n=======\n>>>>>>> KLAAR");
+    expect(ws).toEqual([{ zoek: "const b = 2;", nieuw: "" }]);
+    expect(pasToe(code, ws).code).toBe("const a = 1;\n\nconst c = 2;\n");
+  });
+});

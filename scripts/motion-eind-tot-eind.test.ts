@@ -60,7 +60,9 @@ test("motion graphics van begin tot eind", async () => {
   let code: string;
   if (her && existsSync(pad("code.js"))) code = await readFile(pad("code.js"), "utf8");
   else {
-    const a = await tekenAnimatie({ pagina, plan, onderwerp }, (w) => console.log("  claude:", w));
+    // MOTION_START_CODE: een bestaand ontwerp alleen laten nakijken (om controlemodellen te vergelijken).
+    const startCode = process.env.MOTION_START_CODE ? await readFile(process.env.MOTION_START_CODE, "utf8") : undefined;
+    const a = await tekenAnimatie({ pagina, plan, onderwerp, startCode }, (w) => console.log("  claude:", w));
     code = a.code;
     await writeFile(pad("code.js"), code);
     await writeFile(pad("gebruik.json"), JSON.stringify({ ...a.gebruik, rest: a.rest, einde: a.einde }, null, 2));

@@ -18,14 +18,29 @@ import { beeldBlokken } from "./beelden";
 import type { MotionBeeld, MotionPlan } from "./types";
 
 const MODEL = "claude-opus-5-5";
-/** Dollars per miljoen tokens (Opus 5.5, november 2026). */
-const PRIJS = { in: 4, uit: 20, cacheLezen: 0.2, cacheSchrijven: 5 };
+// Het nakijken en bijwerken is kleiner werk dan het ontwerp: kijken naar proefbeelden en een
+// paar plekken in bestaande code aanpassen. Dat kan een goedkoper model (Sam, 11-11-2026:
+// "waarom is dit zo duur?"). MOTION_CONTROLE_MODEL is er alleen om modellen naast elkaar te testen.
+const CONTROLE_MODEL = process.env.MOTION_CONTROLE_MODEL || "claude-sonnet-5-5";
+/** Dollars per miljoen tokens (november 2026). */
+const PRIJZEN: Record<string, { in: number; uit: number; cacheLezen: number; cacheSchrijven: number }> = {
+  "claude-opus-5-5": { in: 4, uit: 20, cacheLezen: 0.2, cacheSchrijven: 5 },
+  "claude-sonnet-5-5": { in: 2, uit: 10, cacheLezen: 0.1, cacheSchrijven: 2.5 },
+};
+function kosten(model: string, u: Anthropic.Beta.BetaUsage): number {
+  // Een onbekend model rekenen we tegen de duurste prijs: liever te hoog dan te laag in het logboek.
+  const p = PRIJZEN[model] ?? PRIJZEN[MODEL];
+  return (u.input_tokens * p.in + u.output_tokens * p.uit + (u.cache_read_input_tokens ?? 0) * p.cacheLezen + (u.cache_creation_input_tokens ?? 0) * p.cacheSchrijven) / 1e6;
+}
 /** Hooguit zoveel keer verbeteren na de eerste versie. */
 const MAX_RONDES = 2;
 
 export interface Gebruik {
   usd: number;
   rondes: number;
+  /** Wat het eerste ontwerp kostte en wat de controlerondes samen kostten. */
+  usdOntwerp?: number;
+  usdControle?: number;
   /** Hoe lang Claude er in totaal over deed, in seconden. */
   sec?: number;
 }
@@ -175,17 +190,62 @@ Gebruik precies: eind: { regel1: ${JSON.stringify(plan.eind.regel1)}, regel2: ${
 De beschrijving bij "Beeld" is wat de klant verwacht te zien; werk die uit tot een sterke compositie en vul aan waar het de uitleg helpt. Let op: de transcriptie schrijft sommige woorden anders dan het script (cijfers, samenstellingen); kies voor wt woorden die in de lijst met woordtijden staan.`;
 }
 
-function terugkoppeling(p: Proef, ronde: number): Blok[] {
-  const blokken: Blok[] = [];
+// ── Wijzigingen ──────────────────────────────────────────────────────────────
+// Een controleronde gaf eerst de complete code opnieuw terug, ook als er drie regels
+// veranderden: drie keer hetzelfde lange stuk schrijven was het grootste deel van de kosten.
+// Nu geeft Claude alleen de stukken terug die anders moeten, als zoek-en-vervang-blokken.
+
+const WIJZIG_UITLEG = `Geef in deze ronde NIET de complete code terug, maar alleen de stukken die anders moeten, elk als een blok in precies deze vorm:
+
+<<<<<<< ZOEK
+(de regels die nu in de code staan, letterlijk gekopieerd, inclusief inspringing)
+=======
+(wat ervoor in de plaats komt)
+>>>>>>> KLAAR
+
+Regels voor de blokken:
+- De tekst onder ZOEK moet letterlijk en precies één keer in de code voorkomen. Neem genoeg regels mee om hem uniek te maken, maar niet meer dan nodig.
+- Iets toevoegen: neem de regel ervoor onder ZOEK en herhaal die in de vervanging, met de nieuwe regels erachter. Iets weghalen: laat de vervanging leeg.
+- Moet een waarde op meerdere plekken anders, geef dan per plek een blok.
+- De blokken worden in jouw volgorde toegepast; elk blok zoekt in de code zoals die is ná de blokken ervoor.
+- Geen uitleg ervoor, ertussen of erna.`;
+
+export interface Wijziging {
+  zoek: string;
+  nieuw: string;
+}
+
+/** De zoek-en-vervang-blokken uit het antwoord halen. */
+export function wijzigingenUit(tekst: string): Wijziging[] {
+  return [...tekst.matchAll(/<{7} ZOEK[^\n]*\n([\s\S]*?)\n?={7}[^\n]*\n([\s\S]*?)\n?>{7} KLAAR/g)].map((m) => ({ zoek: m[1], nieuw: m[2] }));
+}
+
+/**
+ * Past de blokken toe. Een blok dat niet precies één keer past, wordt overgeslagen en
+ * gemeld: half toepassen op de verkeerde plek maakt de code stuk zonder dat iemand het ziet.
+ */
+export function pasToe(code: string, ws: Wijziging[]): { code: string; mis: string[] } {
+  const mis: string[] = [];
+  ws.forEach((w, i) => {
+    const eerste = w.zoek.split("\n").find((r) => r.trim())?.trim().slice(0, 80) ?? "";
+    const aantal = w.zoek ? code.split(w.zoek).length - 1 : 0;
+    if (aantal === 1) code = code.replace(w.zoek, () => w.nieuw);
+    else mis.push(`Blok ${i + 1} (begint met "${eerste}"): de tekst onder ZOEK staat ${aantal === 0 ? "niet letterlijk" : `${aantal} keer`} in de code.`);
+  });
+  return { code, mis };
+}
+
+function terugkoppeling(p: Proef, code: string, laatste: boolean): Blok[] {
+  const blokken: Blok[] = [{ type: "text", text: `Dit is de code van de animatie zoals hij nu is:\n\n\`\`\`js\n${code}\n\`\`\`` }];
   const kapot = p.fouten.filter(ernstig);
   if (!p.beelden.length) {
     blokken.push({
       type: "text",
-      text: `De code werkt nog niet; er konden geen beelden van gemaakt worden.\n\nFouten:\n${p.fouten.map((f) => `- ${f}`).join("\n")}\n\nHerstel dit en geef de complete code opnieuw in één js-blok.`,
+      text: `De code werkt nog niet; er konden geen beelden van gemaakt worden.\n\nFouten:\n${p.fouten.map((f) => `- ${f}`).join("\n")}\n\nHerstel dit. ${WIJZIG_UITLEG}`,
     });
     return blokken;
   }
-  blokken.push({ type: "text", text: "Dit zijn proefbeelden van jouw animatie zoals hij nu is, per scene halverwege en vlak voor het einde van de scene (het volste moment)." });
+  blokken.push({ type: "text", text: "Dit zijn proefbeelden van deze animatie, per scene halverwege en vlak voor het einde van de scene (het volste moment)." });
   for (const b of p.beelden) {
     blokken.push({ type: "text", text: `Scene ${b.scene}, t = ${b.t} s:` });
     blokken.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: b.jpg.toString("base64") } });
@@ -194,7 +254,7 @@ function terugkoppeling(p: Proef, ronde: number): Blok[] {
     type: "text",
     text: `${p.fouten.length ? `De automatische controle meldt:\n${p.fouten.map((f) => `- ${f}`).join("\n")}\n\n` : "De automatische controle vond geen fouten in de code en geen tekst buiten beeld.\n\n"}Bekijk de beelden zoals een strenge art director dat zou doen, voordat dit naar de klant gaat. Waar het om gaat: teksten of vormen die over elkaar heen staan of buiten beeld vallen; iets dat door het merk linksboven of de titel rechtsboven loopt; een scene die leeg of scheef oogt, waarvan het hoofdbeeld te klein is of waar een helft van het beeld ongebruikt blijft (kijk daarvoor juist naar het beeld halverwege de scene); tekst die te klein is om te lezen; een beeld dat niet uitlegt wat de stem zegt; iets dat er onaf of slordig uitziet.
 
-${kapot.length ? "Er zitten nog fouten in de code, dus die moeten er in elk geval uit. " : ""}Is er iets te verbeteren, geef dan de complete verbeterde code in één js-blok. ${ronde >= MAX_RONDES ? "Dit is de laatste ronde: verbeter alleen wat echt fout is en verander niets dat goed werkt. " : ""}Is alles goed genoeg voor de klant, antwoord dan alleen met het woord GOED.`,
+${kapot.length ? "Er zitten nog fouten in de code, dus die moeten er in elk geval uit. " : ""}${laatste ? "Dit is de laatste ronde: verbeter alleen wat echt fout is en verander niets dat goed werkt. " : ""}Is alles goed genoeg voor de klant, antwoord dan alleen met het woord GOED. Is er iets te verbeteren: ${WIJZIG_UITLEG}`,
   });
   return blokken;
 }
@@ -207,6 +267,8 @@ export interface AnimatieVraag {
   /** Voorbeelden en foto's van de klant, elk met een doel. */
   beelden?: MotionBeeld[];
   nietDoen?: string;
+  /** Een bestaand ontwerp om na te kijken, in plaats van een nieuw te tekenen (voor proeven). */
+  startCode?: string;
 }
 
 export interface AnimatieUitkomst {
@@ -222,31 +284,24 @@ async function sceneTijden(pagina: Omit<PaginaInvoer, "code">): Promise<Proef> {
   return proef({ ...pagina, code: "window.VIDEO = { bouw() {}, teken() {} };" });
 }
 
+const alleTekst = (m: Anthropic.Beta.BetaMessage) => m.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text").map((b) => b.text).join("\n");
+
 export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: string) => void): Promise<AnimatieUitkomst> {
   const leeg = await sceneTijden(v.pagina);
   if (!leeg.scenes.length) throw new Error("De scenes konden niet op de stem worden gelegd.");
   const sys = await systeem();
   const voorbeelden = v.beelden?.length ? await beeldBlokken(v.beelden, true) : [];
-  const berichten: Bericht[] = [{ role: "user", content: [...voorbeelden, { type: "text", text: opdracht(v, leeg.scenes, leeg.einde) }] }];
-  const gebruik: Gebruik = { usd: 0, rondes: 0, sec: 0 };
+  const taak = opdracht(v, leeg.scenes, leeg.einde);
+  const gebruik: Gebruik = { usd: 0, rondes: 0, sec: 0, usdOntwerp: 0, usdControle: 0 };
 
-  // De beste versie tot nu toe: de laatste zonder kapotte code. Een verbeterronde die
-  // iets stukmaakt, mag een werkende versie niet verdringen.
-  let beste: { code: string; proef: Proef } | null = null;
-  let laatsteFout = "";
-
-  for (let ronde = 0; ronde <= MAX_RONDES; ronde++) {
-    opVoortgang?.(ronde === 0 ? "tekenen" : `controleronde ${ronde}`);
+  async function vraag(model: string, berichten: Bericht[], soort: "usdOntwerp" | "usdControle") {
     const begin = Date.now();
     const antwoord = await claude()
       .beta.messages.stream({
-        model: MODEL,
+        model,
         max_tokens: 48000,
-        // De vaste uitleg is voor elke video gelijk en wordt gecachet; de cache bovenaan
-        // neemt het gesprek tot nu toe mee, zodat een controleronde de eerdere code voor
-        // een tiende van de prijs leest.
+        // De vaste uitleg is voor elke video gelijk en wordt gecachet.
         system: [{ type: "text", text: sys, cache_control: { type: "ephemeral" } }],
-        cache_control: { type: "ephemeral" },
         messages: berichten,
         // "medium": op "high" kostte de eerste proefvideo $2,09 en 12 minuten, vooral aan
         // denkwerk; de controleronde met proefbeelden vangt meer fouten dan langer nadenken.
@@ -256,41 +311,103 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
         fallbacks: "default",
       })
       .finalMessage();
-    const u = antwoord.usage;
-    gebruik.usd +=
-      (u.input_tokens * PRIJS.in + u.output_tokens * PRIJS.uit + (u.cache_read_input_tokens ?? 0) * PRIJS.cacheLezen + (u.cache_creation_input_tokens ?? 0) * PRIJS.cacheSchrijven) / 1e6;
-    gebruik.rondes = ronde + 1;
+    const usd = kosten(model, antwoord.usage);
+    gebruik.usd += usd;
+    gebruik[soort] = (gebruik[soort] ?? 0) + usd;
     gebruik.sec = (gebruik.sec ?? 0) + Math.round((Date.now() - begin) / 1000);
     if (antwoord.stop_reason === "refusal") throw new Error("Over dit onderwerp kunnen we geen animatie maken. Probeer het anders te omschrijven.");
-
-    // Het hele antwoord terug in het gesprek, ook de denkblokken: die horen erbij.
-    berichten.push({ role: "assistant", content: antwoord.content });
-    const tekst = antwoord.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text").map((b) => b.text).join("\n");
-    const code = codeUit(tekst);
-
-    if (!code) {
-      // "GOED": Claude keurt zijn vorige versie goed.
-      if (beste && /\bGOED\b/.test(tekst)) break;
-      laatsteFout = antwoord.stop_reason === "max_tokens" ? "De code werd te lang." : "Er kwam geen code terug.";
-      if (ronde === MAX_RONDES) break;
-      berichten.push({ role: "user", content: `${laatsteFout} Geef de complete code in één js-blok dat window.VIDEO zet${antwoord.stop_reason === "max_tokens" ? ", en houd hem compacter" : ""}.` });
-      continue;
-    }
-
-    const p = await proef({ ...v.pagina, code });
-    // Voor onderzoek: elke versie met wat de controle ervan vond (scripts/motion-eind-tot-eind).
-    if (process.env.MOTION_DEBUG_DIR) {
-      const { writeFile } = await import("node:fs/promises");
-      await writeFile(path.join(process.env.MOTION_DEBUG_DIR, `ronde${ronde}.js`), code).catch(() => {});
-      await writeFile(path.join(process.env.MOTION_DEBUG_DIR, `ronde${ronde}.fouten.json`), JSON.stringify(p.fouten, null, 1)).catch(() => {});
-    }
-    const kapot = p.fouten.filter(ernstig);
-    if (!kapot.length && p.beelden.length) beste = { code, proef: p };
-    else laatsteFout = kapot[0] ?? "De code gaf geen beeld.";
-    if (ronde === MAX_RONDES) break;
-    berichten.push({ role: "user", content: terugkoppeling(p, ronde + 1) });
+    return antwoord;
   }
 
-  if (!beste) throw new Error(`De animatie kon niet foutloos worden gemaakt. ${laatsteFout}`.trim());
-  return { code: beste.code, gebruik, rest: beste.proef.fouten, einde: beste.proef.einde };
+  async function bewaar(ronde: number, code: string, p: Proef) {
+    // Voor onderzoek: elke versie met wat de controle ervan vond (scripts/motion-eind-tot-eind).
+    if (!process.env.MOTION_DEBUG_DIR) return;
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(path.join(process.env.MOTION_DEBUG_DIR, `ronde${ronde}.js`), code).catch(() => {});
+    await writeFile(path.join(process.env.MOTION_DEBUG_DIR, `ronde${ronde}.fouten.json`), JSON.stringify(p.fouten, null, 1)).catch(() => {});
+  }
+
+  // ── Het ontwerp: de eerste complete versie, door het beste model ──
+  let code = v.startCode ?? null;
+  let laatsteFout = "";
+  if (!code) {
+    opVoortgang?.("tekenen");
+    const berichten: Bericht[] = [{ role: "user", content: [...voorbeelden, { type: "text", text: taak }] }];
+    // Eén herkansing als er geen code terugkomt (te lang, of alleen tekst).
+    for (let poging = 0; poging < 2 && !code; poging++) {
+      const antwoord = await vraag(MODEL, berichten, "usdOntwerp");
+      code = codeUit(alleTekst(antwoord));
+      if (code) break;
+      laatsteFout = antwoord.stop_reason === "max_tokens" ? "De code werd te lang." : "Er kwam geen code terug.";
+      // Het hele antwoord terug in het gesprek, ook de denkblokken: die horen erbij.
+      berichten.push({ role: "assistant", content: antwoord.content });
+      berichten.push({ role: "user", content: `${laatsteFout} Geef de complete code in één js-blok dat window.VIDEO zet${antwoord.stop_reason === "max_tokens" ? ", en houd hem compacter" : ""}.` });
+    }
+    if (!code) throw new Error(`De animatie kon niet worden gemaakt. ${laatsteFout}`.trim());
+  }
+  gebruik.rondes = 1;
+  let p = await proef({ ...v.pagina, code });
+  await bewaar(0, code, p);
+
+  // De beste versie tot nu toe: de laatste zonder kapotte code. Een verbeterronde die
+  // iets stukmaakt, mag een werkende versie niet verdringen.
+  let beste: { code: string; proef: Proef } | null = null;
+  const keur = (c: string, pr: Proef) => {
+    const kapot = pr.fouten.filter(ernstig);
+    if (!kapot.length && pr.beelden.length) beste = { code: c, proef: pr };
+    else laatsteFout = kapot[0] ?? "De code gaf geen beeld.";
+  };
+  keur(code, p);
+
+  // ── De controlerondes: elke ronde een nieuw, kort gesprek ──
+  // Niet doorpraten in het gesprek van het ontwerp: dan betaal je elke ronde opnieuw voor
+  // alle eerdere versies en proefbeelden, en een ander model kan de denkblokken van het
+  // eerste niet lezen. De opdracht staat vooraan en wordt gecachet voor de ronde erna.
+  for (let ronde = 1; ronde <= MAX_RONDES; ronde++) {
+    opVoortgang?.(`controleronde ${ronde}`);
+    const berichten: Bericht[] = [
+      {
+        role: "user",
+        content: [...voorbeelden, { type: "text", text: taak, cache_control: { type: "ephemeral" } }, ...terugkoppeling(p, code, ronde === MAX_RONDES)],
+      },
+    ];
+    let antwoord = await vraag(CONTROLE_MODEL, berichten, "usdControle");
+    gebruik.rondes = ronde + 1;
+    let tekst = alleTekst(antwoord);
+    let nieuw = codeUit(tekst);
+    if (!nieuw) {
+      let ws = wijzigingenUit(tekst);
+      // "GOED": de versie is goedgekeurd. Dat geldt alleen als er ook echt niets te wijzigen viel.
+      if (!ws.length && /\bGOED\b/.test(tekst)) {
+        if (beste) break;
+        continue;
+      }
+      let uit = pasToe(code, ws);
+      if (uit.mis.length || !ws.length) {
+        // Eén herkansing in hetzelfde gesprek: wat wel paste is al toegepast.
+        berichten.push({ role: "assistant", content: antwoord.content });
+        berichten.push({
+          role: "user",
+          content: ws.length
+            ? `Deze blokken konden niet worden toegepast (de andere wel):\n${uit.mis.map((m) => `- ${m}`).join("\n")}\n\nGeef alleen deze blokken opnieuw, met onder ZOEK tekst die letterlijk en precies één keer in de code staat.`
+            : `Er kwamen geen bruikbare blokken terug. ${WIJZIG_UITLEG}`,
+        });
+        antwoord = await vraag(CONTROLE_MODEL, berichten, "usdControle");
+        tekst = alleTekst(antwoord);
+        ws = wijzigingenUit(tekst);
+        // Wat nu nog niet past laten we zitten: de rest van de verbeteringen telt wel.
+        uit = pasToe(uit.code, ws);
+      }
+      nieuw = uit.code;
+    }
+    if (nieuw === code) continue;
+    code = nieuw;
+    p = await proef({ ...v.pagina, code });
+    await bewaar(ronde, code, p);
+    keur(code, p);
+  }
+
+  const klaar = beste as { code: string; proef: Proef } | null;
+  if (!klaar) throw new Error(`De animatie kon niet foutloos worden gemaakt. ${laatsteFout}`.trim());
+  return { code: klaar.code, gebruik, rest: klaar.proef.fouten, einde: klaar.proef.einde };
 }
