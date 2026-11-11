@@ -100,3 +100,60 @@ describe("de prijs", () => {
     expect(maxWoorden(60)).toBe(2 * maxWoorden(30));
   });
 });
+
+describe("eigen script en huisstijl", () => {
+  const plan = {
+    titel: "x",
+    scenes: [
+      { tekst: "Ben jij elke maand een avond kwijt aan de lonen?", beeld: "b", kop: "" },
+      { tekst: "Bij Loonwijs geef je alleen de uren door.", beeld: "b", kop: "01" },
+    ],
+    eind: { tekst: "Laat je lonen over aan Loonwijs.", regel1: "Laat je lonen over", regel2: "aan Loonwijs.", knop: "Probeer" },
+  };
+  const bron = "SCENE 1\nVoice-over: Ben jij elke maand een avond kwijt aan de lonen?\nBeeld: kalender\n\nBij Loonwijs geef je alleen de uren door. Laat je lonen over aan Loonwijs.";
+
+  it("herkent tekst die letterlijk uit het script komt, ook met andere leestekens", async () => {
+    const { afwijkingen } = await import("./plan");
+    expect(afwijkingen(plan, bron)).toEqual([]);
+    expect(afwijkingen(plan, bron.replace("lonen?", "LONEN !"))).toEqual([]);
+  });
+
+  it("meldt de scene waar een woord is veranderd, en de eindkaart als 0", async () => {
+    const { afwijkingen } = await import("./plan");
+    const anders = { ...plan, scenes: [plan.scenes[0], { ...plan.scenes[1], tekst: "Bij Loonwijs geef je enkel de uren door." }], eind: { ...plan.eind, tekst: "Kies voor Loonwijs." } };
+    expect(afwijkingen(anders, bron)).toEqual([2, 0]);
+  });
+
+  it("kiest de kortste lengte waar de tekst in past", async () => {
+    const { lengteVoorWoorden } = await import("./plan");
+    expect(lengteVoorWoorden(60)).toBe(30);
+    expect(lengteVoorWoorden(120)).toBe(45);
+    expect(lengteVoorWoorden(180)).toBe(60);
+    expect(lengteVoorWoorden(400)).toBeNull();
+  });
+
+  it("vindt het lettertype van een huisstijl terug, anders het standaardlettertype", async () => {
+    const { motionFont, STANDAARD_FONT } = await import("./types");
+    expect(motionFont("'Montserrat', sans-serif")).toBe("Montserrat");
+    expect(motionFont("poppins")).toBe("Poppins");
+    expect(motionFont("Helvetica Neue")).toBe(STANDAARD_FONT);
+    expect(motionFont(undefined)).toBe(STANDAARD_FONT);
+  });
+
+  it("laat alleen beelden van onze eigen opslag toe en nummert ze opnieuw", async () => {
+    const oud = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abc.supabase.co";
+    try {
+      const { leesBeelden } = await import("./beelden");
+      const goed = "https://abc.supabase.co/storage/v1/object/public/scene-assets/u/creaties/1.jpg";
+      const uit = leesBeelden([
+        { url: "http://169.254.169.254/latest", doel: "natekenen", uitleg: "x" },
+        { url: goed, doel: "onzin", uitleg: "x" },
+        { url: goed, doel: "tonen", uitleg: "  ons   team ", vast: true, id: "f9" },
+      ]);
+      expect(uit).toEqual([{ id: "f1", url: goed, doel: "tonen", uitleg: "ons team", vast: true }]);
+    } finally {
+      process.env.NEXT_PUBLIC_SUPABASE_URL = oud;
+    }
+  });
+});

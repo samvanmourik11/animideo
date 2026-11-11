@@ -6,7 +6,8 @@
 //   window.W, window.H        formaat in pixels
 //   window.WORDS              woordtijden van de voice-over (Whisper)
 //   window.SCRIPT             [[sceneId, tekst], ...], de laatste heet altijd 'eind'
-//   window.MERK               { naam, website, kleur, kleur2 }
+//   window.MERK               { naam, website, kleur, kleur2, font, logo: { src, w, h, licht } | null }
+//   window.FOTOS              { f1: { src, w, h }, ... }: foto's van de klant die zelf in beeld komen
 // Daarna dit bestand, daarna de video zelf (window.VIDEO = {...}, geschreven door Claude),
 // en tot slot start(). Alles hier is een gewone globale naam: de video-code gebruikt ze direct.
 //
@@ -19,6 +20,11 @@ const W = window.W, H = window.H, STAAND = H > W, MX = W / 2, MY = H / 2;
 /** Zo ver blijven teksten en logo's van de rand (Sams regel: nooit tegen de rand geplakt). */
 const RAND = 140;
 const MERK = window.MERK || { naam: '', website: '', kleur: '#1c72ed', kleur2: '#ffc21a' };
+const FOTOS = window.FOTOS || {};
+/** Het logo van de klant, of null: dan is het merkteken de eerste letter van de naam. */
+const LOGO = MERK.logo && MERK.logo.src ? MERK.logo : null;
+// Een breed logo (woordmerk) bevat de bedrijfsnaam al; een vierkant logo krijgt de naam ernaast.
+const LOGO_BREED = !!LOGO && LOGO.w / LOGO.h > 1.5;
 
 // ---------- rekenhulpjes ----------
 const cl = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
@@ -250,23 +256,65 @@ const IC = {
 };
 
 // ---------- merk ----------
-/** Vierkant merkteken met de eerste letter van de naam. */
+/** Het vlak waar een logo op staat: wit, of donker als het logo zelf wit is. */
+const logoVlak = () => (LOGO && LOGO.licht ? F(C.inkt) : '#fff');
+/** Vierkant merkteken: het logo van de klant, of anders de eerste letter van de naam. */
 function logoMerk(parent, s = 1) {
   const r = G(parent, { transform: `scale(${s})` });
+  if (LOGO) {
+    el('rect', { x: -60, y: -60, width: 120, height: 120, rx: 32, fill: logoVlak() }, r);
+    el('image', { href: LOGO.src, x: -46, y: -46, width: 92, height: 92, preserveAspectRatio: 'xMidYMid meet' }, r);
+    return r;
+  }
   el('rect', { x: -60, y: -60, width: 120, height: 120, rx: 32, fill: F(C.accent) }, r);
   el('rect', { x: -54, y: -56, width: 108, height: 60, rx: 28, fill: 'url(#glans)' }, r);
   T(r, 0, 28, (MERK.naam || 'A').trim().charAt(0).toUpperCase(), 80, { fill: isLicht(C.accent) ? C.inkt : '#fff' });
   return r;
 }
-/** Merkteken met de bedrijfsnaam ernaast, gecentreerd op 0,0. */
+/** Een breed logo op een eigen kaartje, gecentreerd op 0,0. `hoogte` is de hoogte van het logo zelf. */
+function logoKaart(parent, hoogte, maxBreedte, { kaal = false } = {}) {
+  const r = G(parent);
+  let h = hoogte, b = h * LOGO.w / LOGO.h;
+  if (b > maxBreedte) { b = maxBreedte; h = b * LOGO.h / LOGO.w; }
+  const px = hoogte * .42, py = hoogte * .32;
+  if (!kaal) el('rect', { x: -b / 2 - px, y: -hoogte / 2 - py, width: b + 2 * px, height: hoogte + 2 * py, rx: Math.min(40, (hoogte + 2 * py) / 2), fill: logoVlak() }, r);
+  el('image', { href: LOGO.src, x: -b / 2, y: -h / 2, width: b, height: h, preserveAspectRatio: 'xMidYMid meet' }, r);
+  r.breedte = b + (kaal ? 0 : 2 * px);
+  return r;
+}
+/** Het logo groot, gecentreerd op 0,0: voor de eindkaart (donkere achtergrond). */
 function logoVol(parent, { s = 1, kleur = '#fff' } = {}) {
   const r = G(parent), lb = G(r);
+  if (LOGO_BREED) {
+    // Een wit logo staat rechtstreeks op de donkere eindkaart; elk ander logo op een wit kaartje,
+    // anders valt een donker logo weg.
+    logoKaart(lb, 150 * s, W - 2 * RAND - 140, { kaal: LOGO.licht });
+    return r;
+  }
   logoMerk(lb, 1.15);
   el('text', { x: 100, y: 32, 'font-size': 96, fill: kleur, 'font-weight': 800 }, lb, MERK.naam || '');
   const bb = lb.getBBox();
   // Een lange bedrijfsnaam mag nooit buiten beeld vallen.
   const pas = Math.min(s, (W - 2 * RAND) / bb.width);
   lb.setAttribute('transform', `scale(${pas}) translate(${-(bb.x + bb.width / 2)},0)`);
+  return r;
+}
+
+// ---------- foto's van de klant ----------
+let fotoNr = 0;
+/**
+ * Zet een foto van de klant in beeld, gecentreerd op 0,0, met ronde hoeken, een witte rand en
+ * een schaduw. `breedte` in pixels; de hoogte volgt uit de foto, of geef `hoogte` mee (dan
+ * wordt de foto passend uitgesneden). Geeft een groep terug met .breedte en .hoogte.
+ */
+function foto(parent, id, breedte = 600, { hoogte, rond = 28, rand = 10, schaduw = true } = {}) {
+  const r = G(parent), f = FOTOS[id];
+  if (!f) { meld(`foto(parent, '${id}'): dat beeld bestaat niet. Beschikbaar: ${Object.keys(FOTOS).join(', ') || 'geen'}.`); r.breedte = r.hoogte = 0; return r; }
+  const b = breedte, h = hoogte || b * f.h / f.w, cid = 'fotoKnip' + (++fotoNr);
+  el('rect', { x: -b / 2, y: -h / 2, width: b, height: h, rx: rond }, el('clipPath', { id: cid }, $('defs')));
+  if (rand || schaduw) el('rect', { x: -b / 2 - rand, y: -h / 2 - rand, width: b + 2 * rand, height: h + 2 * rand, rx: rond + rand, fill: '#fff', ...(schaduw ? { filter: 'url(#sch)' } : {}) }, r);
+  el('image', { href: f.src, x: -b / 2, y: -h / 2, width: b, height: h, preserveAspectRatio: 'xMidYMid slice', 'clip-path': `url(#${cid})` }, r);
+  r.breedte = b + 2 * rand; r.hoogte = h + 2 * rand;
   return r;
 }
 
@@ -294,10 +342,16 @@ function bouwHarnas() {
   // merk linksboven + hoofdstukpil rechtsboven
   K.bug = G($('hud'));
   const bp = G(K.bug, { filter: 'url(#sch)' });
-  const bR = el('rect', { x: -14, y: -40, width: 318, height: 80, rx: 40, fill: '#fff' }, bp);
-  logoMerk(G(bp, { transform: 'translate(26,0)' }), .48);
-  const bt = el('text', { x: 70, y: 11, 'font-size': 30, fill: C.inkt, 'font-weight': 800 }, bp, MERK.naam || '');
-  bR.setAttribute('width', 70 + bt.getComputedTextLength() + 44);
+  if (LOGO_BREED) {
+    // Het logo bevat de naam al: alleen het logo, links uitgelijnd op de veilige rand.
+    const k = logoKaart(bp, 46, 300);
+    k.setAttribute('transform', `translate(${k.breedte / 2 - 14},0)`);
+  } else {
+    const bR = el('rect', { x: -14, y: -40, width: 318, height: 80, rx: 40, fill: '#fff' }, bp);
+    logoMerk(G(bp, { transform: 'translate(26,0)' }), .48);
+    const bt = el('text', { x: 70, y: 11, 'font-size': 30, fill: C.inkt, 'font-weight': 800 }, bp, MERK.naam || '');
+    bR.setAttribute('width', 70 + bt.getComputedTextLength() + 44);
+  }
   K.hfdG = {}; for (const k in (V.hfd || {})) if (SC[k]) K.hfdG[k] = pil($('hud'), V.hfd[k], { size: 32, h: 70, padX: 30 });
   const wg = G($('wipe'));
   K.wA = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(C.accent) }, wg);
@@ -391,6 +445,9 @@ window.start = function () {
     klaar();
   };
   // Zonder het lettertype meet pil() de tekstbreedtes verkeerd.
-  const letters = document.fonts && document.fonts.load ? Promise.all(['800', '600'].map(g => document.fonts.load(`${g} 40px "Plus Jakarta Sans"`))).catch(() => {}) : Promise.resolve();
-  Promise.race([letters, new Promise(r => setTimeout(r, 6000))]).then(begin);
+  const letters = document.fonts && document.fonts.load ? Promise.all(['800', '700', '600', '500'].map(g => document.fonts.load(`${g} 40px "${MERK.font || 'Plus Jakarta Sans'}"`))).catch(() => {}) : Promise.resolve();
+  // Ook het logo en de foto's moeten uitgepakt zijn voor het eerste beeld; anders ontbreken
+  // ze op de eerste foto's van de video.
+  const plaatjes = [LOGO && LOGO.src, ...Object.values(FOTOS).map(f => f.src)].filter(Boolean).map(src => { const i = new Image(); i.src = src; return i.decode ? i.decode().catch(() => {}) : Promise.resolve(); });
+  Promise.race([Promise.all([letters, ...plaatjes]), new Promise(r => setTimeout(r, 8000))]).then(begin);
 };

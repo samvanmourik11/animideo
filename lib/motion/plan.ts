@@ -3,7 +3,8 @@
 // vaak een nieuw script kan laten schrijven als hij wil vóór hij betaalt.
 
 import Anthropic from "@anthropic-ai/sdk";
-import { MAX_SCENES, maxWoorden, type MotionLengte, type MotionPlan } from "./types";
+import { beeldBlokken } from "./beelden";
+import { MAX_SCENES, MOTION_LENGTES, maxWoorden, type MotionBeeld, type MotionLengte, type MotionPlan } from "./types";
 
 const MODEL = "claude-opus-5-5";
 
@@ -78,22 +79,72 @@ export interface PlanVraag {
   bedrijf: string;
   lengte: MotionLengte;
   staand: boolean;
+  /** De klant levert een kant-en-klaar script aan: de gesproken tekst blijft letterlijk staan. */
+  eigenScript?: boolean;
+  /** Schrijfstijl en wat er niet in mag, uit de huisstijl. */
+  toon?: string;
+  nietDoen?: string;
+  /** Voorbeelden en foto's van de klant, elk met een doel. */
+  beelden?: MotionBeeld[];
 }
 
-export async function schrijfPlan(v: PlanVraag): Promise<MotionPlan> {
-  const woorden = maxWoorden(v.lengte);
-  const aantal = v.lengte <= 30 ? "3 of 4" : v.lengte <= 45 ? "4 of 5" : "5 of 6";
-  const antwoord = await claude()
-    .beta.messages.stream({
-      model: MODEL,
-      max_tokens: 16000,
-      // "low": het script is een kort stuk tekst; op "medium" wachtte de klant er bijna
-      // twee minuten op (gemeten 11-11-2026).
-      output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-      // Weigert het model iets op een beleidsgrond, dan neemt een passend model het over.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-      system: `Je schrijft het script voor een korte Nederlandse uitlegvideo in motion graphics: strakke, platte animatie met vormen, iconen, grafieken, getallen en tekst in beeld. Geen gefilmde beelden, geen realistische personen.
+const kaal = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * Staat elke gesproken zin van het plan letterlijk in het script van de klant? Geeft de
+ * scenes terug waar dat niet zo is (nummers vanaf 1; 0 is de eindkaart). Leestekens en
+ * hoofdletters tellen niet mee.
+ */
+export function afwijkingen(plan: MotionPlan, bron: string): number[] {
+  const b = ` ${kaal(bron)} `;
+  const mis: number[] = [];
+  plan.scenes.forEach((s, i) => {
+    if (!b.includes(` ${kaal(s.tekst)} `)) mis.push(i + 1);
+  });
+  if (!b.includes(` ${kaal(plan.eind.tekst)} `)) mis.push(0);
+  return mis;
+}
+
+/** De kortste lengte waar een tekst van zoveel woorden in past; null als hij voor alles te lang is. */
+export function lengteVoorWoorden(woorden: number): MotionLengte | null {
+  return MOTION_LENGTES.find((l) => woorden <= Math.round(maxWoorden(l.sec) * 1.25))?.sec ?? null;
+}
+
+export interface PlanUitkomst {
+  plan: MotionPlan;
+  /** Bij een eigen script: de scenes waar de tekst toch afwijkt van wat de klant aanleverde. */
+  afwijkend: number[];
+}
+
+function systeem(v: PlanVraag, aantal: string, woorden: number): string {
+  const huis = [
+    v.toon ? `- Schrijfstijl van dit bedrijf (houd je hieraan): ${v.toon}` : "",
+    v.nietDoen ? `- Wat er van dit bedrijf niet in mag: ${v.nietDoen}` : "",
+    v.beelden?.length
+      ? `- De klant gaf voorbeelden mee (f1, f2, ...), elk met een doel. Verwerk ze in "beeld" op de plek waar ze het verhaal helpen, en noem ze bij hun nummer: "onze bestelbus (voorbeeld f1) rijdt het beeld in". Een voorbeeld met het doel "Neem deze stijl over" noem je niet per scene; dat geldt voor de hele video.`
+      : "",
+    v.staand ? "- De video is staand (voor telefoons): houd de beelden eenvoudig, één ding tegelijk in beeld." : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const beeld = `"beeld": wat er te zien is, in gewoon Nederlands, zodat de klant het begrijpt en een animator het kan tekenen. Kies iets dat het verhaal écht uitlegt: een grafiek die oploopt, een stroom van A naar B, een vergelijking links/rechts, een teller, een tijdlijn, een schema met stappen. Noem per scene de twee tot vier elementen die op de sleutelwoorden van de stem verschijnen. Geen losse plaatjes die alleen de tekst herhalen.`;
+  const slot = `- "kop": een korte titel voor rechtsboven in beeld, bijvoorbeeld "01  Het probleem" (hooguit 24 tekens). Leeg bij de eerste scene.
+- eind.regel1 en eind.regel2: twee korte regels tekst boven het logo (elk hooguit 28 tekens) die samen een zin vormen die letterlijk zo in eind.tekst staat, bijvoorbeeld "Benieuwd wat het" / "jou oplevert?". eind.knop: de uitnodiging op de knop, hooguit 24 tekens.
+- "titel": een korte werktitel voor in de bibliotheek.${huis ? `\n${huis}` : ""}`;
+
+  if (v.eigenScript) {
+    return `Je krijgt het kant-en-klare script van een klant voor een korte Nederlandse uitlegvideo in motion graphics: strakke, platte animatie met vormen, iconen, grafieken, getallen en tekst in beeld. Geen gefilmde beelden. Jij verdeelt het script in scenes en bedenkt het beeld erbij. Aan de tekst zelf verander je niets.
+
+Regels:
+- "tekst": wat de stem zegt, LETTERLIJK overgenomen uit het script van de klant. Geen woord erbij, eraf of anders; ook geen zinnen omdraaien of samenvoegen. Alle gesproken tekst van de klant komt in de video, in dezelfde volgorde.
+- Staan er in het script ook aanwijzingen die niet worden uitgesproken (scenenummers, kopjes als "Voice-over" of "Beeld", regieaanwijzingen, tijdcodes), dan horen die niet in "tekst". Beeldaanwijzingen van de klant gebruik je wel: die vormen de basis van "beeld" voor die scene.
+- Verdeel in scenes op de plekken waar een nieuwe gedachte begint: ongeveer één scene per 8 tot 12 seconden spreektijd, één gedachte per scene.
+- De laatste één of twee zinnen van het script (de afsluiting of oproep) worden de eindkaart: zet die in eind.tekst, niet in een scene.
+- ${beeld}
+${slot}`;
+  }
+
+  return `Je schrijft het script voor een korte Nederlandse uitlegvideo in motion graphics: strakke, platte animatie met vormen, iconen, grafieken, getallen en tekst in beeld. Geen gefilmde beelden, geen realistische personen.
 
 Opbouw (onze vaste formule):
 1. Haak: een herkenbare vraag of situatie van de kijker, in één of twee zinnen.
@@ -105,15 +156,38 @@ Daarna de eindkaart, apart: één of twee zinnen met een duidelijke uitnodiging 
 Regels:
 - ${aantal} scenes, plus de eindkaart. Samen hooguit ${woorden} woorden gesproken tekst (dat is ±${v.lengte} seconden).
 - "tekst": wat de stem zegt. Gewone spreektaal, korte zinnen, je-vorm, geen jargon en geen opsommingstekens. Getallen voluit geschreven zoals je ze uitspreekt, behalve jaartallen en bedragen.
-- "beeld": wat er te zien is, in gewoon Nederlands, zodat de klant het begrijpt en een animator het kan tekenen. Kies iets dat het verhaal écht uitlegt: een grafiek die oploopt, een stroom van A naar B, een vergelijking links/rechts, een teller, een tijdlijn, een schema met stappen. Noem per scene de twee tot vier elementen die op de sleutelwoorden van de stem verschijnen. Geen losse plaatjes die alleen de tekst herhalen.
-- "kop": een korte titel voor rechtsboven in beeld, bijvoorbeeld "01  Het probleem" (hooguit 24 tekens). Leeg bij de eerste scene.
+- ${beeld}
 - Neem feiten, bedragen en claims van de klant letterlijk over; verzin er geen bij.
-- eind.regel1 en eind.regel2: twee korte regels tekst boven het logo (elk hooguit 28 tekens) die samen een zin vormen die letterlijk zo in eind.tekst staat, bijvoorbeeld "Benieuwd wat het" / "jou oplevert?". eind.knop: de uitnodiging op de knop, hooguit 24 tekens.
-- "titel": een korte werktitel voor in de bibliotheek.${v.staand ? "\n- De video is staand (voor telefoons): houd de beelden eenvoudig, één ding tegelijk in beeld." : ""}`,
+${slot}`;
+}
+
+export async function schrijfPlan(v: PlanVraag): Promise<PlanUitkomst> {
+  const woorden = maxWoorden(v.lengte);
+  const aantal = v.lengte <= 30 ? "3 of 4" : v.lengte <= 45 ? "4 of 5" : "5 of 6";
+  const voorbeelden = v.beelden?.length ? await beeldBlokken(v.beelden, false) : [];
+  const antwoord = await claude()
+    .beta.messages.stream({
+      model: MODEL,
+      max_tokens: 16000,
+      // "low": het script is een kort stuk tekst; op "medium" wachtte de klant er bijna
+      // twee minuten op (gemeten 11-11-2026).
+      output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
+      // Weigert het model iets op een beleidsgrond, dan neemt een passend model het over.
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      system: systeem(v, aantal, woorden),
       messages: [
         {
           role: "user",
-          content: `Bedrijf: ${v.bedrijf}\n\nWaar de video over moet gaan (onderwerp, of een bestaand script van de klant):\n${v.onderwerp}`,
+          content: [
+            ...voorbeelden,
+            {
+              type: "text",
+              text: v.eigenScript
+                ? `Bedrijf: ${v.bedrijf}\n\nHet script van de klant:\n${v.onderwerp}`
+                : `Bedrijf: ${v.bedrijf}\n\nWaar de video over moet gaan (onderwerp, of een bestaand script van de klant):\n${v.onderwerp}`,
+            },
+          ],
         },
       ],
     })
@@ -126,5 +200,6 @@ Regels:
   } catch {
     throw new Error("Het script kwam niet goed terug. Probeer het opnieuw.");
   }
-  return controleerPlan(ruw, v.lengte);
+  const plan = controleerPlan(ruw, v.lengte);
+  return { plan, afwijkend: v.eigenScript ? afwijkingen(plan, v.onderwerp) : [] };
 }

@@ -24,11 +24,13 @@ import { MAX_TEGELIJK, WachtrijFout, falReden, markeerMislukt, uploadNaarOpslag 
 import type { Creatie } from "@/lib/creaties/types";
 import { canUseMotion } from "@/lib/studio/access";
 import { controleerPlan } from "./plan";
+import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
 import { maakVideo } from "./render";
 import {
   MOTION_MUZIEK,
   formaatMaat,
+  motionFont,
   isMotionFormaat,
   isMotionLengte,
   motionCredits,
@@ -100,6 +102,12 @@ export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
     lengte,
     muziek,
     plan: controleerPlan(ruw.plan, lengte),
+    huisstijlId: /^[0-9a-f-]{36}$/i.test(String(ruw.huisstijlId ?? "")) ? String(ruw.huisstijlId) : "",
+    logo: eigenOpslag(ruw.logo) ? ruw.logo : "",
+    font: motionFont(ruw.font),
+    toon: tekst(ruw.toon, 600),
+    nietDoen: tekst(ruw.nietDoen, 600),
+    beelden: leesBeelden(ruw.beelden),
   };
 }
 
@@ -247,9 +255,12 @@ export async function verversMotion(c: Creatie): Promise<Creatie> {
   }
 }
 
-function paginaVan(i: MotionInvoer, woorden: WhisperWord[]) {
+/** Alles voor de pagina behalve de code. Haalt het logo en de foto's op die in beeld komen. */
+async function paginaVan(i: MotionInvoer, woorden: WhisperWord[]) {
   const { w, h } = formaatMaat(i.formaat);
-  return { w, h, woorden, script: scriptVan(i), merk: { naam: i.bedrijf, website: i.website, kleur: i.kleur, kleur2: i.kleur2 } };
+  // Rijen van vóór de huisstijl hebben deze velden niet.
+  const [logo, fotos] = await Promise.all([bereidLogo(i.logo ?? ""), bereidFotos(i.beelden ?? [])]);
+  return { w, h, woorden, script: scriptVan(i), merk: { naam: i.bedrijf, website: i.website, kleur: i.kleur, kleur2: i.kleur2, font: motionFont(i.font), logo }, fotos };
 }
 
 async function haal(url: string): Promise<Buffer> {
@@ -276,7 +287,7 @@ async function voerAnimatieUit(c: Creatie, v: Voortgang): Promise<void> {
     const { words } = await transcribeWords(stem, { language: "nl" });
     if (words.length < 5) throw new Error("De woordtijden van de voice-over konden niet worden gemeten.");
 
-    const uitkomst = await tekenAnimatie({ pagina: paginaVan(r, words), plan: r.plan, onderwerp: r.onderwerp });
+    const uitkomst = await tekenAnimatie({ pagina: await paginaVan(r, words), plan: r.plan, onderwerp: r.onderwerp, beelden: r.beelden ?? [], nietDoen: r.nietDoen });
     if (uitkomst.rest.length) console.warn("[motion] schoonheidsfouten na controle:", uitkomst.rest.slice(0, 5));
 
     const werk: Werkbestand = { code: uitkomst.code, woorden: words, script: scriptVan(r) };
@@ -303,7 +314,7 @@ async function voerVideoUit(c: Creatie, v: Voortgang): Promise<void> {
     if (!v.werk || !v.stemUrl) throw new Error("De animatie is niet bewaard.");
     const [werk, stem] = await Promise.all([haal(v.werk).then((b) => JSON.parse(b.toString("utf8")) as Werkbestand), haal(v.stemUrl)]);
     const { mp4, seconden, renderMs } = await maakVideo({
-      ...paginaVan(r, werk.woorden),
+      ...(await paginaVan(r, werk.woorden)),
       code: werk.code,
       stem,
       muziekUrl: r.muziek ? musicTrackUrl(r.muziek) : undefined,

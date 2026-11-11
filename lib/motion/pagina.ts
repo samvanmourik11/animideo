@@ -5,6 +5,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { WhisperWord } from "@/lib/openai";
+import type { PaginaFoto, PaginaLogo } from "./beelden";
+import { MOTION_FONTS, STANDAARD_FONT } from "./types";
 
 export interface PaginaInvoer {
   w: number;
@@ -12,7 +14,9 @@ export interface PaginaInvoer {
   woorden: WhisperWord[];
   /** [[sceneId, gesproken tekst], ...]; de laatste heet 'eind'. */
   script: [string, string][];
-  merk: { naam: string; website: string; kleur: string; kleur2: string };
+  merk: { naam: string; website: string; kleur: string; kleur2: string; font?: string; logo?: PaginaLogo | null };
+  /** Foto's van de klant die zelf in beeld komen, op id (f1, f2, ...). */
+  fotos?: Record<string, PaginaFoto>;
   /** De code van de video: zet window.VIDEO. */
   code: string;
 }
@@ -31,13 +35,16 @@ const json = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c").replace(
 
 export async function paginaHtml(p: PaginaInvoer): Promise<string> {
   const kern = await leesKern();
+  // Alleen een lettertype uit onze eigen lijst: de naam gaat een adres en een stijlregel in.
+  const font = (MOTION_FONTS as readonly string[]).includes(p.merk.font ?? "") ? p.merk.font! : STANDAARD_FONT;
+  const merk = { ...p.merk, font };
   return `<!doctype html>
 <html><head><meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=${font.replace(/ /g, "+")}:wght@500;600;700;800&display=swap" rel="stylesheet">
 <style>
   html,body{margin:0;overflow:hidden;background:#f3f8fb}
   svg{display:block}
-  text{font-family:"Plus Jakarta Sans",system-ui,sans-serif;font-weight:700}
+  text{font-family:"${font}",system-ui,sans-serif;font-weight:700}
 </style></head>
 <body>
 <svg id="st" xmlns="http://www.w3.org/2000/svg">
@@ -66,7 +73,8 @@ window.addEventListener('error', function (e) { var m = 'Fout in de code: ' + (e
 window.W = ${p.w}; window.H = ${p.h};
 window.WORDS = ${json(p.woorden)};
 window.SCRIPT = ${json(p.script)};
-window.MERK = ${json(p.merk)};
+window.MERK = ${json(merk)};
+window.FOTOS = ${json(p.fotos ?? {})};
 </script>
 <script>${veilig(kern)}</script>
 <script>

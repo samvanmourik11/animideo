@@ -14,7 +14,8 @@ import type { WhisperWord } from "@/lib/openai";
 import { claude } from "./plan";
 import { ernstig, proef, type Proef } from "./render";
 import type { PaginaInvoer } from "./pagina";
-import type { MotionPlan } from "./types";
+import { beeldBlokken } from "./beelden";
+import type { MotionBeeld, MotionPlan } from "./types";
 
 const MODEL = "claude-opus-5-5";
 /** Dollars per miljoen tokens (Opus 5.5, november 2026). */
@@ -58,7 +59,7 @@ window.VIDEO = {
 - \`tt\` is de tijd in seconden vanaf het begin van de stem; \`cur\` is de id van de scene die nu loopt.
 - De scene \`eind\` (donkere eindkaart met logo, knop en website) tekent het systeem zelf. Ook de achtergrond, de veeg tussen scenes, het merk linksboven en de titel rechtsboven komen vanzelf. Teken die dus niet.
 
-De hoofdregel: \`teken\` berekent elk beeld opnieuw uit alleen \`tt\`. Hetzelfde tijdstip moet altijd exact hetzelfde beeld geven, want de beelden worden los van elkaar en door elkaar getekend. Dus: geen toestand die je van beeld tot beeld bijhoudt, geen Math.random of Date, geen CSS-animaties of transitions, geen setTimeout of requestAnimationFrame, geen plaatjes of lettertypes van buiten, geen fetch.
+De hoofdregel: \`teken\` berekent elk beeld opnieuw uit alleen \`tt\`. Hetzelfde tijdstip moet altijd exact hetzelfde beeld geven, want de beelden worden los van elkaar en door elkaar getekend. Dus: geen toestand die je van beeld tot beeld bijhoudt, geen Math.random of Date, geen CSS-animaties of transitions, geen setTimeout of requestAnimationFrame, geen plaatjes of lettertypes van buiten (een foto van de klant alleen via \`foto\`, zie hieronder), geen fetch en geen eigen font-family: het lettertype van de klant staat al ingesteld.
 
 ## Wat je tot je beschikking hebt (allemaal gewone globale namen)
 
@@ -94,6 +95,7 @@ Bouwstenen (elk geeft een groep terug die je met tf en op animeert):
 - \`zinAuto(parent, x, y, 'zin uit het script', na, grootte)\` en in teken \`woordenIn(zin, tt)\`: een regel waarvan elk woord verschijnt als het wordt uitgesproken. Voor een kernzin of een citaat.
 - \`tekstBlok(parent, x, y, tekst, grootte, { max: 28 })\`: gecentreerde tekst over meerdere regels.
 - \`persoon(parent, { kleur, huid, haar })\` → \`{ r, hoofd, armL, armR }\`: eenvoudig poppetje, ±315 hoog, voeten op 0,0.
+- \`foto(parent, 'f1', breedte, { hoogte, rond = 28, rand = 10 })\`: zet een foto van de klant in beeld, gecentreerd op 0,0, met ronde hoeken, een witte rand en een schaduw; \`.breedte\` en \`.hoogte\` geven de maat. Alleen voor voorbeelden met het doel "Zet deze foto in beeld"; welke dat zijn, staat in de opdracht. Geef \`hoogte\` mee om de foto passend uit te snijden.
 - Iconen, elk ±120 pixels en gecentreerd op 0,0: \`IC.vink\`, \`kruis\`, \`euro\`, \`vraag\`, \`uitroep\`, \`plus\`, \`bliksem\`, \`vlam\`, \`blad\`, \`hart\`, \`ster\`, \`klok\` (met \`.wijzer\` en \`.uur\` om te draaien), \`doc\`, \`telefoon\` en \`laptop\` (met \`.scherm\`, een groep om iets op het scherm te tekenen), \`vergroot\`, \`team\`, \`gebruiker\`, \`tandwiel\` (met \`.wiel\`), \`mail\`, \`kalender\`, \`grafiek\`, \`schild\`, \`lamp\`, \`huis\`, \`gebouw\`, \`winkelwagen\`, \`pijl\`, \`duim\`, \`spraak\`, \`wereld\`, \`slot\`, \`raket\`. Aanroep: \`IC.klok(parent)\`; de meeste nemen een kleur als tweede argument.
 
 Wat er niet bij staat, teken je zelf met \`el\`: dat is juist wat een video eigen maakt. Een bestelbus, een kassa, een dakgoot, een grafiek met de cijfers van de klant, een plattegrond. Houd één tekenstijl aan: platte vormen, witte of gekleurde vlakken, lijnen van 6 tot 8 pixels in \`C.inkt\` met ronde hoeken (\`'stroke-linejoin': 'round'\`), geen fotorealisme.
@@ -109,6 +111,15 @@ Wat er niet bij staat, teken je zelf met \`el\`: dat is juist wat een video eige
 - Blijf uit de bovenste strook: daar staan het merk (links) en de scenetitel (rechts). Liggend: houd alles onder y = 190. Staand: onder y = 330. Blijf 140 pixels van de andere randen.
 - In de eerste scene is er nog geen merk of titel in beeld; daar mag je de hele hoogte gebruiken voor een sterke opening.
 - Staand (1080 x 1920) is geen liggend beeld dat is ingezoomd: stapel de elementen onder elkaar en maak ze groot.
+
+## Voorbeelden en foto's van de klant
+
+Soms geeft de klant beelden mee, elk met een doel. Die staan dan bovenaan de opdracht.
+- "Teken dit na": de klant wil zijn eigen product, bus, pand, apparaat of app-scherm herkennen. Teken het na met \`el\` in de tekenstijl van de video (platte vlakken, lijnen in \`C.inkt\`), met dezelfde vorm, verhoudingen en kleuren en de details waaraan je het herkent. Neem de kleuren van het voorbeeld over, ook als dat niet de merkkleuren zijn. Maak er een eigen functie van als het in meer scenes terugkomt, zodat het overal hetzelfde is.
+- "Leg dit uit": bouw het schema, de grafiek of het stappenplan uit het voorbeeld op in beeld, stap voor stap op de stem, met dezelfde onderdelen, volgorde en cijfers. Neem cijfers en namen letterlijk over.
+- "Neem deze stijl over": laat de sfeer van het voorbeeld terugkomen in vormen, compositie en kleurgebruik, binnen de merkkleuren.
+- "Zet deze foto in beeld": gebruik \`foto\`. Geef de foto een duidelijke plek en een rol (laat hem binnenkomen op het woord waar hij bij hoort, zet er een label of pijl bij); teken hem niet na.
+Het logo van de klant zet het systeem zelf linksboven en op de eindkaart. Teken het logo dus niet na en zet het nergens anders neer.
 
 ## Voorbeeld
 
@@ -139,12 +150,13 @@ function opdracht(v: AnimatieVraag, scenes: [string, number][], einde: number): 
     return { id, start, eind, tijden: ws.map((w) => `${w.start.toFixed(2)} ${w.word.trim()}`).join("  ") };
   });
   const plan = v.plan;
+  const fotos = Object.entries(v.pagina.fotos ?? {}).map(([id, f]) => ({ id, w: f.w, h: f.h }));
   return `Maak de animatie voor deze video.
 
 Bedrijf: ${v.pagina.merk.naam}${v.pagina.merk.website ? ` (${v.pagina.merk.website})` : ""}
 Formaat: ${v.pagina.w} x ${v.pagina.h} (${v.pagina.h > v.pagina.w ? "staand" : "liggend"})
 Merkkleur C.accent = ${v.pagina.merk.kleur}, tweede kleur C.accent2 = ${v.pagina.merk.kleur2}
-Onderwerp volgens de klant: ${v.onderwerp}
+Onderwerp volgens de klant: ${v.onderwerp}${v.nietDoen ? `\nWat er van dit bedrijf niet in beeld mag: ${v.nietDoen}` : ""}${fotos.length ? `\nFoto's die je met foto() kunt plaatsen: ${fotos.map((f) => `'${f.id}' (${f.w} x ${f.h})`).join(", ")}` : ""}
 
 De scenes, met wat de stem zegt, wat de klant als beeld heeft goedgekeurd, en de gemeten woordtijden (seconden, zoals wt ze teruggeeft):
 
@@ -192,6 +204,9 @@ export interface AnimatieVraag {
   pagina: Omit<PaginaInvoer, "code">;
   plan: MotionPlan;
   onderwerp: string;
+  /** Voorbeelden en foto's van de klant, elk met een doel. */
+  beelden?: MotionBeeld[];
+  nietDoen?: string;
 }
 
 export interface AnimatieUitkomst {
@@ -211,7 +226,8 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
   const leeg = await sceneTijden(v.pagina);
   if (!leeg.scenes.length) throw new Error("De scenes konden niet op de stem worden gelegd.");
   const sys = await systeem();
-  const berichten: Bericht[] = [{ role: "user", content: opdracht(v, leeg.scenes, leeg.einde) }];
+  const voorbeelden = v.beelden?.length ? await beeldBlokken(v.beelden, true) : [];
+  const berichten: Bericht[] = [{ role: "user", content: [...voorbeelden, { type: "text", text: opdracht(v, leeg.scenes, leeg.einde) }] }];
   const gebruik: Gebruik = { usd: 0, rondes: 0, sec: 0 };
 
   // De beste versie tot nu toe: de laatste zonder kapotte code. Een verbeterronde die

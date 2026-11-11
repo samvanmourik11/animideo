@@ -4,7 +4,9 @@
 import { test } from "vitest";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import sharp from "sharp";
 import { proef } from "@/lib/motion/render";
+import { logoVanBuffer } from "@/lib/motion/beelden";
 
 const SCRIPT: [string, string][] = process.env.MOTION_SCRIPT
   ? JSON.parse(process.env.MOTION_SCRIPT)
@@ -24,7 +26,18 @@ test("proefbeelden", async () => {
   const staand = process.env.MOTION_STAAND === "1";
   const r = await proef({
     w: staand ? 1080 : 1920, h: staand ? 1920 : 1080, woorden, script: SCRIPT, code,
-    merk: { naam: process.env.MOTION_NAAM ?? "Kapsalon Knip", website: "kapsalonknip.nl", kleur: process.env.MOTION_KLEUR ?? "#7b3ff2", kleur2: "#ffc21a" },
+    merk: {
+      naam: process.env.MOTION_NAAM ?? "Kapsalon Knip", website: "kapsalonknip.nl", kleur: process.env.MOTION_KLEUR ?? "#7b3ff2", kleur2: "#ffc21a",
+      font: process.env.MOTION_FONT,
+      // MOTION_LOGO: pad naar een logobestand. MOTION_FOTO: pad naar een foto, beschikbaar als 'f1'.
+      logo: process.env.MOTION_LOGO ? await logoVanBuffer(await readFile(process.env.MOTION_LOGO)) : null,
+    },
+    fotos: process.env.MOTION_FOTO
+      ? await (async () => {
+          const { data, info } = await sharp(await readFile(process.env.MOTION_FOTO!)).jpeg().toBuffer({ resolveWithObject: true });
+          return { f1: { src: `data:image/jpeg;base64,${data.toString("base64")}`, w: info.width, h: info.height } };
+        })()
+      : undefined,
   });
   console.log("scenes", JSON.stringify(r.scenes), "einde", r.einde);
   console.log("fouten", JSON.stringify(r.fouten, null, 1)); await writeFile(path.join(uit, "fouten.json"), JSON.stringify(r.fouten, null, 1));

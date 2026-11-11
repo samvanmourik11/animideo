@@ -37,7 +37,7 @@ test("motion graphics van begin tot eind", async () => {
   let t0 = Date.now();
   const klok = (wat: string) => { console.log(`[${wat}] ${((Date.now() - t0) / 1000).toFixed(0)} s`); t0 = Date.now(); };
 
-  const plan = her && existsSync(pad("plan.json")) ? JSON.parse(await readFile(pad("plan.json"), "utf8")) : await schrijfPlan({ onderwerp, bedrijf, lengte, staand });
+  const plan = her && existsSync(pad("plan.json")) ? JSON.parse(await readFile(pad("plan.json"), "utf8")) : (await schrijfPlan({ onderwerp, bedrijf, lengte, staand, eigenScript: process.env.MOTION_EIGEN_SCRIPT === "1" })).plan;
   await writeFile(pad("plan.json"), JSON.stringify(plan, null, 2));
   klok("script");
   const script: [string, string][] = [...plan.scenes.map((s: { tekst: string }, k: number): [string, string] => [`s${k + 1}`, s.tekst]), ["eind", plan.eind.tekst]];

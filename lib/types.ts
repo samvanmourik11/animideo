@@ -12,6 +12,10 @@ export interface BrandColors {
 export interface BrandFonts {
   primary?: string;
   secondary?: string;
+  // Motion graphics-studio: het lettertype van de video's (uit MOTION_FONTS) en de website
+  // voor op de eindkaart. Hier bewaard omdat de tabel er geen eigen kolommen voor heeft.
+  video?: string;
+  website?: string;
 }
 
 export type BrandAssetRole = "logo" | "vehicle" | "product" | "team" | "location" | "other";
@@ -23,6 +27,9 @@ export interface BrandReferenceImage {
   id?: string;              // stabiele slug, bv. "vehicle-oranje-zeiljacht"
   role?: BrandAssetRole;    // ontbreekt op legacy → behandelen als "other"
   element?: string;         // canoniek over te nemen element, bv. "wit zeiljacht met fel-oranje zeilen"
+  // Motion graphics-studio: waarvoor het beeld dient (natekenen, uitleg, stijl, tonen). Alleen
+  // beelden met een doel gaan bij elke motion graphics-video vanzelf mee.
+  doel?: string;
 }
 
 export interface BrandKit {
