@@ -63,7 +63,7 @@ test("motion graphics van begin tot eind", async () => {
   await writeFile(pad("woorden.json"), JSON.stringify(words));
   klok("woordtijden");
 
-  const basis = { w: staand ? 1080 : 1920, h: staand ? 1920 : 1080, merk };
+  const basis = { w: staand ? 1080 : 1920, h: staand ? 1920 : 1080, merk, stijl: process.env.MOTION_STIJL || null };
   const delen = await verdeel(basis, plan, words);
   await writeFile(pad("delen.json"), JSON.stringify(delen, null, 1));
   console.log(`${delen.length} hoofdstuk(ken):`, delen.map((d) => `${d.van + 1}-${d.tot} @${d.start.toFixed(1)}s`).join("  "));

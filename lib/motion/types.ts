@@ -210,6 +210,8 @@ export interface MotionInvoer {
   toon: string;
   nietDoen: string;
   beelden: MotionBeeld[];
+  /** De tekenstijl (id uit lib/motion/stijlen.ts); leeg of afwezig = de standaardstijl. */
+  stijl?: string;
 }
 
 /** De muziek waaruit de klant kiest (slugs uit lib/music/library.ts). */

@@ -26,6 +26,7 @@ import {
   type MotionLengte,
   type MotionPlan,
 } from "@/lib/motion/types";
+import { MOTION_STIJLEN } from "@/lib/motion/stijlen";
 
 // Motion graphics-studio. Bovenaan de huisstijl (logo, kleuren, lettertype): één keer
 // instellen, daarna ziet elke video er hetzelfde uit. Dan twee stappen op één scherm: vertellen waar de video over gaat,
@@ -81,6 +82,7 @@ export default function MotionStudio() {
   const [formaat, setFormaat] = useState<MotionFormaat>("16:9");
   const [lengte, setLengte] = useState<MotionLengte>(30);
   const [muziek, setMuziek] = useState<string>(MOTION_MUZIEK[0].slug);
+  const [stijl, setStijl] = useState<string>("");
   const [plan, setPlan] = useState<MotionPlan | null>(null);
   const [afwijkend, setAfwijkend] = useState<number[]>([]);
   const [bezig, setBezig] = useState<Bezig>(null);
@@ -162,7 +164,7 @@ export default function MotionStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("motion", { onderwerp, bedrijf, website, kleur, kleur2, formaat, lengte, muziek, plan, huisstijlId: kitId, logo, font, toon, nietDoen, beelden });
+      const c = await startMaker("motion", { onderwerp, bedrijf, website, kleur, kleur2, formaat, lengte, muziek, stijl, plan, huisstijlId: kitId, logo, font, toon, nietDoen, beelden });
       lijst.zetVoor(c);
     });
   }
@@ -499,6 +501,25 @@ export default function MotionStudio() {
                   >
                     <div className="text-sm font-semibold text-tekst">{f.naam}</div>
                     <div className="text-[11px] text-tekst-3">{f.uitleg}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="n-label">Tekenstijl</label>
+              <p className="text-[11px] text-tekst-3 mt-0.5">Standaard volgt je huisstijl. De andere stijlen hebben hun eigen kleuren en letter; je logo en naam blijven in beeld.</p>
+              <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[{ id: "", naam: "Standaard", uitleg: "Licht en strak, in de kleuren van je huisstijl." }, ...MOTION_STIJLEN].map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setStijl(s.id)}
+                    title={s.uitleg}
+                    className={`rounded-xl border overflow-hidden text-left ${stijl === s.id ? "border-blue-500 ring-1 ring-blue-500" : "border-rand hover:border-blue-500/40"}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/motion/stijlen/${s.id || "standaard"}.jpg`} alt="" className="w-full aspect-video object-cover" loading="lazy" />
+                    <div className="px-2.5 py-1.5 text-xs font-semibold text-tekst">{s.naam}</div>
                   </button>
                 ))}
               </div>

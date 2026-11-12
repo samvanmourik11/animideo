@@ -16,6 +16,7 @@ import { ernstig, proef, type Proef } from "./render";
 import type { PaginaInvoer } from "./pagina";
 import { beeldBlokken } from "./beelden";
 import type { MotionBeeld, MotionPlan } from "./types";
+import { stijlVan } from "./stijlen";
 
 const MODEL = "claude-opus-5-5";
 // Het nakijken en bijwerken is kleiner werk dan het ontwerp: kijken naar proefbeelden en een
@@ -172,13 +173,24 @@ function opdracht(v: AnimatieVraag, scenes: [string, number][], einde: number): 
   const fotos = Object.entries(v.pagina.fotos ?? {}).map(([id, f]) => ({ id, w: f.w, h: f.h }));
   const pl = v.plek;
   const heeftEind = !pl || pl.laatste;
+  const stijl = stijlVan(v.pagina.stijl);
+  // De algemene uitleg beschrijft de standaardstijl (witte kaarten, zachte schaduw, verloop).
+  // Bij een gekozen stijl gaan deze regels daarboven.
+  const stijlBlok = stijl
+    ? `
+## Tekenstijl van deze video: ${stijl.naam}
+De klant koos een eigen tekenstijl. Deze regels gaan vóór op wat de algemene uitleg en het voorbeeld over het uiterlijk zeggen (witte kaarten, zachte schaduw, verloop, glans); wat daar staat over opbouw, timing, leesbaarheid en de veilige rand blijft gelden.
+${stijl.regels}
+De bouwstenen zijn al op deze stijl ingesteld: de achtergrond, het lettertype, het merk linksboven, de titel rechtsboven, de veeg en de eindkaart. De kleurnamen (C.inkt, C.wit, C.rood, C.blauw, ...) hebben de kleuren van deze stijl: C.inkt is de kleur voor lijnen en tekst, C.wit de kleur van een vlak waar iets op staat. Gebruik daarom steeds die namen en geen eigen kleurcodes zoals '#fff' of '#000'. pil() en kaart() zonder kleur krijgen vanzelf de vorm van deze stijl.${stijl.thema.accent ? " De merkkleuren van de klant passen niet in deze stijl: C.accent en C.accent2 zijn hier de accentkleuren van de stijl." : ""}
+`
+    : "";
   return `${pl ? `Maak de animatie voor hoofdstuk ${pl.nummer} van ${pl.aantal} van een lange video. Elk hoofdstuk wordt apart getekend en daarna worden ze aan elkaar gezet; jij maakt alleen dit hoofdstuk. De tijden hieronder tellen vanaf het begin van dit hoofdstuk.${pl.nummer > 1 ? ` Het merk linksboven staat vanaf het eerste beeld in beeld, dus houd ook in de eerste scene de bovenste strook vrij.${pl.hiervoor ? ` In het hoofdstuk hiervoor was te zien: ${pl.hiervoor}` : ""}` : ""}${pl.hierna ? ` In het hoofdstuk hierna komt: ${pl.hierna}` : ""} Laat terugkerende dingen (het product, de hoofdpersoon) er net zo uitzien als ze in de beschrijvingen van de andere hoofdstukken heten, in dezelfde platte stijl en de merkkleuren.${heeftEind ? "" : " Dit hoofdstuk heeft geen eindkaart: laat `eind` weg uit window.VIDEO en eindig met het laatste beeld van de laatste scene."}` : "Maak de animatie voor deze video."}
 
 Bedrijf: ${v.pagina.merk.naam}${v.pagina.merk.website ? ` (${v.pagina.merk.website})` : ""}
 Formaat: ${v.pagina.w} x ${v.pagina.h} (${v.pagina.h > v.pagina.w ? "staand" : "liggend"})
 Merkkleur C.accent = ${v.pagina.merk.kleur}, tweede kleur C.accent2 = ${v.pagina.merk.kleur2}
 ${v.taal === "en" ? "Taal: dit is een Engelstalige video. Alle tekst in beeld is Engels, ook als de beschrijving bij Beeld Nederlands is. Schrijf getallen op zijn Engels (1,250 en 3.5); gebruik daarvoor nl() niet.\n" : ""}Onderwerp volgens de klant: ${v.onderwerp}${v.nietDoen ? `\nWat er van dit bedrijf niet in beeld mag: ${v.nietDoen}` : ""}${fotos.length ? `\nFoto's die je met foto() kunt plaatsen: ${fotos.map((f) => `'${f.id}' (${f.w} x ${f.h})`).join(", ")}` : ""}
-
+${stijlBlok}
 De scenes, met wat de stem zegt, wat de klant als beeld heeft goedgekeurd, en de gemeten woordtijden (seconden, zoals wt ze teruggeeft):
 
 ${perScene

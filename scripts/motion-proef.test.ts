@@ -26,6 +26,7 @@ test("proefbeelden", async () => {
   const staand = process.env.MOTION_STAAND === "1";
   const r = await proef({
     w: staand ? 1080 : 1920, h: staand ? 1920 : 1080, woorden, script: SCRIPT, code,
+    stijl: process.env.MOTION_STIJL,
     merk: {
       naam: process.env.MOTION_NAAM ?? "Kapsalon Knip", website: "kapsalonknip.nl", kleur: process.env.MOTION_KLEUR ?? "#7b3ff2", kleur2: "#ffc21a",
       font: process.env.MOTION_FONT,

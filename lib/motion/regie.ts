@@ -28,6 +28,7 @@ import type { Creatie } from "@/lib/creaties/types";
 import { canUseMotion } from "@/lib/studio/access";
 import { controleerPlan } from "./plan";
 import { deelWerk, scriptVan, stemBlokken, verdeel, type Deel, type PaginaBasis } from "./lang";
+import { stijlVan } from "./stijlen";
 import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
 import { FPS, maakStil, monteer, voegStemSamen } from "./render";
@@ -123,6 +124,7 @@ export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
     toon: tekst(ruw.toon, 600),
     nietDoen: tekst(ruw.nietDoen, 600),
     beelden: leesBeelden(ruw.beelden),
+    stijl: stijlVan(typeof ruw.stijl === "string" ? ruw.stijl : "")?.id ?? "",
   };
 }
 
@@ -274,7 +276,7 @@ async function basisVan(i: MotionInvoer): Promise<PaginaBasis> {
   const { w, h } = formaatMaat(i.formaat);
   // Rijen van vóór de huisstijl hebben deze velden niet.
   const [logo, fotos] = await Promise.all([bereidLogo(i.logo ?? ""), bereidFotos(i.beelden ?? [])]);
-  return { w, h, merk: { naam: i.bedrijf, website: i.website, kleur: i.kleur, kleur2: i.kleur2, font: motionFont(i.font), logo }, fotos };
+  return { w, h, merk: { naam: i.bedrijf, website: i.website, kleur: i.kleur, kleur2: i.kleur2, font: motionFont(i.font), logo }, fotos, stijl: i.stijl || null };
 }
 
 async function haal(url: string): Promise<Buffer> {

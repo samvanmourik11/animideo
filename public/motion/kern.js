@@ -27,6 +27,10 @@ const FOTOS = window.FOTOS || {};
 // en daarna aan elkaar gezet. Een hoofdstuk met een vervolg heeft geen eindkaart en stopt op
 // de seconde af waar het volgende begint; de veeg loopt over de naad heen.
 const DEEL = window.DEEL || {};
+// De tekenstijl (lib/motion/stijlen.ts): kleuren, achtergrond, labels en filters. Leeg = de
+// standaardstijl, en dan verandert er hieronder niets.
+const STIJL = window.STIJL || {};
+const S_PIL = STIJL.pil || {}, S_KAART = STIJL.kaart || {};
 const HEEFT_EIND = (window.SCRIPT || []).some(s => s[0] === 'eind');
 /** Het logo van de klant, of null: dan is het merkteken de eerste letter van de naam. */
 const LOGO = MERK.logo && MERK.logo.src ? MERK.logo : null;
@@ -73,10 +77,22 @@ const C = {
   groen: '#00c08b', rood: '#f43f52', geel: '#ffc21a', oranje: '#ff9417', blauw: '#2a8cff', paars: '#7b5cff',
   grijs: '#d3dde4', licht: '#f3f8fb', muted: '#6b7a90',
 };
+Object.assign(C, STIJL.C || {});
+if (STIJL.accent) { C.accent = STIJL.accent[0]; C.accent2 = STIJL.accent[1]; }
 C.navy = C.inkt;
+// Tekst op een licht vlak en op een donker vlak: in een donkere stijl is C.inkt zelf licht.
+const T_DONKER = STIJL.donker || C.inkt, T_LICHT = STIJL.donker ? (isLichtK(C.inkt) ? C.inkt : '#fff') : '#fff';
+function isLichtK(k) { try { const [r, g, b] = hex(k); return (r * 299 + g * 587 + b * 114) / 1000 > 165; } catch (e) { return false; } }
+// Stijlfilters; een filter met een id dat al bestaat (de schaduw 'sch') vervangt het bestaande.
+if (STIJL.defs) {
+  const tmp = document.createElementNS(NS, 'g'); $('defs').appendChild(tmp); tmp.innerHTML = STIJL.defs;
+  [...tmp.children].forEach(n => { const oud = n.id && document.querySelector('#defs > #' + n.id); if (oud) oud.remove(); $('defs').appendChild(n); });
+  tmp.remove();
+}
 // Elk vlak in een van deze kleuren krijgt via F() een zacht verloop: dat maakt het gelikt.
 const GR = {};
 function maakVerloop(id, kleur, schuin = false) {
+  if (STIJL.vlak) return;
   const g = el('linearGradient', { id, x1: 0, y1: 0, x2: schuin ? 1 : 0, y2: 1 }, $('defs'));
   el('stop', { offset: 0, 'stop-color': mix(kleur, '#ffffff', .22) }, g);
   el('stop', { offset: 1, 'stop-color': mix(kleur, '#000000', .1) }, g);
@@ -88,8 +104,9 @@ const F = k => GR[k] || k;
 {
   // De eindkaart en donkere vlakken: de merkkleur, flink donker gemaakt.
   const donker = el('linearGradient', { id: 'gDonker', x1: 0, y1: 0, x2: 1, y2: 1 }, $('defs'));
-  el('stop', { offset: 0, 'stop-color': mix(C.accent, '#0b1d3a', .72) }, donker); el('stop', { offset: 1, 'stop-color': mix(C.accent, '#050d22', .9) }, donker);
-  GR[C.inkt] = 'url(#gDonker)';
+  const [d1, d2] = STIJL.eind || [mix(C.accent, '#0b1d3a', .72), mix(C.accent, '#050d22', .9)];
+  el('stop', { offset: 0, 'stop-color': d1 }, donker); el('stop', { offset: 1, 'stop-color': d2 }, donker);
+  if (!STIJL.C) GR[C.inkt] = 'url(#gDonker)';
 }
 
 // ---------- fouten ----------
@@ -134,9 +151,13 @@ function sceneTijden() {
 /** Tekstpil. r.breedte = de breedte, zodat je hem kunt uitlijnen. */
 function pil(parent, tekst, { fill = '#fff', kleur = null, size = 42, padX = 34, h = 84, rand = null, icoon = null, schaduw = true } = {}) {
   const r = G(parent, schaduw ? { filter: 'url(#sch)' } : {});
-  const tk = kleur || (fill === '#fff' || isLicht(fill) ? C.inkt : '#fff');
-  const rect = el('rect', { y: -h / 2, height: h, rx: h / 2, fill: F(fill), ...(rand ? { stroke: rand, 'stroke-width': 4 } : {}) }, r);
-  const glans = fill !== '#fff' ? el('rect', { y: -h / 2, height: h * .55, rx: h * .275, fill: 'url(#glans)' }, r) : null;
+  // In een stijl heeft het gewone (witte) label de vorm en kleur van die stijl.
+  const gewoon = fill === '#fff';
+  if (gewoon && S_PIL.fill) { fill = S_PIL.fill; kleur = kleur || S_PIL.kleur || null; }
+  rand = rand || S_PIL.rand || null;
+  const tk = kleur || (fill === 'none' ? C.inkt : fill === '#fff' || isLichtK(fill) ? T_DONKER : T_LICHT);
+  const rect = el('rect', { y: -h / 2, height: h, rx: h * (S_PIL.rx ?? .5), fill: F(fill), ...(rand ? { stroke: rand, 'stroke-width': S_PIL.randDik ?? 4 } : {}) }, r);
+  const glans = fill !== '#fff' && S_PIL.glans !== false ? el('rect', { y: -h / 2, height: h * .55, rx: h * .275, fill: 'url(#glans)' }, r) : null;
   const t = el('text', { y: size * .36, 'font-size': size, fill: tk, 'font-weight': 800 }, r, tekst);
   const ic = icoon ? size * 1.25 : 0, w = t.getComputedTextLength() + padX * 2 + ic;
   rect.setAttribute('x', -w / 2); rect.setAttribute('width', w); t.setAttribute('x', -w / 2 + padX + ic);
@@ -148,6 +169,11 @@ function pil(parent, tekst, { fill = '#fff', kleur = null, size = 42, padX = 34,
 /** Witte (of gekleurde) kaart met zachte schaduw, midden op 0,0. */
 function kaart(parent, w, h, fill = '#fff', rx = 34) {
   const r = G(parent);
+  if (STIJL.kaart) {
+    if (fill === '#fff' && S_KAART.fill) fill = S_KAART.fill;
+    el('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx: S_KAART.rx ?? rx, fill: F(fill), filter: 'url(#sch)', ...(S_KAART.rand ? { stroke: S_KAART.rand, 'stroke-width': S_KAART.randDik ?? 3 } : {}) }, r);
+    return r;
+  }
   el('rect', { x: -w / 2, y: -h / 2, width: w, height: h, rx, fill: F(fill), filter: 'url(#sch)' }, r);
   el('rect', { x: -w / 2 + .75, y: -h / 2 + .75, width: w - 1.5, height: h - 1.5, rx: rx - 1, fill: 'none', stroke: fill === '#fff' ? C.inkt : '#fff', 'stroke-opacity': fill === '#fff' ? .06 : .12, 'stroke-width': 1.5 }, r);
   return r;
@@ -339,6 +365,8 @@ function bouwHarnas() {
   const st = $('st'); st.setAttribute('width', W); st.setAttribute('height', H); st.setAttribute('viewBox', `0 0 ${W} ${H}`);
   document.body.style.width = W + 'px'; document.body.style.height = H + 'px';
   [['bg', 0], ['vig', 0], ['bgDots', 96]].forEach(([id, extra]) => { $(id).setAttribute('width', W + extra); $(id).setAttribute('height', H + extra); });
+  if (STIJL.bg) bouwAchtergrond();
+  if (STIJL.scenesFilter) $('scenes').setAttribute('filter', `url(#${STIJL.scenesFilter})`);
   SCENES = sceneTijden();
   const last = WRD[WRD.length - 1]; END = DEEL.einde > 0 ? +DEEL.einde : +((last ? last.end : 10) + D + (V.naloop ?? 2.8)).toFixed(2);
   K.deel = [...Array(16)].map((_, i) => ({ c: el('circle', { r: 3 + (i * 7) % 6, fill: [C.accent, C.accent2, C.groen][i % 3], 'fill-opacity': .32 }, $('deeltjes')), x: (i * 397) % W, y: (i * 251) % H, v: 14 + (i * 13) % 22 }));
@@ -354,15 +382,67 @@ function bouwHarnas() {
     const k = logoKaart(bp, 46, 300);
     k.setAttribute('transform', `translate(${k.breedte / 2 - 14},0)`);
   } else {
-    const bR = el('rect', { x: -14, y: -40, width: 318, height: 80, rx: 40, fill: '#fff' }, bp);
+    const bF = S_PIL.fill && S_PIL.fill !== 'none' ? S_PIL.fill : STIJL.C ? C.wit : '#fff';
+    const bR = el('rect', { x: -14, y: -40, width: 318, height: 80, rx: 80 * (S_PIL.rx ?? .5), fill: bF, ...(S_PIL.rand ? { stroke: S_PIL.rand, 'stroke-width': S_PIL.randDik ?? 4 } : {}) }, bp);
     logoMerk(G(bp, { transform: 'translate(26,0)' }), .48);
-    const bt = el('text', { x: 70, y: 11, 'font-size': 30, fill: C.inkt, 'font-weight': 800 }, bp, MERK.naam || '');
+    const bt = el('text', { x: 70, y: 11, 'font-size': 30, fill: isLichtK(bF) ? T_DONKER : T_LICHT, 'font-weight': 800 }, bp, MERK.naam || '');
     bR.setAttribute('width', 70 + bt.getComputedTextLength() + 44);
   }
   K.hfdG = {}; for (const k in (V.hfd || {})) if (SC[k]) K.hfdG[k] = pil($('hud'), V.hfd[k], { size: 32, h: 70, padX: 30 });
   const wg = G($('wipe'));
-  K.wA = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(C.accent) }, wg);
-  K.wB = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(C.accent2) }, wg);
+  const [vA, vB] = STIJL.veeg || [C.accent, C.accent2];
+  K.wA = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(vA) }, wg);
+  K.wB = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(vB) }, wg);
+}
+
+/** De achtergrond van een stijl: kleur, en wat erop ligt (raster, sterren, stralen, korrel). */
+function bouwAchtergrond() {
+  const b = STIJL.bg, g = el('linearGradient', { id: 'gBgS', x1: 0, y1: 0, x2: 1, y2: 1 }, $('defs'));
+  b.kleuren.forEach((k, i) => el('stop', { offset: i / 2, 'stop-color': k }, g));
+  $('bg').setAttribute('fill', 'url(#gBgS)');
+  document.body.style.background = b.kleuren[1];
+  if (!b.orbs) $('orbs').style.display = 'none';
+  if (!b.deeltjes) $('deeltjes').style.display = 'none';
+  if (b.stip === 'none') $('bgDots').style.display = 'none';
+  else if (b.stip) { const c = document.querySelector('#dots circle'); c.setAttribute('fill', b.stip); c.setAttribute('fill-opacity', .1); }
+  if (b.vignet === 'none') $('vig').style.display = 'none';
+  else if (b.vignet) {
+    const v = el('radialGradient', { id: 'vignetS', cx: .5, cy: .5, r: .78 }, $('defs'));
+    el('stop', { offset: .5, 'stop-color': b.vignet, 'stop-opacity': 0 }, v); el('stop', { offset: 1, 'stop-color': b.vignet, 'stop-opacity': .5 }, v);
+    $('vig').setAttribute('fill', 'url(#vignetS)');
+  }
+  const x = $('bgx'), R = Math.hypot(W, H);
+  if (b.extra === 'raster') {
+    const p = el('pattern', { id: 'rasterS', width: 60, height: 60, patternUnits: 'userSpaceOnUse' }, $('defs'));
+    el('path', { d: 'M60 0H0V60', fill: 'none', stroke: '#fff', 'stroke-opacity': .1, 'stroke-width': 1.5 }, p);
+    const q = el('pattern', { id: 'rasterG', width: 300, height: 300, patternUnits: 'userSpaceOnUse' }, $('defs'));
+    el('path', { d: 'M300 0H0V300', fill: 'none', stroke: '#fff', 'stroke-opacity': .16, 'stroke-width': 2.5 }, q);
+    el('rect', { width: W, height: H, fill: 'url(#rasterS)' }, x); el('rect', { width: W, height: H, fill: 'url(#rasterG)' }, x);
+  }
+  if (b.extra === 'scan') {
+    const p = el('pattern', { id: 'scanS', width: 8, height: 8, patternUnits: 'userSpaceOnUse' }, $('defs'));
+    el('rect', { width: 8, height: 2, fill: '#39d8ff', 'fill-opacity': .07 }, p);
+    el('rect', { width: W, height: H, fill: 'url(#scanS)' }, x);
+  }
+  if (b.extra === 'stralen') {
+    K.stralen = G(x, { transform: `translate(${MX},${MY})` });
+    for (let i = 0; i < 16; i++) el('path', { d: `M0 0L${R} ${-R * .1}L${R} ${R * .1}Z`, fill: '#fff', 'fill-opacity': .22, transform: `rotate(${i * 22.5})` }, K.stralen);
+    const p = el('pattern', { id: 'rasterP', width: 22, height: 22, patternUnits: 'userSpaceOnUse' }, $('defs'));
+    el('circle', { cx: 11, cy: 11, r: 3.2, fill: b.stip || '#000', 'fill-opacity': .16 }, p);
+    el('rect', { width: W, height: H, fill: 'url(#rasterP)' }, x);
+  }
+  if (b.extra === 'sterren') {
+    K.sterren = [...Array(90)].map((_, i) => el('circle', { cx: (i * 733 + 91) % W, cy: (i * 419 + 57) % H, r: 1.5 + (i * 7) % 4 * .9, fill: '#fff' }, x));
+  }
+  if (b.extra === 'cirkels') {
+    [[.86, .12, .2], [.08, .88, .24], [.95, .8, .1]].forEach(([cx, cy, r]) => el('circle', { cx: cx * W, cy: cy * H, r: r * Math.max(W, H), fill: '#000', 'fill-opacity': .045 }, x));
+  }
+  if (b.extra === 'korrel') {
+    const f = el('filter', { id: 'korrelS', x: 0, y: 0, width: 1, height: 1 }, $('defs'));
+    el('feTurbulence', { type: 'fractalNoise', baseFrequency: .8, numOctaves: 2, seed: 5, result: 'n' }, f);
+    el('feColorMatrix', { in: 'n', type: 'matrix', values: '0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .9 -.38' }, f);
+    el('rect', { width: W, height: H, fill: '#fff', filter: 'url(#korrelS)', opacity: .5 }, x);
+  }
 }
 
 function bouwEind() {
@@ -398,7 +478,12 @@ function tekenEind(tt) {
 }
 
 function render(t) {
+  // Stop-motion: de tijd verspringt in stapjes, zodat het hele beeld in dat ritme beweegt.
+  if (STIJL.fps) t = Math.floor(t * STIJL.fps + 1e-6) / STIJL.fps;
   const tt = t - D;
+  if (STIJL.kook) { const k = $(STIJL.kook.id); if (k) k.setAttribute('seed', 1 + Math.floor(Math.max(0, t) * STIJL.kook.fps) % 4); }
+  if (K.stralen) K.stralen.setAttribute('transform', `translate(${MX},${MY}) rotate(${tt * 3})`);
+  if (K.sterren) K.sterren.forEach((c, i) => c.setAttribute('opacity', .45 + .4 * Math.sin(tt * (1 + i % 5 * .3) + i)));
   let cur = SCENES[0][0]; for (const [id, a] of SCENES) if (tt >= a - .02) cur = id;
   for (const k in SC) SC[k].style.display = k === cur ? '' : 'none';
   $('bgDots').setAttribute('transform', `translate(${-(tt * 6) % 48},${-(tt * 4) % 48})`);

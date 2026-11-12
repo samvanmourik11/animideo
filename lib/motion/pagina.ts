@@ -7,6 +7,7 @@ import path from "node:path";
 import type { WhisperWord } from "@/lib/openai";
 import type { PaginaFoto, PaginaLogo } from "./beelden";
 import { MOTION_FONTS, STANDAARD_FONT } from "./types";
+import { stijlVan } from "./stijlen";
 
 export interface PaginaInvoer {
   w: number;
@@ -22,6 +23,8 @@ export interface PaginaInvoer {
    * aan voorafgaat of op volgt, `einde` hoe lang dit hoofdstuk precies duurt (s).
    */
   deel?: { voor: boolean; na: boolean; einde?: number };
+  /** De tekenstijl (id uit lib/motion/stijlen.ts); leeg = de standaardstijl. */
+  stijl?: string | null;
   /** De code van de video: zet window.VIDEO. */
   code: string;
 }
@@ -42,14 +45,19 @@ export async function paginaHtml(p: PaginaInvoer): Promise<string> {
   const kern = await leesKern();
   // Alleen een lettertype uit onze eigen lijst: de naam gaat een adres en een stijlregel in.
   const font = (MOTION_FONTS as readonly string[]).includes(p.merk.font ?? "") ? p.merk.font! : STANDAARD_FONT;
-  const merk = { ...p.merk, font };
+  // Een tekenstijl heeft zijn eigen letter: krijt op een schoolbord in het lettertype van de
+  // huisstijl is geen schoolbord meer.
+  const stijl = stijlVan(p.stijl);
+  const families = stijl ? stijl.fonts : [`${font.replace(/ /g, "+")}:wght@500;600;700;800`];
+  const merk = { ...p.merk, font: stijl ? stijl.font : font };
   return `<!doctype html>
 <html><head><meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=${font.replace(/ /g, "+")}:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?${families.map((f) => `family=${f}`).join("&")}&display=swap" rel="stylesheet">
 <style>
   html,body{margin:0;overflow:hidden;background:#f3f8fb}
   svg{display:block}
-  text{font-family:"${font}",system-ui,sans-serif;font-weight:700}
+  text{font-family:"${merk.font}",system-ui,sans-serif;font-weight:${stijl?.thema.gewicht ?? 700}${stijl ? ";font-synthesis:none" : ""}}${stijl?.thema.gewicht ? `
+  text[font-weight]{font-weight:${stijl.thema.gewicht}}` : ""}
 </style></head>
 <body>
 <svg id="st" xmlns="http://www.w3.org/2000/svg">
@@ -64,6 +72,7 @@ export async function paginaHtml(p: PaginaInvoer): Promise<string> {
   <radialGradient id="vignet" cx=".5" cy=".5" r=".78"><stop offset=".62" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#0b1d3a" stop-opacity=".07"/></radialGradient>
 </defs>
 <rect id="bg" fill="url(#gBg)"/>
+<g id="bgx"></g>
 <g id="orbs" filter="url(#zacht)"></g>
 <rect id="bgDots" x="-48" y="-48" fill="url(#dots)"/>
 <g id="deeltjes"></g>
@@ -81,6 +90,7 @@ window.SCRIPT = ${json(p.script)};
 window.MERK = ${json(merk)};
 window.FOTOS = ${json(p.fotos ?? {})};
 window.DEEL = ${json(p.deel ?? {})};
+window.STIJL = ${json(stijl?.thema ?? null)};
 </script>
 <script>${veilig(kern)}</script>
 <script>
