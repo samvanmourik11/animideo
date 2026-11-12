@@ -30,8 +30,8 @@ function SignupForm() {
     if (guestEmail) setEmail(guestEmail);
   }, [guestEmail]);
 
-  // Gratis registratie is afgeschaft: wie niet via een betaalde (€1-)checkout
-  // komt (geen guest_email), wordt doorgestuurd naar het €1-aanbod.
+  // Gratis registratie is afgeschaft: wie niet via een betaalde checkout of de gratis week
+  // komt (geen guest_email), wordt doorgestuurd naar de gratis week.
   useEffect(() => {
     if (!guestEmail) router.replace("/start");
   }, [guestEmail, router]);
@@ -43,7 +43,7 @@ function SignupForm() {
 
     // Gratis accounts zijn afgeschaft: een account kan ALLEEN na een betaalde
     // (€1-)checkout worden aangemaakt. Zonder guest_email hoort niemand hier;
-    // stuur die door naar het €1-aanbod.
+    // stuur die door naar de gratis week.
     if (!guestEmail) {
       router.replace("/start");
       return;
@@ -102,7 +102,7 @@ function SignupForm() {
     setResending(false);
   }
 
-  // Directe (gratis) bezoeker: toon niets, de effect stuurt door naar het €1-aanbod.
+  // Directe (gratis) bezoeker: toon niets, de effect stuurt door naar de gratis week.
   if (!guestEmail) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 text-tekst-3 text-sm">
