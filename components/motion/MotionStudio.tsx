@@ -20,6 +20,14 @@ import {
   duurTekst,
   motionCredits,
   motionFont,
+  MOTION_SOORTEN,
+  MOTION_TALEN,
+  MOTION_STEM_HUGO,
+  isMotionSoort,
+  isMotionTaal,
+  isMotionLengte,
+  type MotionSoort,
+  type MotionTaal,
   type MotionBeeld,
   type MotionDoel,
   type MotionFormaat,
@@ -27,6 +35,8 @@ import {
   type MotionPlan,
 } from "@/lib/motion/types";
 import { MOTION_STIJLEN } from "@/lib/motion/stijlen";
+import type { RegieBericht } from "@/lib/motion/regisseur";
+import type { BibliotheekStem } from "@/lib/stem/types";
 
 // Motion graphics-studio. Bovenaan de huisstijl (logo, kleuren, lettertype): één keer
 // instellen, daarna ziet elke video er hetzelfde uit. Dan twee stappen op één scherm: vertellen waar de video over gaat,
@@ -63,11 +73,30 @@ function vasteBeelden(kit: BrandKit): Beeld[] {
 }
 
 const ONTHOUD = "motion-huisstijl";
+const GESPREK = "motion-gesprek";
+
+const OPENING: Record<MotionSoort, string> = {
+  bedrijf: "Waar moet je video over gaan? Vertel wat je bedrijf doet en wat de kijker moet onthouden. Bedragen en feiten neem ik letterlijk over.",
+  verhaal: "Welk verhaal wil je vertellen? Noem het onderwerp en ik zet de rode draad voor je uit.",
+  uitleg: "Wat wil je uitleggen, en voor wie? Dan bouw ik het stap voor stap op.",
+  vrij: "Vertel wat je in gedachten hebt. Een aankondiging, een bedankje, een weetje: alles wat getekend kan worden.",
+};
+const VOORZETTEN: Record<MotionSoort, string[]> = {
+  bedrijf: ["Leg uit hoe ons abonnement werkt", "Maak een korte video over onze nieuwe dienst"],
+  verhaal: ["De opkomst en ondergang van Napoleon", "Hoe de Titanic zonk", "Het verhaal van de eerste maanlanding"],
+  uitleg: ["Hoe werkt een warmtepomp?", "Waarom is de lucht blauw?", "Hoe werkt rente op rente?"],
+  vrij: ["Een uitnodiging voor ons jubileum", "Vijf weetjes over octopussen"],
+};
 
 export default function MotionStudio() {
-  const [onderwerp, setOnderwerp] = useState("");
-  const [eigenScript, setEigenScript] = useState(false);
-  const [letterlijk, setLetterlijk] = useState(true);
+  const [soort, setSoort] = useState<MotionSoort>("bedrijf");
+  const [taal, setTaal] = useState<MotionTaal>("nl");
+  const [stem, setStem] = useState<string>(MOTION_STEM_HUGO);
+  const [stemmen, setStemmen] = useState<BibliotheekStem[]>([]);
+  const [berichten, setBerichten] = useState<RegieBericht[]>([]);
+  const [invoer, setInvoer] = useState("");
+  const [huisOpen, setHuisOpen] = useState(false);
+  const onderaan = useRef<HTMLDivElement>(null);
   const [bedrijf, setBedrijf] = useState("");
   const [website, setWebsite] = useState("");
   const [kleur, setKleur] = useState("#1c72ed");
@@ -147,24 +176,85 @@ export default function MotionStudio() {
     }
   }
 
-  const letterlijkScript = eigenScript && letterlijk;
   const toon = kit?.tone_of_voice ?? "";
   const nietDoen = kit?.do_nots ?? "";
+  // Een verhaal of les heeft geen huisstijl nodig; wie er toch een heeft of wil, ziet het hele blok.
+  const toonHuisstijl = soort === "bedrijf" || huisOpen || !!kit;
+  // Wat de klant in het gesprek vertelde, als achtergrond voor wie de animatie tekent.
+  const onderwerp = berichten.filter((b) => b.van === "klant").map((b) => b.tekst).join("\n").slice(0, 6000);
 
-  function schrijf() {
+  // De stemmen die de gekozen taal spreken; Hugo staat vooraan.
+  const stemKeuzes = stemmen.filter((st) => taal === "nl" || st.talen.includes(taal)).sort((a, b) => Number(b.id === MOTION_STEM_HUGO) - Number(a.id === MOTION_STEM_HUGO));
+  const gekozenStem = stemmen.find((st) => st.id === stem) ?? null;
+
+  useEffect(() => {
+    fetch("/api/stem/bibliotheek").then((r) => (r.ok ? r.json() : [])).then((d: BibliotheekStem[]) => setStemmen(Array.isArray(d) ? d : [])).catch(() => {});
+  }, []);
+
+  function kiesTaal(t: MotionTaal) {
+    setTaal(t);
+    // Spreekt de gekozen stem die taal niet, dan de eerste die het wel kan.
+    const kan = stemmen.filter((st) => t === "nl" || st.talen.includes(t));
+    if (kan.length && !kan.some((st) => st.id === stem)) setStem((kan.find((st) => st.id === MOTION_STEM_HUGO) ?? kan[0]).id);
+  }
+
+  function luister() {
+    if (gekozenStem?.voorbeeld) void new Audio(gekozenStem.voorbeeld).play().catch(() => {});
+  }
+
+  // Het gesprek en het script overleven een verversing van de pagina; ze staan alleen in deze browser.
+  useEffect(() => {
+    try {
+      const b = JSON.parse(localStorage.getItem(GESPREK) ?? "null");
+      if (!b) return;
+      if (Array.isArray(b.berichten)) setBerichten(b.berichten);
+      if (b.plan) setPlan(b.plan);
+      if (isMotionSoort(b.soort)) setSoort(b.soort);
+      if (isMotionTaal(b.taal)) setTaal(b.taal);
+      if (typeof b.stem === "string") setStem(b.stem);
+      if (typeof b.stijl === "string") setStijl(b.stijl);
+      if (isMotionLengte(b.lengte)) setLengte(b.lengte);
+      if (b.formaat === "9:16" || b.formaat === "16:9") setFormaat(b.formaat);
+    } catch {}
+  }, []);
+  useEffect(() => {
+    if (!berichten.length && !plan) return;
+    try { localStorage.setItem(GESPREK, JSON.stringify({ berichten: berichten.slice(-40), plan, soort, taal, stem, stijl, lengte, formaat })); } catch {}
+  }, [berichten, plan, soort, taal, stem, stijl, lengte, formaat]);
+  useEffect(() => { if (berichten.length) onderaan.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [berichten.length, bezig]);
+
+  function nieuwGesprek() {
+    setBerichten([]); setPlan(null); setAfwijkend([]); setInvoer(""); setFout(null);
+    try { localStorage.removeItem(GESPREK); } catch {}
+  }
+
+  /** Stuurt een bericht naar de regisseur; die antwoordt en schrijft of wijzigt zo nodig het script. */
+  function stuur() {
+    const tekst = invoer.trim();
+    if (tekst.length < 2) return;
+    const nu: RegieBericht[] = [...berichten, { van: "klant", tekst }];
+    setBerichten(nu);
+    setInvoer("");
     return doe("script", async () => {
-      const r = await post<{ plan: MotionPlan; afwijkend: number[]; lengte: MotionLengte }>("/api/motion/plan", {
-        onderwerp, bedrijf, lengte, formaat, eigenScript: letterlijkScript, toon, nietDoen, beelden,
-      });
-      setPlan(r.plan);
-      setAfwijkend(r.afwijkend ?? []);
-      if (letterlijkScript && r.lengte) setLengte(r.lengte);
+      try {
+        const r = await post<{ bericht: string; plan?: MotionPlan; afwijkend?: number[]; lengte?: MotionLengte }>("/api/motion/regisseur", {
+          berichten: nu, plan, soort, lengte, formaat, taal, stijl, bedrijf, toon, nietDoen, beelden,
+        });
+        setBerichten([...nu, { van: "regisseur", tekst: r.bericht }]);
+        if (r.plan) { setPlan(r.plan); setAfwijkend(r.afwijkend ?? []); }
+        if (r.lengte) setLengte(r.lengte);
+      } catch (e) {
+        // Het bericht terug in het invoerveld, zodat de klant het niet opnieuw hoeft te typen.
+        setBerichten(berichten);
+        setInvoer(tekst);
+        throw e;
+      }
     });
   }
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("motion", { onderwerp, bedrijf, website, kleur, kleur2, formaat, lengte, muziek, stijl, plan, huisstijlId: kitId, logo, font, toon, nietDoen, beelden });
+      const c = await startMaker("motion", { onderwerp, bedrijf, website, kleur, kleur2, formaat, lengte, muziek, stijl, soort, taal, stem, plan, huisstijlId: kitId, logo, font, toon, nietDoen, beelden });
       lijst.zetVoor(c);
     });
   }
@@ -189,8 +279,8 @@ export default function MotionStudio() {
   function uploadScript(bestand: File) {
     return doe("bestand", async () => {
       const { tekst, ingekort } = await postBestand<{ tekst: string; ingekort: boolean }>("/api/motion/lees-script", bestand);
-      setOnderwerp(tekst);
-      setEigenScript(true);
+      // In het invoerveld, zodat de klant er nog iets bij kan zeggen voor hij het stuurt.
+      setInvoer(tekst);
       if (ingekort) setFout("Je bestand is lang; we hebben alleen het eerste deel ingelezen. Een video is hooguit ±10 minuten.");
     });
   }
@@ -250,20 +340,146 @@ export default function MotionStudio() {
   const max = Math.round(maxWoorden(lengte) * 1.25);
   const teLang = woorden > max;
   const credits = motionCredits(lengte);
-  const kanSchrijven = onderwerp.trim().length >= 10 && bedrijf.trim().length > 0;
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-3xl font-extrabold text-tekst tracking-tight">✨ Motion graphics</h1>
         <p className="text-tekst-3 mt-1 max-w-2xl">
-          Een strakke uitlegvideo met bewegende vormen, cijfers en tekst, precies op de stem. Vertel waar het over gaat; wij schrijven het script,
-          Hugo spreekt het in en de animatie wordt voor jouw verhaal getekend, in je eigen kleuren.
+          Een getekende video met bewegende vormen, kaarten, cijfers en tekst, precies op de stem. Voor je bedrijf, een verhaal, een les of iets
+          heel anders. Kies de vorm, bespreek met de regisseur waar het over gaat, en de animatie wordt voor jouw verhaal getekend.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-6 items-start">
         <div className="space-y-4">
+          {/* Stap 1 — de vorm: wat voor video, hoe hij eruitziet en klinkt */}
+          <div className="n-kaart space-y-4">
+            <div>
+              <h2 className="font-bold text-tekst">1. Kies de vorm</h2>
+              <p className="text-xs text-tekst-3 mt-0.5">Hoe de video eruitziet en klinkt. Waar hij over gaat, bespreek je daarna met de regisseur.</p>
+            </div>
+            <div>
+              <label className="n-label">Wat voor video?</label>
+              <div className="mt-1.5 grid grid-cols-2 gap-2">
+                {MOTION_SOORTEN.map((k) => (
+                  <button
+                    key={k.id}
+                    onClick={() => setSoort(k.id)}
+                    className={`rounded-xl border px-3 py-2 text-left ${soort === k.id ? "border-blue-500 bg-blue-500/10" : "border-rand hover:border-blue-500/40"}`}
+                  >
+                    <div className="text-sm font-semibold text-tekst">{k.naam}</div>
+                    <div className="text-[11px] text-tekst-3">{k.uitleg}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="n-label">Tekenstijl</label>
+              <p className="text-[11px] text-tekst-3 mt-0.5">Standaard volgt je huisstijl. De andere stijlen hebben hun eigen kleuren en letter; je logo en naam blijven in beeld.</p>
+              <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[{ id: "", naam: "Standaard", uitleg: "Licht en strak, in de kleuren van je huisstijl." }, ...MOTION_STIJLEN].map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setStijl(s.id)}
+                    title={s.uitleg}
+                    className={`rounded-xl border overflow-hidden text-left ${stijl === s.id ? "border-blue-500 ring-1 ring-blue-500" : "border-rand hover:border-blue-500/40"}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/motion/stijlen/${s.id || "standaard"}.jpg`} alt="" className="w-full aspect-video object-cover" loading="lazy" />
+                    <div className="px-2.5 py-1.5 text-xs font-semibold text-tekst">{s.naam}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {true && (
+              <div>
+                <label className="n-label">Lengte</label>
+                <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {MOTION_LENGTES.map((l) => (
+                    <button
+                      key={l.sec}
+                      onClick={() => setLengte(l.sec)}
+                      className={`rounded-xl border px-3 py-2 text-left ${lengte === l.sec ? "border-blue-500 bg-blue-500/10" : "border-rand hover:border-blue-500/40"}`}
+                    >
+                      <div className="text-sm font-semibold text-tekst">{l.naam}</div>
+                      <div className="text-[11px] text-tekst-3 leading-snug">{l.uitleg}</div>
+                      <div className="text-[11px] text-tekst-2 mt-1">{motionCredits(l.sec)} credits</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="n-label">Formaat</label>
+              <div className="mt-1.5 grid grid-cols-2 gap-2">
+                {MOTION_FORMATEN.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setFormaat(f.id)}
+                    className={`rounded-xl border px-3 py-2 text-left ${formaat === f.id ? "border-blue-500 bg-blue-500/10" : "border-rand hover:border-blue-500/40"}`}
+                  >
+                    <div className="text-sm font-semibold text-tekst">{f.naam}</div>
+                    <div className="text-[11px] text-tekst-3">{f.uitleg}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="n-label">Taal</label>
+                <select value={taal} onChange={(e) => kiesTaal(e.target.value as MotionTaal)} className="n-invoer mt-1.5">
+                  {MOTION_TALEN.map((t) => (
+                    <option key={t.id} value={t.id}>{t.naam}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="n-label">Stem</label>
+                <div className="mt-1.5 flex gap-2">
+                  <select value={stem} onChange={(e) => setStem(e.target.value)} className="n-invoer min-w-0">
+                    {stemKeuzes.length === 0 && <option value={MOTION_STEM_HUGO}>Hugo</option>}
+                    {stemKeuzes.map((st) => (
+                      <option key={st.id} value={st.id}>{st.naam} · {st.geslacht}, {st.leeftijd}</option>
+                    ))}
+                  </select>
+                  <button onClick={luister} disabled={!gekozenStem?.voorbeeld} title="Luister naar deze stem" className="n-knop2 !px-3 disabled:opacity-50">▶</button>
+                </div>
+              </div>
+            </div>
+            {gekozenStem && <p className="text-[11px] text-tekst-3 -mt-2">{gekozenStem.typering}{taal !== "nl" ? ". Het voorbeeld is in het Nederlands; de video wordt in het Engels ingesproken." : ""}</p>}
+
+            <div>
+              <label className="n-label">Muziek</label>
+              <select value={muziek} onChange={(e) => setMuziek(e.target.value)} className="n-invoer mt-1.5">
+                {MOTION_MUZIEK.map((m) => (
+                  <option key={m.slug} value={m.slug}>{m.naam}</option>
+                ))}
+              </select>
+            </div>
+
+          </div>
+
+          {/* Afzender — een verhaal of les heeft geen bedrijf nodig */}
+          {!toonHuisstijl && (
+            <div className="n-kaart space-y-3">
+              <div>
+                <h2 className="font-bold text-tekst">Afzender (mag, hoeft niet)</h2>
+                <p className="text-xs text-tekst-3 mt-0.5">Vul je een naam in, dan staat die linksboven en op de eindkaart. Leeg laten kan ook: dan sluit de video af met alleen de slotzin.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <input value={bedrijf} onChange={(e) => setBedrijf(e.target.value)} maxLength={40} placeholder="Naam van je kanaal of bedrijf" className="n-invoer" />
+                <input value={website} onChange={(e) => setWebsite(e.target.value)} maxLength={60} placeholder="Website (mag leeg)" className="n-invoer" />
+              </div>
+              <button onClick={() => setHuisOpen(true)} className="text-xs text-blue-500 hover:underline">Logo, kleuren en lettertype instellen</button>
+            </div>
+          )}
+          {toonHuisstijl && (
+            <>
           {/* Huisstijl — één keer instellen, daarna is elke video hetzelfde */}
           <div className="n-kaart space-y-4">
             <div className="flex items-start justify-between gap-3">
@@ -363,60 +579,59 @@ export default function MotionStudio() {
             </div>
           </div>
 
-          {/* Stap 1 — waar gaat het over */}
-          <div className="n-kaart space-y-4">
-            <h2 className="font-bold text-tekst">1. Waar gaat de video over?</h2>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { eigen: false, naam: "Wij schrijven het script", uitleg: "Jij vertelt het onderwerp" },
-                { eigen: true, naam: "Ik heb al een script", uitleg: "Plak of upload je tekst" },
-              ].map((k) => (
-                <button
-                  key={k.naam}
-                  onClick={() => setEigenScript(k.eigen)}
-                  className={`rounded-xl border px-3 py-2 text-left ${eigenScript === k.eigen ? "border-blue-500 bg-blue-500/10" : "border-rand hover:border-blue-500/40"}`}
-                >
-                  <div className="text-sm font-semibold text-tekst">{k.naam}</div>
-                  <div className="text-[11px] text-tekst-3">{k.uitleg}</div>
-                </button>
-              ))}
-            </div>
-            <div>
-              <div className="flex items-center justify-between">
-                <label className="n-label">{eigenScript ? "Je script" : "Onderwerp"}</label>
-                {eigenScript && (
-                  <button onClick={() => scriptKies.current?.click()} disabled={!!bezig} className="text-xs text-blue-500 hover:underline disabled:opacity-50">
-                    {bezig === "bestand" ? "Inlezen…" : "📄 Upload Word, PDF of tekst"}
-                  </button>
-                )}
-                <input ref={scriptKies} type="file" accept=".docx,.pdf,.txt,.md,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadScript(f); }} />
+            </>
+          )}
+
+          {/* Stap 2 — het gesprek met de regisseur */}
+          <div className="n-kaart space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-bold text-tekst">2. Praat met de regisseur</h2>
+                <p className="text-xs text-tekst-3 mt-0.5">Vertel waar de video over gaat. De regisseur schrijft het script en past het aan tot het goed is. Dit is gratis.</p>
               </div>
-              <textarea
-                value={onderwerp}
-                onChange={(e) => setOnderwerp(e.target.value)}
-                rows={eigenScript ? 9 : 5}
-                placeholder={
-                  eigenScript
-                    ? "Plak hier je script. Aanwijzingen voor het beeld mogen erbij staan; die gebruiken we voor de animatie en worden niet uitgesproken."
-                    : "Bijvoorbeeld: leg uit hoe ons onderhoudsabonnement voor cv-ketels werkt. Voor € 9,95 per maand komen we elk jaar langs en ben je verzekerd van hulp binnen 24 uur bij storing."
-                }
-                className="n-invoer mt-1.5 resize-none"
-              />
-              {eigenScript ? (
-                <label className="mt-1.5 flex items-start gap-2 text-xs text-tekst-2 cursor-pointer">
-                  <input type="checkbox" checked={letterlijk} onChange={(e) => setLetterlijk(e.target.checked)} className="mt-0.5" />
-                  <span>
-                    <span className="font-semibold">Gebruik mijn tekst letterlijk.</span>{" "}
-                    <span className="text-tekst-3">
-                      {letterlijk
-                        ? `Wij verdelen je script in scenes en bedenken het beeld; aan de woorden veranderen we niets. De lengte volgt uit je tekst (hooguit ${MOTION_LENGTES[MOTION_LENGTES.length - 1].naam}, ongeveer ${maxWoorden(MOTION_LENGTES[MOTION_LENGTES.length - 1].sec)} woorden).`
-                        : "Uit: wij herschrijven en korten je script in tot de lengte die je hieronder kiest. Cijfers en claims blijven letterlijk staan."}
-                    </span>
-                  </span>
-                </label>
-              ) : (
-                <p className="text-[11px] text-tekst-3 mt-1">Hoe concreter (bedragen, stappen, voor wie), hoe beter de video. Cijfers en claims nemen we letterlijk over.</p>
+              {(berichten.length > 0 || plan) && (
+                <button onClick={nieuwGesprek} disabled={!!bezig} className="text-xs text-tekst-3 hover:text-red-500 whitespace-nowrap disabled:opacity-50">Opnieuw beginnen</button>
               )}
+            </div>
+
+            <div className="space-y-2">
+              {berichten.length === 0 && (
+                <div className="rounded-2xl bg-paneel-2/60 px-3 py-2.5 text-sm text-tekst-2">
+                  <p>🎬 {OPENING[soort]}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {VOORZETTEN[soort].map((v) => (
+                      <button key={v} onClick={() => setInvoer(v)} className="rounded-full border border-rand px-2.5 py-1 text-[11px] text-tekst-2 hover:border-blue-500/50">{v}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {berichten.map((b, i) => (
+                <div key={i} className={`flex ${b.van === "klant" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[88%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${b.van === "klant" ? "bg-blue-500 text-white" : "bg-paneel-2/70 text-tekst"}`}>
+                    {b.van === "klant" && b.tekst.length > 600 ? `${b.tekst.slice(0, 600)}… (${b.tekst.split(/\s+/).length} woorden)` : b.tekst}
+                  </div>
+                </div>
+              ))}
+              {bezig === "script" && <div className="text-sm text-tekst-3 px-1">De regisseur is bezig…</div>}
+              <div ref={onderaan} />
+            </div>
+
+            <div>
+              <textarea
+                value={invoer}
+                onChange={(e) => setInvoer(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !bezig && invoer.trim().length >= 2) { e.preventDefault(); void stuur(); } }}
+                rows={invoer.length > 300 ? 8 : 3}
+                placeholder={plan ? "Bijvoorbeeld: maak scene 3 korter, of: begin met een vraag" : "Typ hier, of plak een script dat je al hebt"}
+                className="n-invoer resize-none"
+              />
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <button onClick={() => scriptKies.current?.click()} disabled={!!bezig} className="text-xs text-blue-500 hover:underline disabled:opacity-50">
+                  {bezig === "bestand" ? "Inlezen…" : "📄 Ik heb al een script (Word, PDF of tekst)"}
+                </button>
+                <input ref={scriptKies} type="file" accept=".docx,.pdf,.txt,.md,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadScript(f); }} />
+                <button onClick={() => void stuur()} disabled={!!bezig || invoer.trim().length < 2} className="btn-primary !py-2 !px-5 disabled:opacity-50">Stuur</button>
+              </div>
             </div>
 
             {/* Voorbeelden en foto's, elk met een doel */}
@@ -471,83 +686,14 @@ export default function MotionStudio() {
               )}
             </div>
 
-            {!letterlijkScript && (
-              <div>
-                <label className="n-label">Lengte</label>
-                <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {MOTION_LENGTES.map((l) => (
-                    <button
-                      key={l.sec}
-                      onClick={() => setLengte(l.sec)}
-                      className={`rounded-xl border px-3 py-2 text-left ${lengte === l.sec ? "border-blue-500 bg-blue-500/10" : "border-rand hover:border-blue-500/40"}`}
-                    >
-                      <div className="text-sm font-semibold text-tekst">{l.naam}</div>
-                      <div className="text-[11px] text-tekst-3 leading-snug">{l.uitleg}</div>
-                      <div className="text-[11px] text-tekst-2 mt-1">{motionCredits(l.sec)} credits</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="n-label">Formaat</label>
-              <div className="mt-1.5 grid grid-cols-2 gap-2">
-                {MOTION_FORMATEN.map((f) => (
-                  <button
-                    key={f.id}
-                    onClick={() => setFormaat(f.id)}
-                    className={`rounded-xl border px-3 py-2 text-left ${formaat === f.id ? "border-blue-500 bg-blue-500/10" : "border-rand hover:border-blue-500/40"}`}
-                  >
-                    <div className="text-sm font-semibold text-tekst">{f.naam}</div>
-                    <div className="text-[11px] text-tekst-3">{f.uitleg}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="n-label">Tekenstijl</label>
-              <p className="text-[11px] text-tekst-3 mt-0.5">Standaard volgt je huisstijl. De andere stijlen hebben hun eigen kleuren en letter; je logo en naam blijven in beeld.</p>
-              <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[{ id: "", naam: "Standaard", uitleg: "Licht en strak, in de kleuren van je huisstijl." }, ...MOTION_STIJLEN].map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => setStijl(s.id)}
-                    title={s.uitleg}
-                    className={`rounded-xl border overflow-hidden text-left ${stijl === s.id ? "border-blue-500 ring-1 ring-blue-500" : "border-rand hover:border-blue-500/40"}`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/motion/stijlen/${s.id || "standaard"}.jpg`} alt="" className="w-full aspect-video object-cover" loading="lazy" />
-                    <div className="px-2.5 py-1.5 text-xs font-semibold text-tekst">{s.naam}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="n-label">Muziek</label>
-              <select value={muziek} onChange={(e) => setMuziek(e.target.value)} className="n-invoer mt-1.5">
-                {MOTION_MUZIEK.map((m) => (
-                  <option key={m.slug} value={m.slug}>{m.naam}</option>
-                ))}
-              </select>
-            </div>
-
-            <button onClick={schrijf} disabled={!kanSchrijven || !!bezig} className={`${plan ? "n-knop2" : "btn-primary"} w-full disabled:opacity-50`}>
-              {bezig === "script"
-                ? letterlijkScript ? "Script verdelen in scenes…" : "Script schrijven…"
-                : letterlijkScript ? "🎬 Verdeel mijn script in scenes · gratis" : plan ? "✍️ Schrijf een nieuw script · gratis" : "✍️ Schrijf het script · gratis"}
-            </button>
-            {!bedrijf.trim() && onderwerp.trim().length >= 10 && <p className="text-[11px] text-tekst-3">Vul bovenaan nog je bedrijfsnaam in.</p>}
           </div>
 
-          {/* Stap 2 — het script nalopen */}
+          {/* Stap 3 — het script nalopen */}
           {plan && (
             <div className="n-kaart space-y-4">
               <div>
-                <h2 className="font-bold text-tekst">2. Je script</h2>
-                <p className="text-xs text-tekst-3 mt-0.5">Pas gerust aan. Wat hier staat, wordt precies zo ingesproken en getekend.</p>
+                <h2 className="font-bold text-tekst">3. Je script</h2>
+                <p className="text-xs text-tekst-3 mt-0.5">Pas gerust zelf aan, of vraag het de regisseur. Wat hier staat, wordt precies zo ingesproken en getekend.</p>
               </div>
               {afwijkend.length > 0 && (
                 <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-500/10 rounded-xl px-3 py-2">
@@ -565,7 +711,7 @@ export default function MotionStudio() {
                   </div>
                 ))}
                 <div className="rounded-2xl border border-rand p-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-tekst-3">Eindkaart · met je logo, knop en website</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-tekst-3">Eindkaart{bedrijf.trim() ? " · met je logo, knop en website" : ""}</div>
                   <label className="block text-[11px] text-tekst-3 mt-2">Wat de stem zegt</label>
                   <textarea value={plan.eind.tekst} onChange={(e) => wijzigEind({ tekst: e.target.value })} rows={2} className="n-invoer mt-1 resize-none" />
                   <div className="grid grid-cols-2 gap-2 mt-2">
@@ -588,7 +734,7 @@ export default function MotionStudio() {
                 {woorden} woorden {teLang ? `— te lang voor ${duurTekst(lengte)}: maak het korter of kies een langere video` : `(ongeveer ${woorden / 2.5 < 90 ? `${Math.round(woorden / 2.5)} seconden` : `${(woorden / 2.5 / 60).toFixed(1).replace(".", ",")} minuten`})`}
               </p>
 
-              <button onClick={maak} disabled={!!bezig || teLang || !bedrijf.trim()} className="btn-primary w-full disabled:opacity-50">
+              <button onClick={maak} disabled={!!bezig || teLang || (soort === "bedrijf" && !bedrijf.trim())} className="btn-primary w-full disabled:opacity-50">
                 {bezig === "maken" ? "Bezig met insturen…" : `✨ Maak de video · ${credits} credits`}
               </button>
               <p className="text-[11px] text-tekst-3">
@@ -615,7 +761,7 @@ export default function MotionStudio() {
           ) : lijst.creaties.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-rand p-12 text-center text-tekst-3">
               <div className="text-4xl mb-3">✨</div>
-              Vertel links waar je video over gaat. Je video&apos;s komen hier te staan.
+              Kies links de vorm en praat met de regisseur. Je video&apos;s komen hier te staan.
             </div>
           ) : (
             <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 items-start">

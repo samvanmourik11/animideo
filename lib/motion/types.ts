@@ -212,7 +212,35 @@ export interface MotionInvoer {
   beelden: MotionBeeld[];
   /** De tekenstijl (id uit lib/motion/stijlen.ts); leeg of afwezig = de standaardstijl. */
   stijl?: string;
+  /** Wat voor video het is; bepaalt de opbouw van het script. Afwezig = bedrijfsvideo (oude rijen). */
+  soort?: MotionSoort;
+  /** De taal van de stem en de tekst in beeld. Afwezig = Nederlands. */
+  taal?: MotionTaal;
+  /** De stem (id uit de stemmenbibliotheek). Afwezig = Hugo. */
+  stem?: string;
 }
+
+// ── Soort video, taal ────────────────────────────────────────────────────────
+// De studio begon als bedrijfsvideo-maker (Sam, 12-11-2026: "te afgebakend op één doel").
+// De soort bepaalt alleen hoe het script wordt opgebouwd; de rest van de machine is gelijk.
+export const MOTION_SOORTEN = [
+  { id: "bedrijf", naam: "Bedrijfsvideo", uitleg: "Je product of dienst uitleggen" },
+  { id: "verhaal", naam: "Verhaal", uitleg: "Geschiedenis, documentaire, opkomst en ondergang" },
+  { id: "uitleg", naam: "Uitleg of les", uitleg: "Hoe iets werkt, weetjes, onderwijs" },
+  { id: "vrij", naam: "Iets anders", uitleg: "Overleg het met de regisseur" },
+] as const;
+export type MotionSoort = (typeof MOTION_SOORTEN)[number]["id"];
+export const isMotionSoort = (v: unknown): v is MotionSoort => MOTION_SOORTEN.some((s) => s.id === v);
+
+export const MOTION_TALEN = [
+  { id: "nl", naam: "Nederlands" },
+  { id: "en", naam: "Engels" },
+] as const;
+export type MotionTaal = (typeof MOTION_TALEN)[number]["id"];
+export const isMotionTaal = (v: unknown): v is MotionTaal => MOTION_TALEN.some((t) => t.id === v);
+
+/** Hugo V: de Nederlandse stem die Sam in alle tools als standaard wil. */
+export const MOTION_STEM_HUGO = "rbqBOMK4BPTMGvIB7N8w";
 
 /** De muziek waaruit de klant kiest (slugs uit lib/music/library.ts). */
 export const MOTION_MUZIEK = [

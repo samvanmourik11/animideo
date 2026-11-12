@@ -458,10 +458,12 @@ function bouwEind() {
   K.eind.r1 = e.regel1 ? zinAuto(se, MX, STAAND ? 560 : 250, e.regel1, na, fs, { fill: '#fff' }) : null;
   K.eind.r2 = e.regel2 ? zinAuto(se, MX, STAAND ? 660 : 345, e.regel2, na, fs, { fill: isLicht(C.accent2) ? C.accent2 : mix(C.accent2, '#ffffff', .45) }) : null;
   pasRegel(K.eind.r1); pasRegel(K.eind.r2);
+  // Zonder afzender (een verhaal, een les) is er geen merk om te tonen: alleen de slotregels.
+  K.eind.kaal = !LOGO && !(MERK.naam || '').trim();
   K.eind.logo = logoVol(se, { s: STAAND ? .82 : 1 });
   K.eind.knop = pil(se, e.knop || 'Meer weten?', { fill: C.accent2, size: STAAND ? 52 : 50, h: 104, padX: 48 });
   K.eind.url = T(se, MX, STAAND ? 1360 : 905, MERK.website || '', 46, { fill: '#c3cfdf', 'font-weight': 600 });
-  K.eind.logoY = STAAND ? 960 : 575; K.eind.knopY = STAAND ? 1200 : 770;
+  K.eind.logoY = STAAND ? 960 : 575; K.eind.knopY = K.eind.kaal ? (STAAND ? 980 : 600) : STAAND ? 1200 : 770;
   // Het logo staat er meteen: de slotzin begint vaak met een aanloop ("Heb je ...?") en
   // dan keek je seconden naar een leeg donker vlak. De knop komt als de regels zijn gezegd.
   K.eind.tLogo = na + .35;
@@ -472,7 +474,7 @@ function tekenEind(tt) {
   const e = K.eind;
   e.str.setAttribute('transform', `translate(${MX},${e.logoY}) rotate(${tt * 4})`);
   e.r1 && woordenIn(e.r1, tt); e.r2 && woordenIn(e.r2, tt);
-  const lp = pop(tt, e.tLogo, .6); op(e.logo, lp); tf(e.logo, MX, e.logoY, lp);
+  const lp = e.kaal ? 0 : pop(tt, e.tLogo, .6); op(e.logo, lp); tf(e.logo, MX, e.logoY, lp);
   const kp = pop(tt, e.tKnop, .5); op(e.knop, kp); tf(e.knop, MX, e.knopY, kp * (1 + .025 * Math.sin(Math.max(0, tt - e.tKnop - .6) * 4)));
   const up = eo(P(tt, e.tKnop + .3, e.tKnop + .7)); op(e.url, up); e.url.setAttribute('transform', `translate(0,${(1 - up) * 20})`);
 }
@@ -500,7 +502,7 @@ function render(t) {
   // merk en hoofdstuk
   // In een vervolghoofdstuk staat het merk er al vanaf het eerste beeld.
   const s2 = DEEL.voor ? -9 : SCENES.length > 1 ? SCENES[1][1] : 0, eind = HEEFT_EIND ? sStart('eind') : 1e9, hudAan = tt >= s2 && tt < eind && V.hud !== false;
-  op(K.bug, hudAan ? P(tt, s2 + .2, s2 + .6) : 0); if (hudAan) tf(K.bug, RAND + (1 - eo(P(tt, s2 + .2, s2 + .65))) * -60, STAAND ? 150 : 100);
+  op(K.bug, hudAan && (LOGO || (MERK.naam || '').trim()) ? P(tt, s2 + .2, s2 + .6) : 0); if (hudAan) tf(K.bug, RAND + (1 - eo(P(tt, s2 + .2, s2 + .65))) * -60, STAAND ? 150 : 100);
   for (const k in K.hfdG) {
     const a = sStart(k), p = eo(P(tt, a + .3, a + .75)), g = K.hfdG[k];
     op(g, cur === k ? p : 0); tf(g, W - RAND - g.breedte / 2 + (1 - p) * 120, STAAND ? 250 : 100);

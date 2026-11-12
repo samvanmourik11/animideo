@@ -28,6 +28,8 @@ import type { Creatie } from "@/lib/creaties/types";
 import { canUseMotion } from "@/lib/studio/access";
 import { controleerPlan } from "./plan";
 import { deelWerk, scriptVan, stemBlokken, verdeel, type Deel, type PaginaBasis } from "./lang";
+import { vindStem } from "@/lib/stem/bibliotheek";
+import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal } from "./types";
 import { stijlVan } from "./stijlen";
 import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
@@ -104,8 +106,14 @@ function kleur(v: unknown, standaard: string): string {
 
 /** Leest en controleert de invoer van het maakscherm. Gooit met een melding voor op het scherm. */
 export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
+  // Een verhaal of een les heeft geen afzender nodig; een bedrijfsvideo wel.
+  const soort = isMotionSoort(ruw.soort) ? ruw.soort : "bedrijf";
   const bedrijf = tekst(ruw.bedrijf, 40);
-  if (!bedrijf) throw new Error("Vul eerst de naam van je bedrijf in.");
+  if (!bedrijf && soort === "bedrijf") throw new Error("Vul eerst de naam van je bedrijf in.");
+  const taal = isMotionTaal(ruw.taal) ? ruw.taal : "nl";
+  // Alleen stemmen uit onze bibliotheek die de gekozen taal spreken; anders Hugo.
+  const gekozen = vindStem(ruw.stem);
+  const stem = gekozen && gekozen.id === ruw.stem && (taal === "nl" || gekozen.talen.includes(taal)) ? gekozen.id : MOTION_STEM_HUGO;
   const lengte = isMotionLengte(ruw.lengte) ? ruw.lengte : 30;
   const muziek = MOTION_MUZIEK.some((m) => m.slug === ruw.muziek) ? (ruw.muziek as string) : MOTION_MUZIEK[0].slug;
   return {
@@ -125,6 +133,9 @@ export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
     nietDoen: tekst(ruw.nietDoen, 600),
     beelden: leesBeelden(ruw.beelden),
     stijl: stijlVan(typeof ruw.stijl === "string" ? ruw.stijl : "")?.id ?? "",
+    soort,
+    taal,
+    stem,
   };
 }
 
@@ -180,7 +191,7 @@ export async function startMotion(userId: string, ruw: Record<string, unknown>, 
     // wisselend tempo. De scenes worden daarna op de woordtijden gelegd.
     const stemmen = await Promise.all(
       stemBlokken(invoer.plan).map(async (text) => {
-        const { request_id } = await fal.queue.submit(STEM_MODEL, { input: { text, voice: HUGO, language_code: "nl", stability: 0.5, similarity_boost: 0.75, speed: 1 } as never });
+        const { request_id } = await fal.queue.submit(STEM_MODEL, { input: { text, voice: invoer.stem || HUGO, language_code: invoer.taal ?? "nl", stability: 0.5, similarity_boost: 0.75, speed: 1 } as never });
         return request_id;
       }),
     );
@@ -325,7 +336,7 @@ async function voerAnimatieUit(c0: Creatie, v0: Voortgang): Promise<void> {
       );
       const stem = await voegStemSamen(blokken);
       const stemUrl = await uploadNaarOpslag(c.user_id, stem, "mp3", "audio/mpeg");
-      const { words } = await transcribeWords(stem, { language: "nl" });
+      const { words } = await transcribeWords(stem, { language: r.taal ?? "nl" });
       if (words.length < 5) throw new Error("De woordtijden van de voice-over konden niet worden gemeten.");
       const delen = await verdeel(basis, r.plan, words);
       werk = { woorden: words, delen, codes: delen.map(() => null), mis: delen.map(() => 0) };
@@ -342,7 +353,7 @@ async function voerAnimatieUit(c0: Creatie, v0: Voortgang): Promise<void> {
       const uitkomsten = await Promise.allSettled(
         open.map((k) => {
           const d = deelWerk(basis, r.plan, werk.woorden, werk.delen, k);
-          return tekenAnimatie({ pagina: d.pagina, plan: d.plan, plek: d.plek, onderwerp: r.onderwerp.slice(0, 3000), beelden: r.beelden ?? [], nietDoen: r.nietDoen });
+          return tekenAnimatie({ pagina: d.pagina, plan: d.plan, plek: d.plek, onderwerp: r.onderwerp.slice(0, 3000), beelden: r.beelden ?? [], nietDoen: r.nietDoen, taal: r.taal, soort: r.soort });
         }),
       );
       const gebruik: Gebruik = { ...(v.gebruik ?? { usd: 0, rondes: 0, sec: 0 }) };

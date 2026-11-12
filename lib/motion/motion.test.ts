@@ -236,3 +236,24 @@ describe("lange video's in hoofdstukken", () => {
     expect([...prijzen].sort((a, b) => a - b)).toEqual(prijzen);
   });
 });
+
+import { pasPlanAan } from "./regisseur";
+
+describe("de regisseur past het script per scene aan", () => {
+  const plan = { titel: "t", scenes: [1, 2, 3].map((n) => ({ tekst: `tekst ${n}`, beeld: `beeld ${n}`, kop: "" })), eind: { tekst: "slot", regel1: "a", regel2: "b", knop: "c" } };
+  const w = (scene: number, wat: "vervang" | "verwijder" | "voeg_toe_na" | "eindkaart", tekst = "", beeld = "") => ({ scene, wat, tekst, beeld, kop: "" });
+  it("vervangt alleen wat is meegegeven", () => {
+    const p = pasPlanAan(plan, [w(2, "vervang", "nieuw")]);
+    expect(p.scenes.map((s) => s.tekst)).toEqual(["tekst 1", "nieuw", "tekst 3"]);
+    expect(p.scenes[1].beeld).toBe("beeld 2");
+  });
+  it("houdt de nummers van het oude script aan bij meerdere wijzigingen tegelijk", () => {
+    const p = pasPlanAan(plan, [w(1, "verwijder"), w(3, "vervang", "drie"), w(0, "voeg_toe_na", "vooraan"), w(3, "voeg_toe_na", "achteraan")]);
+    expect(p.scenes.map((s) => s.tekst)).toEqual(["vooraan", "tekst 2", "drie", "achteraan"]);
+  });
+  it("past de slotzin aan en negeert nummers die niet bestaan", () => {
+    const p = pasPlanAan(plan, [w(0, "eindkaart", "nieuw slot"), w(9, "vervang", "x")]);
+    expect(p.eind.tekst).toBe("nieuw slot");
+    expect(p.scenes).toHaveLength(3);
+  });
+});

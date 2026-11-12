@@ -4,7 +4,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { beeldBlokken } from "./beelden";
-import { MOTION_LENGTES, duurTekst, maxScenes, maxWoorden, type MotionBeeld, type MotionLengte, type MotionPlan } from "./types";
+import { MOTION_LENGTES, duurTekst, maxScenes, maxWoorden, type MotionBeeld, type MotionLengte, type MotionPlan, type MotionSoort } from "./types";
 
 const MODEL = "claude-opus-5-5";
 
@@ -88,6 +88,8 @@ export interface PlanVraag {
   beelden?: MotionBeeld[];
   /** De taal van de stem en van de tekst in beeld. Standaard Nederlands. */
   taal?: "nl" | "en";
+  /** Wat voor video het is; standaard een bedrijfsvideo. */
+  soort?: MotionSoort;
 }
 
 const kaal = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
@@ -149,22 +151,48 @@ Regels:
 ${slot}`;
   }
 
-  return `Je schrijft het script voor een korte Nederlandse uitlegvideo in motion graphics: strakke, platte animatie met vormen, iconen, grafieken, getallen en tekst in beeld. Geen gefilmde beelden, geen realistische personen.
-
-Opbouw (onze vaste formule):
+  const soort = v.soort ?? "bedrijf";
+  const afzender = v.bedrijf.trim();
+  const slotkaart = afzender
+    ? `Daarna de eindkaart, apart: één of twee zinnen met een duidelijke uitnodiging waarin de naam "${afzender}" letterlijk voorkomt.`
+    : `Daarna de eindkaart, apart: één of twee zinnen die het verhaal afsluiten of de kijker iets meegeven. Er is geen afzender: noem geen bedrijf of kanaal. eind.knop is een korte slotzin van twee tot vier woorden.`;
+  const opbouw: Record<MotionSoort, string> = {
+    bedrijf: `Opbouw (onze vaste formule):
 1. Haak: een herkenbare vraag of situatie van de kijker, in één of twee zinnen.
 2. Het probleem of de kernvraag, concreet gemaakt.
 3. De uitleg of oplossing, stap voor stap. Eén gedachte per scene.
-4. Wat het de kijker oplevert.
-Daarna de eindkaart, apart: één of twee zinnen met een duidelijke uitnodiging waarin de bedrijfsnaam letterlijk voorkomt.
+4. Wat het de kijker oplevert.`,
+    verhaal: `Dit is geen bedrijfsvideo maar een verhaal: geschiedenis, een documentaire, een opkomst en ondergang. Opbouw:
+1. Haak: begin midden in het verhaal, met het meest verrassende of spannende moment of feit. Geen inleiding.
+2. De opbouw: wie of wat, waar en wanneer, en wat er op het spel staat.
+3. De wendingen, in de volgorde waarin ze het verhaal dragen. Elke scene laat één gebeurtenis zien en eindigt zo dat je de volgende wilt horen.
+4. De afloop, en een slotzin die terugslaat op de haak.
+Vertel het als een verteller, niet als een opsomming: concrete beelden, jaartallen en getallen waar ze het verhaal sterker maken.`,
+    uitleg: `Dit is geen bedrijfsvideo maar een uitleg of les. Opbouw:
+1. Haak: een vraag die de kijker zichzelf wel eens stelt, of een feit dat verbaast.
+2. Het idee in één zin, zo eenvoudig mogelijk.
+3. De uitleg, stap voor stap van eenvoudig naar ingewikkeld. Eén stap per scene, elk met een beeld dat het idee laat zien (een vergelijking uit het dagelijks leven werkt goed).
+4. Een korte samenvatting: wat weet de kijker nu.`,
+    vrij: `De opbouw volgt uit wat de klant vraagt (een aankondiging, een bedankje, een verhaal voor kinderen, een quiz, een persoonlijke boodschap). Begin altijd met iets dat de aandacht pakt en houd één gedachte per scene.`,
+  };
+  const feiten =
+    soort === "bedrijf"
+      ? "- Neem feiten, bedragen en claims van de klant letterlijk over; verzin er geen bij."
+      : "- Feiten die de klant aanlevert neem je letterlijk over. Vul zelf alleen feiten aan (jaartallen, namen, getallen) waar je zeker van bent; twijfel je, houd het dan algemeen of laat het weg. Verzin geen citaten.";
+  const aanspreek = soort === "bedrijf" ? "je-vorm, " : "";
+
+  return `Je schrijft het script voor een korte Nederlandse ${soort === "bedrijf" ? "uitlegvideo" : "video"} in motion graphics: strakke, platte animatie met vormen, iconen, grafieken, getallen en tekst in beeld. Geen gefilmde beelden, geen realistische personen.
+
+${opbouw[soort]}
+${slotkaart}
 ${v.lengte > 60 ? `
 Dit is een lange video (${duurTekst(v.lengte)}). Houd de kijker vast: deel stap 2 en 3 op in herkenbare onderdelen die elk een eigen vraag beantwoorden, kondig in de tweede scene kort aan wat er komt, wissel uitleg af met een voorbeeld of een rekensom, en vat vlak voor de eindkaart in één scene samen. Scenes van één onderdeel krijgen dezelfde "kop". Elke scene blijft kort: 20 tot 30 woorden.
 ` : ""}
 Regels:
 - ${aantal} scenes, plus de eindkaart. Samen ${Math.round(woorden * 0.85)} tot ${woorden} woorden gesproken tekst (dat is ${duurTekst(v.lengte)}); de klant betaalt voor die lengte, dus blijf er niet ruim onder.
-- "tekst": wat de stem zegt. Gewone spreektaal, korte zinnen, je-vorm, geen jargon en geen opsommingstekens. Getallen voluit geschreven zoals je ze uitspreekt, behalve jaartallen en bedragen.
+- "tekst": wat de stem zegt. Gewone spreektaal, korte zinnen, ${aanspreek}geen jargon en geen opsommingstekens. Getallen voluit geschreven zoals je ze uitspreekt, behalve jaartallen en bedragen.
 - ${beeld}
-- Neem feiten, bedragen en claims van de klant letterlijk over; verzin er geen bij.
+${feiten}
 ${slot}`;
 }
 
@@ -193,8 +221,8 @@ export async function schrijfPlan(v: PlanVraag): Promise<PlanUitkomst> {
             {
               type: "text",
               text: v.eigenScript
-                ? `Bedrijf: ${v.bedrijf}\n\nHet script van de klant:\n${v.onderwerp}`
-                : `Bedrijf: ${v.bedrijf}\n\nWaar de video over moet gaan (onderwerp, of een bestaand script van de klant):\n${v.onderwerp}`,
+                ? `${v.bedrijf ? `Afzender: ${v.bedrijf}\n\n` : ""}Het script van de klant:\n${v.onderwerp}`
+                : `${v.bedrijf ? `Afzender: ${v.bedrijf}\n\n` : ""}Waar de video over moet gaan (onderwerp, of een bestaand script van de klant):\n${v.onderwerp}`,
             },
           ],
         },

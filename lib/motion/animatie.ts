@@ -15,7 +15,7 @@ import { claude } from "./plan";
 import { ernstig, proef, type Proef } from "./render";
 import type { PaginaInvoer } from "./pagina";
 import { beeldBlokken } from "./beelden";
-import type { MotionBeeld, MotionPlan } from "./types";
+import type { MotionBeeld, MotionPlan, MotionSoort } from "./types";
 import { stijlVan } from "./stijlen";
 
 const MODEL = "claude-opus-5-5";
@@ -186,7 +186,7 @@ De bouwstenen zijn al op deze stijl ingesteld: de achtergrond, het lettertype, h
     : "";
   return `${pl ? `Maak de animatie voor hoofdstuk ${pl.nummer} van ${pl.aantal} van een lange video. Elk hoofdstuk wordt apart getekend en daarna worden ze aan elkaar gezet; jij maakt alleen dit hoofdstuk. De tijden hieronder tellen vanaf het begin van dit hoofdstuk.${pl.nummer > 1 ? ` Het merk linksboven staat vanaf het eerste beeld in beeld, dus houd ook in de eerste scene de bovenste strook vrij.${pl.hiervoor ? ` In het hoofdstuk hiervoor was te zien: ${pl.hiervoor}` : ""}` : ""}${pl.hierna ? ` In het hoofdstuk hierna komt: ${pl.hierna}` : ""} Laat terugkerende dingen (het product, de hoofdpersoon) er net zo uitzien als ze in de beschrijvingen van de andere hoofdstukken heten, in dezelfde platte stijl en de merkkleuren.${heeftEind ? "" : " Dit hoofdstuk heeft geen eindkaart: laat `eind` weg uit window.VIDEO en eindig met het laatste beeld van de laatste scene."}` : "Maak de animatie voor deze video."}
 
-Bedrijf: ${v.pagina.merk.naam}${v.pagina.merk.website ? ` (${v.pagina.merk.website})` : ""}
+${v.soort && v.soort !== "bedrijf" ? `Let op: dit is geen bedrijfsvideo maar ${v.soort === "verhaal" ? "een verhaal (geschiedenis, documentaire)" : v.soort === "uitleg" ? "een uitleg of les" : "een vrije video"}. Teken wat het verhaal vraagt: kaarten, tijdlijnen, portretten als eenvoudige figuur, voorwerpen, plekken. Geen kantoor-iconen, knoppen of verkooptaal waar het verhaal daar niet om vraagt.\n` : ""}${v.pagina.merk.naam ? `${v.soort && v.soort !== "bedrijf" ? "Afzender" : "Bedrijf"}: ${v.pagina.merk.naam}${v.pagina.merk.website ? ` (${v.pagina.merk.website})` : ""}` : "Afzender: geen. Er staat geen merk linksboven; de eindkaart toont alleen de slotregels."}
 Formaat: ${v.pagina.w} x ${v.pagina.h} (${v.pagina.h > v.pagina.w ? "staand" : "liggend"})
 Merkkleur C.accent = ${v.pagina.merk.kleur}, tweede kleur C.accent2 = ${v.pagina.merk.kleur2}
 ${v.taal === "en" ? "Taal: dit is een Engelstalige video. Alle tekst in beeld is Engels, ook als de beschrijving bij Beeld Nederlands is. Schrijf getallen op zijn Engels (1,250 en 3.5); gebruik daarvoor nl() niet.\n" : ""}Onderwerp volgens de klant: ${v.onderwerp}${v.nietDoen ? `\nWat er van dit bedrijf niet in beeld mag: ${v.nietDoen}` : ""}${fotos.length ? `\nFoto's die je met foto() kunt plaatsen: ${fotos.map((f) => `'${f.id}' (${f.w} x ${f.h})`).join(", ")}` : ""}
@@ -291,6 +291,8 @@ export interface AnimatieVraag {
   plek?: { nummer: number; aantal: number; laatste: boolean; hiervoor: string; hierna: string };
   /** De taal van de stem en van de tekst in beeld. Standaard Nederlands. */
   taal?: "nl" | "en";
+  /** Wat voor video het is; standaard een bedrijfsvideo. */
+  soort?: MotionSoort;
 }
 
 export interface AnimatieUitkomst {
