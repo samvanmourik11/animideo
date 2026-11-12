@@ -437,6 +437,28 @@ function bouwAchtergrond() {
   if (b.extra === 'cirkels') {
     [[.86, .12, .2], [.08, .88, .24], [.95, .8, .1]].forEach(([cx, cy, r]) => el('circle', { cx: cx * W, cy: cy * H, r: r * Math.max(W, H), fill: '#000', 'fill-opacity': .045 }, x));
   }
+  if (b.extra === 'wolken') {
+    // Tekenfilmlucht: een paar bolle wolken die traag naar rechts drijven.
+    K.wolken = [[.14, .16, 1.1], [.62, .1, .8], [.88, .27, 1.25], [.36, .33, .65]].map(([cx, cy, s], i) => {
+      const w = G(x, { opacity: .9 });
+      [[-70, 8, 62], [0, -22, 84], [78, 6, 58], [10, 26, 70]].forEach(([dx, dy, r]) => el('ellipse', { cx: dx, cy: dy, rx: r * 1.25, ry: r * .72, fill: b.stip && b.stip !== 'none' ? b.stip : '#fff' }, w));
+      return { w, x: cx * W, y: cy * H, s, i };
+    });
+  }
+  if (b.extra === 'halftoon') {
+    // Rasterpuntjes zoals in een gedrukte strip, schuin over het beeld.
+    const p = el('pattern', { id: 'halfS', width: 18, height: 18, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(35)' }, $('defs'));
+    el('circle', { cx: 9, cy: 9, r: 3.4, fill: b.stip && b.stip !== 'none' ? b.stip : '#000', 'fill-opacity': .2 }, p);
+    el('rect', { width: W, height: H, fill: 'url(#halfS)' }, x);
+  }
+  if (b.extra === 'film') {
+    // Oude filmrol: korrel, en krasjes die elke paar beelden verspringen.
+    const f = el('filter', { id: 'korrelS', x: 0, y: 0, width: 1, height: 1 }, $('defs'));
+    el('feTurbulence', { id: 'filmT', type: 'fractalNoise', baseFrequency: .9, numOctaves: 2, seed: 5, result: 'n' }, f);
+    el('feColorMatrix', { in: 'n', type: 'matrix', values: '0 0 0 0 .2  0 0 0 0 .14  0 0 0 0 .05  0 0 0 1.1 -.5' }, f);
+    el('rect', { width: W, height: H, fill: '#000', filter: 'url(#korrelS)', opacity: .55 }, x);
+    K.krassen = [0, 1, 2].map(() => el('rect', { y: 0, width: 2.5, height: H, fill: '#2a1c0c', opacity: .35 }, x));
+  }
   if (b.extra === 'korrel') {
     const f = el('filter', { id: 'korrelS', x: 0, y: 0, width: 1, height: 1 }, $('defs'));
     el('feTurbulence', { type: 'fractalNoise', baseFrequency: .8, numOctaves: 2, seed: 5, result: 'n' }, f);
@@ -485,6 +507,11 @@ function render(t) {
   const tt = t - D;
   if (STIJL.kook) { const k = $(STIJL.kook.id); if (k) k.setAttribute('seed', 1 + Math.floor(Math.max(0, t) * STIJL.kook.fps) % 4); }
   if (K.stralen) K.stralen.setAttribute('transform', `translate(${MX},${MY}) rotate(${tt * 3})`);
+  if (K.wolken) K.wolken.forEach(o => o.w.setAttribute('transform', `translate(${(o.x + tt * 9 * o.s + 300) % (W + 600) - 300},${o.y}) scale(${o.s})`));
+  if (K.krassen) {
+    const k = Math.floor(Math.max(0, t) * 6); $('filmT').setAttribute('seed', 1 + k % 5);
+    K.krassen.forEach((r, i) => { const z = (k * 7919 + i * 104729) % 1000 / 1000; r.setAttribute('x', z * W); r.style.display = (k + i) % 3 ? 'none' : ''; });
+  }
   if (K.sterren) K.sterren.forEach((c, i) => c.setAttribute('opacity', .45 + .4 * Math.sin(tt * (1 + i % 5 * .3) + i)));
   let cur = SCENES[0][0]; for (const [id, a] of SCENES) if (tt >= a - .02) cur = id;
   for (const k in SC) SC[k].style.display = k === cur ? '' : 'none';

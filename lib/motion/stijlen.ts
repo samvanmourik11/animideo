@@ -18,7 +18,7 @@ export interface StijlThema {
   donker: string;
   /** Vlakke kleuren: geen verloop op gekleurde vlakken. */
   vlak?: boolean;
-  bg: { kleuren: [string, string, string]; extra?: "stralen" | "sterren" | "raster" | "scan" | "korrel" | "cirkels"; stip?: string; vignet?: string; orbs?: boolean; deeltjes?: boolean };
+  bg: { kleuren: [string, string, string]; extra?: "stralen" | "sterren" | "raster" | "scan" | "korrel" | "cirkels" | "wolken" | "halftoon" | "film"; stip?: string; vignet?: string; orbs?: boolean; deeltjes?: boolean };
   /** Extra filters (SVG); een filter met een id dat al bestaat (zoals 'sch', de schaduw) vervangt het bestaande. */
   defs?: string;
   /** Filter over alles wat in de scenes getekend wordt, bijvoorbeeld krijt of gloed. */
@@ -344,6 +344,133 @@ export const MOTION_STIJLEN: MotionStijl[] = [
 - Ronde, vlakke vormen zonder omlijning: planeten en bollen met een donkerdere schaduwsikkel aan één kant, C.blauw (turquoise), C.rood, C.oranje, C.paars. Geen verloop, geen schaduw.
 - Ook een aards onderwerp teken je in deze wereld: op de bolling van een planeet onderin, of zwevend tussen de sterren.
 - Tekst wit, rond en vet; het kernwoord in C.geel.`,
+  },
+  // ── Cartoonstijlen ──────────────────────────────────────────────────────────────────
+  {
+    id: "tekenfilm",
+    naam: "Tekenfilm",
+    uitleg: "Vrolijke tekenfilm: blauwe lucht, bolle vormen en figuurtjes met grote ogen. Voor alles wat luchtig mag.",
+    fonts: ["Baloo+2:wght@500;600;700;800"],
+    font: "Baloo 2",
+    thema: {
+      C: { inkt: "#2b2350", wit: "#ffffff", rood: "#ff5a5f", blauw: "#3fa9f5", geel: "#ffd23f", oranje: "#ff9a3c", groen: "#5ccf6b", paars: "#9b6bf2", grijs: "#d7e6f5", licht: "#f2f9ff", muted: "#5d5a80" },
+      donker: "#2b2350",
+      vlak: true,
+      bg: { kleuren: ["#8fdcff", "#b5e9ff", "#e3f7ff"], extra: "wolken", stip: "none", vignet: "none" },
+      defs: `<filter id="sch" x="-20%" y="-30%" width="150%" height="180%"><feDropShadow dx="6" dy="6" stdDeviation="0" flood-color="#2b2350" flood-opacity="1"/></filter>`,
+      pil: { rand: "#2b2350", randDik: 5, glans: false },
+      kaart: { rand: "#2b2350", randDik: 6, rx: 36 },
+      eind: ["#3a2f7a", "#231c52"],
+    },
+    regels: `Een vrolijke tekenfilm, zoals op zaterdagochtend.
+- Alles heeft een dikke, donkerpaarse omlijning: stroke C.inkt, 6 tot 8 dik, stroke-linejoin en stroke-linecap round. Vormen zijn bol en rond, nooit strak of hoekig; vlakke, vrolijke kleuren (C.rood, C.blauw, C.geel, C.groen, C.oranje).
+- Geef elke gekleurde vorm één schaduwvlak: dezelfde vorm, iets donkerder, aan de rechteronderkant. En één wit glimlichtje linksboven.
+- Dingen mogen een gezicht hebben: twee grote witte ogen met zwarte pupil en een glimlichtje, een lachend mondje. Teken mensen zelf als tekenfilmfiguur (groot rond hoofd, klein lijf, grote ogen) in plaats van persoon(). Verzonnen figuren, nooit bestaande tekenfilmfiguren.
+- Onderin mag een groene heuvel of een straat liggen waar de dingen op staan (C.groen met omlijning).
+- Beweging: alles komt binnen met een plof en veert na (pop()), en wat stilstaat deint zachtjes mee (golf()). Rek en krimp bij landen en springen.`,
+  },
+  {
+    id: "jaren30",
+    naam: "Oude tekenfilm",
+    uitleg: "Tekenfilm uit de jaren dertig: sepia, slangenarmen, alles deint mee, met filmkorrel en krasjes. Voor humor en 'vroeger'.",
+    fonts: ["Chelsea+Market"],
+    font: "Chelsea Market",
+    thema: {
+      C: { inkt: "#1f170e", wit: "#f6ead0", rood: "#8a5a36", blauw: "#6d6654", geel: "#e3c98f", oranje: "#b98a55", groen: "#857a5c", paars: "#5c4a3a", grijs: "#cdb98f", licht: "#ecdcb8", muted: "#5b4a34" },
+      accent: ["#1f170e", "#8a5a36"],
+      donker: "#1f170e",
+      vlak: true,
+      bg: { kleuren: ["#ecdcb6", "#e2cfa3", "#d0b884"], extra: "film", stip: "none", vignet: "#1a0f02" },
+      defs: GEEN_SCHADUW + wiebel("beef", 0.02, 4),
+      scenesFilter: "beef",
+      kook: { id: "beefT", fps: 6 },
+      fps: 12,
+      pil: { fill: "#1f170e", kleur: "#f6ead0", glans: false },
+      kaart: { fill: "#f6ead0", rand: "#1f170e", randDik: 7, rx: 26 },
+      veeg: ["#1f170e", "#8a5a36"],
+      eind: ["#2a1e10", "#120c05"],
+    },
+    regels: `Een tekenfilm uit de jaren dertig, in sepia.
+- Alleen bruintinten: C.inkt (bijna zwart) voor lijnen en donkere vlakken, C.wit (crème) voor lichte vlakken, C.geel, C.oranje en C.rood als tussentinten. Geen andere kleur, ook niet de merkkleur.
+- Dikke zwarte omlijning (stroke C.inkt, 7 tot 9, rond). Figuren hebben een zwart lijf, een crème gezicht, witte handschoenen en 'taartpunt-ogen' (zwart ovaal met een uitgesneden wigje). Armen en benen zijn slangen: gebogen lijnen zonder ellebogen of knieën (stroke 14 tot 18, rond). Ook dingen (zon, huis, auto, munt) krijgen een gezicht. Teken figuren zelf, gebruik persoon() niet; verzonnen figuren, nooit bestaande tekenfilmfiguren.
+- Alles deint onafgebroken op de maat: laat elke figuur en elk ding op en neer veren met golf(tt, 2, ...) (twee keer per seconde), figuren iets door de knieën.
+- Tekst in titelkaarten: een zwarte kaart met crème letters en een dun crème kader, zoals bij een stomme film.
+- Geen verloop, geen glans, geen schaduw.`,
+  },
+  {
+    id: "anime",
+    naam: "Anime",
+    uitleg: "Japanse tekenfilm: strakke inktlijnen, harde schaduw, felle lucht en actielijnen. Voor drama en verrassing.",
+    fonts: ["Dela+Gothic+One", "M+PLUS+Rounded+1c:wght@500;700;800"],
+    font: "M PLUS Rounded 1c",
+    thema: {
+      C: { inkt: "#1a1a2e", wit: "#ffffff", rood: "#ff4d6d", blauw: "#3b82f6", geel: "#ffd43b", oranje: "#ff8c42", groen: "#38c172", paars: "#8b5cf6", grijs: "#d5e3f5", licht: "#eef6ff", muted: "#4b5578" },
+      donker: "#1a1a2e",
+      vlak: true,
+      bg: { kleuren: ["#3d8bf2", "#7cc0ff", "#d6f0ff"], extra: "wolken", stip: "none", vignet: "none" },
+      defs: `<filter id="sch" x="-20%" y="-30%" width="150%" height="180%"><feDropShadow dx="5" dy="5" stdDeviation="0" flood-color="#1a1a2e" flood-opacity="1"/></filter>`,
+      pil: { rand: "#1a1a2e", randDik: 4, rx: 0.12, glans: false },
+      kaart: { rand: "#1a1a2e", randDik: 5, rx: 10 },
+      veeg: ["#ff4d6d", "#ffd43b"],
+      eind: ["#1f2a5c", "#0f1533"],
+    },
+    regels: `Anime: een Japanse tekenfilm.
+- Strakke, dunne inktlijn om alles: stroke C.inkt, 4 tot 5 dik. Vlakke kleuren met precies één hardere schaduwtint per kleur (cel-schaduw): een scherp afgesneden donkerder vlak aan één kant, geen verloop. Eén wit glimstreepje op glanzende dingen.
+- Figuren teken je zelf (gebruik persoon() niet): groot hoofd, puntig haar in één kleur met een glansstreep, grote ogen met een gekleurde iris en twee witte glimpunten, klein neusje en mondje. Verzonnen figuren, nooit bestaande anime-figuren.
+- Bij het belangrijkste moment van een scene: actielijnen (dunne lijnen die vanuit de rand naar het midden wijzen), een korte schok (het beeld schudt 0,3 s) en een uitroep als "!?" of "!!" in font-family 'Dela Gothic One'. Hooguit één keer per scene.
+- Koppen en getallen in font-family 'Dela Gothic One', wit of C.geel met een donkere rand (stroke C.inkt, 8, paint-order stroke). Overige tekst in het gewone lettertype.
+- Beweging: snel erin, dan stil; korte zoom op het kernbeeld. Geen zacht deinen.`,
+  },
+  {
+    id: "noir",
+    naam: "Zwart-wit strip",
+    uitleg: "Zwart-wit stripboek met rasterpuntjes en één rode kleur. Voor mysterie, misdaad en drama.",
+    fonts: ["Bangers", "Special+Elite"],
+    font: "Bangers",
+    thema: {
+      C: { inkt: "#0d0d0d", wit: "#ffffff", rood: "#e0271b", blauw: "#3a3a3a", geel: "#ffffff", oranje: "#8c8c8c", groen: "#5e5e5e", paars: "#2a2a2a", grijs: "#bdbdbd", licht: "#ececec", muted: "#444444" },
+      accent: ["#e0271b", "#0d0d0d"],
+      donker: "#0d0d0d",
+      vlak: true,
+      bg: { kleuren: ["#f4f4f4", "#e6e6e6", "#cfcfcf"], extra: "halftoon", stip: "#000000", vignet: "#000000" },
+      defs: `<filter id="sch" x="-20%" y="-30%" width="150%" height="180%"><feDropShadow dx="8" dy="8" stdDeviation="0" flood-color="#0d0d0d" flood-opacity="1"/></filter>`,
+      fps: 12,
+      pil: { fill: "#0d0d0d", kleur: "#ffffff", rx: 0.08, glans: false },
+      kaart: { fill: "#ffffff", rand: "#0d0d0d", randDik: 8, rx: 4 },
+      veeg: ["#0d0d0d", "#e0271b"],
+      eind: ["#161616", "#000000"],
+    },
+    regels: `Een zwart-wit stripboek (film noir) met één rode kleur.
+- Alleen zwart (C.inkt), wit (C.wit) en grijs (C.grijs, C.oranje, C.groen zijn hier grijstinten). C.rood is de enige kleur en komt per scene precies één keer voor: op het ding waar het om draait. Geen merkkleur.
+- Grote zwarte vlakken en harde schaduwen: de helft van een figuur of gebouw mag gewoon zwart zijn. Dikke omlijning (stroke C.inkt, 8 tot 10). Silhouetten (een stad, een figuur met hoed en lange jas, een lantaarnpaal) werken beter dan details. Teken figuren zelf, gebruik persoon() niet.
+- Zet beelden in panelen: witte kaart() met dikke zwarte rand, strak naast of schuin over elkaar. Schuine lichtbanen (witte stroken met opacity .5) alsof er licht door een luxaflex valt.
+- Koppen in hoofdletters, wit op een zwarte strook of zwart op wit. Bijschriften in font-family 'Special Elite' (typemachine) op een klein wit vlakje met zwarte rand, zoals een tekstkader in een strip.
+- Beweging: panelen schuiven hard in beeld of klappen erin; geen zacht veren.`,
+  },
+  {
+    id: "prentenboek",
+    naam: "Prentenboek",
+    uitleg: "Kinderboek: zachte kleuren, wiebelige potloodlijn en lieve figuurtjes. Voor kinderen en warme verhalen.",
+    fonts: ["Patrick+Hand", "Fredoka:wght@500;600;700"],
+    font: "Fredoka",
+    thema: {
+      C: { inkt: "#4a3b32", wit: "#fffaf0", rood: "#f08a7b", blauw: "#8cc7e8", geel: "#f9d977", oranje: "#f5b06b", groen: "#a5d49a", paars: "#c3a6e0", grijs: "#e6dcc8", licht: "#fbf3e0", muted: "#7d6a5c" },
+      donker: "#4a3b32",
+      vlak: true,
+      bg: { kleuren: ["#fdf3dc", "#fbeccb", "#f6dfb4"], extra: "korrel", stip: "none", vignet: "#b08a4a" },
+      defs: GEEN_SCHADUW + wiebel("potlood", 0.03, 5),
+      scenesFilter: "potlood",
+      kook: { id: "potloodT", fps: 4 },
+      pil: { fill: "#fffaf0", kleur: "#4a3b32", rand: "#4a3b32", randDik: 4, glans: false },
+      kaart: { fill: "#fffaf0", rand: "#4a3b32", randDik: 4, rx: 30 },
+      eind: ["#5a4638", "#3a2c22"],
+    },
+    regels: `Een prentenboek voor kinderen, met potlood en krijt getekend.
+- Zachte pastelkleuren (C.rood is zacht koraal, C.blauw lichtblauw, C.geel, C.groen, C.paars) met een warmbruine potloodlijn eromheen: stroke C.inkt, 4 tot 5 dik, rond. De kleur mag iets buiten of binnen de lijn vallen (verschuif het kleurvlak een paar pixels ten opzichte van de omlijning), zoals bij inkleuren.
+- Alles is rond en lief: dieren, huisjes, bomen, een zon met stralen en een gezicht. Figuren teken je zelf (gebruik persoon() niet): rond hoofd, twee stipjes als ogen, blosjes (roze cirkeltjes met opacity .5), een klein lachje. Verzonnen figuren, nooit bestaande.
+- Onderin een zachte heuvel of grond waar alles op staat; kleine details eromheen (bloemetjes, sterretjes, wolkjes).
+- Tekst in gewone letters, niet in hoofdletters; korte bijschriften mogen in font-family 'Patrick Hand' (handschrift).
+- Beweging rustig en zacht: dingen groeien of wandelen in beeld, deinen licht (golf()); niets knalt of schudt.`,
   },
 ];
 
