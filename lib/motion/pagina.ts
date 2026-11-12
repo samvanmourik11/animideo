@@ -17,6 +17,11 @@ export interface PaginaInvoer {
   merk: { naam: string; website: string; kleur: string; kleur2: string; font?: string; logo?: PaginaLogo | null };
   /** Foto's van de klant die zelf in beeld komen, op id (f1, f2, ...). */
   fotos?: Record<string, PaginaFoto>;
+  /**
+   * Alleen bij een lange video: dit is één hoofdstuk. `voor`/`na` zeggen of er een hoofdstuk
+   * aan voorafgaat of op volgt, `einde` hoe lang dit hoofdstuk precies duurt (s).
+   */
+  deel?: { voor: boolean; na: boolean; einde?: number };
   /** De code van de video: zet window.VIDEO. */
   code: string;
 }
@@ -75,6 +80,7 @@ window.WORDS = ${json(p.woorden)};
 window.SCRIPT = ${json(p.script)};
 window.MERK = ${json(merk)};
 window.FOTOS = ${json(p.fotos ?? {})};
+window.DEEL = ${json(p.deel ?? {})};
 </script>
 <script>${veilig(kern)}</script>
 <script>

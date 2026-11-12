@@ -4,7 +4,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { beeldBlokken } from "./beelden";
-import { MAX_SCENES, MOTION_LENGTES, maxWoorden, type MotionBeeld, type MotionLengte, type MotionPlan } from "./types";
+import { MOTION_LENGTES, duurTekst, maxScenes, maxWoorden, type MotionBeeld, type MotionLengte, type MotionPlan } from "./types";
 
 const MODEL = "claude-opus-5-5";
 
@@ -26,7 +26,7 @@ export function telWoorden(plan: MotionPlan): number {
 export function controleerPlan(ruw: unknown, lengte: MotionLengte): MotionPlan {
   const p = (ruw ?? {}) as { titel?: unknown; scenes?: unknown; eind?: unknown };
   const scenes = (Array.isArray(p.scenes) ? p.scenes : [])
-    .slice(0, MAX_SCENES)
+    .slice(0, maxScenes(lengte))
     .map((s) => {
       const o = (s ?? {}) as Record<string, unknown>;
       return { tekst: schoon(o.tekst, 500), beeld: schoon(o.beeld, 600), kop: schoon(o.kop, 32) };
@@ -45,7 +45,7 @@ export function controleerPlan(ruw: unknown, lengte: MotionLengte): MotionPlan {
   // Een kwart speling: de klant mag zinnen aanpassen zonder meteen een foutmelding te krijgen.
   const max = Math.round(maxWoorden(lengte) * 1.25);
   if (telWoorden(plan) > max) {
-    throw new Error(`De tekst is te lang voor ±${lengte} seconden. Houd het onder de ${max} woorden, of kies een langere video.`);
+    throw new Error(`De tekst is te lang voor ${duurTekst(lengte)}. Houd het onder de ${max} woorden, of kies een langere video.`);
   }
   return plan;
 }
@@ -138,7 +138,7 @@ function systeem(v: PlanVraag, aantal: string, woorden: number): string {
 Regels:
 - "tekst": wat de stem zegt, LETTERLIJK overgenomen uit het script van de klant. Geen woord erbij, eraf of anders; ook geen zinnen omdraaien of samenvoegen. Alle gesproken tekst van de klant komt in de video, in dezelfde volgorde.
 - Staan er in het script ook aanwijzingen die niet worden uitgesproken (scenenummers, kopjes als "Voice-over" of "Beeld", regieaanwijzingen, tijdcodes), dan horen die niet in "tekst". Beeldaanwijzingen van de klant gebruik je wel: die vormen de basis van "beeld" voor die scene.
-- Verdeel in scenes op de plekken waar een nieuwe gedachte begint: ongeveer één scene per 8 tot 12 seconden spreektijd, één gedachte per scene.
+- Verdeel in scenes op de plekken waar een nieuwe gedachte begint: ongeveer één scene per 8 tot 12 seconden spreektijd (20 tot 30 woorden), één gedachte per scene. Een lang script krijgt dus veel scenes; sla niets over.
 - De laatste één of twee zinnen van het script (de afsluiting of oproep) worden de eindkaart: zet die in eind.tekst, niet in een scene.
 - ${beeld}
 ${slot}`;
@@ -152,9 +152,11 @@ Opbouw (onze vaste formule):
 3. De uitleg of oplossing, stap voor stap. Eén gedachte per scene.
 4. Wat het de kijker oplevert.
 Daarna de eindkaart, apart: één of twee zinnen met een duidelijke uitnodiging waarin de bedrijfsnaam letterlijk voorkomt.
-
+${v.lengte > 60 ? `
+Dit is een lange video (${duurTekst(v.lengte)}). Houd de kijker vast: deel stap 2 en 3 op in herkenbare onderdelen die elk een eigen vraag beantwoorden, kondig in de tweede scene kort aan wat er komt, wissel uitleg af met een voorbeeld of een rekensom, en vat vlak voor de eindkaart in één scene samen. Scenes van één onderdeel krijgen dezelfde "kop". Elke scene blijft kort: 20 tot 30 woorden.
+` : ""}
 Regels:
-- ${aantal} scenes, plus de eindkaart. Samen ${Math.round(woorden * 0.85)} tot ${woorden} woorden gesproken tekst (dat is ±${v.lengte} seconden); de klant betaalt voor die lengte, dus blijf er niet ruim onder.
+- ${aantal} scenes, plus de eindkaart. Samen ${Math.round(woorden * 0.85)} tot ${woorden} woorden gesproken tekst (dat is ${duurTekst(v.lengte)}); de klant betaalt voor die lengte, dus blijf er niet ruim onder.
 - "tekst": wat de stem zegt. Gewone spreektaal, korte zinnen, je-vorm, geen jargon en geen opsommingstekens. Getallen voluit geschreven zoals je ze uitspreekt, behalve jaartallen en bedragen.
 - ${beeld}
 - Neem feiten, bedragen en claims van de klant letterlijk over; verzin er geen bij.
@@ -163,12 +165,14 @@ ${slot}`;
 
 export async function schrijfPlan(v: PlanVraag): Promise<PlanUitkomst> {
   const woorden = maxWoorden(v.lengte);
-  const aantal = v.lengte <= 30 ? "3 of 4" : v.lengte <= 45 ? "4 of 5" : "5 of 6";
+  // Boven de minuut: een scene per ±10 seconden.
+  const aantal = v.lengte <= 30 ? "3 of 4" : v.lengte <= 45 ? "4 of 5" : v.lengte <= 60 ? "5 of 6" : `${Math.round(v.lengte / 11)} tot ${Math.round(v.lengte / 9)}`;
   const voorbeelden = v.beelden?.length ? await beeldBlokken(v.beelden, false) : [];
   const antwoord = await claude()
     .beta.messages.stream({
       model: MODEL,
-      max_tokens: 16000,
+      // Een script van tien minuten is ±70 scenes: ruim boven wat een kort script nodig heeft.
+      max_tokens: v.lengte > 60 ? 48000 : 16000,
       // "low": het script is een kort stuk tekst; op "medium" wachtte de klant er bijna
       // twee minuten op (gemeten 11-11-2026).
       output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },

@@ -8,6 +8,8 @@
 //   window.SCRIPT             [[sceneId, tekst], ...], de laatste heet altijd 'eind'
 //   window.MERK               { naam, website, kleur, kleur2, font, logo: { src, w, h, licht } | null }
 //   window.FOTOS              { f1: { src, w, h }, ... }: foto's van de klant die zelf in beeld komen
+//   window.DEEL               alleen bij een lange video, die in hoofdstukken wordt getekend:
+//                             { voor, na, einde }: komt er een hoofdstuk voor of na, en hoe lang duurt dit (s)
 // Daarna dit bestand, daarna de video zelf (window.VIDEO = {...}, geschreven door Claude),
 // en tot slot start(). Alles hier is een gewone globale naam: de video-code gebruikt ze direct.
 //
@@ -21,6 +23,11 @@ const W = window.W, H = window.H, STAAND = H > W, MX = W / 2, MY = H / 2;
 const RAND = 140;
 const MERK = window.MERK || { naam: '', website: '', kleur: '#1c72ed', kleur2: '#ffc21a' };
 const FOTOS = window.FOTOS || {};
+// Een lange video bestaat uit hoofdstukken die elk als een eigen korte video worden getekend
+// en daarna aan elkaar gezet. Een hoofdstuk met een vervolg heeft geen eindkaart en stopt op
+// de seconde af waar het volgende begint; de veeg loopt over de naad heen.
+const DEEL = window.DEEL || {};
+const HEEFT_EIND = (window.SCRIPT || []).some(s => s[0] === 'eind');
 /** Het logo van de klant, of null: dan is het merkteken de eerste letter van de naam. */
 const LOGO = MERK.logo && MERK.logo.src ? MERK.logo : null;
 // Een breed logo (woordmerk) bevat de bedrijfsnaam al; een vierkant logo krijgt de naam ernaast.
@@ -333,12 +340,12 @@ function bouwHarnas() {
   document.body.style.width = W + 'px'; document.body.style.height = H + 'px';
   [['bg', 0], ['vig', 0], ['bgDots', 96]].forEach(([id, extra]) => { $(id).setAttribute('width', W + extra); $(id).setAttribute('height', H + extra); });
   SCENES = sceneTijden();
-  const last = WRD[WRD.length - 1]; END = +((last ? last.end : 10) + D + (V.naloop ?? 2.8)).toFixed(2);
+  const last = WRD[WRD.length - 1]; END = DEEL.einde > 0 ? +DEEL.einde : +((last ? last.end : 10) + D + (V.naloop ?? 2.8)).toFixed(2);
   K.deel = [...Array(16)].map((_, i) => ({ c: el('circle', { r: 3 + (i * 7) % 6, fill: [C.accent, C.accent2, C.groen][i % 3], 'fill-opacity': .32 }, $('deeltjes')), x: (i * 397) % W, y: (i * 251) % H, v: 14 + (i * 13) % 22 }));
   K.orbs = [[C.accent, .2, .25], [C.accent2, .85, .2], [C.groen, .7, .9]].map(([k, x, y], i) => ({ c: el('circle', { r: Math.max(W, H) * .26, fill: k, 'fill-opacity': .12 }, $('orbs')), x: x * W, y: y * H, i }));
   SCENES.forEach(([id]) => sc(id));
   V.bouw(E, SC);
-  bouwEind();
+  if (HEEFT_EIND) bouwEind();
   // merk linksboven + hoofdstukpil rechtsboven
   K.bug = G($('hud'));
   const bp = G(K.bug, { filter: 'url(#sch)' });
@@ -399,10 +406,15 @@ function render(t) {
   K.deel.forEach(d => { d.c.setAttribute('cx', d.x + golf(tt, .05, 40, d.x)); d.c.setAttribute('cy', ((d.y - tt * d.v) % (H + 100) + H + 100) % (H + 100) - 50); });
   // veeg tussen de scenes
   let wp = 0; for (const [, a] of SCENES.slice(1)) if (tt > a - .45 && tt < a + .45) wp = P(tt, a - .45, a + .45);
+  // De naad tussen twee hoofdstukken valt midden in een veeg: het vorige hoofdstuk eindigt
+  // met de eerste helft (beeld net bedekt), het volgende begint met de tweede helft.
+  if (DEEL.voor && t < .45) wp = P(t, -.45, .45);
+  if (DEEL.na && t > END - .45) wp = P(t, END - .45, END + .45);
   const wx = wp ? lerp(-(W + H + 1700), W + 800 + H * .3, eio(wp)) : -12000;
   K.wB.setAttribute('transform', `translate(${wx},0) skewX(-14)`); K.wA.setAttribute('transform', `translate(${wx - 260},0) skewX(-14)`);
   // merk en hoofdstuk
-  const s2 = SCENES.length > 1 ? SCENES[1][1] : 0, eind = sStart('eind'), hudAan = tt >= s2 && tt < eind && V.hud !== false;
+  // In een vervolghoofdstuk staat het merk er al vanaf het eerste beeld.
+  const s2 = DEEL.voor ? -9 : SCENES.length > 1 ? SCENES[1][1] : 0, eind = HEEFT_EIND ? sStart('eind') : 1e9, hudAan = tt >= s2 && tt < eind && V.hud !== false;
   op(K.bug, hudAan ? P(tt, s2 + .2, s2 + .6) : 0); if (hudAan) tf(K.bug, RAND + (1 - eo(P(tt, s2 + .2, s2 + .65))) * -60, STAAND ? 150 : 100);
   for (const k in K.hfdG) {
     const a = sStart(k), p = eo(P(tt, a + .3, a + .75)), g = K.hfdG[k];

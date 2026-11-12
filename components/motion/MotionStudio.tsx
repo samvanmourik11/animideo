@@ -17,6 +17,7 @@ import {
   STANDAARD_FONT,
   isMotionDoel,
   maxWoorden,
+  duurTekst,
   motionCredits,
   motionFont,
   type MotionBeeld,
@@ -188,7 +189,7 @@ export default function MotionStudio() {
       const { tekst, ingekort } = await postBestand<{ tekst: string; ingekort: boolean }>("/api/motion/lees-script", bestand);
       setOnderwerp(tekst);
       setEigenScript(true);
-      if (ingekort) setFout("Je bestand is lang; we hebben alleen het eerste deel ingelezen. Een video is hooguit ±60 seconden.");
+      if (ingekort) setFout("Je bestand is lang; we hebben alleen het eerste deel ingelezen. Een video is hooguit ±10 minuten.");
     });
   }
 
@@ -406,7 +407,7 @@ export default function MotionStudio() {
                     <span className="font-semibold">Gebruik mijn tekst letterlijk.</span>{" "}
                     <span className="text-tekst-3">
                       {letterlijk
-                        ? `Wij verdelen je script in scenes en bedenken het beeld; aan de woorden veranderen we niets. De lengte volgt uit je tekst (hooguit ±${MOTION_LENGTES[MOTION_LENGTES.length - 1].sec} seconden, ongeveer ${maxWoorden(MOTION_LENGTES[MOTION_LENGTES.length - 1].sec)} woorden).`
+                        ? `Wij verdelen je script in scenes en bedenken het beeld; aan de woorden veranderen we niets. De lengte volgt uit je tekst (hooguit ${MOTION_LENGTES[MOTION_LENGTES.length - 1].naam}, ongeveer ${maxWoorden(MOTION_LENGTES[MOTION_LENGTES.length - 1].sec)} woorden).`
                         : "Uit: wij herschrijven en korten je script in tot de lengte die je hieronder kiest. Cijfers en claims blijven letterlijk staan."}
                     </span>
                   </span>
@@ -471,7 +472,7 @@ export default function MotionStudio() {
             {!letterlijkScript && (
               <div>
                 <label className="n-label">Lengte</label>
-                <div className="mt-1.5 grid grid-cols-3 gap-2">
+                <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {MOTION_LENGTES.map((l) => (
                     <button
                       key={l.sec}
@@ -563,14 +564,14 @@ export default function MotionStudio() {
                 </div>
               </div>
               <p className={`text-[11px] ${teLang ? "text-red-500" : "text-tekst-3"}`}>
-                {woorden} woorden {teLang ? `— te lang voor ±${lengte} seconden: maak het korter of kies een langere video` : `(ongeveer ${Math.round(woorden / 2.5)} seconden)`}
+                {woorden} woorden {teLang ? `— te lang voor ${duurTekst(lengte)}: maak het korter of kies een langere video` : `(ongeveer ${woorden / 2.5 < 90 ? `${Math.round(woorden / 2.5)} seconden` : `${(woorden / 2.5 / 60).toFixed(1).replace(".", ",")} minuten`})`}
               </p>
 
               <button onClick={maak} disabled={!!bezig || teLang || !bedrijf.trim()} className="btn-primary w-full disabled:opacity-50">
                 {bezig === "maken" ? "Bezig met insturen…" : `✨ Maak de video · ${credits} credits`}
               </button>
               <p className="text-[11px] text-tekst-3">
-                Dit duurt meestal 10 tot 15 minuten: de animatie wordt speciaal voor jouw script getekend en daarna nagekeken. Je kunt ondertussen
+                Dit duurt meestal {lengte <= 60 ? "een minuut of 5" : lengte <= 180 ? "5 tot 10 minuten" : lengte <= 300 ? "een minuut of 20" : "drie kwartier"}: de animatie wordt speciaal voor jouw script getekend en daarna nagekeken. Je kunt ondertussen
                 gewoon verder; de video komt vanzelf in je bibliotheek. Mislukt het, dan krijg je je credits terug.
               </p>
             </div>

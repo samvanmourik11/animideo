@@ -166,7 +166,9 @@ function opdracht(v: AnimatieVraag, scenes: [string, number][], einde: number): 
   });
   const plan = v.plan;
   const fotos = Object.entries(v.pagina.fotos ?? {}).map(([id, f]) => ({ id, w: f.w, h: f.h }));
-  return `Maak de animatie voor deze video.
+  const pl = v.plek;
+  const heeftEind = !pl || pl.laatste;
+  return `${pl ? `Maak de animatie voor hoofdstuk ${pl.nummer} van ${pl.aantal} van een lange video. Elk hoofdstuk wordt apart getekend en daarna worden ze aan elkaar gezet; jij maakt alleen dit hoofdstuk. De tijden hieronder tellen vanaf het begin van dit hoofdstuk.${pl.nummer > 1 ? ` Het merk linksboven staat vanaf het eerste beeld in beeld, dus houd ook in de eerste scene de bovenste strook vrij.${pl.hiervoor ? ` In het hoofdstuk hiervoor was te zien: ${pl.hiervoor}` : ""}` : ""}${pl.hierna ? ` In het hoofdstuk hierna komt: ${pl.hierna}` : ""} Laat terugkerende dingen (het product, de hoofdpersoon) er net zo uitzien als ze in de beschrijvingen van de andere hoofdstukken heten, in dezelfde platte stijl en de merkkleuren.${heeftEind ? "" : " Dit hoofdstuk heeft geen eindkaart: laat `eind` weg uit window.VIDEO en eindig met het laatste beeld van de laatste scene."}` : "Maak de animatie voor deze video."}
 
 Bedrijf: ${v.pagina.merk.naam}${v.pagina.merk.website ? ` (${v.pagina.merk.website})` : ""}
 Formaat: ${v.pagina.w} x ${v.pagina.h} (${v.pagina.h > v.pagina.w ? "staand" : "liggend"})
@@ -183,10 +185,10 @@ Beeld: ${plan.scenes[i]?.beeld ?? ""}
 Woordtijden: ${s.tijden}`)
   .join("\n\n")}
 
-### eind (vanaf ${perScene.find((s) => s.id === "eind")?.start.toFixed(1)} s): tekent het systeem zelf
+${heeftEind ? `### eind (vanaf ${perScene.find((s) => s.id === "eind")?.start.toFixed(1)} s): tekent het systeem zelf
 Stem: ${plan.eind.tekst}
 Gebruik precies: eind: { regel1: ${JSON.stringify(plan.eind.regel1)}, regel2: ${JSON.stringify(plan.eind.regel2)}, knop: ${JSON.stringify(plan.eind.knop)} }
-
+` : ""}
 De beschrijving bij "Beeld" is wat de klant verwacht te zien; werk die uit tot een sterke compositie en vul aan waar het de uitleg helpt. Let op: de transcriptie schrijft sommige woorden anders dan het script (cijfers, samenstellingen); kies voor wt woorden die in de lijst met woordtijden staan.`;
 }
 
@@ -269,6 +271,8 @@ export interface AnimatieVraag {
   nietDoen?: string;
   /** Een bestaand ontwerp om na te kijken, in plaats van een nieuw te tekenen (voor proeven). */
   startCode?: string;
+  /** Bij een lange video: welk hoofdstuk dit is, en wat ervoor en erna te zien is. */
+  plek?: { nummer: number; aantal: number; laatste: boolean; hiervoor: string; hierna: string };
 }
 
 export interface AnimatieUitkomst {
@@ -280,7 +284,7 @@ export interface AnimatieUitkomst {
 }
 
 /** De begintijden van de scenes, zoals de kern ze ook bepaalt: via een lege video. */
-async function sceneTijden(pagina: Omit<PaginaInvoer, "code">): Promise<Proef> {
+export async function sceneTijden(pagina: Omit<PaginaInvoer, "code">): Promise<Proef> {
   return proef({ ...pagina, code: "window.VIDEO = { bouw() {}, teken() {} };" });
 }
 
@@ -294,6 +298,14 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
   const taak = opdracht(v, leeg.scenes, leeg.einde);
   const gebruik: Gebruik = { usd: 0, rondes: 0, sec: 0, usdOntwerp: 0, usdControle: 0 };
 
+  // Alleen voor proeven: het ontwerp door een ander model of met minder denkwerk laten maken.
+  const ontwerpModel = process.env.MOTION_ONTWERP_MODEL || MODEL;
+  // "low": gemeten op hetzelfde script (12-11-2026) kostte het ontwerp op "medium" $0,81 en
+  // 5,5 minuut, op "low" $0,30 en 2 minuten, met een video die er net zo verzorgd uitziet;
+  // het meeste denkwerk op "medium" ging niet in het beeld zitten. Sonnet 5.5 was nog iets
+  // goedkoper ($0,20) maar tekende slordiger.
+  const ontwerpEffort = (process.env.MOTION_ONTWERP_EFFORT || "low") as "low" | "medium" | "high";
+
   async function vraag(model: string, berichten: Bericht[], soort: "usdOntwerp" | "usdControle") {
     const begin = Date.now();
     const antwoord = await claude()
@@ -303,15 +315,15 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
         // De vaste uitleg is voor elke video gelijk en wordt gecachet.
         system: [{ type: "text", text: sys, cache_control: { type: "ephemeral" } }],
         messages: berichten,
-        // "medium": op "high" kostte de eerste proefvideo $2,09 en 12 minuten, vooral aan
-        // denkwerk; de controleronde met proefbeelden vangt meer fouten dan langer nadenken.
-        output_config: { effort: "medium" },
+        // De controleronde met proefbeelden vangt meer fouten dan langer nadenken vooraf.
+        output_config: { effort: soort === "usdOntwerp" ? ontwerpEffort : "medium" },
         // Weigert het model iets op een beleidsgrond, dan neemt een passend model het over.
         betas: ["server-side-fallback-2026-07-01"],
         fallbacks: "default",
       })
       .finalMessage();
     const usd = kosten(model, antwoord.usage);
+    if (process.env.MOTION_DEBUG_DIR) console.log(`  ${soort} ${model}: $${usd.toFixed(3)}, ${Math.round((Date.now() - begin) / 1000)} s`, JSON.stringify({ in: antwoord.usage.input_tokens, uit: antwoord.usage.output_tokens, lees: antwoord.usage.cache_read_input_tokens, schrijf: antwoord.usage.cache_creation_input_tokens }));
     gebruik.usd += usd;
     gebruik[soort] = (gebruik[soort] ?? 0) + usd;
     gebruik.sec = (gebruik.sec ?? 0) + Math.round((Date.now() - begin) / 1000);
@@ -335,7 +347,7 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
     const berichten: Bericht[] = [{ role: "user", content: [...voorbeelden, { type: "text", text: taak }] }];
     // Eén herkansing als er geen code terugkomt (te lang, of alleen tekst).
     for (let poging = 0; poging < 2 && !code; poging++) {
-      const antwoord = await vraag(MODEL, berichten, "usdOntwerp");
+      const antwoord = await vraag(ontwerpModel, berichten, "usdOntwerp");
       code = codeUit(alleTekst(antwoord));
       if (code) break;
       laatsteFout = antwoord.stop_reason === "max_tokens" ? "De code werd te lang." : "Er kwam geen code terug.";

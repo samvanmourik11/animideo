@@ -129,7 +129,10 @@ describe("eigen script en huisstijl", () => {
     expect(lengteVoorWoorden(60)).toBe(30);
     expect(lengteVoorWoorden(120)).toBe(45);
     expect(lengteVoorWoorden(180)).toBe(60);
-    expect(lengteVoorWoorden(400)).toBeNull();
+    // Boven de minuut gaat het verder in minuten, tot tien.
+    expect(lengteVoorWoorden(400)).toBe(180);
+    expect(lengteVoorWoorden(1700)).toBe(600);
+    expect(lengteVoorWoorden(2500)).toBeNull();
   });
 
   it("vindt het lettertype van een huisstijl terug, anders het standaardlettertype", async () => {
@@ -184,5 +187,52 @@ describe("wijzigingen in een controleronde", () => {
     const ws = wijzigingenUit("<<<<<<< ZOEK\nconst b = 2;\n=======\n>>>>>>> KLAAR");
     expect(ws).toEqual([{ zoek: "const b = 2;", nieuw: "" }]);
     expect(pasToe(code, ws).code).toBe("const a = 1;\n\nconst c = 2;\n");
+  });
+});
+
+describe("lange video's in hoofdstukken", () => {
+  const zin = (n: number) => Array.from({ length: n }, (_, i) => `woord${i}`).join(" ");
+  const plan = (scenes: number, woorden = 24) => ({
+    titel: "t",
+    scenes: Array.from({ length: scenes }, () => ({ tekst: zin(woorden), beeld: "b", kop: "" })),
+    eind: { tekst: zin(15), regel1: "", regel2: "", knop: "" },
+  });
+
+  it("een korte video blijft één hoofdstuk", async () => {
+    const { hoofdstukken } = await import("./types");
+    expect(hoofdstukken(plan(5))).toEqual([{ van: 0, tot: 5 }]);
+  });
+
+  it("een lange video wordt in aansluitende hoofdstukken van ruim een halve minuut verdeeld", async () => {
+    const { hoofdstukken } = await import("./types");
+    for (const n of [9, 12, 30, 65]) {
+      const hs = hoofdstukken(plan(n));
+      expect(hs.length).toBeGreaterThan(1);
+      expect(hs[0].van).toBe(0);
+      expect(hs[hs.length - 1].tot).toBe(n);
+      hs.forEach((h, i) => {
+        if (i) expect(h.van).toBe(hs[i - 1].tot);
+        expect(h.tot - h.van).toBeGreaterThanOrEqual(1);
+        expect(h.tot - h.van).toBeLessThanOrEqual(6);
+      });
+    }
+    // Tien minuten (65 scenes van 24 woorden) wordt een stuk of achttien hoofdstukken.
+    expect(hoofdstukken(plan(65)).length).toBeGreaterThanOrEqual(15);
+    expect(hoofdstukken(plan(65)).length).toBeLessThanOrEqual(22);
+  });
+
+  it("de stem van een lange video gaat in een paar opnames, zonder tekst kwijt te raken", async () => {
+    const { stemBlokken } = await import("./lang");
+    expect(stemBlokken(plan(5))).toHaveLength(1);
+    const p = plan(65);
+    const blokken = stemBlokken(p);
+    expect(blokken.length).toBeGreaterThan(2);
+    blokken.forEach((b) => expect(b.length).toBeLessThanOrEqual(2600));
+    expect(blokken.join(" ")).toBe([...p.scenes.map((s) => s.tekst), p.eind.tekst].join(" "));
+  });
+
+  it("de prijs loopt op met de lengte", async () => {
+    const prijzen = MOTION_LENGTES.map((l) => motionCredits(l.sec));
+    expect([...prijzen].sort((a, b) => a - b)).toEqual(prijzen);
   });
 });

@@ -1,14 +1,17 @@
 // DE REGIE van een motion graphics-video: één rij in de bibliotheek (maker 'motion') die
 // vanzelf door drie stappen loopt, op dezelfde manier als de reclame (lib/reclame/regie.ts):
 //
-//   stem      — Hugo spreekt het hele script in één keer in (fal, ElevenLabs)
+//   stem      — Hugo spreekt het script in (fal, ElevenLabs): een korte video in één keer,
+//               een lange in een paar opnames die op een hoofdstukwissel zijn geknipt
 //   animatie  — woordtijden meten, Claude tekent de animatie en controleert zijn eigen
 //               proefbeelden (lib/motion/animatie.ts)
 //   video     — de animatie beeld voor beeld omzetten naar een mp4 met stem en muziek
 //
-// Animatie en video zijn bewust twee losse stappen: elk loopt in een eigen serververzoek,
-// zodat ze samen niet over de tijdslimiet van één verzoek heen gaan. Tussen de twee staat
-// de rij op 'wacht-video' tot de volgende opvraging hem oppakt.
+// Een lange video bestaat uit hoofdstukken (lib/motion/lang.ts). Animatie en video doen
+// per serververzoek zoveel hoofdstukken als erin passen, bewaren wat af is en zetten de rij
+// op 'wacht-animatie' of 'wacht-video'; de volgende opvraging gaat verder waar het bleef.
+// Zo gaat ook een video van tien minuten nooit over de tijdslimiet van één verzoek heen,
+// en kost een onderbreking hooguit de hoofdstukken waar net aan gewerkt werd.
 //
 // Elke overgang is een voorwaardelijke update op de huidige stap: twee schermen die
 // tegelijk de stand opvragen, starten een stap nooit twee keer.
@@ -24,9 +27,10 @@ import { MAX_TEGELIJK, WachtrijFout, falReden, markeerMislukt, uploadNaarOpslag 
 import type { Creatie } from "@/lib/creaties/types";
 import { canUseMotion } from "@/lib/studio/access";
 import { controleerPlan } from "./plan";
+import { deelWerk, scriptVan, stemBlokken, verdeel, type Deel, type PaginaBasis } from "./lang";
 import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
-import { maakVideo } from "./render";
+import { FPS, maakStil, monteer, voegStemSamen } from "./render";
 import {
   MOTION_MUZIEK,
   formaatMaat,
@@ -44,7 +48,10 @@ const STEM_MODEL = "fal-ai/elevenlabs/tts/eleven-v3";
 /** Hugo V: de Nederlandse stem die Sam in alle tools wil. */
 const HUGO = "rbqBOMK4BPTMGvIB7N8w";
 
-const TIJDSLIMIET_MS = 45 * 60 * 1000;
+/** Drie kwartier voor een korte video; een lange krijgt er per minuut video een kwartier bij. */
+const tijdslimietMs = (lengte: number) => (45 + (lengte > 60 ? (lengte / 60) * 15 : 0)) * 60 * 1000;
+/** Zoveel hoofdstukken tekent Claude tegelijk: elk heeft ook een eigen onzichtbare browser nodig. */
+const TEGELIJK = process.env.VERCEL ? 3 : 6;
 // Het tekenen (Claude, met controlerondes) en het maken van de video duren elk minuten.
 // Pas als een stap langer stilstaat dan een serververzoek kán duren (800 s), is hij echt
 // gestorven en mag een volgende opvraging hem overnemen.
@@ -57,8 +64,12 @@ interface Voortgang {
   stap: MotionStap;
   /** Wanneer deze stap begon; om vastgelopen stappen te herkennen. */
   sinds: string;
-  /** Het verzoek bij fal voor de stem. */
+  /** Het verzoek bij fal voor de stem (rijen van vóór de lange video's). */
   stem?: string;
+  /** De verzoeken bij fal voor de stem: één per opname. */
+  stemmen?: string[];
+  /** De al gemaakte hoofdstukken (video zonder geluid) op onze opslag, in volgorde. */
+  stillen?: string[];
   /** De stem op onze eigen opslag. */
   stemUrl?: string;
   /** Het werkbestand op onze opslag: de code van de animatie en de woordtijden. */
@@ -70,9 +81,13 @@ interface Voortgang {
 }
 
 interface Werkbestand {
-  code: string;
   woorden: WhisperWord[];
-  script: [string, string][];
+  /** De hoofdstukken en waar ze op de stem liggen. Een korte video heeft er één. */
+  delen: Deel[];
+  /** De code per hoofdstuk; leeg zolang het nog getekend moet worden. */
+  codes: (string | null)[];
+  /** Hoe vaak het tekenen van een hoofdstuk is mislukt. */
+  mis: number[];
 }
 
 type RijInvoer = MotionInvoer & { voortgang?: Voortgang };
@@ -93,7 +108,7 @@ export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
   const lengte = isMotionLengte(ruw.lengte) ? ruw.lengte : 30;
   const muziek = MOTION_MUZIEK.some((m) => m.slug === ruw.muziek) ? (ruw.muziek as string) : MOTION_MUZIEK[0].slug;
   return {
-    onderwerp: typeof ruw.onderwerp === "string" ? ruw.onderwerp.trim().slice(0, 4000) : "",
+    onderwerp: typeof ruw.onderwerp === "string" ? ruw.onderwerp.trim().slice(0, 16000) : "",
     bedrijf,
     website: tekst(ruw.website, 60).replace(/^https?:\/\//, "").replace(/\/$/, ""),
     kleur: kleur(ruw.kleur, "#1c72ed"),
@@ -109,11 +124,6 @@ export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
     nietDoen: tekst(ruw.nietDoen, 600),
     beelden: leesBeelden(ruw.beelden),
   };
-}
-
-/** Het script zoals de kern het leest: per scene wat de stem zegt, 'eind' als laatste. */
-function scriptVan(i: MotionInvoer): [string, string][] {
-  return [...i.plan.scenes.map((s, k): [string, string] => [`s${k + 1}`, s.tekst]), ["eind", i.plan.eind.tekst]];
 }
 
 export async function startMotion(userId: string, ruw: Record<string, unknown>, ouderId?: string | null): Promise<Creatie> {
@@ -164,12 +174,15 @@ export async function startMotion(userId: string, ruw: Record<string, unknown>, 
   }
 
   try {
-    // Eén opname voor de hele video: per scene inspreken geeft hoorbare naden en een
+    // Zo weinig mogelijk opnames: per scene inspreken geeft hoorbare naden en een
     // wisselend tempo. De scenes worden daarna op de woordtijden gelegd.
-    const { request_id } = await fal.queue.submit(STEM_MODEL, {
-      input: { text: scriptVan(invoer).map(([, t]) => t).join(" "), voice: HUGO, language_code: "nl", stability: 0.5, similarity_boost: 0.75, speed: 1 } as never,
-    });
-    return await werkVoortgangBij(nieuw as Creatie, { ...voortgang, stem: request_id });
+    const stemmen = await Promise.all(
+      stemBlokken(invoer.plan).map(async (text) => {
+        const { request_id } = await fal.queue.submit(STEM_MODEL, { input: { text, voice: HUGO, language_code: "nl", stability: 0.5, similarity_boost: 0.75, speed: 1 } as never });
+        return request_id;
+      }),
+    );
+    return await werkVoortgangBij(nieuw as Creatie, { ...voortgang, stemmen });
   } catch (e) {
     const reden = falReden(e);
     console.error("[motion] stem insturen mislukt:", reden);
@@ -212,15 +225,16 @@ export async function verversMotion(c: Creatie): Promise<Creatie> {
   if (c.status !== "bezig") return c;
   const v = rij(c).voortgang;
   if (!v) return (await markeerMislukt(c, "De opdracht is niet goed aangekomen.")) ?? c;
-  if (Date.now() - new Date(c.created_at).getTime() > TIJDSLIMIET_MS) return (await markeerMislukt(c, "Het duurde te lang.")) ?? c;
+  if (Date.now() - new Date(c.created_at).getTime() > tijdslimietMs(rij(c).lengte)) return (await markeerMislukt(c, "Het duurde te lang.")) ?? c;
   const stapLeeftijd = Date.now() - new Date(v.sinds).getTime();
   zetKostenContext(c.user_id, "Nieuwe app: motion graphics");
 
   try {
     if (v.stap === "stem") {
-      if (!v.stem) return stapLeeftijd > 2 * 60 * 1000 ? ((await markeerMislukt(c, "De opdracht is niet goed aangekomen.")) ?? c) : c;
-      const st = (await fal.queue.status(STEM_MODEL, { requestId: v.stem, logs: false })) as { status: string };
-      if (st.status !== "COMPLETED") return c;
+      const ids = v.stemmen ?? (v.stem ? [v.stem] : []);
+      if (!ids.length) return stapLeeftijd > 2 * 60 * 1000 ? ((await markeerMislukt(c, "De opdracht is niet goed aangekomen.")) ?? c) : c;
+      const st = (await Promise.all(ids.map((requestId) => fal.queue.status(STEM_MODEL, { requestId, logs: false })))) as { status: string }[];
+      if (st.some((x) => x.status !== "COMPLETED")) return c;
       const naar: Voortgang = { ...v, stap: "animatie", sinds: new Date().toISOString() };
       const gewonnen = await claim(c, v, naar);
       if (!gewonnen) return c;
@@ -228,11 +242,11 @@ export async function verversMotion(c: Creatie): Promise<Creatie> {
       return gewonnen;
     }
 
-    if (v.stap === "wacht-video") {
-      const naar: Voortgang = { ...v, stap: "video", sinds: new Date().toISOString() };
+    if (v.stap === "wacht-animatie" || v.stap === "wacht-video") {
+      const naar: Voortgang = { ...v, stap: v.stap === "wacht-animatie" ? "animatie" : "video", sinds: new Date().toISOString() };
       const gewonnen = await claim(c, v, naar);
       if (!gewonnen) return c;
-      opAchtergrond(() => voerVideoUit(gewonnen, naar));
+      opAchtergrond(() => (naar.stap === "animatie" ? voerAnimatieUit(gewonnen, naar) : voerVideoUit(gewonnen, naar)));
       return gewonnen;
     }
 
@@ -255,12 +269,12 @@ export async function verversMotion(c: Creatie): Promise<Creatie> {
   }
 }
 
-/** Alles voor de pagina behalve de code. Haalt het logo en de foto's op die in beeld komen. */
-async function paginaVan(i: MotionInvoer, woorden: WhisperWord[]) {
+/** Wat voor elke pagina van deze video gelijk is. Haalt het logo en de foto's op die in beeld komen. */
+async function basisVan(i: MotionInvoer): Promise<PaginaBasis> {
   const { w, h } = formaatMaat(i.formaat);
   // Rijen van vóór de huisstijl hebben deze velden niet.
   const [logo, fotos] = await Promise.all([bereidLogo(i.logo ?? ""), bereidFotos(i.beelden ?? [])]);
-  return { w, h, woorden, script: scriptVan(i), merk: { naam: i.bedrijf, website: i.website, kleur: i.kleur, kleur2: i.kleur2, font: motionFont(i.font), logo }, fotos };
+  return { w, h, merk: { naam: i.bedrijf, website: i.website, kleur: i.kleur, kleur2: i.kleur2, font: motionFont(i.font), logo }, fotos };
 }
 
 async function haal(url: string): Promise<Buffer> {
@@ -269,37 +283,101 @@ async function haal(url: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
-async function voerAnimatieUit(c: Creatie, v: Voortgang): Promise<void> {
+const bewaarWerk = (userId: string, werk: Werkbestand) => uploadNaarOpslag(userId, Buffer.from(JSON.stringify(werk)), "json", "application/json");
+
+/** Het werkbestand lezen; een rij van vóór de hoofdstukken had één stuk code. */
+async function leesWerk(url: string): Promise<Werkbestand> {
+  const w = JSON.parse((await haal(url)).toString("utf8")) as Partial<Werkbestand> & { code?: string };
+  if (w.delen && w.codes) return w as Werkbestand;
+  return { woorden: w.woorden ?? [], delen: [{ van: 0, tot: 99, start: 0 }], codes: [w.code ?? null], mis: [0] };
+}
+
+/**
+ * Zet de stap door naar `naar` en geeft de nieuwe stand terug, of null als een ander verzoek
+ * de rij intussen heeft overgenomen (dan stoppen we: die ander maakt het af).
+ */
+async function verder(c: Creatie, v: Voortgang, naar: Voortgang): Promise<{ c: Creatie; v: Voortgang } | null> {
+  const gewonnen = await claim(c, v, naar);
+  return gewonnen ? { c: gewonnen, v: naar } : null;
+}
+
+async function voerAnimatieUit(c0: Creatie, v0: Voortgang): Promise<void> {
+  let c = c0, v = v0;
   const r = rij(c);
   try {
-    // De stem naar onze eigen opslag: de link van fal verloopt, en de video-stap (en later
-    // een aanpassing) heeft hem weer nodig.
-    let stemUrl = v.stemUrl;
-    let stem: Buffer;
-    if (stemUrl) stem = await haal(stemUrl);
+    // ── Eerste keer: de stem ophalen, woordtijden meten, de hoofdstukken op de stem leggen ──
+    let werk: Werkbestand;
+    const basis = await basisVan(r);
+    if (v.werk) werk = await leesWerk(v.werk);
     else {
-      const { data } = await fal.queue.result(STEM_MODEL, { requestId: v.stem! });
-      const tijdelijk = (data as { audio?: { url?: string } }).audio?.url;
-      if (!tijdelijk) throw new Error("De voice-over kwam niet terug.");
-      stem = await haal(tijdelijk);
-      stemUrl = await uploadNaarOpslag(c.user_id, stem, "mp3", "audio/mpeg");
+      // De stem naar onze eigen opslag: de link van fal verloopt, en de video-stap (en later
+      // een aanpassing) heeft hem weer nodig.
+      const ids = v.stemmen ?? (v.stem ? [v.stem] : []);
+      const blokken = await Promise.all(
+        ids.map(async (requestId) => {
+          const { data } = await fal.queue.result(STEM_MODEL, { requestId });
+          const tijdelijk = (data as { audio?: { url?: string } }).audio?.url;
+          if (!tijdelijk) throw new Error("De voice-over kwam niet terug.");
+          return haal(tijdelijk);
+        }),
+      );
+      const stem = await voegStemSamen(blokken);
+      const stemUrl = await uploadNaarOpslag(c.user_id, stem, "mp3", "audio/mpeg");
+      const { words } = await transcribeWords(stem, { language: "nl" });
+      if (words.length < 5) throw new Error("De woordtijden van de voice-over konden niet worden gemeten.");
+      const delen = await verdeel(basis, r.plan, words);
+      werk = { woorden: words, delen, codes: delen.map(() => null), mis: delen.map(() => 0) };
+      const stand = await verder(c, v, { ...v, stemUrl, werk: await bewaarWerk(c.user_id, werk), sinds: new Date().toISOString() });
+      if (!stand) return;
+      ({ c, v } = stand);
     }
-    const { words } = await transcribeWords(stem, { language: "nl" });
-    if (words.length < 5) throw new Error("De woordtijden van de voice-over konden niet worden gemeten.");
 
-    const uitkomst = await tekenAnimatie({ pagina: await paginaVan(r, words), plan: r.plan, onderwerp: r.onderwerp, beelden: r.beelden ?? [], nietDoen: r.nietDoen });
-    if (uitkomst.rest.length) console.warn("[motion] schoonheidsfouten na controle:", uitkomst.rest.slice(0, 5));
+    // ── Hoofdstukken tekenen, een paar tegelijk ──
+    // Op de server één ronde per verzoek (een ronde duurt minuten); lokaal alles achter elkaar.
+    for (;;) {
+      const open = werk.codes.map((code, k) => (code ? -1 : k)).filter((k) => k >= 0).slice(0, TEGELIJK);
+      if (!open.length) break;
+      const uitkomsten = await Promise.allSettled(
+        open.map((k) => {
+          const d = deelWerk(basis, r.plan, werk.woorden, werk.delen, k);
+          return tekenAnimatie({ pagina: d.pagina, plan: d.plan, plek: d.plek, onderwerp: r.onderwerp.slice(0, 3000), beelden: r.beelden ?? [], nietDoen: r.nietDoen });
+        }),
+      );
+      const gebruik: Gebruik = { ...(v.gebruik ?? { usd: 0, rondes: 0, sec: 0 }) };
+      uitkomsten.forEach((u, i) => {
+        const k = open[i];
+        if (u.status === "fulfilled") {
+          werk.codes[k] = u.value.code;
+          gebruik.usd += u.value.gebruik.usd;
+          gebruik.rondes += u.value.gebruik.rondes;
+          gebruik.sec = (gebruik.sec ?? 0) + (u.value.gebruik.sec ?? 0);
+          if (u.value.rest.length) console.warn(`[motion] schoonheidsfouten na controle (hoofdstuk ${k + 1}):`, u.value.rest.slice(0, 5));
+        } else {
+          const reden = u.reason instanceof Error ? u.reason.message : String(u.reason);
+          console.error(`[motion] hoofdstuk ${k + 1} mislukt:`, reden);
+          // Eén herkansing per hoofdstuk; daarna is er iets mis dat opnieuw proberen niet oplost.
+          if (++werk.mis[k] >= 2) throw new Error(werk.delen.length > 1 ? `Hoofdstuk ${k + 1}: ${reden}` : reden);
+        }
+      });
+      const klaar = werk.codes.every(Boolean);
+      const stand = await verder(c, v, {
+        ...v,
+        stap: klaar ? "wacht-video" : process.env.VERCEL ? "wacht-animatie" : "animatie",
+        sinds: new Date().toISOString(),
+        werk: await bewaarWerk(c.user_id, werk),
+        pogingen: 0,
+        gebruik,
+      });
+      if (!stand) return;
+      ({ c, v } = stand);
+      if (klaar || process.env.VERCEL) break;
+    }
 
-    const werk: Werkbestand = { code: uitkomst.code, woorden: words, script: scriptVan(r) };
-    const werkUrl = await uploadNaarOpslag(c.user_id, Buffer.from(JSON.stringify(werk)), "json", "application/json");
-    const naar: Voortgang = { ...v, stap: "wacht-video", sinds: new Date().toISOString(), stemUrl, werk: werkUrl, pogingen: 0, gebruik: uitkomst.gebruik };
-    const verder = await claim(c, v, naar);
     // Lokaal is er geen volgend verzoek nodig om door te gaan als het scherm dicht is;
     // op de server pakt de eerstvolgende opvraging (bibliotheek, teller in het menu) hem op.
-    if (verder && !process.env.VERCEL) {
-      const video: Voortgang = { ...naar, stap: "video", sinds: new Date().toISOString() };
-      const gewonnen = await claim(verder, naar, video);
-      if (gewonnen) await voerVideoUit(gewonnen, video);
+    if (v.stap === "wacht-video" && !process.env.VERCEL) {
+      const stand = await verder(c, v, { ...v, stap: "video", sinds: new Date().toISOString() });
+      if (stand) await voerVideoUit(stand.c, stand.v);
     }
   } catch (e) {
     const reden = e instanceof Error ? e.message : String(e);
@@ -308,20 +386,55 @@ async function voerAnimatieUit(c: Creatie, v: Voortgang): Promise<void> {
   }
 }
 
-async function voerVideoUit(c: Creatie, v: Voortgang): Promise<void> {
+async function voerVideoUit(c0: Creatie, v0: Voortgang): Promise<void> {
+  let c = c0, v = v0;
   const r = rij(c);
+  const begin = Date.now();
   try {
-    if (!v.werk || !v.stemUrl) throw new Error("De animatie is niet bewaard.");
-    const [werk, stem] = await Promise.all([haal(v.werk).then((b) => JSON.parse(b.toString("utf8")) as Werkbestand), haal(v.stemUrl)]);
-    const { mp4, seconden, renderMs } = await maakVideo({
-      ...(await paginaVan(r, werk.woorden)),
-      code: werk.code,
-      stem,
-      muziekUrl: r.muziek ? musicTrackUrl(r.muziek) : undefined,
-      deadline: Date.now() + VIDEO_BUDGET_MS,
-    });
+    const stemUrl = v.stemUrl;
+    if (!v.werk || !stemUrl) throw new Error("De animatie is niet bewaard.");
+    const [werk, basis] = await Promise.all([leesWerk(v.werk), basisVan(r)]);
+    const aantal = werk.delen.length;
+    const stillen = [...(v.stillen ?? [])];
+    const alAf = stillen.length;
+    let renderMs = 0, langste = 0;
+
+    // ── Hoofdstuk voor hoofdstuk, zolang het binnen dit verzoek past ──
+    while (stillen.length < aantal) {
+      const k = stillen.length;
+      // Past het volgende hoofdstuk nog? Reken met het traagste tot nu toe, ruim genomen.
+      if (k > alAf && Date.now() - begin + langste * 1.5 > VIDEO_BUDGET_MS) {
+        const stand = await verder(c, v, { ...v, stap: "wacht-video", sinds: new Date().toISOString(), stillen });
+        if (!stand) return;
+        // Lokaal is er geen tijdslimiet per verzoek: meteen door.
+        if (process.env.VERCEL) return;
+        const door = await verder(stand.c, stand.v, { ...stand.v, stap: "video", sinds: new Date().toISOString() });
+        if (door) await voerVideoUit(door.c, door.v);
+        return;
+      }
+      const code = werk.codes[k];
+      if (!code) throw new Error("De animatie is niet compleet.");
+      const d = deelWerk(basis, r.plan, werk.woorden, werk.delen, k);
+      const stil = await maakStil({ ...d.pagina, code }, { beelden: werk.delen[k].beelden, deadline: begin + VIDEO_BUDGET_MS, compact: aantal > 1 });
+      renderMs += stil.renderMs;
+      langste = Math.max(langste, stil.renderMs);
+      stillen.push(`${await uploadNaarOpslag(c.user_id, stil.mp4, "mp4", "video/mp4")}#${stil.beelden}`);
+      if (aantal > 1) {
+        // Bewaren wat af is, en laten zien dat de stap nog leeft.
+        const stand = await verder(c, v, { ...v, sinds: new Date().toISOString(), stillen });
+        if (!stand) return;
+        ({ c, v } = stand);
+      }
+    }
+
+    // ── Aan elkaar zetten ──
+    // Achter elk adres staat het aantal beelden van dat hoofdstuk.
+    const beelden = stillen.reduce((n, s) => n + Number(s.split("#")[1]), 0);
+    const [stem, ...delen] = await Promise.all([haal(stemUrl), ...stillen.map((s) => haal(s.split("#")[0]))]);
+    const mp4 = await monteer(delen, beelden, stem, r.muziek ? musicTrackUrl(r.muziek) : undefined);
     const url = await uploadNaarOpslag(c.user_id, mp4, "mp4", "video/mp4");
-    const invoer = { ...r, voortgang: { ...v, gebruik: { ...(v.gebruik ?? { usd: 0, rondes: 0 }), videoSec: Math.round(seconden), renderSec: Math.round(renderMs / 1000) } } };
+    const eerder = v.gebruik ?? { usd: 0, rondes: 0 };
+    const invoer = { ...r, voortgang: { ...v, stillen, gebruik: { ...eerder, videoSec: Math.round(beelden / FPS), renderSec: (eerder.renderSec ?? 0) + Math.round(renderMs / 1000) } } };
     await createServiceClient()
       .from("creaties")
       .update({ status: "klaar", url, invoer, klaar_op: new Date().toISOString() })

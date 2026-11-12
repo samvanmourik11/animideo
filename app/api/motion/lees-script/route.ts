@@ -42,7 +42,8 @@ export async function POST(req: NextRequest) {
     // Regels behouden (scenes staan vaak op een eigen regel), dubbele witregels en spaties niet.
     tekst = tekst.replace(/\r/g, "").replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
     if (tekst.length < 20) return NextResponse.json({ error: "We vonden geen tekst in dit bestand. Is het een scan? Plak de tekst dan zelf in het veld." }, { status: 400 });
-    return NextResponse.json({ tekst: tekst.slice(0, 6000), ingekort: tekst.length > 6000 });
+    // Tien minuten spreektekst is ±9.500 tekens; met regieaanwijzingen erbij wat meer.
+    return NextResponse.json({ tekst: tekst.slice(0, 16000), ingekort: tekst.length > 16000 });
   } catch (e) {
     console.error("[motion/lees-script]", e);
     return NextResponse.json({ error: "Dit bestand konden we niet lezen. Plak de tekst zelf in het veld." }, { status: 400 });

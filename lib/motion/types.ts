@@ -27,12 +27,18 @@ export function formaatMaat(f: MotionFormaat): { w: number; h: number } {
   return { w: m.w, h: m.h };
 }
 
-// Langer dan een minuut past (nog) niet zeker binnen de tijd die de server krijgt om de
-// video beeld voor beeld te maken; eerst op de live-server meten, dan pas oprekken.
+// Tot een minuut wordt de video in één keer getekend. Langer (Sam, 12-11-2026: "ook echt
+// langere video's van 10 minuten") gaat in hoofdstukken van ongeveer een halve minuut, die
+// los van elkaar worden getekend en gemaakt en daarna aan elkaar gezet: één stuk code van
+// tien minuten past in geen enkel antwoord en in geen enkel serververzoek.
 export const MOTION_LENGTES = [
   { sec: 30, naam: "±30 seconden", uitleg: "Eén boodschap, kort en krachtig" },
   { sec: 45, naam: "±45 seconden", uitleg: "Probleem, oplossing en hoe het werkt" },
-  { sec: 60, naam: "±60 seconden", uitleg: "Een complete uitlegvideo" },
+  { sec: 60, naam: "±1 minuut", uitleg: "Een complete uitlegvideo" },
+  { sec: 120, naam: "±2 minuten", uitleg: "Uitleg met ruimte voor voorbeelden" },
+  { sec: 180, naam: "±3 minuten", uitleg: "Een product of dienst van begin tot eind" },
+  { sec: 300, naam: "±5 minuten", uitleg: "Instructie, training of onboarding" },
+  { sec: 600, naam: "±10 minuten", uitleg: "Een complete les of presentatie" },
 ] as const;
 export type MotionLengte = (typeof MOTION_LENGTES)[number]["sec"];
 
@@ -69,7 +75,54 @@ export interface MotionPlan {
   };
 }
 
-export const MAX_SCENES = 8;
+/** Zoveel scenes mag een plan hooguit hebben: een scene duurt zelden korter dan 7 seconden. */
+export function maxScenes(lengte: number): number {
+  return lengte <= 60 ? 8 : Math.ceil(lengte / 7);
+}
+
+/** "±45 seconden" of "±3 minuten", voor in een zin. */
+export function duurTekst(sec: number): string {
+  return MOTION_LENGTES.find((l) => l.sec === sec)?.naam ?? (sec < 90 ? `±${sec} seconden` : `±${Math.round(sec / 60)} minuten`);
+}
+
+// ── Hoofdstukken ─────────────────────────────────────────────────────────────
+/** Een hoofdstuk: de scenes `van` tot `tot` (tot telt niet mee), als nummers in plan.scenes. */
+export interface Hoofdstuk {
+  van: number;
+  tot: number;
+}
+/** Zoveel woorden heeft een hoofdstuk ongeveer: ruim een halve minuut. */
+const WOORDEN_PER_HOOFDSTUK = 85;
+const telw = (t: string) => t.split(/\s+/).filter(Boolean).length;
+
+/**
+ * Verdeelt de scenes over hoofdstukken. Een korte video is één hoofdstuk (dan verandert er
+ * niets aan hoe hij altijd werd gemaakt). De eindkaart hoort bij het laatste hoofdstuk.
+ */
+export function hoofdstukken(plan: MotionPlan): Hoofdstuk[] {
+  const n = plan.scenes.length;
+  const woorden = plan.scenes.map((s) => telw(s.tekst));
+  const totaal = woorden.reduce((a, b) => a + b, 0) + telw(plan.eind.tekst);
+  if (n <= 8 && totaal <= maxWoorden(60) * 1.25) return [{ van: 0, tot: n }];
+  // Gelijke porties: eerst bepalen hoeveel hoofdstukken, dan knippen waar de lopende som
+  // de volgende grens passeert. Zo blijft er geen hoofdstuk van één scene over.
+  const aantal = Math.max(2, Math.round(totaal / WOORDEN_PER_HOOFDSTUK));
+  const uit: Hoofdstuk[] = [];
+  let van = 0, som = 0;
+  for (let i = 0; i < n; i++) {
+    som += woorden[i];
+    const grens = (totaal * (uit.length + 1)) / aantal;
+    const rest = n - (i + 1);
+    // Knippen als de grens is bereikt of het hoofdstuk vol zit (6 scenes), maar altijd
+    // minstens één scene overlaten voor elk hoofdstuk dat nog komt.
+    if (uit.length < aantal - 1 && rest >= 1 && (som >= grens || i + 1 - van >= 6)) {
+      uit.push({ van, tot: i + 1 });
+      van = i + 1;
+    }
+  }
+  uit.push({ van, tot: n });
+  return uit;
+}
 
 // ── Huisstijl ────────────────────────────────────────────────────────────────
 // Een bedrijf wil dat elke video er hetzelfde uitziet: zelfde logo, kleuren, lettertype en
@@ -178,22 +231,32 @@ export const MOTION_MUZIEK = [
 // De bedragen hieronder hebben speling voor voorbeelden van de klant en een herkansing. Een
 // video van een volle minuut is nog niet gemeten. De echte kosten per video staan in de rij
 // (voortgang.gebruik); bijstellen zodra er meer zijn.
-export const MOTION_INKOOP_USD: Record<MotionLengte, number> = {
-  30: 1.1,
-  45: 1.25,
-  60: 1.4,
-};
+//
+// Op 12-11-2026 nog eens goedkoper: het ontwerp met minder denkwerk (zie animatie.ts). De
+// kosten lopen vrijwel recht op met de lengte, want een lange video is een rij hoofdstukken
+// van elk ruim een halve minuut: een vast deel per video plus een bedrag per seconde.
+// Gemeten 12-11-2026: $0,39 (35 s), $0,95 en $0,84 (2 minuten, 4 en 3 hoofdstukken) en
+// $4,53 (10 minuten 40, 18 hoofdstukken). De formule zit daar een kwart tot de helft boven:
+// speling voor voorbeelden van de klant en een hoofdstuk dat over moet.
+const INKOOP_VAST_USD = 0.15;
+const INKOOP_PER_SEC_USD = 0.01;
+
+/** Wat een video van deze lengte ons aan Claude kost (dollars), met speling. */
+export function motionInkoopUsd(lengte: number): number {
+  return INKOOP_VAST_USD + INKOOP_PER_SEC_USD * lengte;
+}
 
 export function motionCredits(lengte: MotionLengte): number {
   // Stem: ±15 tekens per seconde.
   const stem = ((lengte * 15) / 1000) * INKOOP_USD.stemPer1000;
-  return creditsVoorInkoop(MOTION_INKOOP_USD[lengte] + stem);
+  return creditsVoorInkoop(motionInkoopUsd(lengte) + stem);
 }
 
-export type MotionStap = "stem" | "animatie" | "wacht-video" | "video";
+export type MotionStap = "stem" | "wacht-animatie" | "animatie" | "wacht-video" | "video";
 
 export const MOTION_STAP_LABEL: Record<MotionStap, string> = {
   stem: "Stap 1 van 3: voice-over inspreken…",
+  "wacht-animatie": "Stap 2 van 3: animatie tekenen en controleren…",
   animatie: "Stap 2 van 3: animatie tekenen en controleren…",
   "wacht-video": "Stap 3 van 3: video maken…",
   video: "Stap 3 van 3: video maken…",

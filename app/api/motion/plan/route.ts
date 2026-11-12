@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canUseMotion } from "@/lib/studio/access";
 import { lengteVoorWoorden, schrijfPlan, telWoorden } from "@/lib/motion/plan";
 import { leesBeelden } from "@/lib/motion/beelden";
-import { MOTION_LENGTES, WOORDEN_PER_SEC, isMotionLengte, maxWoorden } from "@/lib/motion/types";
+import { MOTION_LENGTES, WOORDEN_PER_SEC, duurTekst, isMotionLengte, maxWoorden } from "@/lib/motion/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const eigenScript = body.eigenScript === true;
-  const onderwerp = typeof body.onderwerp === "string" ? body.onderwerp.trim().slice(0, eigenScript ? 6000 : 4000) : "";
+  const onderwerp = typeof body.onderwerp === "string" ? body.onderwerp.trim().slice(0, eigenScript ? 16000 : 6000) : "";
   const bedrijf = kort(body.bedrijf, 40);
   if (onderwerp.length < 10) return NextResponse.json({ error: eigenScript ? "Plak of upload eerst je script." : "Vertel eerst waar de video over moet gaan." }, { status: 400 });
   if (!bedrijf) return NextResponse.json({ error: "Vul eerst de naam van je bedrijf in." }, { status: 400 });
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const woorden = onderwerp.split(/\s+/).filter(Boolean).length;
     if (woorden > maxWoorden(langste) * 1.6) {
       return NextResponse.json(
-        { error: `Je script is ongeveer ${Math.round(woorden / WOORDEN_PER_SEC / 5) * 5} seconden. Een video is nu hooguit ±${langste} seconden. Kort het script in, of zet "Gebruik mijn tekst letterlijk" uit: dan korten wij het voor je in.` },
+        { error: `Je script is ongeveer ${Math.round(woorden / WOORDEN_PER_SEC / 60)} minuten. Een video is hooguit ${duurTekst(langste)}. Kort het script in, of zet "Gebruik mijn tekst letterlijk" uit: dan korten wij het voor je in.` },
         { status: 400 },
       );
     }
