@@ -86,6 +86,8 @@ export interface PlanVraag {
   nietDoen?: string;
   /** Voorbeelden en foto's van de klant, elk met een doel. */
   beelden?: MotionBeeld[];
+  /** De taal van de stem en van de tekst in beeld. Standaard Nederlands. */
+  taal?: "nl" | "en";
 }
 
 const kaal = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
@@ -122,6 +124,9 @@ function systeem(v: PlanVraag, aantal: string, woorden: number): string {
     v.nietDoen ? `- Wat er van dit bedrijf niet in mag: ${v.nietDoen}` : "",
     v.beelden?.length
       ? `- De klant gaf voorbeelden mee (f1, f2, ...), elk met een doel. Verwerk ze in "beeld" op de plek waar ze het verhaal helpen, en noem ze bij hun nummer: "onze bestelbus (voorbeeld f1) rijdt het beeld in". Een voorbeeld met het doel "Neem deze stijl over" noem je niet per scene; dat geldt voor de hele video.`
+      : "",
+    v.taal === "en"
+      ? `- Dit is een Engelstalige video, geen Nederlandse: schrijf "tekst", "kop", de eindkaart en "titel" in vlot, natuurlijk Engels. "beeld" schrijf je in het Nederlands, maar woorden die in beeld komen te staan zet je er in het Engels in.`
       : "",
     v.staand ? "- De video is staand (voor telefoons): houd de beelden eenvoudig, één ding tegelijk in beeld." : "",
   ]

@@ -29,6 +29,7 @@ test("motion graphics van begin tot eind", async () => {
   const pad = (n: string) => path.join(uit, n);
   const staand = process.env.MOTION_STAAND === "1";
   const lengte = (Number(process.env.MOTION_LENGTE) || 30) as 30 | 45 | 60 | 120 | 180 | 300 | 600;
+  const taal = process.env.MOTION_TAAL === "en" ? ("en" as const) : ("nl" as const);
   const bedrijf = process.env.MOTION_NAAM ?? "Loonwijs";
   const onderwerp =
     process.env.MOTION_ONDERWERP ??
@@ -38,7 +39,7 @@ test("motion graphics van begin tot eind", async () => {
   let t0 = Date.now();
   const klok = (wat: string) => { console.log(`[${wat}] ${((Date.now() - t0) / 1000).toFixed(0)} s`); t0 = Date.now(); };
 
-  const plan = her && existsSync(pad("plan.json")) ? JSON.parse(await readFile(pad("plan.json"), "utf8")) : (await schrijfPlan({ onderwerp, bedrijf, lengte, staand, eigenScript: process.env.MOTION_EIGEN_SCRIPT === "1" })).plan;
+  const plan = her && existsSync(pad("plan.json")) ? JSON.parse(await readFile(pad("plan.json"), "utf8")) : (await schrijfPlan({ onderwerp, bedrijf, lengte, staand, eigenScript: process.env.MOTION_EIGEN_SCRIPT === "1", taal })).plan;
   await writeFile(pad("plan.json"), JSON.stringify(plan, null, 2));
   klok("script");
   // Een lange video wordt in een paar opnames ingesproken, geknipt op een hoofdstukwissel.
@@ -48,7 +49,7 @@ test("motion graphics van begin tot eind", async () => {
     const blokken = await Promise.all(
       stemBlokken(plan).map(async (text) => {
         const r = await fal.subscribe("fal-ai/elevenlabs/tts/eleven-v3", {
-          input: { text, voice: "rbqBOMK4BPTMGvIB7N8w", language_code: "nl", stability: 0.5, similarity_boost: 0.75, speed: 1 } as never,
+          input: { text, voice: process.env.MOTION_STEM ?? "rbqBOMK4BPTMGvIB7N8w", language_code: taal, stability: 0.5, similarity_boost: 0.75, speed: 1 } as never,
         });
         return Buffer.from(await (await fetch((r.data as { audio: { url: string } }).audio.url)).arrayBuffer());
       }),
@@ -58,7 +59,7 @@ test("motion graphics van begin tot eind", async () => {
     await writeFile(pad("stem.mp3"), stem);
   }
   klok("stem");
-  const { words } = await transcribeWords(stem, { language: "nl" });
+  const { words } = await transcribeWords(stem, { language: taal });
   await writeFile(pad("woorden.json"), JSON.stringify(words));
   klok("woordtijden");
 
@@ -79,7 +80,7 @@ test("motion graphics van begin tot eind", async () => {
         if (her && existsSync(pad(naam))) { codes[k] = await readFile(pad(naam), "utf8"); return; }
         const d = deelWerk(basis, plan, words, delen, k);
         const debug = process.env.MOTION_DEBUG_DIR;
-        const a = await tekenAnimatie({ pagina: d.pagina, plan: d.plan, plek: d.plek, onderwerp, startCode }, (w) => console.log(`  claude ${k + 1}:`, w));
+        const a = await tekenAnimatie({ pagina: d.pagina, plan: d.plan, plek: d.plek, onderwerp, startCode, taal }, (w) => console.log(`  claude ${k + 1}:`, w));
         void debug;
         codes[k] = a.code;
         await writeFile(pad(naam), a.code);

@@ -20,12 +20,16 @@ import type { MotionBeeld, MotionPlan } from "./types";
 const MODEL = "claude-opus-5-5";
 // Het nakijken en bijwerken is kleiner werk dan het ontwerp: kijken naar proefbeelden en een
 // paar plekken in bestaande code aanpassen. Dat kan een goedkoper model (Sam, 11-11-2026:
-// "waarom is dit zo duur?"). MOTION_CONTROLE_MODEL is er alleen om modellen naast elkaar te testen.
-const CONTROLE_MODEL = process.env.MOTION_CONTROLE_MODEL || "claude-sonnet-5-5";
+// "waarom is dit zo duur?"). Sinds 12-11-2026 het kleinste model: op een proef van 2,5 minuut
+// kostte het nakijken $0,04 in plaats van ±$0,30 en bleef er geen fout over. Het ontwerp door
+// datzelfde model laten maken is ook geprobeerd: bijna gratis, maar kaler getekend en ruim
+// twee keer zo traag. MOTION_CONTROLE_MODEL is er alleen om modellen naast elkaar te testen.
+const CONTROLE_MODEL = process.env.MOTION_CONTROLE_MODEL || "claude-haiku-5-5";
 /** Dollars per miljoen tokens (november 2026). */
 const PRIJZEN: Record<string, { in: number; uit: number; cacheLezen: number; cacheSchrijven: number }> = {
   "claude-opus-5-5": { in: 4, uit: 20, cacheLezen: 0.2, cacheSchrijven: 5 },
   "claude-sonnet-5-5": { in: 2, uit: 10, cacheLezen: 0.1, cacheSchrijven: 2.5 },
+  "claude-haiku-5-5": { in: 0.1, uit: 0.5, cacheLezen: 0.01, cacheSchrijven: 0.125 },
 };
 function kosten(model: string, u: Anthropic.Beta.BetaUsage): number {
   // Een onbekend model rekenen we tegen de duurste prijs: liever te hoog dan te laag in het logboek.
@@ -173,7 +177,7 @@ function opdracht(v: AnimatieVraag, scenes: [string, number][], einde: number): 
 Bedrijf: ${v.pagina.merk.naam}${v.pagina.merk.website ? ` (${v.pagina.merk.website})` : ""}
 Formaat: ${v.pagina.w} x ${v.pagina.h} (${v.pagina.h > v.pagina.w ? "staand" : "liggend"})
 Merkkleur C.accent = ${v.pagina.merk.kleur}, tweede kleur C.accent2 = ${v.pagina.merk.kleur2}
-Onderwerp volgens de klant: ${v.onderwerp}${v.nietDoen ? `\nWat er van dit bedrijf niet in beeld mag: ${v.nietDoen}` : ""}${fotos.length ? `\nFoto's die je met foto() kunt plaatsen: ${fotos.map((f) => `'${f.id}' (${f.w} x ${f.h})`).join(", ")}` : ""}
+${v.taal === "en" ? "Taal: dit is een Engelstalige video. Alle tekst in beeld is Engels, ook als de beschrijving bij Beeld Nederlands is. Schrijf getallen op zijn Engels (1,250 en 3.5); gebruik daarvoor nl() niet.\n" : ""}Onderwerp volgens de klant: ${v.onderwerp}${v.nietDoen ? `\nWat er van dit bedrijf niet in beeld mag: ${v.nietDoen}` : ""}${fotos.length ? `\nFoto's die je met foto() kunt plaatsen: ${fotos.map((f) => `'${f.id}' (${f.w} x ${f.h})`).join(", ")}` : ""}
 
 De scenes, met wat de stem zegt, wat de klant als beeld heeft goedgekeurd, en de gemeten woordtijden (seconden, zoals wt ze teruggeeft):
 
@@ -273,6 +277,8 @@ export interface AnimatieVraag {
   startCode?: string;
   /** Bij een lange video: welk hoofdstuk dit is, en wat ervoor en erna te zien is. */
   plek?: { nummer: number; aantal: number; laatste: boolean; hiervoor: string; hierna: string };
+  /** De taal van de stem en van de tekst in beeld. Standaard Nederlands. */
+  taal?: "nl" | "en";
 }
 
 export interface AnimatieUitkomst {
@@ -318,8 +324,8 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
         // De controleronde met proefbeelden vangt meer fouten dan langer nadenken vooraf.
         output_config: { effort: soort === "usdOntwerp" ? ontwerpEffort : "medium" },
         // Weigert het model iets op een beleidsgrond, dan neemt een passend model het over.
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
+        // Het kleinste model kent die overname niet.
+        ...(model.startsWith("claude-haiku") ? {} : { betas: ["server-side-fallback-2026-07-01" as const], fallbacks: "default" as const }),
       })
       .finalMessage();
     const usd = kosten(model, antwoord.usage);
