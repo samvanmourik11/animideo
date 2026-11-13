@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { mollieFetch } from "@/lib/mollie";
 import { alGehad, PAKKET_NAAM, PAKKET_PRIJS, verificatieBedrag } from "@/lib/gratis-week";
+import { bewaarAankoop, bronUit } from "@/lib/bio-bron";
 
 export const runtime = "nodejs";
 
@@ -56,13 +57,14 @@ export async function POST(req: NextRequest) {
           guestCheckoutId: pending.id,
           isGuest: true,
           gratisWeek: true,
-          bron: (b.bron ?? "").slice(0, 40) || undefined,
+          bron: (bronUit(req) ?? b.bron ?? "").slice(0, 40) || undefined,
           consent: { terms: true, subscription: true, newsletter: b.nieuwsbrief === true, at: new Date().toISOString() },
         },
       }),
     });
     await db.from("pending_checkouts").update({ mollie_customer_id: klant.id, mollie_payment_id: betaling.id }).eq("id", pending.id);
     await db.from("gratis_weken").insert({ checkout_id: pending.id, email, plan, bedrag, mollie_payment_id: betaling.id });
+    await bewaarAankoop(req, { soort: "gratis_week", plan, email, klant: klant.id, betaling: betaling.id });
     return NextResponse.json({ checkoutUrl: betaling._links.checkout.href });
   } catch (e) {
     console.error("[gratis-week]", e instanceof Error ? e.message : String(e));

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { bewaarAankoop } from "@/lib/bio-bron";
 
 const MOLLIE_BASE = "https://api.mollie.com/v2";
 
@@ -136,5 +137,6 @@ export async function POST(req: NextRequest) {
   }
 
   const payment = await paymentRes.json();
+  await bewaarAankoop(req, { soort: "abonnement", plan: planId, email: user.email, klant: customerId, betaling: payment.id });
   return NextResponse.json({ checkoutUrl: payment._links.checkout.href });
 }
