@@ -28,7 +28,7 @@ type Pagina = Awaited<ReturnType<Browser["newPage"]>>;
 const gebeurd = new WeakMap<Browser, string[]>();
 
 async function launchBrowser(): Promise<Browser> {
-  const b = await startBrowser();
+  const b = await startBrowser({ zonderCrashbestanden: true });
   const log: string[] = [];
   gebeurd.set(b, log);
   b.on("disconnected", () => log.push("browser losgekoppeld"));

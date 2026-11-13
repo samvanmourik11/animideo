@@ -13,7 +13,32 @@ export type { Browser };
 const onServerless = () =>
   !!process.env.VERCEL || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
-export async function launchBrowser(): Promise<Browser> {
+/**
+ * Chromium in één proces crasht op de server vaak bij het afsluiten en laat dan een
+ * crashbestand (core.chromium.*) van bijna 1 GB in /tmp achter. Twee daarvan en de schijf is
+ * vol: de volgende browser start niet meer ("Target page, context or browser has been
+ * closed"). Gezien bij de Motion graphics-studio op 14-11-2026. Daarom: oude crashbestanden
+ * weg, en Chromium starten via een klein script dat geen crashbestanden laat maken.
+ */
+async function zonderCrashbestanden(echt: string): Promise<string> {
+  const { readdir, rm, writeFile, chmod } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const dir = tmpdir();
+  for (const n of await readdir(dir).catch(() => [] as string[])) {
+    if (/^core(\.|$)/.test(n)) await rm(path.join(dir, n), { force: true }).catch(() => {});
+  }
+  try {
+    const script = path.join(dir, "chromium-zonder-core.sh");
+    await writeFile(script, `#!/bin/sh\nulimit -c 0\nexec "${echt}" "$@"\n`);
+    await chmod(script, 0o755);
+    return script;
+  } catch {
+    return echt;
+  }
+}
+
+export async function launchBrowser(o: { zonderCrashbestanden?: boolean } = {}): Promise<Browser> {
   if (onServerless()) {
     const [{ default: sparticuz }, { chromium }] = await Promise.all([
       import("@sparticuz/chromium"),
@@ -32,7 +57,7 @@ export async function launchBrowser(): Promise<Browser> {
         "--disable-gpu-shader-disk-cache",
         "--disable-application-cache",
       ],
-      executablePath: await sparticuz.executablePath(),
+      executablePath: o.zonderCrashbestanden ? await zonderCrashbestanden(await sparticuz.executablePath()) : await sparticuz.executablePath(),
       headless: true,
     });
   }
