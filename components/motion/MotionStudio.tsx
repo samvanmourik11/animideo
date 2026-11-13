@@ -95,7 +95,8 @@ export default function MotionStudio() {
   const [stemmen, setStemmen] = useState<BibliotheekStem[]>([]);
   const [berichten, setBerichten] = useState<RegieBericht[]>([]);
   const [invoer, setInvoer] = useState("");
-  const [huisOpen, setHuisOpen] = useState(false);
+  // De naam van een kanaal of afzender, alleen in het tabblad "Geen bedrijf".
+  const [afzender, setAfzender] = useState("");
   const onderaan = useRef<HTMLDivElement>(null);
   const [bedrijf, setBedrijf] = useState("");
   const [website, setWebsite] = useState("");
@@ -178,8 +179,19 @@ export default function MotionStudio() {
 
   const toon = kit?.tone_of_voice ?? "";
   const nietDoen = kit?.do_nots ?? "";
-  // Een verhaal of les heeft geen huisstijl nodig; wie er toch een heeft of wil, ziet het hele blok.
-  const toonHuisstijl = soort === "bedrijf" || huisOpen || !!kit;
+  // Twee tabbladen: "Bedrijf" (met huisstijl, logo en kleuren) en "Geen bedrijf" (verhaal,
+  // les of iets anders, zonder merk). Het tabblad volgt uit de soort video.
+  const isBedrijf = soort === "bedrijf";
+  const toonHuisstijl = isBedrijf;
+  function kiesTab(bedrijfTab: boolean) {
+    if (bedrijfTab === isBedrijf) return;
+    setSoort(bedrijfTab ? "bedrijf" : "verhaal");
+  }
+  /** Wat er van afzender en merk meegaat: zonder bedrijf geen logo, huisstijl of vaste huisstijlbeelden. */
+  function merk() {
+    if (isBedrijf) return { bedrijf, website, kleur, kleur2, huisstijlId: kitId, logo, font, toon, nietDoen, beelden };
+    return { bedrijf: afzender.trim(), website: "", kleur: "#1c72ed", kleur2: "#ffc21a", huisstijlId: "", logo: "", font: STANDAARD_FONT, toon: "", nietDoen: "", beelden: beelden.filter((b) => !b.vast) };
+  }
   // Wat de klant in het gesprek vertelde, als achtergrond voor wie de animatie tekent.
   const onderwerp = berichten.filter((b) => b.van === "klant").map((b) => b.tekst).join("\n").slice(0, 6000);
 
@@ -238,7 +250,7 @@ export default function MotionStudio() {
     return doe("script", async () => {
       try {
         const r = await post<{ bericht: string; plan?: MotionPlan; afwijkend?: number[]; lengte?: MotionLengte }>("/api/motion/regisseur", {
-          berichten: nu, plan, soort, lengte, formaat, taal, stijl, bedrijf, toon, nietDoen, beelden,
+          berichten: nu, plan, soort, lengte, formaat, taal, stijl, ...(({ bedrijf, toon, nietDoen, beelden }) => ({ bedrijf, toon, nietDoen, beelden }))(merk()),
         });
         setBerichten([...nu, { van: "regisseur", tekst: r.bericht }]);
         if (r.plan) { setPlan(r.plan); setAfwijkend(r.afwijkend ?? []); }
@@ -254,7 +266,7 @@ export default function MotionStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("motion", { onderwerp, bedrijf, website, kleur, kleur2, formaat, lengte, muziek, stijl, soort, taal, stem, plan, huisstijlId: kitId, logo, font, toon, nietDoen, beelden });
+      const c = await startMaker("motion", { onderwerp, ...merk(), formaat, lengte, muziek, stijl, soort, taal, stem, plan });
       lijst.zetVoor(c);
     });
   }
@@ -351,6 +363,22 @@ export default function MotionStudio() {
         </p>
       </div>
 
+      <div className="inline-flex rounded-2xl border border-rand bg-paneel-2/40 p-1">
+        {[
+          { bedrijf: true, naam: "🏢 Voor een bedrijf", uitleg: "Met je logo, kleuren en huisstijl" },
+          { bedrijf: false, naam: "🎨 Geen bedrijf", uitleg: "Verhaal, les of iets anders" },
+        ].map((t) => (
+          <button
+            key={t.naam}
+            onClick={() => kiesTab(t.bedrijf)}
+            className={`rounded-xl px-4 py-2 text-left transition ${isBedrijf === t.bedrijf ? "bg-blue-500 text-white shadow" : "text-tekst-2 hover:text-tekst"}`}
+          >
+            <div className="text-sm font-semibold">{t.naam}</div>
+            <div className={`text-[11px] ${isBedrijf === t.bedrijf ? "text-white/80" : "text-tekst-3"}`}>{t.uitleg}</div>
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-6 items-start">
         <div className="space-y-4">
           {/* Stap 1 — de vorm: wat voor video, hoe hij eruitziet en klinkt */}
@@ -359,10 +387,11 @@ export default function MotionStudio() {
               <h2 className="font-bold text-tekst">1. Kies de vorm</h2>
               <p className="text-xs text-tekst-3 mt-0.5">Hoe de video eruitziet en klinkt. Waar hij over gaat, bespreek je daarna met de regisseur.</p>
             </div>
+            {!isBedrijf && (
             <div>
               <label className="n-label">Wat voor video?</label>
-              <div className="mt-1.5 grid grid-cols-2 gap-2">
-                {MOTION_SOORTEN.map((k) => (
+              <div className="mt-1.5 grid grid-cols-3 gap-2">
+                {MOTION_SOORTEN.filter((k) => k.id !== "bedrijf").map((k) => (
                   <button
                     key={k.id}
                     onClick={() => setSoort(k.id)}
@@ -374,12 +403,13 @@ export default function MotionStudio() {
                 ))}
               </div>
             </div>
+            )}
 
             <div>
               <label className="n-label">Tekenstijl</label>
-              <p className="text-[11px] text-tekst-3 mt-0.5">Standaard volgt je huisstijl. De andere stijlen hebben hun eigen kleuren en letter; je logo en naam blijven in beeld.</p>
+              <p className="text-[11px] text-tekst-3 mt-0.5">{isBedrijf ? "Standaard volgt je huisstijl. De andere stijlen hebben hun eigen kleuren en letter; je logo en naam blijven in beeld." : "Elke stijl heeft zijn eigen kleuren en letter."}</p>
               <div className="mt-1.5 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[{ id: "", naam: "Standaard", uitleg: "Licht en strak, in de kleuren van je huisstijl." }, ...MOTION_STIJLEN].map((s) => (
+                {[{ id: "", naam: "Standaard", uitleg: isBedrijf ? "Licht en strak, in de kleuren van je huisstijl." : "Licht en strak." }, ...MOTION_STIJLEN].map((s) => (
                   <button
                     key={s.id}
                     onClick={() => setStijl(s.id)}
@@ -464,18 +494,14 @@ export default function MotionStudio() {
 
           </div>
 
-          {/* Afzender — een verhaal of les heeft geen bedrijf nodig */}
-          {!toonHuisstijl && (
+          {/* Afzender — zonder bedrijf alleen een naam, en die mag leeg */}
+          {!isBedrijf && (
             <div className="n-kaart space-y-3">
               <div>
-                <h2 className="font-bold text-tekst">Afzender (mag, hoeft niet)</h2>
-                <p className="text-xs text-tekst-3 mt-0.5">Vul je een naam in, dan staat die linksboven en op de eindkaart. Leeg laten kan ook: dan sluit de video af met alleen de slotzin.</p>
+                <h2 className="font-bold text-tekst">Naam in beeld (mag, hoeft niet)</h2>
+                <p className="text-xs text-tekst-3 mt-0.5">Vul je de naam van je kanaal in, dan staat die linksboven en op de eindkaart. Leeg laten kan ook: dan sluit de video af met alleen de slotzin.</p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <input value={bedrijf} onChange={(e) => setBedrijf(e.target.value)} maxLength={40} placeholder="Naam van je kanaal of bedrijf" className="n-invoer" />
-                <input value={website} onChange={(e) => setWebsite(e.target.value)} maxLength={60} placeholder="Website (mag leeg)" className="n-invoer" />
-              </div>
-              <button onClick={() => setHuisOpen(true)} className="text-xs text-blue-500 hover:underline">Logo, kleuren en lettertype instellen</button>
+              <input value={afzender} onChange={(e) => setAfzender(e.target.value)} maxLength={40} placeholder="Naam van je kanaal (mag leeg)" className="n-invoer" />
             </div>
           )}
           {toonHuisstijl && (
@@ -643,13 +669,13 @@ export default function MotionStudio() {
                 </button>
                 <input ref={beeldKies} type="file" accept="image/png,image/jpeg,image/webp" multiple className="hidden" onChange={(e) => { const f = [...(e.target.files ?? [])]; e.target.value = ""; if (f.length) void uploadBeelden(f); }} />
               </div>
-              {beelden.length === 0 ? (
+              {merk().beelden.length === 0 ? (
                 <p className="text-[11px] text-tekst-3 mt-1">
                   Een foto van je product, je bus, je pand, een scherm van je app of een schema. Je zegt er per beeld bij wat we ermee moeten doen: natekenen, uitleggen, de stijl overnemen of de foto zelf laten zien.
                 </p>
               ) : (
                 <div className="mt-1.5 space-y-2">
-                  {beelden.map((b, i) => (
+                  {beelden.map((b, i) => (!isBedrijf && b.vast) ? null : (
                     <div key={b.url} className="rounded-2xl border border-rand p-2.5 flex gap-3">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={b.url} alt="" className="h-20 w-20 rounded-xl object-cover bg-paneel-2 shrink-0" />
@@ -671,15 +697,15 @@ export default function MotionStudio() {
                         />
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-[11px] text-tekst-3 leading-snug">{MOTION_DOELEN.find((d) => d.id === b.doel)?.uitleg}</p>
-                          <label className="flex items-center gap-1.5 text-[11px] text-tekst-2 whitespace-nowrap cursor-pointer" title="Dit beeld gaat bij elke volgende video vanzelf mee. Klik daarna op 'Huisstijl bijwerken'.">
+                          {isBedrijf && <label className="flex items-center gap-1.5 text-[11px] text-tekst-2 whitespace-nowrap cursor-pointer" title="Dit beeld gaat bij elke volgende video vanzelf mee. Klik daarna op 'Huisstijl bijwerken'.">
                             <input type="checkbox" checked={!!b.vast} onChange={(e) => wijzigBeeld(i, { vast: e.target.checked })} />
                             Hoort bij huisstijl
-                          </label>
+                          </label>}
                         </div>
                       </div>
                     </div>
                   ))}
-                  {beelden.some((b) => b.vast) && !bewaard && (
+                  {isBedrijf && beelden.some((b) => b.vast) && !bewaard && (
                     <p className="text-[11px] text-tekst-3">Beelden met &quot;Hoort bij huisstijl&quot; gaan bij elke video mee zodra je bovenaan op &quot;{kit ? "Huisstijl bijwerken" : "Bewaar als huisstijl"}&quot; klikt.</p>
                   )}
                 </div>
