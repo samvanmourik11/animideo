@@ -37,13 +37,30 @@ async function launchBrowser(): Promise<Browser> {
 
 const isOmgevallen = (e: unknown) => /has been closed|Target crashed|crash|disconnected|Protocol error/i.test(e instanceof Error ? e.message : String(e));
 
+/** De grootste dingen in de tijdelijke map, om te zien wat hem vult. */
+async function grootsteInTmp(): Promise<string> {
+  const { readdir, stat } = await import("node:fs/promises");
+  const grootte = async (p: string, diepte = 0): Promise<number> => {
+    const st = await stat(p).catch(() => null);
+    if (!st) return 0;
+    if (!st.isDirectory() || diepte > 6) return st.size;
+    const kids = await readdir(p).catch(() => [] as string[]);
+    let n = 0;
+    for (const k of kids) n += await grootte(path.join(p, k), diepte + 1);
+    return n;
+  };
+  const namen = await readdir(tmpdir()).catch(() => [] as string[]);
+  const lijst = await Promise.all(namen.map(async (n) => [n, await grootte(path.join(tmpdir(), n))] as const));
+  return lijst.sort((x, y) => y[1] - x[1]).slice(0, 6).map(([n, g]) => `${n} ${Math.round(g / 1048576)}MB`).join("; ") + ` (${namen.length} items)`;
+}
+
 /** Maakt van een omgevallen browser een foutmelding met wat we weten. */
 async function uitleg(e: unknown, browser: Browser | null): Promise<Error> {
   const basis = e instanceof Error ? e.message.split("\n")[0] : String(e);
   if (!isOmgevallen(e)) return e instanceof Error ? e : new Error(basis);
   const mb = (n: number) => Math.round(n / 1048576);
   let schijf = "";
-  try { const f = await statfs(tmpdir()); schijf = `, vrij in tmp ${mb(f.bavail * f.bsize)} MB`; } catch {}
+  try { const f = await statfs(tmpdir()); schijf = `, vrij in tmp ${mb(f.bavail * f.bsize)} MB, grootst: ${await grootsteInTmp()}`; } catch {}
   const log = browser ? gebeurd.get(browser) ?? [] : [];
   return new Error(`${basis} [geheugen ${mb(process.memoryUsage().rss)} MB${schijf}${log.length ? `, ${log.join(", ")}` : ""}]`);
 }
