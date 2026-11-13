@@ -16,6 +16,21 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || !isTeamAccount(user.email)) return NextResponse.json({ error: "nee" }, { status: 403 });
   const v = req.nextUrl.searchParams.get("v") ?? "a";
+  if (v === "p") {
+    // Drie browsers tegelijk starten en een pagina laten tekenen, zoals drie hoofdstukken tegelijk.
+    const uit = await Promise.all([0, 1, 2].map(async (k) => {
+      const t1 = Date.now();
+      try {
+        const b = await launchBrowser();
+        const pg = await b.newPage();
+        await pg.setContent("<p>hoi</p>", { waitUntil: "domcontentloaded", timeout: 30000 });
+        await pg.screenshot();
+        await b.close();
+        return `${k}: goed ${Date.now() - t1}ms`;
+      } catch (e) { return `${k}: FOUT ${String(e).slice(0, 300)}`; }
+    }));
+    return NextResponse.json({ v, uit });
+  }
   const log: string[] = [];
   const t0 = Date.now();
   const stap = (s: string) => log.push(`${Date.now() - t0}ms ${s}`);
