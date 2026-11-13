@@ -33,6 +33,7 @@ const nextConfig: NextConfig = {
     // browser: de animatie wordt in deze verzoeken getekend en tot video gemaakt.
     "/api/creaties": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf", "./public/motion/**", "./node_modules/playwright-core/**", "./node_modules/@sparticuz/chromium/**"],
     "/api/creaties/lopend": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf", "./public/motion/**", "./node_modules/playwright-core/**", "./node_modules/@sparticuz/chromium/**"],
+    "/api/motion/diagnose": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf", "./public/motion/**", "./node_modules/playwright-core/**", "./node_modules/@sparticuz/chromium/**"],
     // Een mislukte UGC-video opnieuw monteren (lib/ugc/montage.ts, ondertitels in Poppins).
     "/api/creaties/[id]/monteer-opnieuw": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf"],
     // Stem & Lipsync: opnames omzetten naar mp3.
