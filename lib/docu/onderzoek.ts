@@ -22,14 +22,25 @@ import { kosten } from "@/lib/motion/animatie";
 import { duurTekst, maxWoorden, type MotionPlan } from "@/lib/motion/types";
 import type { DocuControle, DocuFeit, DocuLengte, DocuOnderzoek } from "./types";
 
-const ZOEK_MODEL = "claude-opus-5-5";
+// Zoeken en nakijken door Sonnet: in de eerste proef (14-11-2026, V&D, 3 minuten) kostte het
+// onderzoek met Opus $5,48, vooral door de zoekresultaten die elke ronde opnieuw worden
+// meegestuurd. Het script blijft bij Opus: de vertelling bepaalt of een docu werkt.
+const ZOEK_MODEL = "claude-sonnet-5-5";
 const SCRIPT_MODEL = "claude-opus-5-5";
-// Nakijken is gerichter werk dan uitzoeken en vertellen; Sonnet doet het voor de helft.
 const CONTROLE_MODEL = "claude-sonnet-5-5";
+/** Zoveel tokens mag één gelezen webpagina hooguit kosten. */
+const MAX_PAGINA_TOKENS = 12000;
 /** Web search kost $10 per 1.000 zoekopdrachten. */
 const USD_PER_ZOEKOPDRACHT = 0.01;
 
 type Bericht = Anthropic.Beta.BetaMessageParam;
+
+/** Alleen voor proeven (scripts/docu-eind-tot-eind): elke tussenstap op schijf. */
+async function bewaarTussenstap(naam: string, inhoud: string): Promise<void> {
+  if (!process.env.DOCU_DEBUG_DIR) return;
+  const { writeFile } = await import("node:fs/promises");
+  await writeFile(`${process.env.DOCU_DEBUG_DIR}/${naam}`, inhoud).catch(() => {});
+}
 type Antwoord = Anthropic.Beta.BetaMessage;
 
 export interface OnderzoekVraag {
@@ -64,10 +75,13 @@ async function metInternet(model: string, system: string, vraag: string, maxZoek
         model,
         max_tokens: 32000,
         output_config: { effort },
+        // Na een pauze (pause_turn) gaat het hele gesprek met alle zoekresultaten opnieuw mee;
+        // gecachet kost dat een tiende.
+        cache_control: { type: "ephemeral" },
         system,
         tools: [
           { type: "web_search_20260209", name: "web_search", max_uses: maxZoek },
-          { type: "web_fetch_20260209", name: "web_fetch", max_uses: Math.ceil(maxZoek / 2) },
+          { type: "web_fetch_20260209", name: "web_fetch", max_uses: Math.ceil(maxZoek / 2), max_content_tokens: MAX_PAGINA_TOKENS },
         ],
         messages: berichten,
         betas: ["server-side-fallback-2026-07-01"],
@@ -107,7 +121,7 @@ Schrijf een verslag met:
 
 Elke bewering in het verslag heeft een url uit je zoekresultaten. Geen url, dan hoort het er niet in.`;
   const vraag = `Onderwerp: ${v.onderwerp}${v.wens ? `\n\nWat de maker er verder over zegt: ${v.wens}` : ""}`;
-  const { tekst, usd } = await metInternet(ZOEK_MODEL, system, vraag, 15, "medium");
+  const { tekst, usd } = await metInternet(ZOEK_MODEL, system, vraag, 12, "medium");
   if (tekst.trim().length < 400) throw new Error("Het onderzoek leverde te weinig op. Omschrijf het onderwerp wat concreter.");
   return { verslag: tekst, usd };
 }
@@ -214,11 +228,41 @@ interface ControleUitkomst {
   verbeteringen: { scene: number; nu: string; reden: string }[];
 }
 
-/** Het laatste json-blok uit een antwoord; de controle schrijft eerst zijn overwegingen. */
-function jsonUit(tekst: string): unknown {
-  const blokken = [...tekst.matchAll(/```(?:json)?\s*\n([\s\S]*?)```/g)].map((b) => b[1]);
-  const kandidaat = blokken.pop() ?? tekst.slice(tekst.indexOf("{"), tekst.lastIndexOf("}") + 1);
-  return JSON.parse(kandidaat);
+const CONTROLE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["gecontroleerd", "verbeteringen"],
+  properties: {
+    gecontroleerd: { type: "integer" },
+    verbeteringen: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["scene", "nu", "reden"],
+        properties: { scene: { type: "integer" }, nu: { type: "string" }, reden: { type: "string" } },
+      },
+    },
+  },
+} as const;
+
+/**
+ * Het verslag van de controle omzetten naar vaste velden. Zoeken op internet en een vaste
+ * antwoordvorm gaan niet goed samen in één aanroep: de eerste proef (14-11-2026) gaf een blok
+ * dat niet te lezen was, en zo ging zeven minuten onderzoek verloren. Daarom eerst vrij
+ * opschrijven, dan in een tweede, kleine aanroep omzetten.
+ */
+async function alsUitkomst(verslag: string, aantal: number): Promise<{ j: Partial<ControleUitkomst>; usd: number }> {
+  const m = await claude()
+    .beta.messages.stream({
+      model: CONTROLE_MODEL,
+      max_tokens: 32000,
+      output_config: { effort: "low", format: { type: "json_schema", schema: CONTROLE_SCHEMA } },
+      system: `Je zet het verslag van een factchecker om naar vaste velden. Neem alleen verbeteringen over die de factchecker echt voorstelt, met de complete nieuwe tekst van de scene precies zoals hij die geeft (scene 0 = eindkaart, scenes 1 tot ${aantal}). Verzin zelf niets en verander niets aan zijn tekst. "gecontroleerd" is het aantal beweringen dat hij zegt te hebben nagelopen, of je beste telling uit het verslag.`,
+      messages: [{ role: "user", content: verslag }],
+    })
+    .finalMessage();
+  return { j: JSON.parse(tekstUit(m)) as Partial<ControleUitkomst>, usd: prijs(CONTROLE_MODEL, m) };
 }
 
 async function controleer(v: OnderzoekVraag, ruw: RuwScript): Promise<{ uit: ControleUitkomst; usd: number }> {
@@ -238,18 +282,21 @@ Werkwijze:
 - Klopt alles in een scene, dan blijft die scene ongemoeid. Verander niets aan stijl of verhaal: alleen wat feitelijk niet klopt.
 - Een verbeterde zin is ongeveer even lang als de oude, ${v.taal === "en" ? "in het Engels" : "in het Nederlands"}, en past in de vertelling.
 
-Schrijf kort je bevindingen op en sluit af met één json-blok in precies deze vorm:
-\`\`\`json
-{ "gecontroleerd": <aantal beweringen dat je hebt nagelopen>, "verbeteringen": [ { "scene": <nummer, 0 = eindkaart>, "nu": "<de complete nieuwe tekst van die scene>", "reden": "<kort, in het Nederlands: wat er niet klopte en wat de bron zegt>" } ] }
-\`\`\``;
-  const { tekst, usd } = await metInternet(CONTROLE_MODEL, system, regels.join("\n\n"), 12, "medium");
+Sluit af met:
+- hoeveel beweringen je hebt nagelopen;
+- per scene die anders moet: het scenenummer (0 = eindkaart), de complete nieuwe tekst van die scene, en kort in het Nederlands wat er niet klopte en wat de bron zegt.
+Scenes die kloppen noem je in die afsluiting niet.`;
+  const zoek = await metInternet(CONTROLE_MODEL, system, regels.join("\n\n"), 12, "medium");
+  await bewaarTussenstap("controle.txt", zoek.tekst);
   try {
-    const j = jsonUit(tekst) as Partial<ControleUitkomst>;
+    const { j, usd: omzetUsd } = await alsUitkomst(zoek.tekst, ruw.scenes.length);
+    const usd = zoek.usd + omzetUsd;
     const verbeteringen = (Array.isArray(j.verbeteringen) ? j.verbeteringen : [])
       .filter((x) => Number.isInteger(x?.scene) && x.scene >= 0 && x.scene <= ruw.scenes.length && typeof x.nu === "string" && x.nu.trim())
       .map((x) => ({ scene: x.scene, nu: x.nu.replace(/\s+/g, " ").trim(), reden: String(x.reden ?? "").slice(0, 400) }));
     return { uit: { gecontroleerd: Math.max(0, Number(j.gecontroleerd) || 0), verbeteringen }, usd };
-  } catch {
+  } catch (e) {
+    console.error("[docu] controle niet te lezen:", e instanceof Error ? e.message : e);
     // Een controle die niet te lezen is, mag niet stil voor "alles klopt" doorgaan.
     throw new Error("De feitencontrole kwam niet goed terug. Probeer het opnieuw.");
   }
@@ -260,8 +307,10 @@ Schrijf kort je bevindingen op en sluit af met één json-blok in precies deze v
 export async function doeOnderzoek(v: OnderzoekVraag, opVoortgang?: (stap: "zoeken" | "script" | "controle") => void): Promise<DocuOnderzoek> {
   opVoortgang?.("zoeken");
   const z = await zoek(v);
+  await bewaarTussenstap("verslag.txt", z.verslag);
   opVoortgang?.("script");
   const s = await schrijf(v, z.verslag);
+  await bewaarTussenstap("script.json", JSON.stringify(s.ruw, null, 2));
   opVoortgang?.("controle");
   const c = await controleer(v, s.ruw);
 
@@ -295,5 +344,6 @@ export async function doeOnderzoek(v: OnderzoekVraag, opVoortgang?: (stap: "zoek
     controle: { gecontroleerd: c.uit.gecontroleerd, verbeterd },
     fotoZoek,
     usd: z.usd + s.usd + c.usd,
+    usdPerStap: { zoeken: z.usd, script: s.usd, controle: c.usd },
   };
 }

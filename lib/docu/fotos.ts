@@ -24,7 +24,7 @@ const API = "https://commons.wikimedia.org/w/api.php";
 const UA = "AnimideoDocu/1.0 (https://ai.animideo.com; documentary photo search)";
 const KIES_MODEL = "claude-haiku-5-5";
 /** Zoveel kandidaten bekijkt het model per scene. */
-const KANDIDATEN = 4;
+const KANDIDATEN = 6;
 /** Zoveel scenes tegelijk: Commons knijpt als je te hard gaat. */
 const TEGELIJK = 3;
 
@@ -65,14 +65,18 @@ async function haalBeeld(url: string): Promise<Buffer> {
 }
 
 /**
- * Het adres van een kleine versie. Is de foto smaller dan gevraagd, dan geeft Commons het
- * origineel terug in plaats van een verkleining; daar maken we zelf het thumb-adres van.
+ * Het adres van een kleine versie (500 px: Commons levert verkleiningen alleen nog in vaste
+ * breedtes; 480 gaf HTTP 400 en daardoor kwam er in de eerste proef geen enkele foto mee).
+ * Is de foto smaller dan gevraagd, dan geeft Commons het origineel terug in plaats van een verkleining; daar maken we zelf het thumb-adres van.
  */
 function kleinAdres(url: string): string {
-  if (/\/\d+px-[^/]+$/.test(url)) return url.replace(/\/\d+px-([^/]+)$/, "/480px-$1");
-  const m = url.match(/^(https:\/\/upload\.wikimedia\.org\/wikipedia\/commons)\/(\w\/\w\w)\/([^/]+)$/);
-  return m ? `${m[1]}/thumb/${m[2]}/${m[3]}/480px-${m[3]}` : url;
+  if (/\/\d+px-[^/]+$/.test(url)) return url.replace(/\/\d+px-([^/]+)$/, "/500px-$1");
+  const m = url.match(/^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/(\w\/\w\w)\/([^/]+)$/);
+  return m ? `https://upload.wikimedia.org/wikipedia/commons/thumb/${m[1]}/${m[2]}/500px-${m[2]}` : url;
 }
+
+/** Commons hangt sinds kort een volgcode achter de adressen (?utm_source=...); die moet eraf. */
+const zonderQuery = (url: string) => url.split("?")[0];
 
 async function zoekCommons(term: string): Promise<Kandidaat[]> {
   const p = new URLSearchParams({
@@ -80,7 +84,7 @@ async function zoekCommons(term: string): Promise<Kandidaat[]> {
     generator: "search",
     gsrsearch: `filetype:bitmap ${term}`,
     gsrnamespace: "6",
-    gsrlimit: "12",
+    gsrlimit: "20",
     prop: "imageinfo",
     iiprop: "url|size|extmetadata",
     iiurlwidth: "1920",
@@ -95,9 +99,11 @@ async function zoekCommons(term: string): Promise<Kandidaat[]> {
       if (!ii) return [];
       const m = ii.extmetadata ?? {};
       const licentie = schoon(m.LicenseShortName?.value ?? "");
-      // Liggend of ongeveer vierkant, en groot genoeg voor een beeldvullende foto.
-      if (!VRIJ.test(licentie) || NIET.test(licentie) || ii.width < 900 || ii.height > ii.width * 1.25) return [];
-      const groot = ii.thumburl ?? ii.url;
+      // Groot genoeg voor een beeldvullende foto. Staande foto's mogen ook (de meeste
+      // archieffoto's van gebouwen zijn staand): de animatie snijdt en schuift erdoorheen.
+      // Oude archieffoto's zijn vaak klein; wat zachter is beter dan geen foto.
+      if (!VRIJ.test(licentie) || NIET.test(licentie) || ii.width < 700 || ii.height > ii.width * 1.7) return [];
+      const groot = zonderQuery(ii.thumburl ?? ii.url);
       return [{
         titel: pg.title,
         groot,
@@ -132,7 +138,11 @@ async function kies(scene: { tekst: string; beeld: string }, term: string, ks: K
 }
 
 async function fotoVoorScene(userId: string, scene: { tekst: string; beeld: string }, term: string): Promise<{ foto: Omit<DocuFoto, "id" | "scene"> | null; usd: number }> {
-  const ks = await zoekCommons(term);
+  // Niets gevonden: nog eens met een kortere zoekterm ("Vroom & Dreesmann store Netherlands"
+  // → "Vroom & Dreesmann store"). Commons zoekt op alle woorden tegelijk.
+  let ks = await zoekCommons(term);
+  const woorden = term.split(/\s+/);
+  for (let n = woorden.length - 1; !ks.length && n >= 2; n--) ks = await zoekCommons(woorden.slice(0, n).join(" "));
   if (!ks.length) return { foto: null, usd: 0 };
   const kleintjes = await Promise.all(ks.map(async (k) => sharp(await haalBeeld(k.klein)).resize(480, 480, { fit: "inside" }).flatten({ background: "#ffffff" }).jpeg({ quality: 75 }).toBuffer()));
   const { keus, usd } = await kies(scene, term, ks, kleintjes);

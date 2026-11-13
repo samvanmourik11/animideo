@@ -89,6 +89,7 @@ export interface DocuOnderzoek {
   fotoZoek: string[];
   /** Wat het onderzoek ons kostte (dollars), voor het logboek. */
   usd: number;
+  usdPerStap?: { zoeken: number; script: number; controle: number };
 }
 
 /** Het YouTube-pakket naast de video. */

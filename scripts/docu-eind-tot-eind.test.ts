@@ -52,6 +52,7 @@ test("docu van begin tot eind", async () => {
     o = await doeOnderzoek({ onderwerp, lengte, taal, kanaal }, (s) => console.log(`  onderzoek: ${s}`));
     await writeFile(pad("onderzoek.json"), JSON.stringify(o, null, 2));
     totaal.onderzoek = o.usd;
+    Object.assign(totaal, o.usdPerStap ?? {});
   }
   console.log(`${o.plan.scenes.length} scenes, ${o.feiten.length} feiten, controle: ${o.controle.gecontroleerd} nagelopen, ${o.controle.verbeterd.length} verbeterd`);
   for (const v of o.controle.verbeterd) console.log(`  verbeterd scene ${v.scene}: ${v.reden}`);
