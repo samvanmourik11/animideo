@@ -8,12 +8,12 @@
 //   maakVideo()  — beide in één keer, voor een video van één hoofdstuk
 
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, statfs, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import ffmpegPath from "ffmpeg-static";
 import sharp from "sharp";
-import { launchBrowser, type Browser } from "@/lib/browser";
+import { launchBrowser as startBrowser, type Browser } from "@/lib/browser";
 import { paginaHtml, type PaginaInvoer } from "./pagina";
 
 const FFMPEG = (ffmpegPath as unknown as string) || "ffmpeg";
@@ -23,6 +23,31 @@ const TABS = process.env.VERCEL ? 2 : 4;
 
 type Pagina = Awaited<ReturnType<Browser["newPage"]>>;
 
+// Wat er met de browser gebeurde, zodat een foutmelding op de server zegt wáárom hij omviel
+// (crash, geheugen, schijfruimte). Op Vercel hebben we geen andere blik naar binnen.
+const gebeurd = new WeakMap<Browser, string[]>();
+
+async function launchBrowser(): Promise<Browser> {
+  const b = await startBrowser();
+  const log: string[] = [];
+  gebeurd.set(b, log);
+  b.on("disconnected", () => log.push("browser losgekoppeld"));
+  return b;
+}
+
+const isOmgevallen = (e: unknown) => /has been closed|Target crashed|crash|disconnected|Protocol error/i.test(e instanceof Error ? e.message : String(e));
+
+/** Maakt van een omgevallen browser een foutmelding met wat we weten. */
+async function uitleg(e: unknown, browser: Browser | null): Promise<Error> {
+  const basis = e instanceof Error ? e.message.split("\n")[0] : String(e);
+  if (!isOmgevallen(e)) return e instanceof Error ? e : new Error(basis);
+  const mb = (n: number) => Math.round(n / 1048576);
+  let schijf = "";
+  try { const f = await statfs(tmpdir()); schijf = `, vrij in tmp ${mb(f.bavail * f.bsize)} MB`; } catch {}
+  const log = browser ? gebeurd.get(browser) ?? [] : [];
+  return new Error(`${basis} [geheugen ${mb(process.memoryUsage().rss)} MB${schijf}${log.length ? `, ${log.join(", ")}` : ""}]`);
+}
+
 interface Stand {
   einde: number;
   scenes: [string, number][];
@@ -31,6 +56,7 @@ interface Stand {
 
 async function open(browser: Browser, p: PaginaInvoer): Promise<{ pagina: Pagina; stand: Stand }> {
   const pagina = await browser.newPage({ viewport: { width: p.w, height: p.h }, deviceScaleFactor: 1 });
+  pagina.on("crash", () => gebeurd.get(browser)?.push("pagina gecrasht"));
   // De code komt van een taalmodel en de teksten van een klant: de pagina mag niets
   // ophalen of versturen, behalve het lettertype.
   await pagina.route("**/*", (route) => {
@@ -91,6 +117,17 @@ export function proefTijden(scenes: [string, number][], einde: number): { t: num
 export async function proef(p: PaginaInvoer): Promise<Proef> {
   const fout = syntaxFout(p.code);
   if (fout) return { fouten: [fout], beelden: [], einde: 0, scenes: [] };
+  // Valt de browser om, dan één keer opnieuw met een verse browser.
+  try {
+    return await proefEenKeer(p);
+  } catch (e) {
+    if (!isOmgevallen(e)) throw e;
+    console.error("[motion] browser viel om bij de proef, tweede poging:", e instanceof Error ? e.message : e);
+    return proefEenKeer(p);
+  }
+}
+
+async function proefEenKeer(p: PaginaInvoer): Promise<Proef> {
   const browser = await launchBrowser();
   try {
     const { pagina, stand } = await open(browser, p);
@@ -114,6 +151,8 @@ export async function proef(p: PaginaInvoer): Promise<Proef> {
     )) as string[];
     rest.forEach((g) => fouten.add(g));
     return { fouten: [...fouten].slice(0, 30), beelden, einde: stand.einde, scenes: stand.scenes };
+  } catch (e) {
+    throw await uitleg(e, browser);
   } finally {
     await browser.close().catch(() => {});
   }
@@ -183,6 +222,8 @@ export async function maakStil(p: PaginaInvoer, o: { beelden?: number; deadline?
     const naFouten = (await eerste.pagina.evaluate("window.FOUTEN")) as string[];
     if (naFouten.length) console.error("[motion] fouten tijdens het tekenen:", naFouten.slice(0, 3));
     return { mp4: await readFile(stil), beelden: totaal, renderMs: Date.now() - start };
+  } catch (e) {
+    throw await uitleg(e, browser);
   } finally {
     await browser.close().catch(() => {});
     await rm(dir, { recursive: true, force: true }).catch(() => {});
