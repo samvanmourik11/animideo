@@ -13,6 +13,7 @@ import { startFilm, startScene, verversFilm, verversScene } from "@/lib/film/reg
 import { startMontage, verversMontage } from "@/lib/regisseur/montage";
 import { startTrend, verversTrend } from "@/lib/trends/regie";
 import { startMotion, verversMotion } from "@/lib/motion/regie";
+import { startDocu } from "@/lib/docu/regie";
 import { EIGEN } from "@/lib/stem/types";
 import type { Creatie, CreatieSoort } from "./types";
 import { kortMetEinde } from "./melding";
@@ -60,6 +61,7 @@ export async function startCreatie(
   if (maker === "montage") return startMontage(userId, ruweInvoer);
   if (maker === "trend") return startTrend(userId, ruweInvoer, ouderId);
   if (maker === "motion") return startMotion(userId, ruweInvoer, ouderId);
+  if (maker === "docu") return startDocu(userId, ruweInvoer, ouderId);
 
   if ((maker === "stem-kloon" || maker === "pratende-foto") && !(await magGebruiker(userId, "stemKlonen"))) {
     throw new WachtrijFout(upgradeTekst("stemKlonen"), 403);
@@ -171,7 +173,8 @@ export async function ververs(c: Creatie): Promise<Creatie> {
   if (c.maker === "film") return verversFilm(c);
   if (c.maker === "montage") return verversMontage(c);
   if (c.maker === "trend") return verversTrend(c);
-  if (c.maker === "motion") return verversMotion(c);
+  // Een docu loopt door dezelfde stappen als een motion-video (lib/docu/regie.ts).
+  if (c.maker === "motion" || c.maker === "docu") return verversMotion(c);
   const leeftijd = Date.now() - new Date(c.created_at).getTime();
 
   if (!c.fal_request_id || !c.fal_endpoint) {

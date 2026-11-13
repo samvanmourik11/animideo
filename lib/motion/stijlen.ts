@@ -55,6 +55,33 @@ const wiebel = (id: string, freq: number, schaal: number) =>
 
 export const MOTION_STIJLEN: MotionStijl[] = [
   {
+    // De stijl van onze eigen KRONIK-documentaires (13-11-2026), de standaard van de
+    // docu-studio: inktzwart, papierwit, één rood, filmkorrel.
+    id: "archief",
+    naam: "Archief",
+    uitleg: "Inktzwart met papierwit, één rode kleur en filmkorrel. Voor documentaires en 'opkomst en ondergang'.",
+    fonts: ["Archivo+Black", "IBM+Plex+Mono:wght@400;500;600;700"],
+    font: "IBM Plex Mono",
+    thema: {
+      C: { inkt: "#f3efe6", wit: "#18181a", rood: "#e3342f", geel: "#e8c35a", groen: "#7fa88a", blauw: "#8ea4bf", oranje: "#d9823b", paars: "#9b8fb8", grijs: "#2b2b2e", licht: "#1f1f22", muted: "#8f8a80" },
+      accent: ["#e3342f", "#f3efe6"],
+      donker: "#0f0f10",
+      vlak: true,
+      bg: { kleuren: ["#151517", "#0f0f10", "#08080a"], extra: "film", stip: "none", vignet: "#000000" },
+      defs: GEEN_SCHADUW,
+      pil: { fill: "#e3342f", kleur: "#f3efe6", rx: 0.08, glans: false },
+      kaart: { fill: "#18181a", rand: "#3a3a3e", randDik: 2, rx: 4 },
+      veeg: ["#08080a", "#e3342f"],
+      eind: ["#151517", "#08080a"],
+    },
+    regels: `Een documentaire in de stijl van een nieuwsarchief.
+- Koppen, jaartallen en grote getallen in font-family 'Archivo Black', in hoofdletters, C.inkt (papierwit). Alle overige tekst (bijschriften, labels, bronnen) in het gewone lettertype (een typemachineletter), klein, met letter-spacing 4 tot 6.
+- Eén kleur: C.rood, en per scene alleen op het ding waar het om draait (het getal dat zakt, het woord dat telt, een stempel, een onderstreping). Verder papierwit op inktzwart en grijs (C.grijs, C.muted).
+- Dunne lijnen (2 tot 3) in C.muted voor tijdlijnen, assen en kaders; kaarten zijn donkere vlakken met een dunne rand, geen witte kaarten.
+- Typische beelden: een groot jaartal dat het beeld vult, een dossierkaart (naam in Archivo Black, daaronder rol en jaren), een stempel schuin over het beeld in C.rood met dikke rand, een grafiek die zakt met de laatste waarde in C.rood, een kaart met één rode stip.
+- Beweging rustig en zeker: vervagen en korte schuiven, tekst die regel voor regel verschijnt. Geen ploffen of veren.`,
+  },
+  {
     id: "schoolbord",
     naam: "Schoolbord",
     uitleg: "Groen bord met krijt dat zichzelf tekent. Voor uitleg en 'wist je dat'.",

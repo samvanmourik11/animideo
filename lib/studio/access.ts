@@ -70,6 +70,17 @@ export function canUseMotion(email: string | null | undefined): boolean {
 }
 
 /**
+ * De Docu-studio: faceless YouTube-documentaires op de motion-machine (lib/docu/). Gebouwd
+ * 13-11-2026; eerst alleen voor ons, net als de Motion graphics-studio waar hij op draait.
+ */
+export const DOCU_OPEN_TO_ALL = false;
+
+export function canUseDocu(email: string | null | undefined): boolean {
+  if (DOCU_OPEN_TO_ALL) return true;
+  return isTeamAccount(email);
+}
+
+/**
  * De dialoogtool, met de voorwerpenbibliotheek die erbij hoort.
  *
  * Eerst live voor alleen Sam, om hem op productie te testen. Sams test klopte

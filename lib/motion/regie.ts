@@ -139,10 +139,27 @@ export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
   };
 }
 
-export async function startMotion(userId: string, ruw: Record<string, unknown>, ouderId?: string | null): Promise<Creatie> {
+/**
+ * Voor studio's die op deze machine draaien (de docu-studio, lib/docu/): een eigen maker in
+ * de bibliotheek, een eigen prijs en eigen gegevens in de rij, en de invoer bijwerken nadat
+ * hij is gelezen (foto's die niet uit de upload van de klant komen, een stem buiten de
+ * bibliotheek).
+ */
+export interface StartOpties {
+  maker?: string;
+  /** Wat het kost; 0 = al betaald (de Short bij een docu). Standaard de motion-prijs. */
+  credits?: number;
+  omschrijving?: string;
+  prompt?: string;
+  pas?: (i: MotionInvoer) => MotionInvoer;
+  extra?: Record<string, unknown>;
+}
+
+export async function startMotion(userId: string, ruw: Record<string, unknown>, ouderId?: string | null, o: StartOpties = {}): Promise<Creatie> {
   let invoer: MotionInvoer;
   try {
     invoer = leesMotionInvoer(ruw);
+    if (o.pas) invoer = o.pas(invoer);
   } catch (e) {
     throw new WachtrijFout(e instanceof Error ? e.message : String(e), 400);
   }
@@ -156,7 +173,8 @@ export async function startMotion(userId: string, ruw: Record<string, unknown>, 
     throw new WachtrijFout(`Je hebt al ${MAX_TEGELIJK} dingen in de maak. Wacht tot er één klaar is.`, 429);
   }
 
-  const { ok, betaald, betalerId } = await betaal(userId, motionCredits(invoer.lengte), "Nieuwe app: motion graphics");
+  const prijs = o.credits ?? motionCredits(invoer.lengte);
+  const { ok, betaald, betalerId } = prijs > 0 ? await betaal(userId, prijs, o.omschrijving ?? "Nieuwe app: motion graphics") : { ok: true, betaald: 0, betalerId: userId };
   if (!ok) throw new WachtrijFout("Niet genoeg credits.", 402);
 
   const voortgang: Voortgang = { stap: "stem", sinds: new Date().toISOString() };
@@ -166,10 +184,10 @@ export async function startMotion(userId: string, ruw: Record<string, unknown>, 
       user_id: userId,
       soort: "video",
       status: "bezig",
-      maker: "motion",
+      maker: o.maker ?? "motion",
       model: "motion",
-      prompt: `Motion graphics: ${invoer.plan.titel || invoer.bedrijf}`,
-      invoer: { ...invoer, voortgang },
+      prompt: o.prompt ?? `Motion graphics: ${invoer.plan.titel || invoer.bedrijf}`,
+      invoer: { ...invoer, ...o.extra, voortgang },
       credits: betaald,
       fal_endpoint: "motion",
       // Niet leeg laten: een oudere versie van de app (de live-site op dezelfde database,
@@ -182,7 +200,7 @@ export async function startMotion(userId: string, ruw: Record<string, unknown>, 
     .select("*")
     .single();
   if (error || !nieuw) {
-    await betaalTerug({ user_id: userId, betaald_door: betalerId, credits: betaald }, "Terug: motion graphics niet gestart");
+    if (betaald > 0) await betaalTerug({ user_id: userId, betaald_door: betalerId, credits: betaald }, "Terug: motion graphics niet gestart");
     throw new WachtrijFout("Kon de opdracht niet opslaan. Probeer het opnieuw.", 500);
   }
 
@@ -296,6 +314,14 @@ async function haal(url: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
+// Een docu heeft tientallen foto's. Ze allemaal in elke pagina en bij elk hoofdstuk aan Claude
+// meegeven kost tokens en geheugen voor niets: per hoofdstuk alleen de foto's die daar
+// genoemd worden (in het beeld van de scenes) of gebruikt (in de code).
+const genoemd = (tekst: string) => new Set([...tekst.matchAll(/\bf\d+\b/g)].map((m) => m[0]));
+function alleenFotos<T extends { fotos?: Record<string, unknown> }>(pagina: T, ids: Set<string>): T {
+  return { ...pagina, fotos: Object.fromEntries(Object.entries(pagina.fotos ?? {}).filter(([id]) => ids.has(id))) };
+}
+
 const bewaarWerk = (userId: string, werk: Werkbestand) => uploadNaarOpslag(userId, Buffer.from(JSON.stringify(werk)), "json", "application/json");
 
 /** Het werkbestand lezen; een rij van vóór de hoofdstukken had één stuk code. */
@@ -353,7 +379,9 @@ async function voerAnimatieUit(c0: Creatie, v0: Voortgang): Promise<void> {
       const uitkomsten = await Promise.allSettled(
         open.map((k) => {
           const d = deelWerk(basis, r.plan, werk.woorden, werk.delen, k);
-          return tekenAnimatie({ pagina: d.pagina, plan: d.plan, plek: d.plek, onderwerp: r.onderwerp.slice(0, 3000), beelden: r.beelden ?? [], nietDoen: r.nietDoen, taal: r.taal, soort: r.soort });
+          if (c.maker !== "docu") return tekenAnimatie({ pagina: d.pagina, plan: d.plan, plek: d.plek, onderwerp: r.onderwerp.slice(0, 3000), beelden: r.beelden ?? [], nietDoen: r.nietDoen, taal: r.taal, soort: r.soort });
+          const ids = genoemd(d.plan.scenes.map((s) => s.beeld).join(" "));
+          return tekenAnimatie({ pagina: alleenFotos(d.pagina, ids), plan: d.plan, plek: d.plek, onderwerp: r.onderwerp.slice(0, 3000), beelden: (r.beelden ?? []).filter((b) => ids.has(b.id)), nietDoen: r.nietDoen, taal: r.taal, soort: r.soort, docu: true });
         }),
       );
       const gebruik: Gebruik = { ...(v.gebruik ?? { usd: 0, rondes: 0, sec: 0 }) };
@@ -428,7 +456,8 @@ async function voerVideoUit(c0: Creatie, v0: Voortgang): Promise<void> {
       const code = werk.codes[k];
       if (!code) throw new Error("De animatie is niet compleet.");
       const d = deelWerk(basis, r.plan, werk.woorden, werk.delen, k);
-      const stil = await maakStil({ ...d.pagina, code }, { beelden: werk.delen[k].beelden, deadline: begin + VIDEO_BUDGET_MS, compact: aantal > 1 });
+      const pagina = c.maker === "docu" ? alleenFotos(d.pagina, genoemd(code)) : d.pagina;
+      const stil = await maakStil({ ...pagina, code }, { beelden: werk.delen[k].beelden, deadline: begin + VIDEO_BUDGET_MS, compact: aantal > 1 });
       renderMs += stil.renderMs;
       langste = Math.max(langste, stil.renderMs);
       stillen.push(`${await uploadNaarOpslag(c.user_id, stil.mp4, "mp4", "video/mp4")}#${stil.beelden}`);
@@ -447,7 +476,10 @@ async function voerVideoUit(c0: Creatie, v0: Voortgang): Promise<void> {
     const mp4 = await monteer(delen, beelden, stem, r.muziek ? musicTrackUrl(r.muziek) : undefined);
     const url = await uploadNaarOpslag(c.user_id, mp4, "mp4", "video/mp4");
     const eerder = v.gebruik ?? { usd: 0, rondes: 0 };
-    const invoer = { ...r, voortgang: { ...v, stillen, gebruik: { ...eerder, videoSec: Math.round(beelden / FPS), renderSec: (eerder.renderSec ?? 0) + Math.round(renderMs / 1000) } } };
+    let invoer: Record<string, unknown> = { ...r, voortgang: { ...v, stillen, gebruik: { ...eerder, videoSec: Math.round(beelden / FPS), renderSec: (eerder.renderSec ?? 0) + Math.round(renderMs / 1000) } } };
+    // Een docu krijgt er het YouTube-pakket bij (lib/docu/regie.ts). Mislukt dat, dan is de
+    // video zelf er wel: het pakket meldt zijn eigen fout.
+    if (c.maker === "docu") invoer = await (await import("@/lib/docu/regie")).voegPakketToe(c, invoer, { woorden: werk.woorden, basis });
     await createServiceClient()
       .from("creaties")
       .update({ status: "klaar", url, invoer, klaar_op: new Date().toISOString() })

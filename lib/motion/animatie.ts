@@ -32,7 +32,7 @@ const PRIJZEN: Record<string, { in: number; uit: number; cacheLezen: number; cac
   "claude-sonnet-5-5": { in: 2, uit: 10, cacheLezen: 0.1, cacheSchrijven: 2.5 },
   "claude-haiku-5-5": { in: 0.1, uit: 0.5, cacheLezen: 0.01, cacheSchrijven: 0.125 },
 };
-function kosten(model: string, u: Anthropic.Beta.BetaUsage): number {
+export function kosten(model: string, u: Anthropic.Beta.BetaUsage): number {
   // Een onbekend model rekenen we tegen de duurste prijs: liever te hoog dan te laag in het logboek.
   const p = PRIJZEN[model] ?? PRIJZEN[MODEL];
   return (u.input_tokens * p.in + u.output_tokens * p.uit + (u.cache_read_input_tokens ?? 0) * p.cacheLezen + (u.cache_creation_input_tokens ?? 0) * p.cacheSchrijven) / 1e6;
@@ -184,13 +184,26 @@ ${stijl.regels}
 De bouwstenen zijn al op deze stijl ingesteld: de achtergrond, het lettertype, het merk linksboven, de titel rechtsboven, de veeg en de eindkaart. De kleurnamen (C.inkt, C.wit, C.rood, C.blauw, ...) hebben de kleuren van deze stijl: C.inkt is de kleur voor lijnen en tekst, C.wit de kleur van een vlak waar iets op staat. Gebruik daarom steeds die namen en geen eigen kleurcodes zoals '#fff' of '#000'. pil() en kaart() zonder kleur krijgen vanzelf de vorm van deze stijl.${stijl.thema.accent ? " De merkkleuren van de klant passen niet in deze stijl: C.accent en C.accent2 zijn hier de accentkleuren van de stijl." : ""}
 `
     : "";
+  // De docu-studio (lib/docu/): foto's van Commons die het beeld vullen, zoals in onze eigen
+  // KRONIK-video's, in plaats van een foto op een kaartje zoals bij een bedrijfsvideo.
+  const docuBlok = v.docu
+    ? `
+## Documentaire
+Dit is een YouTube-documentaire. Het beeld wisselt tussen archieffoto's en docu-graphics.
+- Archieffoto (staat in "Beeld" als "Archieffoto f3"): de foto vult het hele beeld. Gebruik foto(parent, 'f3', W, { hoogte: H, rond: 0, rand: 0, schaduw: false }) in het midden van het beeld, en laat hem de hele scene traag inzoomen (schaal van 1 naar 1,08, met een kleine verschuiving), berekend uit tt. Leg er een donker verloop over (zwart, van opacity .7 onderaan naar 0 halverwege) zodat tekst leesbaar blijft. Tekst op een foto is kort en groot: een jaartal, een naam, een getal, onderin of links, op de sleutelwoorden van de stem.
+- Zolang een archieffoto in beeld is, staat linksonder klein de vermelding die bij "Beeld" staat ("Foto: ... / Wikimedia Commons, ..."), in C.inkt met opacity .75, 20 px, binnen de veilige rand. Die vermelding is verplicht.
+- Docu-graphics op de andere scenes: een groot jaartal of datum als titelkaart, een tijdlijn die doorschuift, een teller die oploopt, een grafiek die zakt of stijgt, een eenvoudige kaart met een punt op de plek, een dossierkaart van een persoon (naam, rol, jaren), een stempel schuin over het beeld ("FAILLIET"), twee kolommen tegenover elkaar, een citaat als grote typografie met naam en jaar eronder.
+- Teken geen nagemaakte logo's, krantenpagina's of echte gezichten. Personen zonder foto zijn een silhouet of een naamkaart.
+- Rustig tempo: dingen komen binnen met een vervaging of een korte schuif, niet met een plof.
+`
+    : "";
   return `${pl ? `Maak de animatie voor hoofdstuk ${pl.nummer} van ${pl.aantal} van een lange video. Elk hoofdstuk wordt apart getekend en daarna worden ze aan elkaar gezet; jij maakt alleen dit hoofdstuk. De tijden hieronder tellen vanaf het begin van dit hoofdstuk.${pl.nummer > 1 ? ` Het merk linksboven staat vanaf het eerste beeld in beeld, dus houd ook in de eerste scene de bovenste strook vrij.${pl.hiervoor ? ` In het hoofdstuk hiervoor was te zien: ${pl.hiervoor}` : ""}` : ""}${pl.hierna ? ` In het hoofdstuk hierna komt: ${pl.hierna}` : ""} Laat terugkerende dingen (het product, de hoofdpersoon) er net zo uitzien als ze in de beschrijvingen van de andere hoofdstukken heten, in dezelfde platte stijl en de merkkleuren.${heeftEind ? "" : " Dit hoofdstuk heeft geen eindkaart: laat `eind` weg uit window.VIDEO en eindig met het laatste beeld van de laatste scene."}` : "Maak de animatie voor deze video."}
 
 ${v.soort && v.soort !== "bedrijf" ? `Let op: dit is geen bedrijfsvideo maar ${v.soort === "verhaal" ? "een verhaal (geschiedenis, documentaire)" : v.soort === "uitleg" ? "een uitleg of les" : "een vrije video"}. Teken wat het verhaal vraagt: kaarten, tijdlijnen, portretten als eenvoudige figuur, voorwerpen, plekken. Geen kantoor-iconen, knoppen of verkooptaal waar het verhaal daar niet om vraagt.\n` : ""}${v.pagina.merk.naam ? `${v.soort && v.soort !== "bedrijf" ? "Afzender" : "Bedrijf"}: ${v.pagina.merk.naam}${v.pagina.merk.website ? ` (${v.pagina.merk.website})` : ""}` : "Afzender: geen. Er staat geen merk linksboven; de eindkaart toont alleen de slotregels."}
 Formaat: ${v.pagina.w} x ${v.pagina.h} (${v.pagina.h > v.pagina.w ? "staand" : "liggend"})
 Merkkleur C.accent = ${v.pagina.merk.kleur}, tweede kleur C.accent2 = ${v.pagina.merk.kleur2}
 ${v.taal === "en" ? "Taal: dit is een Engelstalige video. Alle tekst in beeld is Engels, ook als de beschrijving bij Beeld Nederlands is. Schrijf getallen op zijn Engels (1,250 en 3.5); gebruik daarvoor nl() niet.\n" : ""}Onderwerp volgens de klant: ${v.onderwerp}${v.nietDoen ? `\nWat er van dit bedrijf niet in beeld mag: ${v.nietDoen}` : ""}${fotos.length ? `\nFoto's die je met foto() kunt plaatsen: ${fotos.map((f) => `'${f.id}' (${f.w} x ${f.h})`).join(", ")}` : ""}
-${stijlBlok}
+${stijlBlok}${docuBlok}
 De scenes, met wat de stem zegt, wat de klant als beeld heeft goedgekeurd, en de gemeten woordtijden (seconden, zoals wt ze teruggeeft):
 
 ${perScene
@@ -293,6 +306,8 @@ export interface AnimatieVraag {
   taal?: "nl" | "en";
   /** Wat voor video het is; standaard een bedrijfsvideo. */
   soort?: MotionSoort;
+  /** Een documentaire uit de docu-studio: archieffoto's beeldvullend, docu-graphics. */
+  docu?: boolean;
 }
 
 export interface AnimatieUitkomst {
