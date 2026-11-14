@@ -58,11 +58,11 @@ export function isTeamAccount(email: string | null | undefined): boolean {
 /**
  * De Motion graphics-studio: video's die Claude volledig in code tekent (lib/motion/).
  *
- * Gebouwd op 11-11-2026 als proef. Eerst alleen voor onszelf: de kwaliteit zonder iemand
- * die meekijkt en de rendertijd op de live-server moeten zich nog bewijzen. Geldt in het
- * menu, op de pagina én in de API-routes.
+ * Gebouwd op 11-11-2026 als proef, sinds 14-11-2026 open voor iedereen (de video wordt in
+ * de browser van de klant gemaakt; op de live-server was dat te traag). Geldt in het menu,
+ * op de pagina én in de API-routes.
  */
-export const MOTION_OPEN_TO_ALL = false;
+export const MOTION_OPEN_TO_ALL = true;
 
 export function canUseMotion(email: string | null | undefined): boolean {
   if (MOTION_OPEN_TO_ALL) return true;
