@@ -772,8 +772,8 @@ export default function MotionStudio() {
                 {bezig === "maken" ? "Bezig met insturen…" : `✨ Maak de video · ${credits} credits`}
               </button>
               <p className="text-[11px] text-tekst-3">
-                Dit duurt meestal {lengte <= 60 ? "een minuut of 5" : lengte <= 180 ? "5 tot 10 minuten" : lengte <= 300 ? "een minuut of 20" : "drie kwartier"}: de animatie wordt speciaal voor jouw script getekend en daarna nagekeken. Je kunt ondertussen
-                gewoon verder; de video komt vanzelf in je bibliotheek. Mislukt het, dan krijg je je credits terug.
+                Dit duurt meestal {lengte <= 60 ? "een minuut of 5" : lengte <= 180 ? "5 tot 10 minuten" : lengte <= 300 ? "een minuut of 20" : "drie kwartier"}: de animatie wordt speciaal voor jouw script getekend en daarna nagekeken. Het laatste stuk,
+                de video zelf tekenen, gebeurt in je browser: houd de studio dan open (of open hem later weer). Daarna staat hij ook in je bibliotheek. Mislukt het, dan krijg je je credits terug.
               </p>
             </div>
           )}
