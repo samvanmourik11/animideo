@@ -8,11 +8,14 @@
 //   1. de opdracht ophalen (per hoofdstuk de pagina met animatie, stem-tijden en lettertypes)
 //   2. elke pagina in een afgeschermd venstertje laden (de code komt van een taalmodel: geen
 //      toegang tot de studio, niets ophalen) en beeld voor beeld laten tekenen
-//   3. elk beeld door de video-encoder van de browser (H.264)
+//   3. elk beeld door de video-encoder van de browser (H.264), meteen in een mp4 met de
+//      juiste tijden (een kale H.264-stroom las het ffmpeg op de server met een verkeerde
+//      beeldsnelheid: 475 beelden per seconde, gezien 14-11-2026)
 //   4. de video rechtstreeks op onze opslag zetten en afmelden; de server zet er stem en
 //      muziek onder en de video verschijnt in de lijst.
 
 import { useEffect, useRef, useState } from "react";
+import { ArrayBufferTarget, Muxer } from "mp4-muxer";
 import { createClient } from "@/lib/supabase/client";
 import type { Creatie } from "@/lib/creaties/types";
 
@@ -41,7 +44,7 @@ export const kanBrowserVideo = () => typeof window !== "undefined" && "VideoEnco
 async function kiesEncoder(o: Opdracht): Promise<VideoEncoderConfig> {
   // High, Main en Baseline, op oplopend niveau: staand 1080x1920 heeft niveau 4 of hoger nodig.
   for (const codec of ["avc1.640028", "avc1.64002a", "avc1.640032", "avc1.4d0028", "avc1.4d0032", "avc1.42e028", "avc1.42e032"]) {
-    const cfg: VideoEncoderConfig = { codec, width: o.w, height: o.h, bitrate: o.bitrate, framerate: o.fps, latencyMode: "quality", avc: { format: "annexb" } };
+    const cfg: VideoEncoderConfig = { codec, width: o.w, height: o.h, bitrate: o.bitrate, framerate: o.fps, latencyMode: "quality", avc: { format: "avc" } };
     try {
       if ((await VideoEncoder.isConfigSupported(cfg)).supported) return cfg;
     } catch {}
@@ -118,14 +121,10 @@ async function maakVideo(c: Creatie, zet: (s: BrowserStand) => void): Promise<vo
   if (!res.ok) throw new Error(o.error ?? "De opdracht kon niet worden opgehaald.");
   const cfg = await kiesEncoder(o);
 
-  const stukken: Uint8Array[] = [];
+  const muxer = new Muxer({ target: new ArrayBufferTarget(), video: { codec: "avc", width: o.w, height: o.h, frameRate: o.fps }, fastStart: "in-memory" });
   let encFout: Error | null = null;
   const enc = new VideoEncoder({
-    output: (chunk) => {
-      const b = new Uint8Array(chunk.byteLength);
-      chunk.copyTo(b);
-      stukken.push(b);
-    },
+    output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
     error: (e) => { encFout = e instanceof Error ? e : new Error(String(e)); },
   });
   enc.configure(cfg);
@@ -163,8 +162,9 @@ async function maakVideo(c: Creatie, zet: (s: BrowserStand) => void): Promise<vo
   }
 
   zet({ id: c.id, fase: "uploaden", deel: 1 });
-  const blob = new Blob(stukken as BlobPart[], { type: "application/octet-stream" });
-  const { error } = await createClient().storage.from("scene-assets").uploadToSignedUrl(o.upload.pad, o.upload.token, blob, { contentType: "application/octet-stream" });
+  muxer.finalize();
+  const blob = new Blob([muxer.target.buffer], { type: "video/mp4" });
+  const { error } = await createClient().storage.from("scene-assets").uploadToSignedUrl(o.upload.pad, o.upload.token, blob, { contentType: "video/mp4" });
   if (error) throw new Error(`Uploaden mislukt: ${error.message}`);
 
   zet({ id: c.id, fase: "afmaken", deel: 1 });

@@ -33,7 +33,7 @@ import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal } from "./types";
 import { stijlVan } from "./stijlen";
 import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
-import { FPS, h264NaarMp4, maakStil, monteer, voegStemSamen } from "./render";
+import { FPS, maakStil, monteer, voegStemSamen } from "./render";
 import { paginaHtml } from "./pagina";
 import { randomUUID } from "node:crypto";
 import {
@@ -482,9 +482,9 @@ async function voerVideoUit(c0: Creatie, v0: Voortgang): Promise<void> {
 //
 // De studio haalt de opdracht op (per hoofdstuk de pagina en het aantal beelden), tekent
 // in een afgeschermd venstertje beeld voor beeld, maakt er met de video-encoder van de
-// browser een H.264-stroom van, zet die rechtstreeks op onze opslag en meldt hem hier af.
-// De server zet hem in een mp4 en er stem en muziek onder (snel: het beeld wordt niet
-// opnieuw gecodeerd).
+// browser een mp4 (zonder geluid) van, zet die rechtstreeks op onze opslag en meldt hem
+// hier af. De server zet er stem en muziek onder (snel: het beeld wordt niet opnieuw
+// gecodeerd).
 
 export interface BrowserOpdracht {
   fps: number;
@@ -511,7 +511,7 @@ export async function browserOpdracht(c: Creatie): Promise<BrowserOpdracht> {
       return { html: await paginaHtml({ ...d.pagina, code }, { browser: true }), beelden: werk.delen[k].beelden ?? null };
     }),
   );
-  const pad = `${c.user_id}/creaties/${randomUUID()}.h264`;
+  const pad = `${c.user_id}/creaties/${randomUUID()}.mp4`;
   const { data, error } = await createServiceClient().storage.from("scene-assets").createSignedUploadUrl(pad);
   if (error || !data) throw new Error(error?.message ?? "Geen uploadplek gekregen.");
   // Getekende vlakken laten zich goed samenpersen; een lange video iets zuiniger.
@@ -525,7 +525,7 @@ export async function browserOpdracht(c: Creatie): Promise<BrowserOpdracht> {
 export async function browserKlaar(c0: Creatie, pad: string, beelden: number, renderSec: number): Promise<Creatie> {
   const v = rij(c0).voortgang;
   if (c0.status !== "bezig" || v?.stap !== "browser" || !v.stemUrl) throw new Error("Deze video wacht niet op je browser.");
-  if (!pad.startsWith(`${c0.user_id}/creaties/`) || !pad.endsWith(".h264") || pad.includes("..")) throw new Error("Onbekend bestand.");
+  if (!pad.startsWith(`${c0.user_id}/creaties/`) || !pad.endsWith(".mp4") || pad.includes("..")) throw new Error("Onbekend bestand.");
   const r = rij(c0);
   // Niet meer beelden dan de langste lengte met ruime marge: een kapotte telling mag de
   // montage niet laten ontsporen.
@@ -538,8 +538,7 @@ export async function browserKlaar(c0: Creatie, pad: string, beelden: number, re
     const db = createServiceClient();
     const { data: blob, error } = await db.storage.from("scene-assets").download(pad);
     if (error || !blob) throw new Error(error?.message ?? "De video uit je browser is niet aangekomen.");
-    const [stroom, stem] = await Promise.all([blob.arrayBuffer().then((b) => Buffer.from(b)), haal(v.stemUrl)]);
-    const stil = await h264NaarMp4(stroom);
+    const [stil, stem] = await Promise.all([blob.arrayBuffer().then((b) => Buffer.from(b)), haal(v.stemUrl)]);
     const mp4 = await monteer([stil], beelden, stem, r.muziek ? musicTrackUrl(r.muziek) : undefined);
     const url = await uploadNaarOpslag(c.user_id, mp4, "mp4", "video/mp4");
     await db.storage.from("scene-assets").remove([pad]).catch(() => {});

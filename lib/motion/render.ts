@@ -284,20 +284,6 @@ export async function monteer(delen: Buffer[], beelden: number, stem: Buffer, mu
   }
 }
 
-/** Een kale H.264-stroom (uit de browser van de klant) in een mp4 zetten, zonder opnieuw te coderen. */
-export async function h264NaarMp4(stroom: Buffer): Promise<Buffer> {
-  const dir = await mkdtemp(path.join(tmpdir(), "motion-"));
-  try {
-    const inPad = path.join(dir, "in.h264");
-    const uit = path.join(dir, "stil.mp4");
-    await writeFile(inPad, stroom);
-    await ffmpeg(["-y", "-f", "h264", "-framerate", String(FPS), "-i", inPad, "-c", "copy", "-video_track_timescale", "12800", "-movflags", "+faststart", uit]);
-    return await readFile(uit);
-  } finally {
-    await rm(dir, { recursive: true, force: true }).catch(() => {});
-  }
-}
-
 /** Meerdere opnames van de stem (een lange video wordt in blokken ingesproken) tot één mp3. */
 export async function voegStemSamen(blokken: Buffer[]): Promise<Buffer> {
   if (blokken.length === 1) return blokken[0];
