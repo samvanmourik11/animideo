@@ -6,6 +6,7 @@ import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
+import { BrowserMelding, useBrowserVideo } from "./BrowserVideo";
 import type { BrandKit } from "@/lib/types";
 import {
   MAX_BEELDEN,
@@ -123,6 +124,8 @@ export default function MotionStudio() {
   const scriptKies = useRef<HTMLInputElement>(null);
 
   const lijst = useCreaties({ maker: "motion" });
+  // De laatste stap (beeld voor beeld tot video) gebeurt in deze browser.
+  const browserStand = useBrowserVideo(lijst.creaties, lijst.ververs);
   const kit = kits.find((k) => k.id === kitId) ?? null;
 
   /** Zet de velden naar een huisstijl. Wat de klant voor déze video al aan beelden toevoegde, blijft staan. */
@@ -362,6 +365,8 @@ export default function MotionStudio() {
           heel anders. Kies de vorm, bespreek met de regisseur waar het over gaat, en de animatie wordt voor jouw verhaal getekend.
         </p>
       </div>
+
+      <BrowserMelding stand={browserStand} />
 
       <div className="inline-flex rounded-2xl border border-rand bg-paneel-2/40 p-1">
         {[

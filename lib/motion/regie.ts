@@ -33,7 +33,9 @@ import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal } from "./types";
 import { stijlVan } from "./stijlen";
 import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
-import { FPS, maakStil, monteer, voegStemSamen } from "./render";
+import { FPS, h264NaarMp4, maakStil, monteer, voegStemSamen } from "./render";
+import { paginaHtml } from "./pagina";
+import { randomUUID } from "node:crypto";
 import {
   MOTION_MUZIEK,
   formaatMaat,
@@ -62,6 +64,15 @@ const VASTGELOPEN_MS = 14 * 60 * 1000;
 const MAX_POGINGEN = 2;
 /** Zoveel tijd krijgt het maken van de video binnen één verzoek. */
 const VIDEO_BUDGET_MS = (process.env.VERCEL ? 700 : 1500) * 1000;
+/**
+ * Waar de video beeld voor beeld wordt gemaakt. Op de server (Vercel) is dat veel te traag
+ * (1,4 s per beeld, gemeten 14-11-2026), dus standaard in de browser van de klant; de server
+ * zet er daarna alleen stem en muziek onder. MOTION_RENDER=server voor de oude manier
+ * (lokaal en in de proefscripts).
+ */
+const IN_BROWSER = process.env.MOTION_RENDER !== "server";
+/** Zo lang wachten we op de browser van de klant voordat we opgeven (met credits terug). */
+const BROWSER_WACHT_MS = 12 * 60 * 60 * 1000;
 
 interface Voortgang {
   stap: MotionStap;
@@ -238,8 +249,15 @@ export async function verversMotion(c: Creatie): Promise<Creatie> {
   if (c.status !== "bezig") return c;
   const v = rij(c).voortgang;
   if (!v) return (await markeerMislukt(c, "De opdracht is niet goed aangekomen.")) ?? c;
-  if (Date.now() - new Date(c.created_at).getTime() > tijdslimietMs(rij(c).lengte)) return (await markeerMislukt(c, "Het duurde te lang.")) ?? c;
   const stapLeeftijd = Date.now() - new Date(v.sinds).getTime();
+  // De laatste stap wacht op de browser van de klant; die mag later terugkomen.
+  if (v.stap === "browser") {
+    return stapLeeftijd > BROWSER_WACHT_MS ? ((await markeerMislukt(c, "De video is niet afgemaakt: de Motion graphics-studio was niet open. Je credits zijn terug.")) ?? c) : c;
+  }
+  if (v.stap === "monteren") {
+    return stapLeeftijd > VASTGELOPEN_MS ? ((await markeerMislukt(c, "Stem en muziek eronder zetten liep vast. Probeer het opnieuw.")) ?? c) : c;
+  }
+  if (Date.now() - new Date(c.created_at).getTime() > tijdslimietMs(rij(c).lengte)) return (await markeerMislukt(c, "Het duurde te lang.")) ?? c;
   zetKostenContext(c.user_id, "Nieuwe app: motion graphics");
 
   try {
@@ -375,7 +393,7 @@ async function voerAnimatieUit(c0: Creatie, v0: Voortgang): Promise<void> {
       const klaar = werk.codes.every(Boolean);
       const stand = await verder(c, v, {
         ...v,
-        stap: klaar ? "wacht-video" : process.env.VERCEL ? "wacht-animatie" : "animatie",
+        stap: klaar ? (IN_BROWSER ? "browser" : "wacht-video") : process.env.VERCEL ? "wacht-animatie" : "animatie",
         sinds: new Date().toISOString(),
         werk: await bewaarWerk(c.user_id, werk),
         pogingen: 0,
@@ -457,5 +475,91 @@ async function voerVideoUit(c0: Creatie, v0: Voortgang): Promise<void> {
     const reden = e instanceof Error ? e.message : String(e);
     console.error("[motion] video maken mislukt:", reden);
     await markeerMislukt(c, `Video maken mislukt: ${reden}`);
+  }
+}
+
+// ── De video maken in de browser van de klant ──────────────────────────────────────────
+//
+// De studio haalt de opdracht op (per hoofdstuk de pagina en het aantal beelden), tekent
+// in een afgeschermd venstertje beeld voor beeld, maakt er met de video-encoder van de
+// browser een H.264-stroom van, zet die rechtstreeks op onze opslag en meldt hem hier af.
+// De server zet hem in een mp4 en er stem en muziek onder (snel: het beeld wordt niet
+// opnieuw gecodeerd).
+
+export interface BrowserOpdracht {
+  fps: number;
+  w: number;
+  h: number;
+  /** Per hoofdstuk de pagina en (bij een lange video) het precieze aantal beelden. */
+  delen: { html: string; beelden: number | null }[];
+  /** Een eenmalige uploadplek op onze opslag. */
+  upload: { pad: string; token: string };
+  /** Zoveel bits per seconde voor de video-encoder. */
+  bitrate: number;
+}
+
+export async function browserOpdracht(c: Creatie): Promise<BrowserOpdracht> {
+  const v = rij(c).voortgang;
+  if (c.status !== "bezig" || v?.stap !== "browser" || !v.werk) throw new Error("Deze video wacht niet op je browser.");
+  const r = rij(c);
+  const [werk, basis] = await Promise.all([leesWerk(v.werk), basisVan(r)]);
+  const delen = await Promise.all(
+    werk.delen.map(async (_, k) => {
+      const code = werk.codes[k];
+      if (!code) throw new Error("De animatie is niet compleet.");
+      const d = deelWerk(basis, r.plan, werk.woorden, werk.delen, k);
+      return { html: await paginaHtml({ ...d.pagina, code }, { browser: true }), beelden: werk.delen[k].beelden ?? null };
+    }),
+  );
+  const pad = `${c.user_id}/creaties/${randomUUID()}.h264`;
+  const { data, error } = await createServiceClient().storage.from("scene-assets").createSignedUploadUrl(pad);
+  if (error || !data) throw new Error(error?.message ?? "Geen uploadplek gekregen.");
+  // Getekende vlakken laten zich goed samenpersen; een lange video iets zuiniger.
+  // Gemeten 14-11-2026: 3,6 Mbit/s gaf 19 MB voor 41 s, zonder zichtbaar verlies. Een video
+  // van tien minuten op de helft blijft zo rond de 110 MB.
+  const bitrate = (basis.w * basis.h >= 1920 * 1080 ? 3_000_000 : 2_000_000) * (werk.delen.length > 2 ? 0.5 : 1);
+  return { fps: FPS, w: basis.w, h: basis.h, delen, upload: { pad: data.path, token: data.token }, bitrate };
+}
+
+/** De browser is klaar: zijn video ophalen, stem en muziek eronder, en de rij op klaar. */
+export async function browserKlaar(c0: Creatie, pad: string, beelden: number, renderSec: number): Promise<Creatie> {
+  const v = rij(c0).voortgang;
+  if (c0.status !== "bezig" || v?.stap !== "browser" || !v.stemUrl) throw new Error("Deze video wacht niet op je browser.");
+  if (!pad.startsWith(`${c0.user_id}/creaties/`) || !pad.endsWith(".h264") || pad.includes("..")) throw new Error("Onbekend bestand.");
+  const r = rij(c0);
+  // Niet meer beelden dan de langste lengte met ruime marge: een kapotte telling mag de
+  // montage niet laten ontsporen.
+  const max = Math.round(r.lengte * 2.2 * FPS) + 20 * FPS;
+  if (!Number.isInteger(beelden) || beelden < FPS || beelden > max) throw new Error("Het aantal beelden klopt niet.");
+  const naar: Voortgang = { ...v, stap: "monteren", sinds: new Date().toISOString() };
+  const c = await claim(c0, v, naar);
+  if (!c) throw new Error("Deze video wordt al afgemaakt.");
+  try {
+    const db = createServiceClient();
+    const { data: blob, error } = await db.storage.from("scene-assets").download(pad);
+    if (error || !blob) throw new Error(error?.message ?? "De video uit je browser is niet aangekomen.");
+    const [stroom, stem] = await Promise.all([blob.arrayBuffer().then((b) => Buffer.from(b)), haal(v.stemUrl)]);
+    const stil = await h264NaarMp4(stroom);
+    const mp4 = await monteer([stil], beelden, stem, r.muziek ? musicTrackUrl(r.muziek) : undefined);
+    const url = await uploadNaarOpslag(c.user_id, mp4, "mp4", "video/mp4");
+    await db.storage.from("scene-assets").remove([pad]).catch(() => {});
+    const eerder = v.gebruik ?? { usd: 0, rondes: 0 };
+    const invoer = { ...r, voortgang: { ...naar, gebruik: { ...eerder, videoSec: Math.round(beelden / FPS), renderSec: Math.round(renderSec) } } };
+    const { data } = await db
+      .from("creaties")
+      .update({ status: "klaar", url, invoer, klaar_op: new Date().toISOString() })
+      .eq("id", c.id)
+      .eq("status", "bezig")
+      .select("*")
+      .maybeSingle();
+    return (data as Creatie | null) ?? c;
+  } catch (e) {
+    const reden = e instanceof Error ? e.message : String(e);
+    console.error("[motion] afmaken na de browser mislukt:", reden);
+    // Terug naar de browser-stap, zodat de studio het nog een keer kan doen. Was dit al de
+    // tweede keer, of lukt terugzetten niet, dan opgeven (met credits terug).
+    const terug = await claim(c, naar, { ...v, sinds: new Date().toISOString(), pogingen: (v.pogingen ?? 0) + 1 });
+    if (!terug || (v.pogingen ?? 0) + 1 >= MAX_POGINGEN) await markeerMislukt(c, `Video maken mislukt: ${reden}`);
+    throw e;
   }
 }
