@@ -144,4 +144,7 @@ export const DOCU_STAP_LABEL: Record<DocuStap, string> = {
   "wacht-video": "Stap 3 van 4: video maken…",
   video: "Stap 3 van 4: video maken…",
   extras: "Stap 4 van 4: thumbnail, beschrijving en Short…",
+  browser: "Video maken in je browser. Open de Docu-studio en houd dat tabblad open.",
+  monteren: "Stem en muziek eronder…",
+  aanpassen: "Je aanpassingen worden verwerkt…",
 };

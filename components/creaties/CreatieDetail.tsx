@@ -12,6 +12,7 @@ import { SCHAAKBORD, isDoorzichtig } from "./CreatieKaart";
 import { heeftGezicht, herkomst } from "@/lib/delen/herkomst";
 import { magFeedback } from "@/lib/creaties/eindmakers";
 import FeedbackBlok from "./FeedbackBlok";
+import VideoAanpassen from "@/components/motion/VideoAanpassen";
 
 // De detailweergave van één creatie — en vooral de vervolgknoppen. Dat is de motor van
 // de nieuwe app: iets is nooit "af", je gaat vanaf hier verder (er een video van maken,
@@ -59,6 +60,9 @@ export default function CreatieDetail({
   const [aanpassing, setAanpassing] = useState("");
   const [richting, setRichting] = useState<string>("Left");
   const [bezig, setBezig] = useState(false);
+  const [videoAanpassen, setVideoAanpassen] = useState(false);
+  // Motion- en docu-video's bewaren hun code en stem: daarin kun je achteraf punten aanklikken.
+  const kanAanpassen = c.status === "klaar" && c.soort === "video" && !!c.url && (c.maker === "motion" || c.maker === "docu");
   const [melding, setMelding] = useState<string | null>(null);
   const [gekopieerd, setGekopieerd] = useState(false);
   const [deelToestemming, setDeelToestemming] = useState(false);
@@ -313,6 +317,11 @@ export default function CreatieDetail({
 
           {c.status === "klaar" && (
             <div className="space-y-2">
+              {kanAanpassen && (
+                <button onClick={() => setVideoAanpassen(true)} className="n-knop w-full">
+                  ✏️ Video aanpassen
+                </button>
+              )}
               {studio && (
                 <Link href={projectId ? `${studioPad}?project=${projectId}` : herkomst(c).pad} className="n-knop2 w-full">
                   {c.maker === "storytelling" ? "📖" : "💬"} Open in {herkomst(c).naam}
@@ -529,6 +538,17 @@ export default function CreatieDetail({
           </div>
         </div>
       </div>
+      {videoAanpassen && (
+        <VideoAanpassen
+          creatie={c}
+          onSluit={() => setVideoAanpassen(false)}
+          onGestart={(nieuw) => {
+            setVideoAanpassen(false);
+            onNieuw(nieuw);
+            setMelding(`Je aanpassing is gestart. De nieuwe versie komt erbij in je lijst; laat de ${c.maker === "docu" ? "Docu-studio" : "Motion graphics-studio"} open staan, daar wordt hij gemaakt.`);
+          }}
+        />
+      )}
     </div>
   );
 }

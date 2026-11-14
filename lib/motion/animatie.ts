@@ -58,7 +58,7 @@ async function voorbeeld(): Promise<string> {
   return (voorbeeldCache ??= await readFile(path.join(process.cwd(), "public", "motion", "voorbeeld.js"), "utf8"));
 }
 
-async function systeem(): Promise<string> {
+export async function systeem(): Promise<string> {
   return `Je bent een motion designer die uitlegvideo's maakt in code. Je schrijft JavaScript die een SVG-animatie tekent voor een Nederlandse bedrijfsvideo. De voice-over is al ingesproken; jij maakt het beeld erbij, precies op de woorden van de stem. Je werk wordt beeld voor beeld omgezet naar een video die de klant zonder verdere controle te zien krijgt, dus het moet in één keer kloppen en er gelikt uitzien: het niveau van een goed animatiebureau.
 
 ## Hoe een video in elkaar zit
@@ -228,7 +228,7 @@ De beschrijving bij "Beeld" is wat de klant verwacht te zien; werk die uit tot e
 // veranderden: drie keer hetzelfde lange stuk schrijven was het grootste deel van de kosten.
 // Nu geeft Claude alleen de stukken terug die anders moeten, als zoek-en-vervang-blokken.
 
-const WIJZIG_UITLEG = `Geef in deze ronde NIET de complete code terug, maar alleen de stukken die anders moeten, elk als een blok in precies deze vorm:
+export const WIJZIG_UITLEG = `Geef in deze ronde NIET de complete code terug, maar alleen de stukken die anders moeten, elk als een blok in precies deze vorm:
 
 <<<<<<< ZOEK
 (de regels die nu in de code staan, letterlijk gekopieerd, inclusief inspringing)

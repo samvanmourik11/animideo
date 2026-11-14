@@ -282,7 +282,7 @@ export function motionCredits(lengte: MotionLengte): number {
   return creditsVoorInkoop(motionInkoopUsd(lengte) + stem);
 }
 
-export type MotionStap = "stem" | "wacht-animatie" | "animatie" | "wacht-video" | "video" | "browser" | "monteren";
+export type MotionStap = "stem" | "wacht-animatie" | "animatie" | "wacht-video" | "video" | "browser" | "monteren" | "aanpassen";
 
 export const MOTION_STAP_LABEL: Record<MotionStap, string> = {
   stem: "Stap 1 van 3: voice-over inspreken…",
@@ -292,4 +292,5 @@ export const MOTION_STAP_LABEL: Record<MotionStap, string> = {
   video: "Stap 3 van 3: video maken…",
   browser: "Stap 3 van 3: video maken in je browser. Open de Motion graphics-studio en houd dat tabblad open.",
   monteren: "Stap 3 van 3: stem en muziek eronder…",
+  aanpassen: "Je aanpassingen worden verwerkt…",
 };

@@ -66,7 +66,7 @@ const SCHEMA = {
   },
 } as const;
 
-function systeem(taal: "nl" | "en"): string {
+export function systeem(taal: "nl" | "en"): string {
   return `Je bent beeldredacteur van een YouTube-documentaire in de stijl van een nieuwsarchief (inktzwart, papierwit, één rode kleur). Je krijgt de scenes van één hoofdstuk: wat de verteller zegt en wat er volgens het script te zien is. Kies per scene één vast beeld en vul het in. Alle tekst in beeld ${taal === "en" ? "in het Engels" : "in het Nederlands"}.
 
 De vaste beelden (velden die niet bij een beeld horen laat je leeg):
@@ -143,7 +143,7 @@ export async function kiesShots(v: HoofdstukVraag): Promise<{ shots: Shot[]; usd
 }
 
 let libCache: string | null = null;
-async function leesLib(): Promise<string> {
+export async function leesLib(): Promise<string> {
   if (libCache && process.env.NODE_ENV === "production") return libCache;
   return (libCache = await readFile(path.join(process.cwd(), "public", "motion", "docu.js"), "utf8"));
 }

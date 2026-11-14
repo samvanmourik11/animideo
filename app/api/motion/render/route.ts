@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
-import { canUseMotion } from "@/lib/studio/access";
+import { canUseDocu, canUseMotion } from "@/lib/studio/access";
 import { browserKlaar, browserOpdracht } from "@/lib/motion/regie";
 import type { Creatie } from "@/lib/creaties/types";
 
@@ -18,10 +18,11 @@ async function eigenCreatie(id: unknown): Promise<{ c: Creatie } | { fout: NextR
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { fout: NextResponse.json({ error: "Sessie ongeldig — log opnieuw in" }, { status: 401 }) };
-  if (!canUseMotion(user.email)) return { fout: NextResponse.json({ error: "Deze studio is nog niet beschikbaar voor jouw account." }, { status: 403 }) };
   if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id)) return { fout: NextResponse.json({ error: "Onbekende video" }, { status: 400 }) };
-  const { data } = await createServiceClient().from("creaties").select("*").eq("id", id).eq("user_id", user.id).eq("maker", "motion").maybeSingle();
+  const { data } = await createServiceClient().from("creaties").select("*").eq("id", id).eq("user_id", user.id).in("maker", ["motion", "docu"]).maybeSingle();
   if (!data) return { fout: NextResponse.json({ error: "Onbekende video" }, { status: 404 }) };
+  // Een docu (lib/docu/) loopt over dezelfde machine, maar heeft een eigen slot.
+  if (!(data.maker === "docu" ? canUseDocu(user.email) : canUseMotion(user.email))) return { fout: NextResponse.json({ error: "Deze studio is nog niet beschikbaar voor jouw account." }, { status: 403 }) };
   return { c: data as Creatie };
 }
 

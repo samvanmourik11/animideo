@@ -190,6 +190,68 @@ function ffmpeg(args: string[], invoer?: (stdin: NodeJS.WritableStream) => Promi
   });
 }
 
+/** Een beeld op een aangeklikt moment, met wat er op die plek in beeld staat. */
+export interface Moment {
+  jpg: Buffer;
+  /** De scene die op dat moment loopt (s1, s2 ... of eind). */
+  scene: string;
+  /** De teksten en vormen onder de aangeklikte plek, van boven naar onder. */
+  wat: string[];
+}
+
+/**
+ * Voor het aanpassen van een video: per gevraagd moment het beeld (met een genummerde rode
+ * stip op de plek waar de klant klikte) en wat daar staat. x en y zijn 0 tot 1.
+ */
+export async function momenten(p: PaginaInvoer, punten: { t: number; x: number; y: number; nr: number }[]): Promise<Moment[]> {
+  const browser = await launchBrowser();
+  try {
+    const { pagina, stand } = await open(browser, p);
+    const uit: Moment[] = [];
+    for (const m of punten) {
+      // 0,3 s is de voorsprong van het beeld op de stem; de video loopt daar al op gelijk.
+      const t = Math.max(0, Math.min(m.t, stand.einde - 0.05));
+      const px = Math.round(m.x * p.w), py = Math.round(m.y * p.h);
+      const info = (await pagina.evaluate(`(() => {
+        window.render(${t});
+        var cur = window.CUR || '';
+        var wat = [];
+        document.elementsFromPoint(${px}, ${py}).forEach(function (el) {
+          if (wat.length >= 6 || el.tagName === 'svg' || el.tagName === 'BODY' || el.tagName === 'HTML') return;
+          // Achtergronden en kaarten die half het beeld vullen zeggen niets over wat er bedoeld is.
+          var b = el.getBoundingClientRect();
+          if (b.width * b.height > 0.4 * ${p.w} * ${p.h}) return;
+          var tekst = (el.closest('text') || el).textContent || '';
+          tekst = tekst.replace(/\s+/g, ' ').trim().slice(0, 80);
+          var vorm = el.tagName.toLowerCase();
+          var r = '';
+          try { var f = getComputedStyle(el).fill; if (f && f !== 'none') r = ' kleur ' + f; } catch (e) {}
+          wat.push(tekst ? vorm + ' met tekst "' + tekst + '"' : vorm + r);
+        });
+        var scenes = window.SCENES || [], sc = '';
+        scenes.forEach(function (s) { if (s[1] <= ${t} + 0.02) sc = s[0]; });
+        return { scene: sc || cur, wat: wat };
+      })()`)) as { scene: string; wat: string[] };
+      const png = await pagina.screenshot({ type: "jpeg", quality: 90 });
+      const breed = p.w >= p.h ? 1280 : 720;
+      const schaal = breed / p.w;
+      const r = Math.round(26 / schaal);
+      const stip = Buffer.from(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${p.w}" height="${p.h}"><circle cx="${px}" cy="${py}" r="${r}" fill="none" stroke="#ff1f4b" stroke-width="${Math.round(7 / schaal)}"/><circle cx="${px}" cy="${py}" r="${Math.round(5 / schaal)}" fill="#ff1f4b"/><text x="${px + r + 6}" y="${py - r + 10}" font-family="Arial" font-weight="bold" font-size="${Math.round(30 / schaal)}" fill="#ff1f4b" stroke="#fff" stroke-width="${Math.round(4 / schaal)}" paint-order="stroke">${m.nr}</text></svg>`,
+      );
+      // Eerst de stip op ware grootte, dan pas verkleinen: sharp verkleint anders vóór het samenvoegen.
+      const met = await sharp(png).composite([{ input: stip }]).png().toBuffer();
+      const jpg = await sharp(met).resize({ width: breed }).jpeg({ quality: 80 }).toBuffer();
+      uit.push({ jpg, scene: info.scene, wat: info.wat });
+    }
+    return uit;
+  } catch (e) {
+    throw await uitleg(e, browser);
+  } finally {
+    await browser.close().catch(() => {});
+  }
+}
+
 export interface StilUitkomst {
   mp4: Buffer;
   beelden: number;

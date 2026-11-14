@@ -149,12 +149,14 @@ function docuVideo(spec) {
     tijdlijn: {
       bouw(g, sh, a, e) {
         const items = (sh.items || []).slice(0, 6);
-        const n = Math.max(1, items.length), x0 = RAND + 60, x1 = W - RAND - 60, y = MY + 30;
+        // De buitenste momenten een halve tekstbreedte naar binnen: hun tekst staat gecentreerd
+        // op de stip en liep anders tot tegen de rand van het beeld.
+        const n = Math.max(1, items.length), breed = Math.min(380, (W - 2 * RAND) / n), x0 = RAND + breed / 2, x1 = W - RAND - breed / 2, y = MY + 30;
         const o = { ts: momenten(sh, a, e, n), y, x0, x1, punten: [] };
         if (sh.kop) { o.kop = G(g); mono(o.kop, 0, 0, sh.kop, 30, { 'text-anchor': 'middle' }); }
         el('line', { x1: x0, x2: x1, y1: y, y2: y, stroke: C.grijs, 'stroke-width': 3 }, g);
         o.lijn = el('line', { x1: x0, x2: x0, y1: y, y2: y, stroke: C.rood, 'stroke-width': 4 }, g);
-        const stap = n > 1 ? (x1 - x0) / (n - 1) : 0, breed = Math.min(380, (x1 - x0) / n);
+        const stap = n > 1 ? (x1 - x0) / (n - 1) : 0;
         items.forEach((it, i) => {
           const x = n > 1 ? x0 + i * stap : MX, p = G(g);
           o.punten.push({ g: p, x, stip: el('circle', { cx: x, cy: y, r: 13, fill: C.inkt }, p) });

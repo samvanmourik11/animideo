@@ -6,6 +6,7 @@ import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
+import { BrowserMelding, useBrowserVideo } from "@/components/motion/BrowserVideo";
 import { MOTION_STEM_HUGO, duurTekst, maxWoorden, type MotionPlan } from "@/lib/motion/types";
 import type { BibliotheekStem } from "@/lib/stem/types";
 import {
@@ -62,6 +63,13 @@ export default function DocuStudio() {
   const [geladen, setGeladen] = useState(false);
 
   const lijst = useCreaties({ maker: "docu" });
+  // De Shorts bij de docu's zijn motion-rijen; ook die worden in deze browser gemaakt.
+  const shorts = useCreaties({ maker: "motion" });
+  const docuIds = new Set(lijst.creaties.map((c) => c.id));
+  const browserStand = useBrowserVideo(
+    [...lijst.creaties, ...shorts.creaties.filter((c) => c.ouder_id && docuIds.has(c.ouder_id))],
+    () => { lijst.ververs(); shorts.ververs(); },
+  );
 
   useEffect(() => {
     fetch("/api/stem/bibliotheek").then((r) => (r.ok ? r.json() : [])).then((d: BibliotheekStem[]) => setStemmen(Array.isArray(d) ? d : [])).catch(() => {});
@@ -170,6 +178,8 @@ export default function DocuStudio() {
           vrije archieffoto&apos;s en maken de video met verteller, muziek, thumbnail, beschrijving en een Short erbij.
         </p>
       </div>
+
+      <BrowserMelding stand={browserStand} />
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-6 items-start">
         <div className="space-y-4">

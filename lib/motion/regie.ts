@@ -33,6 +33,8 @@ import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal } from "./types";
 import { stijlVan } from "./stijlen";
 import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
+import { aanpasCredits, leesPunten, pasHoofdstukAan, puntenPerDeel, type Aanpassing } from "./aanpassen";
+import { canUseDocu } from "@/lib/studio/access";
 import { tekenDocuHoofdstuk } from "@/lib/docu/sjablonen";
 import { fotoCredit, type DocuFoto } from "@/lib/docu/types";
 import { FPS, maakStil, monteer, voegStemSamen } from "./render";
@@ -106,7 +108,7 @@ interface Werkbestand {
   mis: number[];
 }
 
-type RijInvoer = MotionInvoer & { voortgang?: Voortgang };
+type RijInvoer = MotionInvoer & { voortgang?: Voortgang; aanpassing?: Aanpassing };
 const rij = (c: Creatie) => c.invoer as unknown as RijInvoer;
 
 function tekst(v: unknown, max: number): string {
@@ -303,12 +305,12 @@ export async function verversMotion(c: Creatie): Promise<Creatie> {
 
     // 'animatie' en 'video' lopen in een eerder verzoek. Staat zo'n stap te lang stil, dan
     // is dat verzoek gestorven: één keer opnieuw, daarna opgeven (met credits terug).
-    if ((v.stap === "animatie" || v.stap === "video") && stapLeeftijd > VASTGELOPEN_MS) {
+    if ((v.stap === "animatie" || v.stap === "video" || v.stap === "aanpassen") && stapLeeftijd > VASTGELOPEN_MS) {
       if ((v.pogingen ?? 0) + 1 >= MAX_POGINGEN) return (await markeerMislukt(c, "Het maken liep vast. Probeer het opnieuw.")) ?? c;
       const naar: Voortgang = { ...v, sinds: new Date().toISOString(), pogingen: (v.pogingen ?? 0) + 1 };
       const gewonnen = await claim(c, v, naar);
       if (!gewonnen) return c;
-      opAchtergrond(() => (v.stap === "animatie" ? voerAnimatieUit(gewonnen, naar) : voerVideoUit(gewonnen, naar)));
+      opAchtergrond(() => (v.stap === "animatie" ? voerAnimatieUit(gewonnen, naar) : v.stap === "aanpassen" ? voerAanpassingUit(gewonnen, naar) : voerVideoUit(gewonnen, naar)));
       return gewonnen;
     }
     return c;
@@ -509,7 +511,7 @@ async function voerVideoUit(c0: Creatie, v0: Voortgang): Promise<void> {
     let invoer: Record<string, unknown> = { ...r, voortgang: { ...v, stillen, gebruik: { ...eerder, videoSec: Math.round(beelden / FPS), renderSec: (eerder.renderSec ?? 0) + Math.round(renderMs / 1000) } } };
     // Een docu krijgt er het YouTube-pakket bij (lib/docu/regie.ts). Mislukt dat, dan is de
     // video zelf er wel: het pakket meldt zijn eigen fout.
-    if (c.maker === "docu") invoer = await (await import("@/lib/docu/regie")).voegPakketToe(c, invoer, { woorden: werk.woorden, basis });
+    if (c.maker === "docu" && !r.aanpassing) invoer = await (await import("@/lib/docu/regie")).voegPakketToe(c, invoer, { woorden: werk.woorden, basis });
     await createServiceClient()
       .from("creaties")
       .update({ status: "klaar", url, invoer, klaar_op: new Date().toISOString() })
@@ -552,7 +554,8 @@ export async function browserOpdracht(c: Creatie): Promise<BrowserOpdracht> {
       const code = werk.codes[k];
       if (!code) throw new Error("De animatie is niet compleet.");
       const d = deelWerk(basis, r.plan, werk.woorden, werk.delen, k);
-      return { html: await paginaHtml({ ...d.pagina, code }, { browser: true }), beelden: werk.delen[k].beelden ?? null };
+      const pagina = c.maker === "docu" ? alleenFotos(d.pagina, genoemd(code)) : d.pagina;
+      return { html: await paginaHtml({ ...pagina, code }, { browser: true }), beelden: werk.delen[k].beelden ?? null };
     }),
   );
   const pad = `${c.user_id}/creaties/${randomUUID()}.mp4`;
@@ -587,7 +590,12 @@ export async function browserKlaar(c0: Creatie, pad: string, beelden: number, re
     const url = await uploadNaarOpslag(c.user_id, mp4, "mp4", "video/mp4");
     await db.storage.from("scene-assets").remove([pad]).catch(() => {});
     const eerder = v.gebruik ?? { usd: 0, rondes: 0 };
-    const invoer = { ...r, voortgang: { ...naar, gebruik: { ...eerder, videoSec: Math.round(beelden / FPS), renderSec: Math.round(renderSec) } } };
+    let invoer: Record<string, unknown> = { ...r, voortgang: { ...naar, gebruik: { ...eerder, videoSec: Math.round(beelden / FPS), renderSec: Math.round(renderSec) } } };
+    // Een docu krijgt er het YouTube-pakket bij, net als bij het maken op de server.
+    if (c.maker === "docu" && !r.aanpassing && v.werk) {
+      const [werk, basis] = await Promise.all([leesWerk(v.werk), basisVan(r)]);
+      invoer = await (await import("@/lib/docu/regie")).voegPakketToe(c, invoer, { woorden: werk.woorden, basis });
+    }
     const { data } = await db
       .from("creaties")
       .update({ status: "klaar", url, invoer, klaar_op: new Date().toISOString() })
@@ -606,3 +614,109 @@ export async function browserKlaar(c0: Creatie, pad: string, beelden: number, re
     throw e;
   }
 }
+
+// ── Een opgeleverde video aanpassen (lib/motion/aanpassen.ts) ─────────────────────────────
+
+/**
+ * Prijs, of meteen starten: een nieuwe rij met dezelfde stem en de aangepaste code, die
+ * daarna net als een nieuwe video in de browser (of op de server) wordt gemaakt. De oude
+ * video blijft staan. Gooit WachtrijFout met een melding voor het scherm.
+ */
+export async function startAanpassing(userId: string, id: string, ruwePunten: unknown, alleenPrijs: boolean): Promise<{ credits: number; creatie?: Creatie }> {
+  let punten;
+  try {
+    punten = leesPunten(ruwePunten);
+  } catch (e) {
+    throw new WachtrijFout(e instanceof Error ? e.message : String(e), 400);
+  }
+  const db = createServiceClient();
+  const { data: orig } = await db.from("creaties").select("*").eq("id", id).eq("user_id", userId).in("maker", ["motion", "docu"]).maybeSingle();
+  if (!orig || orig.status !== "klaar") throw new WachtrijFout("Deze video kan (nog) niet worden aangepast.", 404);
+  const o = orig as Creatie;
+  const r = rij(o);
+  const v = r.voortgang;
+  if (!v?.werk || !v.stemUrl) throw new WachtrijFout("Deze video is gemaakt voordat aanpassen kon. Maak hem opnieuw om hem aan te kunnen passen.", 409);
+  const werk = await leesWerk(v.werk);
+  const groepen = puntenPerDeel(werk.delen, punten);
+  const credits = aanpasCredits(o.maker, groepen.size);
+  if (alleenPrijs) return { credits };
+
+  const { data: wie } = await db.auth.admin.getUserById(userId);
+  const mag = o.maker === "docu" ? canUseDocu(wie?.user?.email) : canUseMotion(wie?.user?.email);
+  if (!mag) throw new WachtrijFout("Deze studio is nog niet beschikbaar voor jouw account.", 403);
+  const { count } = await db.from("creaties").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "bezig");
+  if ((count ?? 0) >= MAX_TEGELIJK) throw new WachtrijFout(`Je hebt al ${MAX_TEGELIJK} dingen in de maak. Wacht tot er één klaar is.`, 429);
+  const { ok, betaald, betalerId } = await betaal(userId, credits, o.maker === "docu" ? "Nieuwe app: docu aanpassen" : "Nieuwe app: motion graphics aanpassen");
+  if (!ok) throw new WachtrijFout("Niet genoeg credits.", 402);
+
+  const voortgang: Voortgang = { stap: "aanpassen", sinds: new Date().toISOString(), werk: v.werk, stemUrl: v.stemUrl, gebruik: { usd: 0, rondes: 0 } };
+  const aanpassing: Aanpassing = { van: o.id, punten };
+  const { data: nieuw, error } = await db
+    .from("creaties")
+    .insert({
+      user_id: userId,
+      soort: "video",
+      status: "bezig",
+      maker: o.maker,
+      model: "motion",
+      prompt: `Aangepast: ${(o.prompt ?? "").replace(/^Aangepast: /, "")}`.slice(0, 500),
+      invoer: { ...r, aanpassing, voortgang },
+      credits: betaald,
+      fal_endpoint: "motion",
+      fal_request_id: "motion",
+      ouder_id: o.id,
+      ...(betalerId !== userId ? { betaald_door: betalerId } : {}),
+    })
+    .select("*")
+    .single();
+  if (error || !nieuw) {
+    if (betaald > 0) await betaalTerug({ user_id: userId, betaald_door: betalerId, credits: betaald }, "Terug: aanpassing niet gestart");
+    throw new WachtrijFout("Kon de aanpassing niet opslaan. Probeer het opnieuw.", 500);
+  }
+  opAchtergrond(() => voerAanpassingUit(nieuw as Creatie, voortgang));
+  return { credits, creatie: nieuw as Creatie };
+}
+
+async function voerAanpassingUit(c: Creatie, v: Voortgang): Promise<void> {
+  const r = rij(c);
+  try {
+    if (!v.werk || !r.aanpassing) throw new Error("De aanpassing is niet goed aangekomen.");
+    zetKostenContext(c.user_id, "Nieuwe app: video aanpassen");
+    const [werk, basis] = await Promise.all([leesWerk(v.werk), basisVan(r)]);
+    const groepen = puntenPerDeel(werk.delen, r.aanpassing.punten);
+    const taal = r.taal === "en" ? "en" : "nl";
+    let usd = 0;
+    await Promise.all(
+      [...groepen].map(async ([k, punten]) => {
+        const code = werk.codes[k];
+        if (!code) throw new Error("De animatie is niet compleet.");
+        const d = deelWerk(basis, r.plan, werk.woorden, werk.delen, k);
+        const pagina = c.maker === "docu" ? alleenFotos(d.pagina, genoemd(code)) : d.pagina;
+        const u = await pasHoofdstukAan({ pagina, plan: d.plan, code, punten, docu: c.maker === "docu", taal });
+        werk.codes[k] = u.code;
+        usd += u.usd;
+      }),
+    );
+    console.log(`[motion] aanpassing ${c.id}: ${groepen.size} hoofdstuk(ken), $${usd.toFixed(3)}`);
+    const stand = await verder(c, v, {
+      ...v,
+      stap: IN_BROWSER ? "browser" : "wacht-video",
+      sinds: new Date().toISOString(),
+      werk: await bewaarWerk(c.user_id, werk),
+      stillen: undefined,
+      pogingen: 0,
+      gebruik: { usd, rondes: 1 },
+    });
+    if (stand && !IN_BROWSER && !process.env.VERCEL) {
+      const door = await verder(stand.c, stand.v, { ...stand.v, stap: "video", sinds: new Date().toISOString() });
+      if (door) await voerVideoUit(door.c, door.v);
+    }
+  } catch (e) {
+    const reden = e instanceof Error ? e.message : String(e);
+    console.error("[motion] aanpassen mislukt:", reden);
+    await markeerMislukt(c, `Aanpassen mislukt: ${reden}`);
+  }
+}
+
+/** Alleen voor het proefscript van het aanpassen (scripts/aanpassen-proef.test.ts). */
+export const voorProef = { basisVan, leesWerk, alleenFotos, genoemd };

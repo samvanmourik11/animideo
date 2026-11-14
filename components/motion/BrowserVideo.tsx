@@ -37,7 +37,7 @@ export interface BrowserStand {
 }
 
 const wachtOpBrowser = (c: Creatie) =>
-  c.maker === "motion" && c.status === "bezig" && (c.invoer as { voortgang?: { stap?: string } }).voortgang?.stap === "browser";
+  (c.maker === "motion" || c.maker === "docu") && c.status === "bezig" && (c.invoer as { voortgang?: { stap?: string } }).voortgang?.stap === "browser";
 
 export const kanBrowserVideo = () => typeof window !== "undefined" && "VideoEncoder" in window && "OffscreenCanvas" in window;
 
