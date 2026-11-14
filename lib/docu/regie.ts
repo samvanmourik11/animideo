@@ -9,6 +9,8 @@
 import type { Creatie } from "@/lib/creaties/types";
 import { uploadNaarOpslag, WachtrijFout } from "@/lib/creaties/wachtrij";
 import { startMotion } from "@/lib/motion/regie";
+import { createServiceClient } from "@/lib/supabase/service";
+import { canUseDocu } from "@/lib/studio/access";
 import { scriptVan, type PaginaBasis } from "@/lib/motion/lang";
 import { sceneTijden } from "@/lib/motion/animatie";
 import { eigenOpslag } from "@/lib/motion/beelden";
@@ -77,6 +79,9 @@ const alsBeelden = (fotos: DocuFoto[], taal: "nl" | "en"): MotionBeeld[] =>
   fotos.map((f) => ({ id: f.id, url: f.url, doel: "tonen", uitleg: `${f.wat} (${fotoCredit(f, taal)})`.slice(0, 240) }));
 
 export async function startDocu(userId: string, ruw: Record<string, unknown>, ouderId?: string | null): Promise<Creatie> {
+  // De studio staat nog niet open voor klanten: ook niet via een losse aanvraag.
+  const { data: wie } = await createServiceClient().auth.admin.getUserById(userId);
+  if (!canUseDocu(wie?.user?.email)) throw new WachtrijFout("Deze studio is nog niet beschikbaar voor jouw account.", 403);
   if (!isDocuLengte(ruw.lengte)) throw new WachtrijFout("Kies een lengte voor je documentaire.", 400);
   const lengte = ruw.lengte;
   const taal = ruw.taal === "en" ? "en" : "nl";
@@ -161,8 +166,9 @@ export async function voegPakketToe(c: Creatie, invoer: Record<string, unknown>,
         c.user_id,
         {
           onderwerp: docu.onderwerp,
-          bedrijf: r.bedrijf,
-          website: r.website,
+          // Geen merk linksboven in de Short, net als in de docu zelf.
+          bedrijf: "",
+          website: "",
           kleur: r.kleur,
           kleur2: r.kleur2,
           formaat: "9:16",
@@ -173,7 +179,7 @@ export async function voegPakketToe(c: Creatie, invoer: Record<string, unknown>,
           taal,
           stem: r.stem,
           plan: s.plan,
-          logo: r.logo,
+          logo: "",
           font: r.font,
           beelden: [],
         },
