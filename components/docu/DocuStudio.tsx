@@ -102,7 +102,7 @@ export default function DocuStudio() {
   }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, muziek, short, plan, feiten, controle, fotoZoek, fotos]);
 
   // Nederlands: Hugo vooraan, dan de bibliotheek. Andere talen: alleen moedertaalstemmen, met
-  // onze eigen KRONIK-verteller vooraan (lib/stem/taalstemmen.ts).
+  // een vaste documentaireverteller vooraan (lib/stem/taalstemmen.ts).
   const stemKeuzes: { id: string; naam: string }[] =
     taal === "nl"
       ? [{ id: MOTION_STEM_HUGO, naam: "Hugo · verteller" }, ...stemmen.filter((s) => s.id !== MOTION_STEM_HUGO).map((s) => ({ id: s.id, naam: `${s.naam} · ${s.geslacht}` }))]
@@ -244,7 +244,7 @@ export default function DocuStudio() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="n-label">Kanaalnaam <span className="font-normal text-tekst-3">(mag leeg)</span></label>
-                <input value={kanaal} onChange={(e) => setKanaal(e.target.value)} maxLength={40} placeholder="KRONIK" className="n-invoer mt-1.5" />
+                <input value={kanaal} onChange={(e) => setKanaal(e.target.value)} maxLength={40} placeholder="Naam van je kanaal" className="n-invoer mt-1.5" />
               </div>
               <div>
                 <label className="n-label">Accentkleur</label>

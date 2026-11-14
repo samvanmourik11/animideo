@@ -55,7 +55,7 @@ const wiebel = (id: string, freq: number, schaal: number) =>
 
 export const MOTION_STIJLEN: MotionStijl[] = [
   {
-    // De stijl van onze eigen KRONIK-documentaires (13-11-2026), de standaard van de
+    // De stijl van de documentaires (13-11-2026), de standaard van de
     // docu-studio: inktzwart, papierwit, één rood, filmkorrel.
     id: "archief",
     naam: "Archief",

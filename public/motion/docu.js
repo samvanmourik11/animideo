@@ -2,7 +2,7 @@
 //
 // Waarom (Sam, 14-11-2026: "hoe krijgen we dit goedkoper?"): in de eerste proeven tekende
 // Claude elke scene zelf, ±$4,50 voor tien minuten. Een docu bestaat echter steeds uit
-// dezelfde soorten beelden, net als onze eigen KRONIK-video's (anim.html per kanaal):
+// dezelfde soorten beelden, net als grote documentairekanalen (anim.html per kanaal):
 // een archieffoto met een jaartal erover, een datum met een stempel, een teller, een
 // tijdlijn, een dossierkaart. Claude kiest nu alleen nog per scene welk sjabloon en met
 // welke tekst en getallen; deze code tekent het. Dat kost centen in plaats van dollars,

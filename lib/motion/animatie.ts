@@ -196,7 +196,7 @@ De bouwstenen zijn al op deze stijl ingesteld: de achtergrond, het lettertype, h
 `
     : "";
   // De docu-studio (lib/docu/): foto's van Commons die het beeld vullen, zoals in onze eigen
-  // KRONIK-video's, in plaats van een foto op een kaartje zoals bij een bedrijfsvideo.
+  // documentaires op YouTube, in plaats van een foto op een kaartje zoals bij een bedrijfsvideo.
   const docuBlok = v.docu
     ? `
 ## Documentaire

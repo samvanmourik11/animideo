@@ -3,7 +3,7 @@
 // Alleen Commons, en daarvan alleen licenties die gebruik in een YouTube-video met
 // naamsvermelding toestaan (publiek domein, CC0, CC BY, CC BY-SA). Geen "niet-commercieel"
 // (NC) of "geen bewerkingen" (ND): een YouTube-kanaal verdient geld, en wij zoomen en snijden.
-// Nieuwsbeelden van YouTube, die we in onze eigen KRONIK-video's wel gebruikten, doen we hier
+// Nieuwsbeelden van YouTube, die we in eigen video's wel gebruikten, doen we hier
 // bewust niet: als een klant daar een claim op krijgt, komt die bij ons terecht.
 //
 // Per scene: zoeken op de zoekterm uit het script, de bruikbare kandidaten klein ophalen, het

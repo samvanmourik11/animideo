@@ -3,7 +3,7 @@
 //
 // De thumbnail is in code gemaakt, niet met een beeldmodel: de beste archieffoto, een donker
 // verloop en een korte kop in grote letters met één woord in de accentkleur. Dat is de vorm
-// van onze eigen KRONIK-thumbnails, en hij kost niets.
+// van echte documentaire-thumbnails, en hij kost niets.
 
 import sharp from "sharp";
 import Anthropic from "@anthropic-ai/sdk";

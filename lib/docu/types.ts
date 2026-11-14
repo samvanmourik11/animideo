@@ -1,4 +1,4 @@
-// DOCU-STUDIO — faceless documentaires voor YouTube, zoals onze eigen KRONIK-video's
+// DOCU-STUDIO — faceless documentaires voor YouTube, zoals op de grote documentairekanalen
 // (Vitesse, BHS, Schlecker). Client-veilig: het scherm rekent er de prijs mee uit.
 //
 // Het idee (Sam, 13-11-2026): "kan dat onderdeel worden van de app, dat je zulke faceless
@@ -17,13 +17,13 @@ import { type MotionLengte, type MotionPlan, type MotionStap, type MotionTaal } 
 export const DOCU_LENGTES = [
   { sec: 180, naam: "±3 minuten", uitleg: "Kort verhaal, één wending" },
   { sec: 300, naam: "±5 minuten", uitleg: "Opkomst en ondergang in vogelvlucht" },
-  { sec: 600, naam: "±10 minuten", uitleg: "Volledige documentaire, zoals KRONIK" },
+  { sec: 600, naam: "±10 minuten", uitleg: "Een volledige YouTube-documentaire" },
 ] as const satisfies readonly { sec: MotionLengte; naam: string; uitleg: string }[];
 export type DocuLengte = (typeof DOCU_LENGTES)[number]["sec"];
 export const isDocuLengte = (v: unknown): v is DocuLengte => DOCU_LENGTES.some((l) => l.sec === v);
 
 /**
- * De vertellers van onze eigen KRONIK-video's per taal (ElevenLabs, moedertaalsprekers). Ze
+ * Vaste documentairevertellers per taal (ElevenLabs, moedertaalsprekers). Ze
  * staan niet in de stemmenbibliotheek (die is Nederlands); in deze studio zijn ze de standaard
  * voor hun taal, net als Hugo voor Nederlands. Italiaans en Portugees: een stem uit de bibliotheek.
  */

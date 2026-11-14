@@ -95,7 +95,7 @@ export async function startDocu(userId: string, ruw: Record<string, unknown>, ou
     short,
   };
   if (!docu.feiten.length) throw new WachtrijFout("Er is nog geen onderzoek gedaan. Laat eerst het script schrijven.", 400);
-  // Russell (de Engelse verteller van KRONIK) staat niet in de stemmenbibliotheek; die zou
+  // Russell (de vaste Engelse verteller) staat niet in de stemmenbibliotheek; die zou
   // het lezen van de invoer anders terugzetten naar Hugo.
   const verteller = DOCU_VERTELLERS[taal];
   const eigenVerteller = !!verteller && ruw.stem === verteller.id;
