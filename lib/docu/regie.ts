@@ -15,9 +15,9 @@ import { scriptVan, type PaginaBasis } from "@/lib/motion/lang";
 import { sceneTijden } from "@/lib/motion/animatie";
 import { eigenOpslag } from "@/lib/motion/beelden";
 import type { WhisperWord } from "@/lib/openai";
-import type { MotionBeeld, MotionInvoer, MotionPlan } from "@/lib/motion/types";
+import { leesTaal, type MotionBeeld, type MotionInvoer, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
 import { maakPakket, maakThumbnail, schrijfShort } from "./extras";
-import { DOCU_STEM_EN, docuCredits, docuMuziek, fotoCredit, isDocuLengte, type DocuControle, type DocuExtras, type DocuFeit, type DocuFoto, type DocuInvoer } from "./types";
+import { DOCU_VERTELLERS, docuCredits, docuMuziek, fotoCredit, isDocuLengte, type DocuControle, type DocuExtras, type DocuFeit, type DocuFoto, type DocuInvoer } from "./types";
 
 const kort = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
 
@@ -60,7 +60,7 @@ function leesFotos(ruw: unknown): DocuFoto[] {
 }
 
 /** Zet bij elke scene met een foto in het beeld welke foto het is en wat de vermelding is. */
-export function planMetFotos(plan: MotionPlan, fotos: DocuFoto[], taal: "nl" | "en"): MotionPlan {
+export function planMetFotos(plan: MotionPlan, fotos: DocuFoto[], taal: MotionTaal): MotionPlan {
   return {
     ...plan,
     scenes: plan.scenes.map((s, i) => {
@@ -75,7 +75,7 @@ export function planMetFotos(plan: MotionPlan, fotos: DocuFoto[], taal: "nl" | "
   };
 }
 
-const alsBeelden = (fotos: DocuFoto[], taal: "nl" | "en"): MotionBeeld[] =>
+const alsBeelden = (fotos: DocuFoto[], taal: MotionTaal): MotionBeeld[] =>
   fotos.map((f) => ({ id: f.id, url: f.url, doel: "tonen", uitleg: `${f.wat} (${fotoCredit(f, taal)})`.slice(0, 240) }));
 
 export async function startDocu(userId: string, ruw: Record<string, unknown>, ouderId?: string | null): Promise<Creatie> {
@@ -84,7 +84,7 @@ export async function startDocu(userId: string, ruw: Record<string, unknown>, ou
   if (!canUseDocu(wie?.user?.email)) throw new WachtrijFout("Deze studio is nog niet beschikbaar voor jouw account.", 403);
   if (!isDocuLengte(ruw.lengte)) throw new WachtrijFout("Kies een lengte voor je documentaire.", 400);
   const lengte = ruw.lengte;
-  const taal = ruw.taal === "en" ? "en" : "nl";
+  const taal = leesTaal(ruw.taal);
   const short = ruw.short !== false;
   const fotos = leesFotos(ruw.fotos);
   const docu: DocuInvoer = {
@@ -97,7 +97,8 @@ export async function startDocu(userId: string, ruw: Record<string, unknown>, ou
   if (!docu.feiten.length) throw new WachtrijFout("Er is nog geen onderzoek gedaan. Laat eerst het script schrijven.", 400);
   // Russell (de Engelse verteller van KRONIK) staat niet in de stemmenbibliotheek; die zou
   // het lezen van de invoer anders terugzetten naar Hugo.
-  const russell = ruw.stem === DOCU_STEM_EN && taal === "en";
+  const verteller = DOCU_VERTELLERS[taal];
+  const eigenVerteller = !!verteller && ruw.stem === verteller.id;
 
   return startMotion(
     userId,
@@ -111,7 +112,7 @@ export async function startDocu(userId: string, ruw: Record<string, unknown>, ou
       omschrijving: "Nieuwe app: docu",
       pas: (i: MotionInvoer) => ({
         ...i,
-        ...(russell ? { stem: DOCU_STEM_EN } : {}),
+        ...(eigenVerteller ? { stem: verteller!.id } : {}),
         // De motion-studio kent alleen vrolijke en zakelijke muziek.
         muziek: docuMuziek(ruw.muziek),
         beelden: alsBeelden(fotos, taal),
@@ -131,7 +132,7 @@ export async function voegPakketToe(c: Creatie, invoer: Record<string, unknown>,
   const r = invoer as unknown as MotionInvoer & { docu?: DocuInvoer; voortgang?: { gebruik?: { usd: number } } };
   const docu = r.docu;
   if (!docu) return invoer;
-  const taal = r.taal === "en" ? "en" : "nl";
+  const taal = leesTaal(r.taal);
   const extras: DocuExtras = {};
   const fouten: string[] = [];
   let usd = 0;

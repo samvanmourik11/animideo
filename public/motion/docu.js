@@ -14,7 +14,8 @@
 function docuVideo(spec) {
   const KOP = "'Archivo Black', sans-serif";
   const MONO = "'IBM Plex Mono', monospace";
-  const LOC = spec.taal === 'en' ? 'en-GB' : 'nl-NL';
+  const LOC = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pt: 'pt-PT' }[spec.taal] || 'nl-NL';
+  const DOSSIER = { en: 'File', de: 'Akte', fr: 'Dossier', es: 'Expediente', it: 'Fascicolo', pt: 'Processo' }[spec.taal] || 'Dossier';
 
   // Een woord in de voice-over opzoeken zonder foutmelding: een sjabloon heeft altijd een
   // eigen tijd als het woord er niet (meer) in staat, bijvoorbeeld na een verbetering.
@@ -186,7 +187,7 @@ function docuVideo(spec) {
         o.kaart = G(g); o.h = h;
         el('rect', { x: -w / 2, y: -h / 2, width: w, height: h, fill: C.wit, stroke: C.grijs, 'stroke-width': 2, rx: 4 }, o.kaart);
         el('rect', { x: -w / 2, y: -h / 2, width: 14, height: h, fill: C.rood }, o.kaart);
-        mono(o.kaart, -w / 2 + 60, -h / 2 + 60, spec.taal === 'en' ? 'File' : 'Dossier', 22);
+        mono(o.kaart, -w / 2 + 60, -h / 2 + 60, DOSSIER, 22);
         kop(o.kaart, -w / 2 + 60, -h / 2 + 140, sh.kop || '', maat(sh.kop, w - 120, 76, .74));
         if (sh.sub) mono(o.kaart, -w / 2 + 60, -h / 2 + 190, sh.sub, maat(sh.sub, w - 120, 24, .75), { fill: C.rood });
         rijen.forEach((r, i) => {

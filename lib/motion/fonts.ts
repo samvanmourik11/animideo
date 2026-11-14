@@ -2,7 +2,7 @@
 //
 // Nodig sinds de video in de browser van de klant wordt gemaakt (14-11-2026): elk beeld
 // wordt daar als losse SVG-afbeelding getekend, en een SVG-afbeelding mag niets van buiten
-// laden, ook geen lettertype. Alleen de Latijnse tekens (Nederlands, Engels en de accenten).
+// laden, ook geen lettertype. Alleen de Latijnse tekens (latin en latin-ext: alle talen van MOTION_TALEN).
 
 const CHROME = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36";
 const cache = new Map<string, Promise<string>>();

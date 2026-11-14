@@ -24,6 +24,7 @@ import {
   motionFont,
   MOTION_SOORTEN,
   MOTION_TALEN,
+  taalNaam,
   MOTION_STEM_HUGO,
   isMotionSoort,
   isMotionTaal,
@@ -488,7 +489,7 @@ export default function MotionStudio() {
                 </div>
               </div>
             </div>
-            {gekozenStem && <p className="text-[11px] text-tekst-3 -mt-2">{gekozenStem.typering}{taal !== "nl" ? ". Het voorbeeld is in het Nederlands; de video wordt in het Engels ingesproken." : ""}</p>}
+            {gekozenStem && <p className="text-[11px] text-tekst-3 -mt-2">{gekozenStem.typering}{taal !== "nl" ? `. Het voorbeeld is in het Nederlands; de video wordt in het ${taalNaam(taal)} ingesproken.` : ""}</p>}
 
             <div>
               <label className="n-label">Muziek</label>

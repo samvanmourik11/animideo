@@ -13,7 +13,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { claude, controleerPlan, lengteVoorWoorden, schrijfPlan, telWoorden } from "./plan";
 import { stijlVan } from "./stijlen";
-import { MOTION_LENGTES, MOTION_SOORTEN, duurTekst, maxWoorden, type MotionBeeld, type MotionLengte, type MotionPlan, type MotionSoort, type MotionTaal } from "./types";
+import { MOTION_LENGTES, MOTION_SOORTEN, duurTekst, maxWoorden, type MotionBeeld, type MotionLengte, type MotionPlan, type MotionSoort, type MotionTaal, taalNaam } from "./types";
 
 const MODEL = "claude-opus-5-5";
 
@@ -87,13 +87,13 @@ De keuzes van de klant op dit moment:
 - Soort video: ${soort?.naam ?? v.soort} (${soort?.uitleg ?? ""})
 - Lengte: ${duurTekst(v.lengte)} (ongeveer ${maxWoorden(v.lengte)} woorden gesproken tekst). Mogelijke lengtes: ${MOTION_LENGTES.map((l) => l.naam).join(", ")}.
 - Formaat: ${v.staand ? "staand (telefoon)" : "liggend"}
-- Taal van de video: ${v.taal === "en" ? "Engels" : "Nederlands"} (jij blijft met de klant Nederlands praten)
+- Taal van de video: ${taalNaam(v.taal)} (jij blijft met de klant Nederlands praten)
 - Tekenstijl: ${stijl ? `${stijl.naam} (${stijl.uitleg})` : "Standaard (licht en strak, in de kleuren van de klant)"}
 - Afzender: ${v.bedrijf || "geen (er komt geen naam of logo in beeld)"}${v.toon ? `\n- Schrijfstijl van de klant: ${v.toon}` : ""}${v.nietDoen ? `\n- Wat er niet in mag: ${v.nietDoen}` : ""}${v.beelden?.length ? `\n- De klant gaf ${v.beelden.length} voorbeeld(en) of foto('s) mee; de scriptschrijver krijgt die te zien.` : ""}
 
 Bij elk bericht van de klant kies je één actie:
 - "praat": alleen antwoorden. Gebruik dit om één gerichte vraag te stellen als je zonder het antwoord geen goed script kunt maken (bijvoorbeeld: een bedrijfsvideo zonder dat je weet wat het bedrijf doet), om advies te geven, of om uit te leggen wat kan.
-- "schrijf": laat een nieuw script schrijven. In "opdracht" zet je de complete briefing voor de scriptschrijver, die het gesprek niet ziet: het onderwerp, voor wie, de invalshoek en toon, en alles wat de klant aan feiten, bedragen, namen en wensen heeft genoemd, letterlijk. Bij een verhaal of les mag je de rode draad en de belangrijkste feiten erbij zetten waar je zeker van bent. Schrijf de opdracht in het Nederlands, ook als de video Engels wordt.
+- "schrijf": laat een nieuw script schrijven. In "opdracht" zet je de complete briefing voor de scriptschrijver, die het gesprek niet ziet: het onderwerp, voor wie, de invalshoek en toon, en alles wat de klant aan feiten, bedragen, namen en wensen heeft genoemd, letterlijk. Bij een verhaal of les mag je de rode draad en de belangrijkste feiten erbij zetten waar je zeker van bent. Schrijf de opdracht in het Nederlands, ook als de video in een andere taal wordt.
 - "verdeel": de klant heeft een kant-en-klaar script geplakt dat letterlijk gebruikt moet worden. Het systeem neemt dan zijn laatste bericht woord voor woord over en verdeelt het in scenes; "opdracht" laat je leeg.
 - "wijzig": pas het bestaande script aan. In "wijzigingen" zet je alleen de scenes die veranderen, met het nummer zoals in het script hieronder:
   - wat "vervang": de scene krijgt de tekst, het beeld en de kop die je meegeeft; een veld dat je leeg laat blijft zoals het was.

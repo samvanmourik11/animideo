@@ -15,7 +15,18 @@ import { claude } from "./plan";
 import { ernstig, proef, type Proef } from "./render";
 import type { PaginaInvoer } from "./pagina";
 import { beeldBlokken } from "./beelden";
-import type { MotionBeeld, MotionPlan, MotionSoort } from "./types";
+import { taalNaam, type MotionBeeld, type MotionPlan, type MotionSoort, type MotionTaal } from "./types";
+
+/** Hoe een groot getal en een kommagetal eruitzien, per taal. */
+const GETAL_VOORBEELD: Record<MotionTaal, string> = {
+  nl: "1.250 en 3,5",
+  en: "1,250 en 3.5",
+  de: "1.250 en 3,5",
+  fr: "1 250 en 3,5",
+  es: "1.250 en 3,5",
+  it: "1.250 en 3,5",
+  pt: "1250 en 3,5",
+};
 import { stijlVan } from "./stijlen";
 
 const MODEL = "claude-opus-5-5";
@@ -204,7 +215,7 @@ Dit is een YouTube-documentaire. Het beeld wisselt tussen archieffoto's en docu-
 ${v.soort && v.soort !== "bedrijf" ? `Let op: dit is geen bedrijfsvideo maar ${v.soort === "verhaal" ? "een verhaal (geschiedenis, documentaire)" : v.soort === "uitleg" ? "een uitleg of les" : "een vrije video"}. Teken wat het verhaal vraagt: kaarten, tijdlijnen, portretten als eenvoudige figuur, voorwerpen, plekken. Geen kantoor-iconen, knoppen of verkooptaal waar het verhaal daar niet om vraagt.\n` : ""}${v.pagina.merk.naam ? `${v.soort && v.soort !== "bedrijf" ? "Afzender" : "Bedrijf"}: ${v.pagina.merk.naam}${v.pagina.merk.website ? ` (${v.pagina.merk.website})` : ""}` : "Afzender: geen. Er staat geen merk linksboven; de eindkaart toont alleen de slotregels."}
 Formaat: ${v.pagina.w} x ${v.pagina.h} (${v.pagina.h > v.pagina.w ? "staand" : "liggend"})
 Merkkleur C.accent = ${v.pagina.merk.kleur}, tweede kleur C.accent2 = ${v.pagina.merk.kleur2}
-${v.taal === "en" ? "Taal: dit is een Engelstalige video. Alle tekst in beeld is Engels, ook als de beschrijving bij Beeld Nederlands is. Schrijf getallen op zijn Engels (1,250 en 3.5); gebruik daarvoor nl() niet.\n" : ""}Onderwerp volgens de klant: ${v.onderwerp}${v.nietDoen ? `\nWat er van dit bedrijf niet in beeld mag: ${v.nietDoen}` : ""}${fotos.length ? `\nFoto's die je met foto() kunt plaatsen: ${fotos.map((f) => `'${f.id}' (${f.w} x ${f.h})`).join(", ")}` : ""}
+${v.taal && v.taal !== "nl" ? `Taal: dit is een video in het ${taalNaam(v.taal)}. Alle tekst in beeld is ${taalNaam(v.taal)}, ook als de beschrijving bij Beeld Nederlands is. Schrijf getallen zoals dat in het ${taalNaam(v.taal)} gaat (${GETAL_VOORBEELD[v.taal]}); nl() geeft Nederlandse notatie, gebruik die dan alleen als dat hetzelfde is.\n` : ""}Onderwerp volgens de klant: ${v.onderwerp}${v.nietDoen ? `\nWat er van dit bedrijf niet in beeld mag: ${v.nietDoen}` : ""}${fotos.length ? `\nFoto's die je met foto() kunt plaatsen: ${fotos.map((f) => `'${f.id}' (${f.w} x ${f.h})`).join(", ")}` : ""}
 ${stijlBlok}${docuBlok}
 De scenes, met wat de stem zegt, wat de klant als beeld heeft goedgekeurd, en de gemeten woordtijden (seconden, zoals wt ze teruggeeft):
 
@@ -305,7 +316,7 @@ export interface AnimatieVraag {
   /** Bij een lange video: welk hoofdstuk dit is, en wat ervoor en erna te zien is. */
   plek?: { nummer: number; aantal: number; laatste: boolean; hiervoor: string; hierna: string };
   /** De taal van de stem en van de tekst in beeld. Standaard Nederlands. */
-  taal?: "nl" | "en";
+  taal?: MotionTaal;
   /** Wat voor video het is; standaard een bedrijfsvideo. */
   soort?: MotionSoort;
   /** Een documentaire uit de docu-studio: archieffoto's beeldvullend, docu-graphics. */

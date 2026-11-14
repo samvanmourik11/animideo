@@ -22,7 +22,7 @@ import { claude } from "./plan";
 import { WIJZIG_UITLEG, codeUit, kosten, pasToe, systeem, wijzigingenUit } from "./animatie";
 import { ernstig, momenten, proef, type Moment } from "./render";
 import type { PaginaInvoer } from "./pagina";
-import type { MotionPlan } from "./types";
+import type { MotionPlan, MotionTaal } from "./types";
 import type { Deel } from "./lang";
 import { SJABLONEN, leesLib, systeem as docuSysteem, type Shot } from "@/lib/docu/sjablonen";
 import { creditsVoorInkoop } from "@/lib/credit-costs";
@@ -92,7 +92,7 @@ export interface HoofdstukAanpassing {
   code: string;
   punten: (AanpasPunt & { nr: number })[];
   docu: boolean;
-  taal: "nl" | "en";
+  taal: MotionTaal;
 }
 
 type Blok = Anthropic.Beta.BetaContentBlockParam;

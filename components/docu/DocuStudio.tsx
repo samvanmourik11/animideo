@@ -7,12 +7,12 @@ import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 import { BrowserMelding, useBrowserVideo } from "@/components/motion/BrowserVideo";
-import { MOTION_STEM_HUGO, duurTekst, maxWoorden, type MotionPlan } from "@/lib/motion/types";
+import { MOTION_STEM_HUGO, MOTION_TALEN, duurTekst, isMotionTaal, maxWoorden, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
 import type { BibliotheekStem } from "@/lib/stem/types";
 import {
   DOCU_LENGTES,
   DOCU_MUZIEK,
-  DOCU_STEM_EN,
+  DOCU_VERTELLERS,
   docuCredits,
   fotoCredit,
   isDocuLengte,
@@ -46,7 +46,7 @@ export default function DocuStudio() {
   const [onderwerp, setOnderwerp] = useState("");
   const [wens, setWens] = useState("");
   const [lengte, setLengte] = useState<DocuLengte>(600);
-  const [taal, setTaal] = useState<"nl" | "en">("nl");
+  const [taal, setTaal] = useState<MotionTaal>("nl");
   const [stem, setStem] = useState<string>(MOTION_STEM_HUGO);
   const [stemmen, setStemmen] = useState<BibliotheekStem[]>([]);
   const [muziek, setMuziek] = useState<string>(DOCU_MUZIEK[0].slug);
@@ -81,7 +81,7 @@ export default function DocuStudio() {
         if (typeof b.onderwerp === "string") setOnderwerp(b.onderwerp);
         if (typeof b.wens === "string") setWens(b.wens);
         if (isDocuLengte(b.lengte)) setLengte(b.lengte);
-        if (b.taal === "en" || b.taal === "nl") setTaal(b.taal);
+        if (isMotionTaal(b.taal)) setTaal(b.taal);
         if (typeof b.stem === "string") setStem(b.stem);
         if (typeof b.muziek === "string") setMuziek(b.muziek);
         if (typeof b.short === "boolean") setShort(b.short);
@@ -101,15 +101,19 @@ export default function DocuStudio() {
     } catch {}
   }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, muziek, short, plan, feiten, controle, fotoZoek, fotos]);
 
-  // Engels: Russell (onze KRONIK-verteller) vooraan, daarna de stemmen die Engels kunnen.
-  const stemKeuzes: { id: string; naam: string }[] =
-    taal === "en"
-      ? [{ id: DOCU_STEM_EN, naam: "Russell · verteller (KRONIK)" }, ...stemmen.filter((s) => s.talen.includes("en")).map((s) => ({ id: s.id, naam: `${s.naam} · ${s.geslacht}` }))]
-      : [{ id: MOTION_STEM_HUGO, naam: "Hugo · verteller" }, ...stemmen.filter((s) => s.id !== MOTION_STEM_HUGO).map((s) => ({ id: s.id, naam: `${s.naam} · ${s.geslacht}` }))];
+  // Per taal onze eigen KRONIK-verteller vooraan (Nederlands: Hugo), daarna de stemmen uit de
+  // bibliotheek die die taal kunnen.
+  const verteller = DOCU_VERTELLERS[taal];
+  const kunnen = stemmen.filter((s) => taal === "nl" || s.talen.includes(taal));
+  const stemKeuzes: { id: string; naam: string }[] = [
+    ...(verteller ? [{ id: verteller.id, naam: `${verteller.naam} · verteller (KRONIK)` }] : []),
+    ...[...kunnen.filter((s) => s.id === MOTION_STEM_HUGO), ...kunnen.filter((s) => s.id !== MOTION_STEM_HUGO)].map((s) => ({ id: s.id, naam: s.id === MOTION_STEM_HUGO ? "Hugo · verteller" : `${s.naam} · ${s.geslacht}` })),
+  ];
 
-  function kiesTaal(t: "nl" | "en") {
+  function kiesTaal(t: MotionTaal) {
     setTaal(t);
-    setStem(t === "en" ? DOCU_STEM_EN : MOTION_STEM_HUGO);
+    const kan = stemmen.filter((s) => t === "nl" || s.talen.includes(t));
+    setStem(DOCU_VERTELLERS[t]?.id ?? (kan.find((s) => s.id === MOTION_STEM_HUGO) ?? kan[0])?.id ?? MOTION_STEM_HUGO);
   }
 
   async function doe(wat: Exclude<Bezig, null>, actie: () => Promise<void>) {
@@ -224,9 +228,10 @@ export default function DocuStudio() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="n-label">Taal</label>
-                <select value={taal} onChange={(e) => kiesTaal(e.target.value as "nl" | "en")} disabled={!!plan} className="n-invoer mt-1.5 disabled:opacity-60">
-                  <option value="nl">Nederlands</option>
-                  <option value="en">Engels</option>
+                <select value={taal} onChange={(e) => kiesTaal(e.target.value as MotionTaal)} disabled={!!plan} className="n-invoer mt-1.5 disabled:opacity-60">
+                  {MOTION_TALEN.map((t) => (
+                    <option key={t.id} value={t.id}>{t.naam}</option>
+                  ))}
                 </select>
               </div>
               <div>

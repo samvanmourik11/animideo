@@ -28,8 +28,8 @@ import type { Creatie } from "@/lib/creaties/types";
 import { canUseMotion } from "@/lib/studio/access";
 import { controleerPlan } from "./plan";
 import { deelWerk, scriptVan, stemBlokken, verdeel, type Deel, type PaginaBasis } from "./lang";
-import { vindStem } from "@/lib/stem/bibliotheek";
-import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal } from "./types";
+import { BIBLIOTHEEK, vindStem } from "@/lib/stem/bibliotheek";
+import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal, leesTaal } from "./types";
 import { stijlVan } from "./stijlen";
 import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
@@ -128,7 +128,10 @@ export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
   const taal = isMotionTaal(ruw.taal) ? ruw.taal : "nl";
   // Alleen stemmen uit onze bibliotheek die de gekozen taal spreken; anders Hugo.
   const gekozen = vindStem(ruw.stem);
-  const stem = gekozen && gekozen.id === ruw.stem && (taal === "nl" || gekozen.talen.includes(taal)) ? gekozen.id : MOTION_STEM_HUGO;
+  const kan = (s: { talen: string[] }) => taal === "nl" || s.talen.includes(taal);
+  // Hugo spreekt geen Frans: dan de eerste stem uit de bibliotheek die het wel kan.
+  const standaard = [vindStem(MOTION_STEM_HUGO), ...BIBLIOTHEEK].find((s) => s && kan(s))?.id ?? MOTION_STEM_HUGO;
+  const stem = gekozen && gekozen.id === ruw.stem && kan(gekozen) ? gekozen.id : standaard;
   const lengte = isMotionLengte(ruw.lengte) ? ruw.lengte : 30;
   const muziek = MOTION_MUZIEK.some((m) => m.slug === ruw.muziek) ? (ruw.muziek as string) : MOTION_MUZIEK[0].slug;
   return {
@@ -408,7 +411,7 @@ async function voerAnimatieUit(c0: Creatie, v0: Voortgang): Promise<void> {
           // Een docu tekent met vaste sjablonen (lib/docu/sjablonen.ts): een paar cent per
           // hoofdstuk in plaats van een eigen tekening door Claude.
           const ids = genoemd(d.plan.scenes.map((s) => s.beeld).join(" "));
-          const taal = r.taal === "en" ? "en" : "nl";
+          const taal = leesTaal(r.taal);
           const docuFotos = ((r as unknown as { docu?: { fotos?: DocuFoto[] } }).docu?.fotos ?? []).filter((f) => ids.has(f.id));
           return tekenDocuHoofdstuk({
             pagina: alleenFotos(d.pagina, ids),
@@ -687,7 +690,7 @@ async function voerAanpassingUit(c: Creatie, v: Voortgang): Promise<void> {
     zetKostenContext(c.user_id, "Nieuwe app: video aanpassen");
     const [werk, basis] = await Promise.all([leesWerk(v.werk), basisVan(r)]);
     const groepen = puntenPerDeel(werk.delen, r.aanpassing.punten);
-    const taal = r.taal === "en" ? "en" : "nl";
+    const taal = leesTaal(r.taal);
     let usd = 0;
     await Promise.all(
       [...groepen].map(async ([k, punten]) => {

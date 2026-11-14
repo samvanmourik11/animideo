@@ -12,7 +12,7 @@
 //   3. het YouTube-pakket: thumbnail, beschrijving met hoofdstuktijden en bronnen, en een Short.
 
 import { creditsVoorInkoop, INKOOP_USD } from "@/lib/credit-costs";
-import { type MotionLengte, type MotionPlan, type MotionStap } from "@/lib/motion/types";
+import { type MotionLengte, type MotionPlan, type MotionStap, type MotionTaal } from "@/lib/motion/types";
 
 export const DOCU_LENGTES = [
   { sec: 180, naam: "±3 minuten", uitleg: "Kort verhaal, één wending" },
@@ -23,11 +23,17 @@ export type DocuLengte = (typeof DOCU_LENGTES)[number]["sec"];
 export const isDocuLengte = (v: unknown): v is DocuLengte => DOCU_LENGTES.some((l) => l.sec === v);
 
 /**
- * De Engelse verteller van onze eigen KRONIK- en ADDED TIME-video's (Russell, ElevenLabs).
- * Hij staat niet in de stemmenbibliotheek (die is Nederlands); in deze studio is hij de
- * standaard voor Engels, net als Hugo voor Nederlands.
+ * De vertellers van onze eigen KRONIK-video's per taal (ElevenLabs, moedertaalsprekers). Ze
+ * staan niet in de stemmenbibliotheek (die is Nederlands); in deze studio zijn ze de standaard
+ * voor hun taal, net als Hugo voor Nederlands. Italiaans en Portugees: een stem uit de bibliotheek.
  */
-export const DOCU_STEM_EN = "NYC9WEgkq1u4jiqBseQ9";
+export const DOCU_VERTELLERS: Partial<Record<MotionTaal, { id: string; naam: string }>> = {
+  en: { id: "NYC9WEgkq1u4jiqBseQ9", naam: "Russell" },
+  fr: { id: "iKX6IXB415Hh5bn2eNhP", naam: "David" },
+  de: { id: "5hobNnfFWAwxjwZSecAE", naam: "Daniel" },
+  es: { id: "QtPMrakdgePQIUwOX7Ut", naam: "Arconte" },
+};
+export const DOCU_STEM_EN = DOCU_VERTELLERS.en!.id;
 
 /** Muziek die bij een docu past (slugs uit lib/music/library.ts): spanning, geen vrolijke reclamemuziek. */
 export const DOCU_MUZIEK = [
@@ -75,9 +81,11 @@ export interface DocuFoto {
 }
 
 /** "Foto: Jan Jansen / Wikimedia Commons, CC BY-SA 4.0": verplicht bij CC BY, netjes bij de rest. */
-export function fotoCredit(f: Pick<DocuFoto, "maker" | "licentie">, taal: "nl" | "en" = "nl"): string {
+const FOTO_WOORD: Record<MotionTaal, string> = { nl: "Foto", en: "Photo", de: "Foto", fr: "Photo", es: "Foto", it: "Foto", pt: "Foto" };
+
+export function fotoCredit(f: Pick<DocuFoto, "maker" | "licentie">, taal: MotionTaal = "nl"): string {
   const wie = f.maker && !/^(unknown|onbekend)/i.test(f.maker) ? `${f.maker} / ` : "";
-  return `${taal === "en" ? "Photo" : "Foto"}: ${wie}Wikimedia Commons, ${f.licentie}`;
+  return `${FOTO_WOORD[taal]}: ${wie}Wikimedia Commons, ${f.licentie}`;
 }
 
 /** Wat het scherm na het onderzoek terugkrijgt. */

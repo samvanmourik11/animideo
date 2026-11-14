@@ -232,12 +232,25 @@ export const MOTION_SOORTEN = [
 export type MotionSoort = (typeof MOTION_SOORTEN)[number]["id"];
 export const isMotionSoort = (v: unknown): v is MotionSoort => MOTION_SOORTEN.some((s) => s.id === v);
 
+// Sam 14-11-2026: "ook in verschillende talen". Alleen talen met het gewone Latijnse schrift:
+// de lettertypes van de tekenstijlen hebben geen ł, ğ of Cyrillisch.
 export const MOTION_TALEN = [
-  { id: "nl", naam: "Nederlands" },
-  { id: "en", naam: "Engels" },
+  { id: "nl", naam: "Nederlands", locale: "nl-NL" },
+  { id: "en", naam: "Engels", locale: "en-GB" },
+  { id: "de", naam: "Duits", locale: "de-DE" },
+  { id: "fr", naam: "Frans", locale: "fr-FR" },
+  { id: "es", naam: "Spaans", locale: "es-ES" },
+  { id: "it", naam: "Italiaans", locale: "it-IT" },
+  { id: "pt", naam: "Portugees", locale: "pt-PT" },
 ] as const;
 export type MotionTaal = (typeof MOTION_TALEN)[number]["id"];
 export const isMotionTaal = (v: unknown): v is MotionTaal => MOTION_TALEN.some((t) => t.id === v);
+/** De taal uit de invoer, of Nederlands. */
+export const leesTaal = (v: unknown): MotionTaal => (isMotionTaal(v) ? v : "nl");
+/** "Duits", "Frans", ... (voor de prompts, die in het Nederlands zijn). */
+export const taalNaam = (t: MotionTaal | undefined): string => MOTION_TALEN.find((x) => x.id === t)?.naam ?? "Nederlands";
+/** Hoe getallen in beeld komen: "nl-NL", "en-GB", ... */
+export const taalLocale = (t: MotionTaal | undefined): string => MOTION_TALEN.find((x) => x.id === t)?.locale ?? "nl-NL";
 
 /** Hugo V: de Nederlandse stem die Sam in alle tools als standaard wil. */
 export const MOTION_STEM_HUGO = "rbqBOMK4BPTMGvIB7N8w";

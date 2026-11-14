@@ -10,7 +10,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { launchBrowser } from "@/lib/browser";
 import { claude, controleerPlan } from "@/lib/motion/plan";
 import { kosten } from "@/lib/motion/animatie";
-import { maxWoorden, type MotionPlan } from "@/lib/motion/types";
+import { maxWoorden, taalNaam, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
 import { fotoCredit, type DocuFeit, type DocuFoto } from "./types";
 
 const MODEL = "claude-opus-5-5";
@@ -28,8 +28,8 @@ function tijd(sec: number): string {
  * De hoofdstukken: waar de kop van de scenes wisselt. YouTube toont ze alleen als het eerste
  * op 0:00 staat, er minstens drie zijn en elk minstens tien seconden duurt.
  */
-export function hoofdstukRegels(plan: MotionPlan, starts: number[], taal: "nl" | "en"): string[] {
-  const regels: { t: number; titel: string }[] = [{ t: 0, titel: taal === "en" ? "Intro" : "Intro" }];
+export function hoofdstukRegels(plan: MotionPlan, starts: number[], taal: MotionTaal): string[] {
+  const regels: { t: number; titel: string }[] = [{ t: 0, titel: "Intro" }];
   let vorige = "";
   plan.scenes.forEach((s, i) => {
     const kop = s.kop.replace(/^\d+\s*[·.:-]?\s*/, "").trim();
@@ -70,8 +70,19 @@ const PAKKET_SCHEMA = {
   },
 } as const;
 
-export async function maakPakket(v: { plan: MotionPlan; feiten: DocuFeit[]; fotos: DocuFoto[]; starts: number[]; taal: "nl" | "en"; kanaal: string }): Promise<Pakket> {
-  const en = v.taal === "en";
+/** De vaste kopjes in de YouTube-beschrijving en de knop van de Short, per taal. */
+const KOPJES: Record<MotionTaal, { hoofdstukken: string; bronnen: string; fotos: string; heleVideo: string }> = {
+  nl: { hoofdstukken: "Hoofdstukken", bronnen: "Bronnen", fotos: "Foto's", heleVideo: "Hele video" },
+  en: { hoofdstukken: "Chapters", bronnen: "Sources", fotos: "Photos", heleVideo: "Full video" },
+  de: { hoofdstukken: "Kapitel", bronnen: "Quellen", fotos: "Fotos", heleVideo: "Ganzes Video" },
+  fr: { hoofdstukken: "Chapitres", bronnen: "Sources", fotos: "Photos", heleVideo: "Vidéo complète" },
+  es: { hoofdstukken: "Capítulos", bronnen: "Fuentes", fotos: "Fotos", heleVideo: "Vídeo completo" },
+  it: { hoofdstukken: "Capitoli", bronnen: "Fonti", fotos: "Foto", heleVideo: "Video completo" },
+  pt: { hoofdstukken: "Capítulos", bronnen: "Fontes", fotos: "Fotos", heleVideo: "Vídeo completo" },
+};
+
+export async function maakPakket(v: { plan: MotionPlan; feiten: DocuFeit[]; fotos: DocuFoto[]; starts: number[]; taal: MotionTaal; kanaal: string }): Promise<Pakket> {
+  const w = KOPJES[v.taal];
   const m = await claude()
     .beta.messages.stream({
       model: MODEL,
@@ -79,7 +90,7 @@ export async function maakPakket(v: { plan: MotionPlan; feiten: DocuFeit[]; foto
       output_config: { effort: "low", format: { type: "json_schema", schema: PAKKET_SCHEMA } },
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
-      system: `Je maakt het YouTube-pakket bij een faceless documentaire${v.kanaal ? ` van het kanaal ${v.kanaal}` : ""}. Alles ${en ? "in het Engels" : "in het Nederlands"}, behalve waar anders staat.
+      system: `Je maakt het YouTube-pakket bij een faceless documentaire${v.kanaal ? ` van het kanaal ${v.kanaal}` : ""}. Alles in het ${taalNaam(v.taal)}, behalve waar anders staat.
 - titels: drie titelvoorstellen van hooguit 60 tekens. Nieuwsgierig makend maar waar: geen belofte die de video niet waarmaakt, geen hoofdletters-geschreeuw. De eerste is je favoriet.
 - intro: de eerste alinea van de beschrijving, twee tot drie zinnen. De eerste zin moet ook los (in de zoekresultaten) prikkelen. Geen hashtags, geen emoji.
 - tags: vijf tot tien zoektermen.
@@ -100,9 +111,9 @@ Gebruik alleen wat in het script staat.`,
   const bronnen = [...new Map(v.feiten.map((f) => [f.url, f])).values()];
   const delen = [
     j.intro.trim(),
-    hs.length ? `${en ? "Chapters" : "Hoofdstukken"}\n${hs.join("\n")}` : "",
-    bronnen.length ? `${en ? "Sources" : "Bronnen"}\n${bronnen.map((f) => `- ${f.bron}: ${f.url}`).join("\n")}` : "",
-    v.fotos.length ? `${en ? "Photos" : "Foto's"}\n${v.fotos.map((f) => `- ${fotoCredit(f, v.taal)} (${f.bron})`).join("\n")}` : "",
+    hs.length ? `${w.hoofdstukken}\n${hs.join("\n")}` : "",
+    bronnen.length ? `${w.bronnen}\n${bronnen.map((f) => `- ${f.bron}: ${f.url}`).join("\n")}` : "",
+    v.fotos.length ? `${w.fotos}\n${v.fotos.map((f) => `- ${fotoCredit(f, v.taal)} (${f.bron})`).join("\n")}` : "",
     j.tags.length ? j.tags.slice(0, 10).map((t) => `#${t.replace(/[^\p{L}\p{N}]+/gu, "")}`).filter((t) => t.length > 1).join(" ") : "",
   ];
   return {
@@ -172,8 +183,7 @@ const SHORT_SCHEMA = {
  * Het script voor de Short (staand, ±45 s): de sterkste haak uit de docu, één wending, en een
  * verwijzing naar de hele video. Alleen feiten die al in het (gecontroleerde) docu-script staan.
  */
-export async function schrijfShort(v: { plan: MotionPlan; fotos: DocuFoto[]; taal: "nl" | "en"; kanaal: string }): Promise<{ plan: MotionPlan; fotos: string[]; usd: number }> {
-  const en = v.taal === "en";
+export async function schrijfShort(v: { plan: MotionPlan; fotos: DocuFoto[]; taal: MotionTaal; kanaal: string }): Promise<{ plan: MotionPlan; fotos: string[]; usd: number }> {
   const lengte = 45;
   const m = await claude()
     .beta.messages.stream({
@@ -182,12 +192,12 @@ export async function schrijfShort(v: { plan: MotionPlan; fotos: DocuFoto[]; taa
       output_config: { effort: "low", format: { type: "json_schema", schema: SHORT_SCHEMA } },
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
-      system: `Je maakt van een documentaire-script een YouTube Short van ±45 seconden (staand), ${en ? "in het Engels" : "in het Nederlands"}.
+      system: `Je maakt van een documentaire-script een YouTube Short van ±45 seconden (staand), in het ${taalNaam(v.taal)}.
 - Vier of vijf scenes, samen ${Math.round(maxWoorden(lengte) * 0.85)} tot ${maxWoorden(lengte)} woorden. De eerste zin is de haak: het meest verrassende feit of moment, zonder aanloop.
 - Gebruik ALLEEN feiten die letterlijk in het script staan: het script is al op feiten gecontroleerd, alles daarbuiten niet.
 - "beeld" in het Nederlands: eenvoudig, één ding tegelijk in beeld (het is staand). Een foto uit de lijst mag ("foto f3 vult het beeld"); zet de gebruikte id's in "fotos" (hooguit vier).
 - "kop": leeg.
-- Eind: de kijker naar de hele video sturen${v.kanaal ? ` op ${v.kanaal}` : ""}. eind.regel1 en eind.regel2 vormen samen een zin die letterlijk in eind.tekst staat (elk hooguit 28 tekens). eind.knop: "${en ? "Full video" : "Hele video"}" of iets van die lengte.
+- Eind: de kijker naar de hele video sturen${v.kanaal ? ` op ${v.kanaal}` : ""}. eind.regel1 en eind.regel2 vormen samen een zin die letterlijk in eind.tekst staat (elk hooguit 28 tekens). eind.knop: "${KOPJES[v.taal].heleVideo}" of iets van die lengte.
 - "titel": de titel van de Short, hooguit 60 tekens.`,
       messages: [
         {

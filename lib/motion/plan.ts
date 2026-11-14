@@ -4,7 +4,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { beeldBlokken } from "./beelden";
-import { MOTION_LENGTES, duurTekst, maxScenes, maxWoorden, type MotionBeeld, type MotionLengte, type MotionPlan, type MotionSoort } from "./types";
+import { MOTION_LENGTES, duurTekst, maxScenes, maxWoorden, type MotionBeeld, type MotionLengte, type MotionPlan, type MotionSoort, type MotionTaal, taalNaam } from "./types";
 
 const MODEL = "claude-opus-5-5";
 
@@ -87,7 +87,7 @@ export interface PlanVraag {
   /** Voorbeelden en foto's van de klant, elk met een doel. */
   beelden?: MotionBeeld[];
   /** De taal van de stem en van de tekst in beeld. Standaard Nederlands. */
-  taal?: "nl" | "en";
+  taal?: MotionTaal;
   /** Wat voor video het is; standaard een bedrijfsvideo. */
   soort?: MotionSoort;
 }
@@ -127,8 +127,8 @@ function systeem(v: PlanVraag, aantal: string, woorden: number): string {
     v.beelden?.length
       ? `- De klant gaf voorbeelden mee (f1, f2, ...), elk met een doel. Verwerk ze in "beeld" op de plek waar ze het verhaal helpen, en noem ze bij hun nummer: "onze bestelbus (voorbeeld f1) rijdt het beeld in". Een voorbeeld met het doel "Neem deze stijl over" noem je niet per scene; dat geldt voor de hele video.`
       : "",
-    v.taal === "en"
-      ? `- Dit is een Engelstalige video, geen Nederlandse: schrijf "tekst", "kop", de eindkaart en "titel" in vlot, natuurlijk Engels. "beeld" schrijf je in het Nederlands, maar woorden die in beeld komen te staan zet je er in het Engels in.`
+    v.taal && v.taal !== "nl"
+      ? `- Dit is een video in het ${taalNaam(v.taal)}, geen Nederlandse: schrijf "tekst", "kop", de eindkaart en "titel" in vlot, natuurlijk ${taalNaam(v.taal)}, zoals een moedertaalspreker het zou zeggen. "beeld" schrijf je in het Nederlands, maar woorden die in beeld komen te staan zet je er in het ${taalNaam(v.taal)} in.`
       : "",
     v.staand ? "- De video is staand (voor telefoons): houd de beelden eenvoudig, één ding tegelijk in beeld." : "",
   ]

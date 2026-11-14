@@ -17,7 +17,7 @@ import { claude } from "@/lib/motion/plan";
 import { kosten } from "@/lib/motion/animatie";
 import { proef, ernstig } from "@/lib/motion/render";
 import type { PaginaInvoer } from "@/lib/motion/pagina";
-import type { MotionPlan } from "@/lib/motion/types";
+import { taalNaam, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
 
 const MODEL = "claude-sonnet-5-5";
 
@@ -66,8 +66,8 @@ const SCHEMA = {
   },
 } as const;
 
-export function systeem(taal: "nl" | "en"): string {
-  return `Je bent beeldredacteur van een YouTube-documentaire in de stijl van een nieuwsarchief (inktzwart, papierwit, één rode kleur). Je krijgt de scenes van één hoofdstuk: wat de verteller zegt en wat er volgens het script te zien is. Kies per scene één vast beeld en vul het in. Alle tekst in beeld ${taal === "en" ? "in het Engels" : "in het Nederlands"}.
+export function systeem(taal: MotionTaal): string {
+  return `Je bent beeldredacteur van een YouTube-documentaire in de stijl van een nieuwsarchief (inktzwart, papierwit, één rode kleur). Je krijgt de scenes van één hoofdstuk: wat de verteller zegt en wat er volgens het script te zien is. Kies per scene één vast beeld en vul het in. Alle tekst in beeld in het ${taalNaam(taal)}.
 
 De vaste beelden (velden die niet bij een beeld horen laat je leeg):
 - foto: een archieffoto vult het beeld. ALLEEN als de scene al een archieffoto (f1, f2, ...) heeft; dan is "foto" verplicht. kop: kort, groot over de foto (een jaartal, een naam, hooguit 4 woorden). sub: één korte regel eronder.
@@ -93,7 +93,7 @@ export interface HoofdstukVraag {
   plan: MotionPlan;
   /** De foto's die in dit hoofdstuk mogen: id → wat erop staat en de vermelding. */
   fotos: Record<string, { wat: string; vermelding: string }>;
-  taal: "nl" | "en";
+  taal: MotionTaal;
   /** Of dit hoofdstuk de eindkaart heeft. */
   eind: boolean;
 }
@@ -149,7 +149,7 @@ export async function leesLib(): Promise<string> {
 }
 
 /** De code van een hoofdstuk: de sjablonen plus de keuzes. */
-export async function docuCode(shots: Shot[], plan: MotionPlan, taal: "nl" | "en", eind: boolean): Promise<string> {
+export async function docuCode(shots: Shot[], plan: MotionPlan, taal: MotionTaal, eind: boolean): Promise<string> {
   const hfd: Record<string, string> = {};
   plan.scenes.forEach((s, i) => { if (s.kop) hfd[`s${i + 1}`] = s.kop; });
   const spec = { scenes: shots, hfd, taal, ...(eind ? { eind: { regel1: plan.eind.regel1, regel2: plan.eind.regel2, knop: plan.eind.knop } } : {}) };

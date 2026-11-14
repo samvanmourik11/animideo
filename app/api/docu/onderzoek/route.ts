@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { canUseDocu } from "@/lib/studio/access";
 import { doeOnderzoek } from "@/lib/docu/onderzoek";
 import { isDocuLengte } from "@/lib/docu/types";
+import { leesTaal } from "@/lib/motion/types";
 
 export const runtime = "nodejs";
 // Zoeken, schrijven en de feitencontrole duren samen een paar minuten.
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   const begin = Date.now();
   try {
-    const uit = await doeOnderzoek({ onderwerp, wens: kort(body.wens, 2000), lengte: body.lengte, taal: body.taal === "en" ? "en" : "nl", kanaal: kort(body.kanaal, 40) });
+    const uit = await doeOnderzoek({ onderwerp, wens: kort(body.wens, 2000), lengte: body.lengte, taal: leesTaal(body.taal), kanaal: kort(body.kanaal, 40) });
     console.log(`[docu/onderzoek] "${onderwerp}": $${uit.usd.toFixed(2)}, ${Math.round((Date.now() - begin) / 1000)} s, ${uit.feiten.length} feiten, ${uit.controle.verbeterd.length} verbeterd`);
     return NextResponse.json(uit);
   } catch (e) {

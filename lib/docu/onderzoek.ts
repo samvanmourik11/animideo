@@ -19,7 +19,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { claude, controleerPlan } from "@/lib/motion/plan";
 import { kosten } from "@/lib/motion/animatie";
-import { duurTekst, maxWoorden, type MotionPlan } from "@/lib/motion/types";
+import { duurTekst, maxWoorden, taalNaam, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
 import type { DocuControle, DocuFeit, DocuLengte, DocuOnderzoek } from "./types";
 
 // Zoeken en nakijken door Sonnet: in de eerste proef (14-11-2026, V&D, 3 minuten) kostte het
@@ -48,7 +48,7 @@ export interface OnderzoekVraag {
   /** Wat de klant er verder over kwijt wil: invalshoek, wat er zeker in moet. */
   wens?: string;
   lengte: DocuLengte;
-  taal: "nl" | "en";
+  taal: MotionTaal;
   /** De naam van het kanaal, voor de eindkaart. Mag leeg. */
   kanaal: string;
 }
@@ -176,22 +176,21 @@ interface RuwScript {
 
 function scriptSysteem(v: OnderzoekVraag): string {
   const woorden = maxWoorden(v.lengte);
-  const en = v.taal === "en";
   const aantal = `${Math.round(v.lengte / 11)} tot ${Math.round(v.lengte / 8)}`;
-  return `Je schrijft het script voor een faceless YouTube-documentaire van ${duurTekst(v.lengte)}, ${en ? "in het Engels" : "in het Nederlands"}, in de stijl van "opkomst en ondergang"-docu's. Beeld: geanimeerde motion graphics (kaarten, tijdlijnen, getallen die oplopen, dossiers, stempels, grafieken) afgewisseld met echte archieffoto's die langzaam inzoomen. Geen gefilmde beelden, geen nagemaakte krantenpagina's of logo's.
+  return `Je schrijft het script voor een faceless YouTube-documentaire van ${duurTekst(v.lengte)}, in het ${taalNaam(v.taal)}, in de stijl van "opkomst en ondergang"-docu's. Beeld: geanimeerde motion graphics (kaarten, tijdlijnen, getallen die oplopen, dossiers, stempels, grafieken) afgewisseld met echte archieffoto's die langzaam inzoomen. Geen gefilmde beelden, geen nagemaakte krantenpagina's of logo's.
 
 Je krijgt een onderzoeksverslag met bronnen. Alleen wat daarin staat mag in het script: geen feit, datum, getal, naam of uitspraak erbij uit je eigen geheugen. Wat het verslag onzeker of omstreden noemt, laat je weg of breng je voorzichtig ("volgens de club", "naar verluidt").
 
 Opbouw (onze vaste docu-formule):
 1. Koude opening (de eerste 30 tot 40 seconden): begin midden in het verhaal, op het hoogtepunt of het moment dat alles kantelt. Korte, ritmische zinnen. Daarna in één zin de vraag die de video beantwoordt ("Hoe kon dat gebeuren?").
-2. Hoofdstukken (bij ${duurTekst(v.lengte)}: ${v.lengte >= 600 ? "vijf tot zeven" : v.lengte >= 300 ? "drie tot vijf" : "twee of drie"}): elk een eigen fase van het verhaal, chronologisch. Elke scene van een hoofdstuk krijgt dezelfde "kop": het nummer en een korte titel, "01  ${en ? "The dome in Arnhem" : "De koepel van Arnhem"}" (hooguit 24 tekens). De koude opening heeft een lege kop.
+2. Hoofdstukken (bij ${duurTekst(v.lengte)}: ${v.lengte >= 600 ? "vijf tot zeven" : v.lengte >= 300 ? "drie tot vijf" : "twee of drie"}): elk een eigen fase van het verhaal, chronologisch. Elke scene van een hoofdstuk krijgt dezelfde "kop": het nummer en een korte titel, "01  De koepel van Arnhem" (vertaald in de taal van de video) (hooguit 24 tekens). De koude opening heeft een lege kop.
 3. Elk hoofdstuk eindigt met een kleine vooruitblik of een vraag die de kijker laat doorkijken.
 4. Slot: de huidige stand, en een slotgedachte die terugslaat op de opening.
-5. Eindkaart (apart, in "eind"): ${v.kanaal ? `een uitnodiging om te abonneren op ${v.kanaal}, met die naam letterlijk erin. eind.knop: "${en ? "Subscribe" : "Abonneer"}".` : `een korte slotzin zonder kanaalnaam. eind.knop: twee tot vier woorden.`} eind.regel1 en eind.regel2: twee korte regels (elk hooguit 28 tekens) die samen een zin vormen die letterlijk in eind.tekst staat.
+5. Eindkaart (apart, in "eind"): ${v.kanaal ? `een uitnodiging om te abonneren op ${v.kanaal}, met die naam letterlijk erin. eind.knop: het woord voor "abonneren" in het ${taalNaam(v.taal)}.` : `een korte slotzin zonder kanaalnaam. eind.knop: twee tot vier woorden.`} eind.regel1 en eind.regel2: twee korte regels (elk hooguit 28 tekens) die samen een zin vormen die letterlijk in eind.tekst staat.
 
 Regels:
 - ${aantal} scenes plus de eindkaart, samen ${Math.round(woorden * 0.85)} tot ${woorden} woorden gesproken tekst. De klant betaalt voor die lengte: blijf er niet ruim onder.
-- "tekst": wat de verteller zegt. Een verteller, geen opsomming: concrete beelden, jaartallen en getallen waar ze het verhaal sterker maken, korte zinnen. Getallen voluit zoals je ze uitspreekt, behalve jaartallen en bedragen. 20 tot 35 woorden per scene, één gedachte per scene.${en ? " Natural, idiomatic English." : ""}
+- "tekst": wat de verteller zegt. Een verteller, geen opsomming: concrete beelden, jaartallen en getallen waar ze het verhaal sterker maken, korte zinnen. Getallen voluit zoals je ze uitspreekt, behalve jaartallen en bedragen. 20 tot 35 woorden per scene, één gedachte per scene.${v.taal !== "nl" ? ` Vlot, natuurlijk ${taalNaam(v.taal)} zoals een moedertaalspreker het zegt, geen vertaalde zinnen.` : ""}
 - "beeld" (in het Nederlands, de animator leest het): wat er te zien is. Wissel af: ongeveer de helft van de scenes een archieffoto (dan vult de foto het beeld, met een korte typografische tekst erover: een jaartal, een naam, een getal), de rest motion graphics: een kaart met een punt op de plek, een tijdlijn die doorschuift, een teller die oploopt, een grafiek die zakt, een dossierkaart van een persoon (naam, rol, jaren), een stempel ("FAILLIET", "VERKOCHT"), twee kolommen naast elkaar, een citaat als typografie met naam en jaar eronder. Woorden in beeld in de taal van de video.
 - "foto": als de scene een archieffoto heeft, een Engelse zoekterm voor Wikimedia Commons: concreet en vindbaar ("GelreDome Arnhem exterior", "Woolworths store Hull 2008", "Concorde G-BOAC Heathrow"). Liever een gebouw, plek, voorwerp of bekende persoon dan iets abstracts. Anders leeg.
 - "feiten": de id's van de feiten uit "feiten" die deze scene gebruikt. Een scene zonder feiten (sfeer, overgang) heeft een lege lijst.
@@ -280,7 +279,7 @@ Werkwijze:
 - Open de bronnen van de schrijver (web_fetch) waar een bewering op leunt, en zoek zelf (web_search) als de bron het niet bevestigt of als er geen bron bij staat. Vandaag is het ${new Date().toISOString().slice(0, 10)}: let op beweringen over "nu" die achterhaald kunnen zijn.
 - Klopt een bewering niet: verbeter de zin. Is hij niet te bevestigen: maak de zin voorzichtiger of laat het stuk weg. Is een uitspraak niet letterlijk zo gedaan: maak er een parafrase van zonder aanhalingstekens, of laat hem weg.
 - Klopt alles in een scene, dan blijft die scene ongemoeid. Verander niets aan stijl of verhaal: alleen wat feitelijk niet klopt.
-- Een verbeterde zin is ongeveer even lang als de oude, ${v.taal === "en" ? "in het Engels" : "in het Nederlands"}, en past in de vertelling.
+- Een verbeterde zin is ongeveer even lang als de oude, in het ${taalNaam(v.taal)}, en past in de vertelling.
 
 Sluit af met:
 - hoeveel beweringen je hebt nagelopen;
