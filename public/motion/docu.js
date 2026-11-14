@@ -14,7 +14,7 @@
 function docuVideo(spec) {
   const KOP = "'Archivo Black', sans-serif";
   const MONO = "'IBM Plex Mono', monospace";
-  const LOC = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pt: 'pt-PT' }[spec.taal] || 'nl-NL';
+  const LOC = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pt: 'pt-BR' }[spec.taal] || 'nl-NL';
   const DOSSIER = { en: 'File', de: 'Akte', fr: 'Dossier', es: 'Expediente', it: 'Fascicolo', pt: 'Processo' }[spec.taal] || 'Dossier';
 
   // Een woord in de voice-over opzoeken zonder foutmelding: een sjabloon heeft altijd een
