@@ -318,7 +318,7 @@ export default function CreatieDetail({
           {c.status === "klaar" && (
             <div className="space-y-2">
               {kanAanpassen && (
-                <button onClick={() => setVideoAanpassen(true)} className="n-knop w-full">
+                <button onClick={() => setVideoAanpassen(true)} className="w-full inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 px-5 rounded-xl transition-colors">
                   ✏️ Video aanpassen
                 </button>
               )}

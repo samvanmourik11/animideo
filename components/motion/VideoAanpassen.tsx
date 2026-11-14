@@ -238,7 +238,7 @@ export default function VideoAanpassen({ creatie, onSluit, onGestart }: { creati
           <button
             disabled={bezig || !punten.length || leeg >= 0 || prijs === null}
             onClick={verstuur}
-            className="n-knop w-full disabled:opacity-50 mt-auto"
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 text-white font-semibold py-3 px-5 rounded-xl mt-auto transition-colors"
           >
             {bezig
               ? "Bezig met starten…"
