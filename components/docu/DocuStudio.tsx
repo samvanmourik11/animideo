@@ -6,7 +6,6 @@ import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
-import { MOTION_STIJLEN } from "@/lib/motion/stijlen";
 import { MOTION_STEM_HUGO, duurTekst, maxWoorden, type MotionPlan } from "@/lib/motion/types";
 import type { BibliotheekStem } from "@/lib/stem/types";
 import {
@@ -49,7 +48,6 @@ export default function DocuStudio() {
   const [taal, setTaal] = useState<"nl" | "en">("nl");
   const [stem, setStem] = useState<string>(MOTION_STEM_HUGO);
   const [stemmen, setStemmen] = useState<BibliotheekStem[]>([]);
-  const [stijl, setStijl] = useState("archief");
   const [muziek, setMuziek] = useState<string>(DOCU_MUZIEK[0].slug);
   const [short, setShort] = useState(true);
   const [plan, setPlan] = useState<MotionPlan | null>(null);
@@ -77,7 +75,6 @@ export default function DocuStudio() {
         if (isDocuLengte(b.lengte)) setLengte(b.lengte);
         if (b.taal === "en" || b.taal === "nl") setTaal(b.taal);
         if (typeof b.stem === "string") setStem(b.stem);
-        if (typeof b.stijl === "string") setStijl(b.stijl);
         if (typeof b.muziek === "string") setMuziek(b.muziek);
         if (typeof b.short === "boolean") setShort(b.short);
         if (b.plan) setPlan(b.plan);
@@ -92,9 +89,9 @@ export default function DocuStudio() {
   useEffect(() => {
     if (!geladen) return;
     try {
-      localStorage.setItem(BEWAAR, JSON.stringify({ kanaal, kleur, onderwerp, wens, lengte, taal, stem, stijl, muziek, short, plan, feiten, controle, fotoZoek, fotos }));
+      localStorage.setItem(BEWAAR, JSON.stringify({ kanaal, kleur, onderwerp, wens, lengte, taal, stem, muziek, short, plan, feiten, controle, fotoZoek, fotos }));
     } catch {}
-  }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, stijl, muziek, short, plan, feiten, controle, fotoZoek, fotos]);
+  }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, muziek, short, plan, feiten, controle, fotoZoek, fotos]);
 
   // Engels: Russell (onze KRONIK-verteller) vooraan, daarna de stemmen die Engels kunnen.
   const stemKeuzes: { id: string; naam: string }[] =
@@ -150,7 +147,7 @@ export default function DocuStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, stijl, muziek, short, plan, feiten, controle, fotos: fotos ?? [] });
+      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, muziek, short, plan, feiten, controle, fotos: fotos ?? [] });
       lijst.zetVoor(c);
     });
   }
@@ -229,24 +226,6 @@ export default function DocuStudio() {
                     <option key={s.id} value={s.id}>{s.naam}</option>
                   ))}
                 </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="n-label">Tekenstijl</label>
-              <div className="mt-1.5 grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {MOTION_STIJLEN.filter((s) => ["archief", "nacht", "noir", "blauwdruk", "knipsel", "minimaal", "schoolbord", "jaren30"].includes(s.id)).map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => setStijl(s.id)}
-                    title={s.uitleg}
-                    className={`rounded-xl border overflow-hidden text-left ${stijl === s.id ? "border-blue-500 ring-1 ring-blue-500" : "border-rand hover:border-blue-500/40"}`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={`/motion/stijlen/${s.id}.jpg`} alt="" className="w-full aspect-video object-cover bg-black" loading="lazy" />
-                    <div className="px-2.5 py-1.5 text-xs font-semibold text-tekst">{s.naam}</div>
-                  </button>
-                ))}
               </div>
             </div>
 
