@@ -64,7 +64,9 @@ export function planMetFotos(plan: MotionPlan, fotos: DocuFoto[], taal: "nl" | "
     scenes: plan.scenes.map((s, i) => {
       const hier = fotos.filter((f) => f.scene === i + 1);
       // "Nog eens" start met het plan uit de rij, waar de aanwijzingen al in staan.
-      if (!hier.length || s.beeld.startsWith("Archieffoto ")) return s;
+      // Alleen een aanwijzing mét id telt: het script zelf schrijft ook "Archieffoto van ...",
+      // en daarop stoppen liet in de tweede proef (14-11-2026) alle foto's uit de video.
+      if (!hier.length || /^Archieffoto f\d+ /.test(s.beeld)) return s;
       const regels = hier.map((f) => `Archieffoto ${f.id} (${f.wat || "archieffoto"}), beeldvullend. Vermelding linksonder: "${fotoCredit(f, taal)}".`);
       return { ...s, beeld: `${regels.join(" ")} ${s.beeld}` };
     }),
