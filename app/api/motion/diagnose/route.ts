@@ -16,6 +16,31 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user || !isTeamAccount(user.email)) return NextResponse.json({ error: "nee" }, { status: 403 });
   const v = req.nextUrl.searchParams.get("v") ?? "a";
+  if (v.startsWith("t")) {
+    // Snelheid: 40 beelden tekenen + fotograferen. t1080 / t720, "-b" = zonder vervaging.
+    const h = v.includes("720") ? 720 : 1080, w = Math.round(h * 16 / 9);
+    const code = await readFile(path.join(process.cwd(), "public", "motion", "voorbeeld.js"), "utf8");
+    const SCRIPT: [string, string][] = [["s1", "Ken je dat? De telefoon gaat, maar je staat net te knippen. Weer een gemiste afspraak."], ["eind", "Kapsalon Knip laat het je zien."]];
+    let t = 0;
+    const woorden = SCRIPT.flatMap(([, tekst]) => tekst.split(/\s+/).map((word) => { const x = { word, start: +t.toFixed(2), end: +(t + 0.3).toFixed(2) }; t += 0.4; return x; }));
+    let html = await paginaHtml({ w, h, woorden, script: SCRIPT, code, merk: { naam: "Knip", website: "", kleur: "#7b3ff2", kleur2: "#ffc21a" } });
+    if (v.includes("-b")) html = html.replace('filter="url(#zacht)"', "");
+    const b = await launchBrowser({ zonderCrashbestanden: true });
+    const tijden: string[] = [];
+    try {
+      const pg = await b.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
+      await pg.setContent(html, { waitUntil: "domcontentloaded", timeout: 30000 });
+      await pg.waitForFunction("window.READY === true", null, { timeout: 30000 });
+      let tr = 0, ts = 0;
+      for (let f = 0; f < 40; f++) {
+        const a1 = Date.now(); await pg.evaluate(`window.render(${(f * 5) / 25})`); const a2 = Date.now();
+        await pg.screenshot({ type: "jpeg", quality: 92 }); const a3 = Date.now();
+        tr += a2 - a1; ts += a3 - a2;
+      }
+      tijden.push(`render ${Math.round(tr / 40)}ms/beeld, foto ${Math.round(ts / 40)}ms/beeld`);
+    } catch (e) { tijden.push(String(e).slice(0, 300)); } finally { await b.close().catch(() => {}); }
+    return NextResponse.json({ v, tijden });
+  }
   if (v === "p") {
     // Drie browsers tegelijk starten en een pagina laten tekenen, zoals drie hoofdstukken tegelijk.
     const uit = await Promise.all([0, 1, 2].map(async (k) => {
