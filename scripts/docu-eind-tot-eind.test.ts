@@ -17,6 +17,7 @@ test("docu van begin tot eind", async () => {
   const { doeOnderzoek } = await import("@/lib/docu/onderzoek");
   const { zoekFotos } = await import("@/lib/docu/fotos");
   const { planMetFotos } = await import("@/lib/docu/regie");
+  const { tekenDocuHoofdstuk } = await import("@/lib/docu/sjablonen");
   const { maakPakket, maakThumbnail, schrijfShort } = await import("@/lib/docu/extras");
   const { DOCU_STEM_EN, fotoCredit } = await import("@/lib/docu/types");
   const { tekenAnimatie, sceneTijden } = await import("@/lib/motion/animatie");
@@ -108,7 +109,9 @@ test("docu van begin tot eind", async () => {
         if (her && existsSync(pad(naam))) { codes[k] = await readFile(pad(naam), "utf8"); return; }
         const d = deelWerk(basis, plan, words, delen, k);
         const ids = genoemd(d.plan.scenes.map((s) => s.beeld).join(" "));
-        const a = await tekenAnimatie({ pagina: alleen(d.pagina, ids), plan: d.plan, plek: d.plek, onderwerp, taal, soort: "verhaal", beelden: beelden.filter((x) => ids.has(x.id)), docu: true });
+        const a = process.env.DOCU_CLAUDE_TEKENT === "1"
+          ? await tekenAnimatie({ pagina: alleen(d.pagina, ids), plan: d.plan, plek: d.plek, onderwerp, taal, soort: "verhaal", beelden: beelden.filter((x) => ids.has(x.id)), docu: true })
+          : await tekenDocuHoofdstuk({ pagina: alleen(d.pagina, ids), plan: d.plan, taal, eind: !d.plek || d.plek.laatste, fotos: Object.fromEntries(f.fotos.filter((x) => ids.has(x.id)).map((x) => [x.id, { wat: x.wat, vermelding: fotoCredit(x, taal) }])) });
         codes[k] = a.code;
         totaal.tekenen += a.gebruik.usd;
         await writeFile(pad(naam), a.code);

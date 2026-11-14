@@ -12,7 +12,7 @@
 //   3. het YouTube-pakket: thumbnail, beschrijving met hoofdstuktijden en bronnen, en een Short.
 
 import { creditsVoorInkoop, INKOOP_USD } from "@/lib/credit-costs";
-import { motionCredits, type MotionLengte, type MotionPlan, type MotionStap } from "@/lib/motion/types";
+import { type MotionLengte, type MotionPlan, type MotionStap } from "@/lib/motion/types";
 
 export const DOCU_LENGTES = [
   { sec: 180, naam: "±3 minuten", uitleg: "Kort verhaal, één wending" },
@@ -117,20 +117,22 @@ export interface DocuInvoer {
 }
 
 // ── Prijs ────────────────────────────────────────────────────────────────────
-// Bovenop de motion-video (Claude tekent, stem, Whisper):
-//   onderzoek + feitencontrole: Opus zoekt (±15 zoekopdrachten à $0,01 en ±150.000 tokens
-//   aan zoekresultaten), Sonnet controleert met eigen zoekopdrachten: ruim $1,50;
-//   foto's kiezen: het kleinste model bekijkt per scene vier kandidaten: ±$0,05;
-//   beschrijving en titels: centen; thumbnail: in code, gratis;
-//   de Short: een motion-video van 45 s, ±$0,60 met stem.
-// Nog niet gemeten op echte docu's; bijstellen zodra er een paar zijn gemaakt.
+// Sinds de vaste sjablonen (14-11-2026) tekent Claude niet meer zelf; een goedkoop model
+// kiest per scene een sjabloon. Gemeten op V&D (3 minuten, Engels):
+//   onderzoek + feitencontrole $1,22 (zoeken $0,36, script $0,44, controle $0,42);
+//   foto's kiezen $0,004; sjablonen kiezen $0,04; titels/beschrijving $0,015; Short-script $0,02.
+// Hieronder met speling: het onderzoek van een lange docu zoekt meer, en de Short is een
+// motion-video van 45 s die Claude wel zelf tekent (±$0,60 met stem).
 const ONDERZOEK_USD = 1.6;
-const FOTOS_USD = 0.1;
+const PER_SEC_USD = 0.0005; // sjablonen kiezen, ruim
+const VAST_USD = 0.1; // foto's, pakket
 const SHORT_SEC = 45;
 const SHORT_USD = 0.15 + 0.01 * SHORT_SEC + ((SHORT_SEC * 15) / 1000) * INKOOP_USD.stemPer1000;
 
 export function docuCredits(lengte: DocuLengte, short = true): number {
-  return motionCredits(lengte) + creditsVoorInkoop(ONDERZOEK_USD + FOTOS_USD + (short ? SHORT_USD : 0));
+  // Stem: ±15 tekens per seconde.
+  const stem = ((lengte * 15) / 1000) * INKOOP_USD.stemPer1000;
+  return creditsVoorInkoop(ONDERZOEK_USD + VAST_USD + PER_SEC_USD * lengte + stem + (short ? SHORT_USD : 0));
 }
 
 export type DocuStap = MotionStap | "extras";

@@ -33,6 +33,8 @@ import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal } from "./types";
 import { stijlVan } from "./stijlen";
 import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
+import { tekenDocuHoofdstuk } from "@/lib/docu/sjablonen";
+import { fotoCredit, type DocuFoto } from "@/lib/docu/types";
 import { FPS, maakStil, monteer, voegStemSamen } from "./render";
 import {
   MOTION_MUZIEK,
@@ -380,8 +382,18 @@ async function voerAnimatieUit(c0: Creatie, v0: Voortgang): Promise<void> {
         open.map((k) => {
           const d = deelWerk(basis, r.plan, werk.woorden, werk.delen, k);
           if (c.maker !== "docu") return tekenAnimatie({ pagina: d.pagina, plan: d.plan, plek: d.plek, onderwerp: r.onderwerp.slice(0, 3000), beelden: r.beelden ?? [], nietDoen: r.nietDoen, taal: r.taal, soort: r.soort });
+          // Een docu tekent met vaste sjablonen (lib/docu/sjablonen.ts): een paar cent per
+          // hoofdstuk in plaats van een eigen tekening door Claude.
           const ids = genoemd(d.plan.scenes.map((s) => s.beeld).join(" "));
-          return tekenAnimatie({ pagina: alleenFotos(d.pagina, ids), plan: d.plan, plek: d.plek, onderwerp: r.onderwerp.slice(0, 3000), beelden: (r.beelden ?? []).filter((b) => ids.has(b.id)), nietDoen: r.nietDoen, taal: r.taal, soort: r.soort, docu: true });
+          const taal = r.taal === "en" ? "en" : "nl";
+          const docuFotos = ((r as unknown as { docu?: { fotos?: DocuFoto[] } }).docu?.fotos ?? []).filter((f) => ids.has(f.id));
+          return tekenDocuHoofdstuk({
+            pagina: alleenFotos(d.pagina, ids),
+            plan: d.plan,
+            taal,
+            eind: !d.plek || d.plek.laatste,
+            fotos: Object.fromEntries(docuFotos.map((f) => [f.id, { wat: f.wat, vermelding: fotoCredit(f, taal) }])),
+          });
         }),
       );
       const gebruik: Gebruik = { ...(v.gebruik ?? { usd: 0, rondes: 0, sec: 0 }) };
