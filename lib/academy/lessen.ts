@@ -304,6 +304,7 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
           "Een goede opdracht aan de regisseur zegt: voor wie, wat ze moeten snappen, wat ze daarna moeten doen, en wat juist niet.",
           "Lees het script hardop voordat je op Maak klikt: wat daar staat, wordt precies zo ingesproken en getekend.",
           "Het laatste stuk wordt op je eigen computer gemaakt: houd het tabblad van de studio open tot de video klaar is.",
+          "Klopt er achteraf iets niet? Klik op Aanpassen, pauzeer, klik aan wat anders moet en zeg per punt precies wat je wilt. Alleen het beeld verandert, je oude video blijft bewaard.",
         ],
         opdracht: { tekst: "Maak een uitlegvideo van 30 of 45 seconden over één ding dat jij of je bedrijf doet.", link: "/studios/motion", knop: "Naar Motion graphics", check: "motion" },
         verdieping: [
@@ -380,6 +381,17 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
               "Pas nu gaan er credits af. Daarna gebeuren er vier dingen. Eerst spreekt de stem het hele script in. Dan ontwerpt Claude elke scène op de seconde van de stem, maakt proefbeelden en kijkt die zelf na: staat er niets over de rand, is alles leesbaar, valt alles op tijd? Wat niet goed is, wordt verbeterd. Daarna wordt de video beeld voor beeld getekend. Tot slot komen de stem en de muziek eronder.",
               "Dat beeld-voor-beeld tekenen gebeurt op je eigen computer, in je browser. Een computer vlak voor je neus doet dat vele malen sneller dan een server op afstand: een video van 45 seconden is meestal binnen een minuut getekend. Daarom zie je bovenaan een blauwe melding: 'Houd dit tabblad open'. Klik je toch weg, dan gaat het verder zodra je de studio weer opent.",
               "Alles bij elkaar duurt een korte video meestal zo'n vijf minuten, een video van een paar minuten tien tot twintig minuten. Lukt het technisch niet, dan staat er 'Mislukt' en krijg je je credits terug.",
+            ],
+          },
+          {
+            kop: "Achteraf iets anders: de video aanpassen",
+            alineas: [
+              "Is je video klaar en wil je toch iets anders? Je hoeft niet opnieuw te beginnen. Op elke klare video in je lijst staat een blauwe knop: Aanpassen. Daarmee verander je alleen wat jij aanwijst, en de rest blijft precies zoals het was. Dat is sneller en goedkoper dan een nieuwe video, en je loopt geen risico dat een scène die al goed was ineens anders wordt.",
+              "Zo werkt het. Je video opent groot in een venster. Speel hem af en pauzeer op het moment waar iets niet klopt. Klik dan in het beeld op precies dat ding: een tekst, een vorm, een kleur. Er verschijnt een genummerde rode stip en rechts een vak waarin je schrijft wat er anders moet. Je kunt tot acht punten zetten, ook op verschillende momenten in de video.",
+              "Waarom klikken in plaats van alleen typen? Omdat 'die prijs moet oranje' in een video van een minuut op tien plekken kan slaan. Met het moment én de plek erbij weet de AI precies welk beeld en welk onderdeel je bedoelt. Hij past alleen het stuk van de video aan waar jouw punten in vallen, en kijkt daarna zelf of het gelukt is.",
+              "Schrijf per punt één concrete wens. 'Maak het bedrag oranje', 'deze tekst groter', 'spelfout: Utrecht' werkt goed. 'Maak het mooier' werkt niet: dan moet de AI raden wat jij mooi vindt. Heb je drie wensen, zet dan drie punten.",
+              "Voordat je start, zie je op de knop wat het kost, bijvoorbeeld 5 credits voor één punt. Hoe meer stukken van de video je punten raken, hoe meer het kost. Daarna wordt de video opnieuw getekend in je browser, dus ook hier: houd de studio open. Je oude video blijft bewaard en de aangepaste versie komt erbij in je lijst, zodat je ze naast elkaar kunt vergelijken.",
+              "Eén ding kan niet: wat de verteller zegt, blijft hetzelfde. De stem en de tijden liggen vast, en het beeld wordt daaromheen aangepast. Wil je een andere tekst horen, maak dan een nieuwe video en pas het script aan voordat je op Maak klikt. Daarom loont het zo om je script vooraf hardop te lezen.",
             ],
           },
           {
