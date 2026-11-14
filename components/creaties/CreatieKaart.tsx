@@ -52,10 +52,13 @@ export default function CreatieKaart({
   creatie,
   onOpen,
   onFavoriet,
+  onAanpassen,
 }: {
   creatie: Creatie;
   onOpen: () => void;
   onFavoriet?: () => void;
+  // Alleen in studio's waar je een klare video achteraf kunt laten aanpassen.
+  onAanpassen?: () => void;
 }) {
   const c = creatie;
   return (
@@ -133,6 +136,14 @@ export default function CreatieKaart({
           aria-label={c.favoriet ? "Uit favorieten" : "Favoriet maken"}
         >
           {c.favoriet ? "❤️" : "🤍"}
+        </button>
+      )}
+      {onAanpassen && c.status === "klaar" && c.soort === "video" && c.url && (
+        <button
+          onClick={onAanpassen}
+          className="absolute bottom-2 right-2 text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow"
+        >
+          ✏️ Aanpassen
         </button>
       )}
     </div>

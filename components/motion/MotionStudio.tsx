@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
+import VideoAanpassen from "@/components/motion/VideoAanpassen";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 import { BrowserMelding, useBrowserVideo } from "./BrowserVideo";
 import type { BrandKit } from "@/lib/types";
@@ -119,6 +120,7 @@ export default function MotionStudio() {
   const [bezig, setBezig] = useState<Bezig>(null);
   const [fout, setFout] = useState<string | null>(null);
   const [open, setOpen] = useState<Creatie | null>(null);
+  const [aanpassen, setAanpassen] = useState<Creatie | null>(null);
   const logoKies = useRef<HTMLInputElement>(null);
   const beeldKies = useRef<HTMLInputElement>(null);
   const scriptKies = useRef<HTMLInputElement>(null);
@@ -797,12 +799,23 @@ export default function MotionStudio() {
           ) : (
             <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 items-start">
               {lijst.creaties.map((c) => (
-                <CreatieKaart key={c.id} creatie={c} onOpen={() => setOpen(c)} onFavoriet={async () => lijst.werkBij(await zetFavoriet(c))} />
+                <CreatieKaart key={c.id} creatie={c} onOpen={() => setOpen(c)} onFavoriet={async () => lijst.werkBij(await zetFavoriet(c))} onAanpassen={() => setAanpassen(c)} />
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {aanpassen && (
+        <VideoAanpassen
+          creatie={aanpassen}
+          onSluit={() => setAanpassen(null)}
+          onGestart={(c) => {
+            setAanpassen(null);
+            lijst.zetVoor(c);
+          }}
+        />
+      )}
 
       {open && (
         <CreatieDetail
