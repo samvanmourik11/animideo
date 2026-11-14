@@ -9,10 +9,10 @@ import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebr
 import { BrowserMelding, useBrowserVideo } from "@/components/motion/BrowserVideo";
 import { MOTION_STEM_HUGO, MOTION_TALEN, duurTekst, isMotionTaal, maxWoorden, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
 import type { BibliotheekStem } from "@/lib/stem/types";
+import { taalStemmen } from "@/lib/stem/taalstemmen";
 import {
   DOCU_LENGTES,
   DOCU_MUZIEK,
-  DOCU_VERTELLERS,
   docuCredits,
   fotoCredit,
   isDocuLengte,
@@ -101,19 +101,16 @@ export default function DocuStudio() {
     } catch {}
   }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, muziek, short, plan, feiten, controle, fotoZoek, fotos]);
 
-  // Per taal onze eigen KRONIK-verteller vooraan (Nederlands: Hugo), daarna de stemmen uit de
-  // bibliotheek die die taal kunnen.
-  const verteller = DOCU_VERTELLERS[taal];
-  const kunnen = stemmen.filter((s) => taal === "nl" || s.talen.includes(taal));
-  const stemKeuzes: { id: string; naam: string }[] = [
-    ...(verteller ? [{ id: verteller.id, naam: `${verteller.naam} · verteller (KRONIK)` }] : []),
-    ...[...kunnen.filter((s) => s.id === MOTION_STEM_HUGO), ...kunnen.filter((s) => s.id !== MOTION_STEM_HUGO)].map((s) => ({ id: s.id, naam: s.id === MOTION_STEM_HUGO ? "Hugo · verteller" : `${s.naam} · ${s.geslacht}` })),
-  ];
+  // Nederlands: Hugo vooraan, dan de bibliotheek. Andere talen: alleen moedertaalstemmen, met
+  // onze eigen KRONIK-verteller vooraan (lib/stem/taalstemmen.ts).
+  const stemKeuzes: { id: string; naam: string }[] =
+    taal === "nl"
+      ? [{ id: MOTION_STEM_HUGO, naam: "Hugo · verteller" }, ...stemmen.filter((s) => s.id !== MOTION_STEM_HUGO).map((s) => ({ id: s.id, naam: `${s.naam} · ${s.geslacht}` }))]
+      : taalStemmen(taal).map((s) => ({ id: s.id, naam: `${s.naam} · ${s.typering}` }));
 
   function kiesTaal(t: MotionTaal) {
     setTaal(t);
-    const kan = stemmen.filter((s) => t === "nl" || s.talen.includes(t));
-    setStem(DOCU_VERTELLERS[t]?.id ?? (kan.find((s) => s.id === MOTION_STEM_HUGO) ?? kan[0])?.id ?? MOTION_STEM_HUGO);
+    setStem(t === "nl" ? MOTION_STEM_HUGO : taalStemmen(t)[0]?.id ?? MOTION_STEM_HUGO);
   }
 
   async function doe(wat: Exclude<Bezig, null>, actie: () => Promise<void>) {

@@ -28,7 +28,8 @@ import type { Creatie } from "@/lib/creaties/types";
 import { canUseMotion } from "@/lib/studio/access";
 import { controleerPlan } from "./plan";
 import { deelWerk, scriptVan, stemBlokken, verdeel, type Deel, type PaginaBasis } from "./lang";
-import { BIBLIOTHEEK, vindStem } from "@/lib/stem/bibliotheek";
+import { vindStem } from "@/lib/stem/bibliotheek";
+import { isTaalStem, taalStemmen } from "@/lib/stem/taalstemmen";
 import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal, leesTaal } from "./types";
 import { stijlVan } from "./stijlen";
 import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
@@ -126,12 +127,13 @@ export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
   const bedrijf = tekst(ruw.bedrijf, 40);
   if (!bedrijf && soort === "bedrijf") throw new Error("Vul eerst de naam van je bedrijf in.");
   const taal = isMotionTaal(ruw.taal) ? ruw.taal : "nl";
-  // Alleen stemmen uit onze bibliotheek die de gekozen taal spreken; anders Hugo.
+  // Nederlands: een stem uit onze bibliotheek, anders Hugo. Andere talen: alleen de
+  // moedertaalstemmen van die taal (lib/stem/taalstemmen.ts), anders de eerste daarvan.
   const gekozen = vindStem(ruw.stem);
-  const kan = (s: { talen: string[] }) => taal === "nl" || s.talen.includes(taal);
-  // Hugo spreekt geen Frans: dan de eerste stem uit de bibliotheek die het wel kan.
-  const standaard = [vindStem(MOTION_STEM_HUGO), ...BIBLIOTHEEK].find((s) => s && kan(s))?.id ?? MOTION_STEM_HUGO;
-  const stem = gekozen && gekozen.id === ruw.stem && kan(gekozen) ? gekozen.id : standaard;
+  const stem =
+    taal === "nl"
+      ? gekozen && gekozen.id === ruw.stem ? gekozen.id : MOTION_STEM_HUGO
+      : isTaalStem(taal, ruw.stem) ? (ruw.stem as string) : taalStemmen(taal)[0]?.id ?? MOTION_STEM_HUGO;
   const lengte = isMotionLengte(ruw.lengte) ? ruw.lengte : 30;
   const muziek = MOTION_MUZIEK.some((m) => m.slug === ruw.muziek) ? (ruw.muziek as string) : MOTION_MUZIEK[0].slug;
   return {

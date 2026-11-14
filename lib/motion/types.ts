@@ -241,7 +241,7 @@ export const MOTION_TALEN = [
   { id: "fr", naam: "Frans", locale: "fr-FR" },
   { id: "es", naam: "Spaans", locale: "es-ES" },
   { id: "it", naam: "Italiaans", locale: "it-IT" },
-  { id: "pt", naam: "Portugees", locale: "pt-PT" },
+  { id: "pt", naam: "Portugees (Braziliaans)", locale: "pt-BR" },
 ] as const;
 export type MotionTaal = (typeof MOTION_TALEN)[number]["id"];
 export const isMotionTaal = (v: unknown): v is MotionTaal => MOTION_TALEN.some((t) => t.id === v);

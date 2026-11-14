@@ -25,7 +25,7 @@ const GETAL_VOORBEELD: Record<MotionTaal, string> = {
   fr: "1 250 en 3,5",
   es: "1.250 en 3,5",
   it: "1.250 en 3,5",
-  pt: "1250 en 3,5",
+  pt: "1.250 en 3,5",
 };
 import { stijlVan } from "./stijlen";
 

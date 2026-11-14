@@ -6,6 +6,7 @@ import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import VideoAanpassen from "@/components/motion/VideoAanpassen";
+import { taalStemmen } from "@/lib/stem/taalstemmen";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 import { BrowserMelding, useBrowserVideo } from "./BrowserVideo";
 import type { BrandKit } from "@/lib/types";
@@ -201,9 +202,10 @@ export default function MotionStudio() {
   // Wat de klant in het gesprek vertelde, als achtergrond voor wie de animatie tekent.
   const onderwerp = berichten.filter((b) => b.van === "klant").map((b) => b.tekst).join("\n").slice(0, 6000);
 
-  // De stemmen die de gekozen taal spreken; Hugo staat vooraan.
-  const stemKeuzes = stemmen.filter((st) => taal === "nl" || st.talen.includes(taal)).sort((a, b) => Number(b.id === MOTION_STEM_HUGO) - Number(a.id === MOTION_STEM_HUGO));
-  const gekozenStem = stemmen.find((st) => st.id === stem) ?? null;
+  // Nederlands: de bibliotheek met Hugo vooraan. Andere talen: alleen moedertaalstemmen.
+  const stemKeuzes: { id: string; naam: string; geslacht: string; leeftijd: string; typering: string; voorbeeld: string }[] =
+    taal === "nl" ? [...stemmen].sort((a, b) => Number(b.id === MOTION_STEM_HUGO) - Number(a.id === MOTION_STEM_HUGO)) : taalStemmen(taal);
+  const gekozenStem = stemKeuzes.find((st) => st.id === stem) ?? null;
 
   useEffect(() => {
     fetch("/api/stem/bibliotheek").then((r) => (r.ok ? r.json() : [])).then((d: BibliotheekStem[]) => setStemmen(Array.isArray(d) ? d : [])).catch(() => {});
@@ -211,9 +213,8 @@ export default function MotionStudio() {
 
   function kiesTaal(t: MotionTaal) {
     setTaal(t);
-    // Spreekt de gekozen stem die taal niet, dan de eerste die het wel kan.
-    const kan = stemmen.filter((st) => t === "nl" || st.talen.includes(t));
-    if (kan.length && !kan.some((st) => st.id === stem)) setStem((kan.find((st) => st.id === MOTION_STEM_HUGO) ?? kan[0]).id);
+    // Elke taal heeft zijn eigen stemmen: Hugo voor Nederlands, anders de eerste moedertaalstem.
+    setStem(t === "nl" ? MOTION_STEM_HUGO : taalStemmen(t)[0]?.id ?? MOTION_STEM_HUGO);
   }
 
   function luister() {
@@ -489,7 +490,7 @@ export default function MotionStudio() {
                 </div>
               </div>
             </div>
-            {gekozenStem && <p className="text-[11px] text-tekst-3 -mt-2">{gekozenStem.typering}{taal !== "nl" ? `. Het voorbeeld is in het Nederlands; de video wordt in het ${taalNaam(taal)} ingesproken.` : ""}</p>}
+            {gekozenStem && <p className="text-[11px] text-tekst-3 -mt-2">{gekozenStem.typering}{taal !== "nl" ? ` · moedertaalspreker ${taalNaam(taal)}` : ""}</p>}
 
             <div>
               <label className="n-label">Muziek</label>
