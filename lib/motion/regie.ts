@@ -49,6 +49,7 @@ import {
   isMotionFormaat,
   isMotionLengte,
   motionCredits,
+  extraFormaatCredits,
   type MotionInvoer,
   type MotionStap,
 } from "./types";
@@ -200,7 +201,17 @@ export async function startMotion(userId: string, ruw: Record<string, unknown>, 
     throw new WachtrijFout(`Je hebt al ${MAX_TEGELIJK} dingen in de maak. Wacht tot er één klaar is.`, 429);
   }
 
-  const prijs = o.credits ?? motionCredits(invoer.lengte);
+  // Hetzelfde script in het andere formaat, vlak na de eerste video gestart: lagere prijs en
+  // dezelfde stem (de opnames van de eerste video worden hergebruikt).
+  let zus: { id: string; stemmen?: string[] } | null = null;
+  if (!o.maker && typeof ruw.zusVan === "string" && /^[0-9a-f-]{36}$/i.test(ruw.zusVan)) {
+    const { data: z } = await db.from("creaties").select("id, invoer, created_at").eq("id", ruw.zusVan).eq("user_id", userId).eq("maker", "motion").maybeSingle();
+    const zi = z?.invoer as (MotionInvoer & { voortgang?: Voortgang }) | undefined;
+    if (z && zi && Date.now() - new Date(z.created_at).getTime() < 30 * 60 * 1000 && zi.formaat !== invoer.formaat && zi.stem === invoer.stem && JSON.stringify(zi.plan) === JSON.stringify(invoer.plan)) {
+      zus = { id: z.id, stemmen: zi.voortgang?.stemmen };
+    }
+  }
+  const prijs = o.credits ?? (zus ? extraFormaatCredits(invoer.lengte) : motionCredits(invoer.lengte));
   const { ok, betaald, betalerId } = prijs > 0 ? await betaal(userId, prijs, o.omschrijving ?? "Nieuwe app: motion graphics") : { ok: true, betaald: 0, betalerId: userId };
   if (!ok) throw new WachtrijFout("Niet genoeg credits.", 402);
 
@@ -214,7 +225,7 @@ export async function startMotion(userId: string, ruw: Record<string, unknown>, 
       maker: o.maker ?? "motion",
       model: "motion",
       prompt: o.prompt ?? `Motion graphics: ${invoer.plan.titel || invoer.bedrijf}`,
-      invoer: { ...invoer, ...o.extra, voortgang },
+      invoer: { ...invoer, ...o.extra, ...(zus ? { zusVan: zus.id } : {}), voortgang },
       credits: betaald,
       fal_endpoint: "motion",
       // Niet leeg laten: een oudere versie van de app (de live-site op dezelfde database,
@@ -234,7 +245,7 @@ export async function startMotion(userId: string, ruw: Record<string, unknown>, 
   try {
     // Zo weinig mogelijk opnames: per scene inspreken geeft hoorbare naden en een
     // wisselend tempo. De scenes worden daarna op de woordtijden gelegd.
-    const stemmen = await Promise.all(
+    const stemmen = zus?.stemmen?.length ? zus.stemmen : await Promise.all(
       stemBlokken(invoer.plan).map(async (text) => {
         const { request_id } = await fal.queue.submit(STEM_MODEL, { input: { text, voice: invoer.stem || HUGO, language_code: invoer.taal ?? "nl", stability: 0.5, similarity_boost: 0.75, speed: 1 } as never });
         return request_id;

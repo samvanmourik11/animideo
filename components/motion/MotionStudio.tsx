@@ -23,6 +23,7 @@ import {
   maxWoorden,
   duurTekst,
   motionCredits,
+  extraFormaatCredits,
   motionFont,
   MOTION_SOORTEN,
   MOTION_TALEN,
@@ -288,8 +289,14 @@ export default function MotionStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("motion", { onderwerp, ...merk(), formaat, lengte, muziek, stijl, soort, taal, stem, ondertitels, mail, plan });
+      const basis = { onderwerp, ...merk(), lengte, muziek, stijl, soort, taal, stem, ondertitels, mail, plan };
+      const c = await startMaker("motion", { ...basis, formaat });
       lijst.zetVoor(c);
+      // Het andere formaat erbij: zelfde script en stem, eigen opbouw van het beeld.
+      if (ookAnder) {
+        const zus = await startMaker("motion", { ...basis, formaat: anderFormaat, zusVan: c.id, mail: false });
+        lijst.zetVoor(zus);
+      }
     });
   }
 
@@ -373,7 +380,10 @@ export default function MotionStudio() {
   const woorden = plan ? [...plan.scenes.map((s) => s.tekst), plan.eind.tekst].join(" ").split(/\s+/).filter(Boolean).length : 0;
   const max = Math.round(maxWoorden(lengte) * 1.25);
   const teLang = woorden > max;
-  const credits = motionCredits(lengte);
+  const [ookAnder, setOokAnder] = useState(false);
+  const anderFormaat: MotionFormaat = formaat === "9:16" ? "16:9" : "9:16";
+  const extraCredits = extraFormaatCredits(lengte);
+  const credits = motionCredits(lengte) + (ookAnder ? extraCredits : 0);
 
   return (
     <div className="space-y-8">
@@ -815,8 +825,23 @@ export default function MotionStudio() {
                 {woorden} woorden {teLang ? `— te lang voor ${duurTekst(lengte)}: maak het korter of kies een langere video` : `(ongeveer ${woorden / 2.1 + 3 < 90 ? `${Math.round(woorden / 2.1 + 3)} seconden` : `${((woorden / 2.1 + 3) / 60).toFixed(1).replace(".", ",")} minuten`})`}
               </p>
 
+              <div className="rounded-2xl border border-rand p-3 space-y-2">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-tekst-3">Formaten</div>
+                <div className="flex items-center justify-between text-sm text-tekst">
+                  <span>✓ {formaat === "9:16" ? "Staand 9:16" : "Liggend 16:9"} <span className="text-tekst-3">(hoofdvideo)</span></span>
+                  <span className="text-tekst-3">{motionCredits(lengte)} credits</span>
+                </div>
+                <label className="flex items-center justify-between gap-2 text-sm text-tekst cursor-pointer">
+                  <span className="flex items-center gap-2">
+                    <input type="checkbox" checked={ookAnder} onChange={(e) => setOokAnder(e.target.checked)} />
+                    Ook {anderFormaat === "9:16" ? "staand 9:16 (Reels, TikTok)" : "liggend 16:9 (YouTube, website)"}
+                  </span>
+                  <span className="text-tekst-3">+ {extraCredits} credits</span>
+                </label>
+                {ookAnder && <p className="text-[11px] text-tekst-3">Zelfde script en stem; het beeld wordt opnieuw opgebouwd voor dat formaat. Je krijgt twee video&apos;s.</p>}
+              </div>
               <button onClick={maak} disabled={!!bezig || teLang || (soort === "bedrijf" && !bedrijf.trim())} className="btn-primary w-full disabled:opacity-50">
-                {bezig === "maken" ? "Bezig met insturen…" : `✨ Maak de video · ${credits} credits`}
+                {bezig === "maken" ? "Bezig met insturen…" : `✨ Maak ${ookAnder ? "2 video's" : "de video"} · ${credits} credits`}
               </button>
               <p className="text-[11px] text-tekst-3">
                 Dit duurt meestal {lengte <= 60 ? "een minuut of 5" : lengte <= 180 ? "5 tot 10 minuten" : lengte <= 300 ? "een minuut of 20" : "drie kwartier"}: de animatie wordt speciaal voor jouw script getekend en daarna nagekeken. Je kunt ondertussen

@@ -314,6 +314,14 @@ export function motionCredits(lengte: MotionLengte): number {
   return creditsVoorInkoop(motionInkoopUsd(lengte) + stem);
 }
 
+/**
+ * Dezelfde video in het andere formaat erbij (verbeterplan idee 06): dezelfde stem, alleen
+ * de animatie wordt opnieuw opgebouwd voor dat formaat. Ruim 60% van de gewone prijs.
+ */
+export function extraFormaatCredits(lengte: MotionLengte): number {
+  return Math.ceil(motionCredits(lengte) * 0.6);
+}
+
 export type MotionStap = "stem" | "wacht-animatie" | "animatie" | "wacht-video" | "video" | "browser" | "monteren" | "aanpassen";
 
 export const MOTION_STAP_LABEL: Record<MotionStap, string> = {
