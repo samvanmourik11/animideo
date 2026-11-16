@@ -74,7 +74,7 @@ async function postBestand<T>(pad: string, bestand: File, extra: Record<string, 
 }
 
 type Beeld = Omit<MotionBeeld, "id">;
-type Bezig = null | "script" | "maken" | "logo" | "beeld" | "bestand" | "huisstijl" | "website";
+type Bezig = null | "script" | "maken" | "logo" | "beeld" | "bestand" | "huisstijl" | "website" | "cijfers";
 
 /** De beelden die bij een huisstijl horen en bij elke video vanzelf meegaan. */
 function vasteBeelden(kit: BrandKit): Beeld[] {
@@ -138,6 +138,7 @@ export default function MotionStudio() {
   const logoKies = useRef<HTMLInputElement>(null);
   const beeldKies = useRef<HTMLInputElement>(null);
   const scriptKies = useRef<HTMLInputElement>(null);
+  const cijfersKies = useRef<HTMLInputElement>(null);
 
   const lijst = useCreaties({ maker: "motion" });
   // De laatste stap (beeld voor beeld tot video) gebeurt in deze browser.
@@ -345,6 +346,21 @@ export default function MotionStudio() {
       // In het invoerveld, zodat de klant er nog iets bij kan zeggen voor hij het stuurt.
       setInvoer(tekst);
       if (ingekort) setFout("Je bestand is lang; we hebben alleen het eerste deel ingelezen. Een video is hooguit ±10 minuten.");
+    });
+  }
+
+  /** Cijfers uit Excel of CSV als tabel in het bericht aan de regisseur (data-video). */
+  function uploadCijfers(bestand: File) {
+    return doe("cijfers", async () => {
+      const { tabel, rijen, ingekort } = await postBestand<{ tabel: string; rijen: number; ingekort: boolean }>("/api/motion/lees-cijfers", bestand);
+      setInvoer(`Maak een data-video van deze cijfers (${bestand.name}, ${rijen} rijen). Wat de kijker moet onthouden: [vul in]\n\n${tabel}`);
+      if (ingekort) setFout("Je bestand heeft veel rijen; we nemen de eerste 40 mee.");
+      setTimeout(() => {
+        const veld = document.querySelector<HTMLTextAreaElement>("textarea[data-regie]");
+        const i = veld?.value.indexOf("[vul in]") ?? -1;
+        veld?.focus();
+        if (veld && i >= 0) veld.setSelectionRange(i, i + 8);
+      }, 50);
     });
   }
 
@@ -747,6 +763,10 @@ export default function MotionStudio() {
                   {bezig === "bestand" ? "Inlezen…" : "📄 Ik heb al een script (Word, PDF of tekst)"}
                 </button>
                 <input ref={scriptKies} type="file" accept=".docx,.pdf,.txt,.md,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadScript(f); }} />
+                <button onClick={() => cijfersKies.current?.click()} disabled={!!bezig} className="text-xs text-blue-500 hover:underline disabled:opacity-50">
+                  {bezig === "cijfers" ? "Inlezen…" : "📊 Ik heb cijfers (Excel of CSV)"}
+                </button>
+                <input ref={cijfersKies} type="file" accept=".xlsx,.csv,.tsv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadCijfers(f); }} />
                 <button onClick={() => void stuur()} disabled={!!bezig || invoer.trim().length < 2} className="btn-primary !py-2 !px-5 disabled:opacity-50">Stuur</button>
               </div>
             </div>

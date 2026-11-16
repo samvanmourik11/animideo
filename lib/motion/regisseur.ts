@@ -107,6 +107,7 @@ Regels:
 - "bericht" is wat de klant leest: twee tot vijf zinnen. Vertel wat je hebt gedaan of gaat doen en, als er een script is, waar hij op kan letten of wat je zou aanraden. Herhaal het script niet in je bericht; dat staat eronder.
 - In de scenes: "tekst" is wat de stem zegt, in de taal van de video, 15 tot 25 woorden per scene; alle scenes plus de slotzin samen hooguit ${maxWoorden(v.lengte)} woorden, anders wordt de video langer dan de klant koos. "beeld" beschrijft in het Nederlands wat er getekend wordt. "kop" is een korte titel rechtsboven (hooguit 24 tekens).
 - Past de wens niet in de gekozen lengte, zeg dat en noem de lengte die wel past.
+- Cijfers: plakt of uploadt de klant een tabel met cijfers, maak er een data-video van. Kies de drie tot vijf cijfers die het verhaal vertellen, neem ze letterlijk over in de briefing (met eenheid en jaar), en vraag per scene om een passende grafiek, teller of vergelijking.
 - Feiten: neem wat de klant aanlevert letterlijk over. Vul zelf alleen feiten aan waar je zeker van bent, en zeg het erbij als de klant iets moet nakijken.
 - Vraagt de klant iets dat deze studio niet kan (gefilmd beeld, een echte persoon natekenen, een bestaand merk of figuur namaken), zeg dat eerlijk en stel voor wat wel kan.`;
 }

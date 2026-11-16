@@ -231,6 +231,7 @@ ${heeftEind ? `### eind (vanaf ${perScene.find((s) => s.id === "eind")?.start.to
 Stem: ${plan.eind.tekst}
 Gebruik precies: eind: { regel1: ${JSON.stringify(plan.eind.regel1)}, regel2: ${JSON.stringify(plan.eind.regel2)}, knop: ${JSON.stringify(plan.eind.knop)} }
 ` : ""}
+Staat er in het onderwerp een tabel met cijfers van de klant, gebruik dan precies die waarden in grafieken en tellers: de verhoudingen van staven en lijnen kloppen met de getallen, en de as of het label noemt de eenheid.
 De beschrijving bij "Beeld" is wat de klant verwacht te zien; werk die uit tot een sterke compositie en vul aan waar het de uitleg helpt. Let op: de transcriptie schrijft sommige woorden anders dan het script (cijfers, samenstellingen); kies voor wt woorden die in de lijst met woordtijden staan.`;
 }
 

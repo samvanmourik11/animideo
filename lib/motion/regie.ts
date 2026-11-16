@@ -439,7 +439,7 @@ async function voerAnimatieUit(c0: Creatie, v0: Voortgang): Promise<void> {
       const uitkomsten = await Promise.allSettled(
         open.map((k) => {
           const d = deelWerk(basis, r.plan, werk.woorden, werk.delen, k);
-          if (c.maker !== "docu") return tekenAnimatie({ pagina: d.pagina, plan: d.plan, plek: d.plek, onderwerp: r.onderwerp.slice(0, 3000), beelden: r.beelden ?? [], nietDoen: r.nietDoen, taal: r.taal, soort: r.soort });
+          if (c.maker !== "docu") return tekenAnimatie({ pagina: d.pagina, plan: d.plan, plek: d.plek, onderwerp: r.onderwerp.slice(0, 6000), beelden: r.beelden ?? [], nietDoen: r.nietDoen, taal: r.taal, soort: r.soort });
           // Een docu tekent met vaste sjablonen (lib/docu/sjablonen.ts): een paar cent per
           // hoofdstuk in plaats van een eigen tekening door Claude.
           const ids = genoemd(d.plan.scenes.map((s) => s.beeld).join(" "));
