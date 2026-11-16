@@ -8,6 +8,7 @@ import CreatieDetail from "@/components/creaties/CreatieDetail";
 import VideoAanpassen from "@/components/motion/VideoAanpassen";
 import { useSchetsen } from "@/components/motion/Schetsen";
 import { MuziekKiezer } from "@/components/motion/MuziekKiezer";
+import { RECEPTEN, type Recept } from "@/lib/motion/recepten";
 import { taalStemmen } from "@/lib/stem/taalstemmen";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 import { BrowserMelding, useBrowserVideo } from "./BrowserVideo";
@@ -204,6 +205,23 @@ export default function MotionStudio() {
   function kiesTab(bedrijfTab: boolean) {
     if (bedrijfTab === isBedrijf) return;
     setSoort(bedrijfTab ? "bedrijf" : "verhaal");
+  }
+  /** Een startrecept: de vorm goedzetten en een eerste bericht klaarzetten om aan te vullen. */
+  function kiesRecept(r: Recept) {
+    setSoort(r.soort);
+    setStijl(r.stijl);
+    setLengte(r.lengte);
+    setFormaat(r.formaat);
+    setMuziek(r.muziek);
+    setInvoer(r.bericht);
+    setTimeout(() => {
+      const veld = document.querySelector<HTMLTextAreaElement>("textarea[data-regie]");
+      veld?.scrollIntoView({ behavior: "smooth", block: "center" });
+      veld?.focus();
+      // Het eerste invulstuk [tussen haken] alvast selecteren.
+      const i = r.bericht.indexOf("[");
+      if (veld && i >= 0) veld.setSelectionRange(i, r.bericht.indexOf("]", i) + 1);
+    }, 50);
   }
   /** Wat er van afzender en merk meegaat: zonder bedrijf geen logo, huisstijl of vaste huisstijlbeelden. */
   function merk() {
@@ -416,6 +434,32 @@ export default function MotionStudio() {
           </button>
         ))}
       </div>
+
+      {/* Startrecepten: alleen zolang er nog niets is begonnen. */}
+      {!plan && berichten.length === 0 && (
+        <div className="n-kaart space-y-3">
+          <div>
+            <h2 className="font-bold text-tekst">Waar wil je mee beginnen?</h2>
+            <p className="text-xs text-tekst-3 mt-0.5">Kies een voorbeeld: stijl, lengte, formaat en muziek staan dan goed, en de regisseur krijgt een eerste opzet. Alles is daarna nog aan te passen.</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+            {RECEPTEN.map((r) => (
+              <button key={r.id} onClick={() => kiesRecept(r)} className="group text-left rounded-xl border border-rand overflow-hidden hover:border-blue-500/60 transition-colors">
+                <div className="relative aspect-video bg-paneel-2 overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/motion/stijlen/${r.stijl || "standaard"}.jpg`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  <span className="absolute top-1.5 left-1.5 text-base">{r.icoon}</span>
+                </div>
+                <div className="p-2">
+                  <div className="text-sm font-semibold text-tekst leading-tight">{r.naam}</div>
+                  <div className="text-[11px] text-tekst-3 leading-snug mt-0.5">{r.uitleg}</div>
+                  <div className="text-[10px] text-tekst-3 mt-1">{duurTekst(r.lengte)} · {r.formaat === "9:16" ? "staand" : "liggend"}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-6 items-start">
         <div className="space-y-4">
@@ -690,6 +734,7 @@ export default function MotionStudio() {
 
             <div>
               <textarea
+                data-regie
                 value={invoer}
                 onChange={(e) => setInvoer(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !bezig && invoer.trim().length >= 2) { e.preventDefault(); void stuur(); } }}
