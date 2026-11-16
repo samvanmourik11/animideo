@@ -185,6 +185,8 @@ export interface StartOpties {
   prompt?: string;
   pas?: (i: MotionInvoer) => MotionInvoer;
   extra?: Record<string, unknown>;
+  /** Niet meetellen voor het maximum tegelijk: de Shorts die een docu zelf start. */
+  buitenLimiet?: boolean;
 }
 
 export async function startMotion(userId: string, ruw: Record<string, unknown>, ouderId?: string | null, o: StartOpties = {}): Promise<Creatie> {
@@ -201,7 +203,7 @@ export async function startMotion(userId: string, ruw: Record<string, unknown>, 
   const { data: wie } = await db.auth.admin.getUserById(userId);
   if (!canUseMotion(wie?.user?.email)) throw new WachtrijFout("Deze studio is nog niet beschikbaar voor jouw account.", 403);
   const { count } = await db.from("creaties").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "bezig");
-  if ((count ?? 0) >= MAX_TEGELIJK) {
+  if (!o.buitenLimiet && (count ?? 0) >= MAX_TEGELIJK) {
     throw new WachtrijFout(`Je hebt al ${MAX_TEGELIJK} dingen in de maak. Wacht tot er één klaar is.`, 429);
   }
 

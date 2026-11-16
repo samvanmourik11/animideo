@@ -111,6 +111,10 @@ export interface DocuExtras {
   titels?: string[];
   /** De Short (een eigen rij in de bibliotheek, staand). */
   shortId?: string;
+  /** Alle Shorts, bij de Short-fabriek (de eerste is ook shortId). */
+  shortIds?: string[];
+  /** Drie thumbnails om uit te kiezen; `thumbnail` is de gekozen. */
+  thumbnails?: string[];
   /** Wat er misging bij een extra; de video zelf is dan wel klaar. */
   fout?: string;
 }
@@ -124,6 +128,8 @@ export interface DocuInvoer {
   extras?: DocuExtras;
   /** Maak er ook een Short bij. */
   short: boolean;
+  /** Hoeveel Shorts (1 of 3); afwezig = 1 als `short` aan staat. */
+  shorts?: number;
 }
 
 // ── Prijs ────────────────────────────────────────────────────────────────────
@@ -139,10 +145,12 @@ const VAST_USD = 0.1; // foto's, pakket
 const SHORT_SEC = 45;
 const SHORT_USD = 0.15 + 0.01 * SHORT_SEC + ((SHORT_SEC * 15) / 1000) * INKOOP_USD.stemPer1000;
 
-export function docuCredits(lengte: DocuLengte, short = true): number {
+/** `shorts`: hoeveel Shorts erbij (0, 1 of 3; Short-fabriek, verbeterplan idee 13). */
+export function docuCredits(lengte: DocuLengte, shorts: number | boolean = 1): number {
+  const n = typeof shorts === "boolean" ? (shorts ? 1 : 0) : Math.max(0, Math.min(3, Math.round(shorts)));
   // Stem: ±15 tekens per seconde.
   const stem = ((lengte * 15) / 1000) * INKOOP_USD.stemPer1000;
-  return creditsVoorInkoop(ONDERZOEK_USD + VAST_USD + PER_SEC_USD * lengte + stem + (short ? SHORT_USD : 0));
+  return creditsVoorInkoop(ONDERZOEK_USD + VAST_USD + PER_SEC_USD * lengte + stem + n * SHORT_USD);
 }
 
 export type DocuStap = MotionStap | "extras";

@@ -59,6 +59,9 @@ export default function DocuStudio() {
   const [muziekVolume, setMuziekVolume] = useState<MuziekVolume>("normaal");
   const [muziekUrl, setMuziekUrl] = useState("");
   const [short, setShort] = useState(true);
+  // Short-fabriek: één of drie Shorts (alleen als `short` aan staat).
+  const [shorts, setShorts] = useState<1 | 3>(1);
+  const aantalShorts = short ? shorts : 0;
   const [stijl, setStijl] = useState<DocuStijl>("archief");
   const [kanalen, setKanalen] = useState<KanaalProfiel[]>([]);
   const [kanaalId, setKanaalId] = useState("");
@@ -118,11 +121,11 @@ export default function DocuStudio() {
 
   const lijst = useCreaties({ maker: "docu" });
   // De Shorts bij de docu's zijn motion-rijen; ook die worden in deze browser gemaakt.
-  const shorts = useCreaties({ maker: "motion" });
+  const shortLijst = useCreaties({ maker: "motion" });
   const docuIds = new Set(lijst.creaties.map((c) => c.id));
   const browserStand = useBrowserVideo(
-    [...lijst.creaties, ...shorts.creaties.filter((c) => c.ouder_id && docuIds.has(c.ouder_id))],
-    () => { lijst.ververs(); shorts.ververs(); },
+    [...lijst.creaties, ...shortLijst.creaties.filter((c) => c.ouder_id && docuIds.has(c.ouder_id))],
+    () => { lijst.ververs(); shortLijst.ververs(); },
   );
 
   useEffect(() => {
@@ -142,6 +145,7 @@ export default function DocuStudio() {
         if (typeof b.stem === "string") setStem(b.stem);
         if (typeof b.muziek === "string") setMuziek(b.muziek);
         if (typeof b.short === "boolean") setShort(b.short);
+        if (b.shorts === 1 || b.shorts === 3) setShorts(b.shorts);
         if (b.plan) setPlan(b.plan);
         if (Array.isArray(b.feiten)) setFeiten(b.feiten);
         if (b.controle) setControle(b.controle);
@@ -154,9 +158,9 @@ export default function DocuStudio() {
   useEffect(() => {
     if (!geladen) return;
     try {
-      localStorage.setItem(BEWAAR, JSON.stringify({ kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, mail, muziek, stijl, short, plan, feiten, controle, fotoZoek, fotos }));
+      localStorage.setItem(BEWAAR, JSON.stringify({ kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, mail, muziek, stijl, short, shorts, plan, feiten, controle, fotoZoek, fotos }));
     } catch {}
-  }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, mail, muziek, stijl, short, plan, feiten, controle, fotoZoek, fotos]);
+  }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, mail, muziek, stijl, short, shorts, plan, feiten, controle, fotoZoek, fotos]);
 
   // Nederlands: Hugo vooraan, dan de bibliotheek. Andere talen: alleen moedertaalstemmen, met
   // een vaste documentaireverteller vooraan (lib/stem/taalstemmen.ts).
@@ -220,7 +224,7 @@ export default function DocuStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, ondertitels, mail, muziek, muziekVolume, muziekUrl, stijl, short, plan, feiten, controle, fotos: fotos ?? [] });
+      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, ondertitels, mail, muziek, muziekVolume, muziekUrl, stijl, short, shorts, plan, feiten, controle, fotos: fotos ?? [] });
       // Een geplande aflevering van dit kanaal is hiermee gemaakt.
       if (gekozenKanaal?.reeks.some((a) => !a.gemaakt && a.onderwerp === onderwerp.trim())) void wijzigReeks(gekozenKanaal.reeks.map((a) => (a.onderwerp === onderwerp.trim() ? { ...a, gemaakt: true } : a)));
       lijst.zetVoor(c);
@@ -234,7 +238,7 @@ export default function DocuStudio() {
   const woorden = plan ? [...plan.scenes.map((s) => s.tekst), plan.eind.tekst].join(" ").split(/\s+/).filter(Boolean).length : 0;
   const max = Math.round(maxWoorden(lengte) * 1.25);
   const teLang = woorden > max;
-  const credits = docuCredits(lengte, short);
+  const credits = docuCredits(lengte, aantalShorts);
 
   return (
     <div className="space-y-8">
@@ -323,7 +327,7 @@ export default function DocuStudio() {
                   >
                     <div className="text-sm font-semibold text-tekst">{l.naam}</div>
                     <div className="text-[11px] text-tekst-3 leading-snug">{l.uitleg}</div>
-                    <div className="text-[11px] text-tekst-2 mt-1">{docuCredits(l.sec, short)} credits</div>
+                    <div className="text-[11px] text-tekst-2 mt-1">{docuCredits(l.sec, aantalShorts)} credits</div>
                   </button>
                 ))}
               </div>
@@ -379,10 +383,22 @@ export default function DocuStudio() {
             </div>
 
             <MuziekKiezer muziek={muziek} setMuziek={setMuziek} volume={muziekVolume} setVolume={setMuziekVolume} eigen={muziekUrl} setEigen={setMuziekUrl} aanbevolen={DOCU_MUZIEK} />
-            <label className="flex items-center gap-2 text-sm text-tekst">
-              <input type="checkbox" checked={short} onChange={(e) => setShort(e.target.checked)} />
-              Maak er ook een Short bij
-            </label>
+            <div>
+              <label className="n-label">Shorts erbij</label>
+              <div className="mt-1.5 grid grid-cols-3 gap-2">
+                {([0, 1, 3] as const).map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => { setShort(n > 0); if (n) setShorts(n); }}
+                    className={`rounded-xl border px-3 py-2 text-left ${aantalShorts === n ? "border-blue-500 bg-blue-500/10" : "border-rand hover:border-blue-500/40"}`}
+                  >
+                    <div className="text-sm font-semibold text-tekst">{n === 0 ? "Geen" : n === 1 ? "1 Short" : "3 Shorts"}</div>
+                    <div className="text-[11px] text-tekst-3">{n === 0 ? "Alleen de docu" : n === 1 ? "Het sterkste moment" : "Haak, keerpunt en 'wist je dat'"}</div>
+                    <div className="text-[11px] text-tekst-2 mt-0.5">{n === 0 ? "" : `+ ${docuCredits(lengte, n) - docuCredits(lengte, 0)} credits`}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div>
               <label className="n-label">Ondertitels <span className="font-normal text-tekst-3">(gratis)</span></label>
               <select value={ondertitels} onChange={(e) => setOndertitels(e.target.value as MotionOndertitels)} className="n-invoer mt-1.5">
@@ -509,7 +525,7 @@ export default function DocuStudio() {
               </button>
               <p className="text-[11px] text-tekst-3">
                 Dit duurt {lengte >= 600 ? "ongeveer een uur" : lengte >= 300 ? "een half uur tot drie kwartier" : "een minuut of 20"}: elk hoofdstuk wordt speciaal getekend en nagekeken. Daarna
-                komen de thumbnail, de beschrijving{short ? " en de Short" : ""} erbij. Je kunt deze pagina sluiten; mislukt het, dan krijg je je credits terug.
+                komen de thumbnail, de beschrijving{aantalShorts === 1 ? " en de Short" : aantalShorts === 3 ? " en de drie Shorts" : ""} erbij. Je kunt deze pagina sluiten; mislukt het, dan krijg je je credits terug.
               </p>
             </div>
           )}
@@ -577,6 +593,11 @@ export default function DocuStudio() {
 function Pakket({ creatie, onSluit }: { creatie: Creatie; onSluit: () => void }) {
   const x = ((creatie.invoer as { docu?: { extras?: DocuExtras } }).docu?.extras ?? {}) as DocuExtras;
   const [gekopieerd, setGekopieerd] = useState("");
+  const [gekozen, setGekozen] = useState(x.thumbnail ?? "");
+  async function kiesThumb(url: string) {
+    setGekozen(url);
+    await fetch("/api/docu/pakket", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: creatie.id, thumbnail: url }) }).catch(() => {});
+  }
   function kopieer(tekst: string, wat: string) {
     void navigator.clipboard?.writeText(tekst).then(() => setGekopieerd(wat)).catch(() => {});
   }
@@ -590,11 +611,25 @@ function Pakket({ creatie, onSluit }: { creatie: Creatie; onSluit: () => void })
         {x.fout && <p className="text-xs text-amber-600 bg-amber-500/10 rounded-xl px-3 py-2">Niet alles lukte: {x.fout}</p>}
         <div className="flex gap-2">
           {creatie.url && <a href={creatie.url} target="_blank" rel="noreferrer" className="n-knop2 text-sm">⬇ Video</a>}
-          {x.thumbnail && <a href={x.thumbnail} target="_blank" rel="noreferrer" className="n-knop2 text-sm">⬇ Thumbnail</a>}
+          {gekozen && <a href={gekozen} target="_blank" rel="noreferrer" className="n-knop2 text-sm">⬇ Thumbnail</a>}
         </div>
-        {x.thumbnail && (
+        {gekozen && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={x.thumbnail} alt="Thumbnail" className="w-full rounded-xl border border-rand" />
+          <img src={gekozen} alt="Thumbnail" className="w-full rounded-xl border border-rand" />
+        )}
+        {(x.thumbnails?.length ?? 0) > 1 && (
+          <div>
+            <label className="n-label">Kies je thumbnail</label>
+            <div className="mt-1.5 grid grid-cols-3 gap-2">
+              {x.thumbnails!.map((t, i) => (
+                <button key={t} onClick={() => void kiesThumb(t)} className={`relative rounded-lg overflow-hidden border-2 ${t === gekozen ? "border-blue-500" : "border-transparent hover:border-blue-500/40"}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={t} alt={`Thumbnail ${i + 1}`} className="w-full aspect-video object-cover" />
+                  {t === gekozen && <span className="absolute top-1 right-1 rounded-full bg-blue-600 text-white text-[10px] px-1.5">✓ Gekozen</span>}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
         {x.titels?.length ? (
           <div>
@@ -620,7 +655,7 @@ function Pakket({ creatie, onSluit }: { creatie: Creatie; onSluit: () => void })
         )}
         {x.shortId && (
           <p className="text-xs text-tekst-3">
-            De Short wordt apart gemaakt en staat straks in <Link href="/mijn-werk" className="underline">je bibliotheek</Link> (bij Motion graphics).
+            {(x.shortIds?.length ?? 1) > 1 ? `De ${x.shortIds!.length} Shorts worden apart gemaakt en staan` : "De Short wordt apart gemaakt en staat"} straks in <Link href="/mijn-werk" className="underline">je bibliotheek</Link> (bij Motion graphics).
           </p>
         )}
       </div>
