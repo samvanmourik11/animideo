@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
+import VideoAanpassen from "@/components/motion/VideoAanpassen";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 import { BrowserMelding, useBrowserVideo } from "@/components/motion/BrowserVideo";
@@ -49,6 +50,7 @@ export default function DocuStudio() {
   const [taal, setTaal] = useState<MotionTaal>("nl");
   const [ondertitels, setOndertitels] = useState<MotionOndertitels>("uit");
   const [mail, setMail] = useState(true);
+  const [aanpassen, setAanpassen] = useState<Creatie | null>(null);
   const [stem, setStem] = useState<string>(MOTION_STEM_HUGO);
   const [stemmen, setStemmen] = useState<BibliotheekStem[]>([]);
   const [muziek, setMuziek] = useState<string>(DOCU_MUZIEK[0].slug);
@@ -107,10 +109,17 @@ export default function DocuStudio() {
 
   // Nederlands: Hugo vooraan, dan de bibliotheek. Andere talen: alleen moedertaalstemmen, met
   // een vaste documentaireverteller vooraan (lib/stem/taalstemmen.ts).
-  const stemKeuzes: { id: string; naam: string }[] =
+  const stemKeuzes: { id: string; naam: string; voorbeeld?: string }[] =
     taal === "nl"
-      ? [{ id: MOTION_STEM_HUGO, naam: "Hugo · verteller" }, ...stemmen.filter((s) => s.id !== MOTION_STEM_HUGO).map((s) => ({ id: s.id, naam: `${s.naam} · ${s.geslacht}` }))]
-      : taalStemmen(taal).map((s) => ({ id: s.id, naam: `${s.naam} · ${s.typering}` }));
+      ? [
+          { id: MOTION_STEM_HUGO, naam: "Hugo · verteller", voorbeeld: stemmen.find((s) => s.id === MOTION_STEM_HUGO)?.voorbeeld },
+          ...stemmen.filter((s) => s.id !== MOTION_STEM_HUGO).map((s) => ({ id: s.id, naam: `${s.naam} · ${s.geslacht}`, voorbeeld: s.voorbeeld })),
+        ]
+      : taalStemmen(taal).map((s) => ({ id: s.id, naam: `${s.naam} · ${s.typering}`, voorbeeld: s.voorbeeld }));
+  const voorbeeldStem = stemKeuzes.find((s) => s.id === stem)?.voorbeeld;
+  function luister() {
+    if (voorbeeldStem) void new Audio(voorbeeldStem).play().catch(() => {});
+  }
 
   function kiesTaal(t: MotionTaal) {
     setTaal(t);
@@ -237,11 +246,14 @@ export default function DocuStudio() {
               </div>
               <div>
                 <label className="n-label">Verteller</label>
-                <select value={stem} onChange={(e) => setStem(e.target.value)} className="n-invoer mt-1.5">
-                  {stemKeuzes.map((s) => (
-                    <option key={s.id} value={s.id}>{s.naam}</option>
-                  ))}
-                </select>
+                <div className="mt-1.5 flex gap-2">
+                  <select value={stem} onChange={(e) => setStem(e.target.value)} className="n-invoer min-w-0">
+                    {stemKeuzes.map((s) => (
+                      <option key={s.id} value={s.id}>{s.naam}</option>
+                    ))}
+                  </select>
+                  <button onClick={luister} disabled={!voorbeeldStem} title="Luister naar deze verteller" className="n-knop2 !px-3 disabled:opacity-50">▶</button>
+                </div>
               </div>
             </div>
 
@@ -424,7 +436,7 @@ export default function DocuStudio() {
             <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 items-start">
               {lijst.creaties.map((c) => (
                 <div key={c.id} className="space-y-1.5">
-                  <CreatieKaart creatie={c} onOpen={() => setOpen(c)} onFavoriet={async () => lijst.werkBij(await zetFavoriet(c))} />
+                  <CreatieKaart creatie={c} onOpen={() => setOpen(c)} onFavoriet={async () => lijst.werkBij(await zetFavoriet(c))} onAanpassen={() => setAanpassen(c)} />
                   {c.status === "klaar" && (
                     <button onClick={() => setPakket(c)} className="n-knop2 w-full !py-1.5 text-xs">📦 YouTube-pakket</button>
                   )}
@@ -434,6 +446,17 @@ export default function DocuStudio() {
           )}
         </div>
       </div>
+
+      {aanpassen && (
+        <VideoAanpassen
+          creatie={aanpassen}
+          onSluit={() => setAanpassen(null)}
+          onGestart={(c) => {
+            setAanpassen(null);
+            lijst.zetVoor(c);
+          }}
+        />
+      )}
 
       {open && (
         <CreatieDetail
