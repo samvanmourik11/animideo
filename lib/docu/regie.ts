@@ -104,7 +104,9 @@ export async function startDocu(userId: string, ruw: Record<string, unknown>, ou
     userId,
     // Een docu is altijd liggend, een verhaal, in de stijl "archief" (daar zijn de sjablonen in
     // public/motion/docu.js voor gemaakt), en heeft geen voorbeelden van de klant.
-    { ...ruw, soort: "verhaal", formaat: "16:9", bedrijf: kort(ruw.kanaal, 40), stijl: "archief", beelden: [] },
+    // De grote woord-voor-woord-letters botsen in een liggende docu met de jaartallen en de
+    // fotovermelding onderin; die zijn voor de Short.
+    { ...ruw, ondertitels: ruw.ondertitels === "woord" ? "balk" : ruw.ondertitels, soort: "verhaal", formaat: "16:9", bedrijf: kort(ruw.kanaal, 40), stijl: "archief", beelden: [] },
     ouderId,
     {
       maker: "docu",
@@ -183,6 +185,8 @@ export async function voegPakketToe(c: Creatie, invoer: Record<string, unknown>,
           logo: "",
           font: r.font,
           beelden: [],
+          // Een Short wordt vaak zonder geluid bekeken: dan de grote woord-voor-woord-letters.
+          ondertitels: r.ondertitels && r.ondertitels !== "uit" ? "woord" : "uit",
         },
         c.id,
         {

@@ -30,7 +30,7 @@ import { controleerPlan } from "./plan";
 import { deelWerk, scriptVan, stemBlokken, verdeel, type Deel, type PaginaBasis } from "./lang";
 import { vindStem } from "@/lib/stem/bibliotheek";
 import { isTaalStem, taalStemmen } from "@/lib/stem/taalstemmen";
-import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal, leesTaal } from "./types";
+import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal, isOndertitels, leesTaal } from "./types";
 import { stijlVan } from "./stijlen";
 import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
@@ -156,6 +156,7 @@ export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
     soort,
     taal,
     stem,
+    ondertitels: isOndertitels(ruw.ondertitels) ? ruw.ondertitels : "uit",
   };
 }
 
@@ -335,7 +336,7 @@ async function basisVan(i: MotionInvoer): Promise<PaginaBasis> {
   // het YouTube-pakket. Sam 14-11-2026: "YouTube-video's hebben nooit echt een logo linksboven".
   const docu = !!(i as MotionInvoer & { docu?: unknown }).docu;
   const [logo, fotos] = await Promise.all([docu ? null : bereidLogo(i.logo ?? ""), bereidFotos(i.beelden ?? [])]);
-  return { w, h, merk: { naam: docu ? "" : i.bedrijf, website: docu ? "" : i.website, kleur: i.kleur, kleur2: i.kleur2, font: motionFont(i.font), logo }, fotos, stijl: i.stijl || null };
+  return { w, h, merk: { naam: docu ? "" : i.bedrijf, website: docu ? "" : i.website, kleur: i.kleur, kleur2: i.kleur2, font: motionFont(i.font), logo }, fotos, stijl: i.stijl || null, ondertitels: i.ondertitels && i.ondertitels !== "uit" ? i.ondertitels : null };
 }
 
 async function haal(url: string): Promise<Buffer> {

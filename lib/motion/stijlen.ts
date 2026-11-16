@@ -10,6 +10,8 @@
 // tekenmachine nodig en zitten er niet in.
 
 export interface StijlThema {
+  /** Lettertype voor de grote woord-voor-woord-ondertitels, als het gewone te dun of te smal is. */
+  ot?: string;
   /** Kleuren die de vaste namen (C.inkt, C.wit, C.rood, ...) in deze stijl krijgen. */
   C: Record<string, string>;
   /** Vaste accentkleuren in plaats van de merkkleuren (de merkkleur past niet in elke stijl). */
@@ -66,6 +68,7 @@ export const MOTION_STIJLEN: MotionStijl[] = [
       C: { inkt: "#f3efe6", wit: "#18181a", rood: "#e3342f", geel: "#e8c35a", groen: "#7fa88a", blauw: "#8ea4bf", oranje: "#d9823b", paars: "#9b8fb8", grijs: "#2b2b2e", licht: "#1f1f22", muted: "#8f8a80" },
       accent: ["#e3342f", "#f3efe6"],
       donker: "#0f0f10",
+      ot: "'Archivo Black', sans-serif",
       vlak: true,
       bg: { kleuren: ["#151517", "#0f0f10", "#08080a"], extra: "film", stip: "none", vignet: "#000000" },
       defs: GEEN_SCHADUW,

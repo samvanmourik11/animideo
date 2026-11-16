@@ -393,6 +393,7 @@ function bouwHarnas() {
   const [vA, vB] = STIJL.veeg || [C.accent, C.accent2];
   K.wA = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(vA) }, wg);
   K.wB = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(vB) }, wg);
+  try { bouwOndertitels(); } catch (err) { meld(`Ondertitels: ${err && err.message}`); }
 }
 
 /** De achtergrond van een stijl: kleur, en wat erop ligt (raster, sterren, stralen, korrel). */
@@ -501,6 +502,53 @@ function tekenEind(tt) {
   const up = eo(P(tt, e.tKnop + .3, e.tKnop + .7)); op(e.url, up); e.url.setAttribute('transform', `translate(0,${(1 - up) * 20})`);
 }
 
+// ---------- ondertitels ----------
+// Op de woordtijden van de stem; drie stijlen (lib/motion/types.ts MOTION_ONDERTITELS).
+// Getekend boven de scenes en onder de veeg, en nooit gecontroleerd door controle(): ze
+// zitten in een eigen laag (#ot).
+const OT = window.ONDERTITELS || null;
+function bouwOndertitels() {
+  if (!OT) return;
+  const ws = (window.WORDS || []).filter(w => String(w.word || '').trim());
+  const max = OT === 'woord' ? (STAAND ? 16 : 20) : OT === 'balk' ? (STAAND ? 26 : 44) : (STAAND ? 30 : 52);
+  const maxW = OT === 'woord' ? 4 : 99;
+  const regels = []; let r = null;
+  ws.forEach((w, i) => {
+    const woord = String(w.word).trim(), vorige = ws[i - 1];
+    const lengte = r ? r.ws.reduce((n, x) => n + x.word.length + 1, 0) : 0;
+    const nieuw = !r || lengte + woord.length > max || r.ws.length >= maxW || (vorige && w.start - vorige.end > .45) || (vorige && /[.!?…]$/.test(String(vorige.word).trim()));
+    if (nieuw) { r = { ws: [] }; regels.push(r); }
+    r.ws.push({ word: woord, start: +w.start, end: +w.end });
+  });
+  const size = OT === 'woord' ? (STAAND ? 74 : 66) : OT === 'balk' ? (STAAND ? 44 : 40) : (STAAND ? 40 : 34);
+  const y = OT === 'woord' ? (STAAND ? H * .7 : H - 118) : OT === 'balk' ? H - (STAAND ? 360 : 96) : H - (STAAND ? 320 : 86);
+  const hl = isLichtK(MERK.kleur2 || '#000000') ? MERK.kleur2 : '#ffd23f';
+  const laag = $('ot'), ruimte = W - 2 * (STAAND ? 70 : 120);
+  K.ot = regels.map((rg, i) => {
+    const g = G(laag); g.style.display = 'none';
+    const at = { x: MX, y, 'text-anchor': 'middle', style: 'white-space:pre' + (OT === 'woord' && STIJL.ot ? `;font-family:${STIJL.ot};font-weight:400` : ''), 'font-size': size, 'font-weight': OT === 'klein' ? 600 : 800, fill: '#fff' };
+    if (OT === 'woord') Object.assign(at, { 'letter-spacing': 2, stroke: '#0b0f1a', 'stroke-width': size * .16, 'stroke-linejoin': 'round', 'paint-order': 'stroke' });
+    if (OT === 'klein') Object.assign(at, { stroke: 'rgba(0,0,0,.6)', 'stroke-width': 4, 'letter-spacing': .5, 'stroke-linejoin': 'round', 'paint-order': 'stroke' });
+    const bak = OT === 'balk' ? el('rect', { fill: '#0b0f1a', 'fill-opacity': .8, rx: 14 }, g) : null;
+    const t = el('text', at, g);
+    const spans = rg.ws.map((w, k) => el('tspan', {}, t, (k ? ' ' : '') + (OT === 'woord' ? w.word.toUpperCase() : w.word)));
+    let b = t.getComputedTextLength();
+    if (b > ruimte) { t.setAttribute('font-size', Math.floor(size * ruimte / b)); b = ruimte; }
+    if (bak) { const fs = +t.getAttribute('font-size'); bak.setAttribute('x', MX - b / 2 - 26); bak.setAttribute('width', b + 52); bak.setAttribute('y', y - fs * .95); bak.setAttribute('height', fs * 1.45); }
+    const volgende = regels[i + 1];
+    const van = rg.ws[0].start - .05, tot = Math.min(rg.ws[rg.ws.length - 1].end + .6, volgende ? volgende.ws[0].start - .05 : 1e9);
+    return { g, spans, ws: rg.ws, van, tot, hl };
+  });
+}
+function tekenOndertitels(tt) {
+  if (!K.ot) return;
+  K.ot.forEach(r => {
+    const aan = tt >= r.van && tt < r.tot;
+    r.g.style.display = aan ? '' : 'none';
+    if (aan && OT === 'woord') r.spans.forEach((s, k) => { const w = r.ws[k]; s.setAttribute('fill', tt >= w.start - .03 && (tt < w.end + .05 || k === r.ws.length - 1 || tt < r.ws[k + 1].start) ? r.hl : '#fff'); });
+  });
+}
+
 function render(t) {
   // Stop-motion: de tijd verspringt in stapjes, zodat het hele beeld in dat ritme beweegt.
   if (STIJL.fps) t = Math.floor(t * STIJL.fps + 1e-6) / STIJL.fps;
@@ -537,6 +585,7 @@ function render(t) {
   try {
     if (cur === 'eind') tekenEind(tt); else V.teken(tt, cur, E, SC);
   } catch (err) { meld(`Fout in teken() bij scene ${cur}, t=${tt.toFixed(1)} s: ${err && err.message}${waar(err)}`); }
+  tekenOndertitels(tt);
 }
 window.render = render;
 

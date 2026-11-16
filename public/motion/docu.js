@@ -15,6 +15,8 @@ function docuVideo(spec) {
   const KOP = "'Archivo Black', sans-serif";
   const MONO = "'IBM Plex Mono', monospace";
   const LOC = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pt: 'pt-BR' }[spec.taal] || 'nl-NL';
+  // Met ondertitels (liggend) schuift de tekst onderin omhoog, zodat ze er niet doorheen lopen.
+  const OP = window.ONDERTITELS && !STAAND ? 90 : 0;
   const DOSSIER = { en: 'File', de: 'Akte', fr: 'Dossier', es: 'Expediente', it: 'Fascicolo', pt: 'Processo' }[spec.taal] || 'Dossier';
 
   // Een woord in de voice-over opzoeken zonder foutmelding: een sjabloon heeft altijd een
@@ -100,8 +102,8 @@ function docuVideo(spec) {
         const q = P(tt, a - .45, e + .45);
         if (o.f) tf(o.f, MX + o.richting * lerp(-28, 28, q), MY + lerp(8, -8, q), lerp(1.02, 1.1, q));
         op(o.g, eo(P(tt, a - .3, a + .4)));
-        if (o.kop) erin(o.kop, tt, o.t1, RAND, H - 190);
-        if (o.sub) erin(o.sub, tt, o.t2, RAND, H - 128);
+        if (o.kop) erin(o.kop, tt, o.t1, RAND, H - 190 - OP);
+        if (o.sub) erin(o.sub, tt, o.t2, RAND, H - 128 - OP);
       },
     },
 
@@ -271,7 +273,7 @@ function docuVideo(spec) {
           op(s.lab, q > 0 ? 1 : 0); op(s.val, P(tt, o.ts[i] + .5, o.ts[i] + .9));
           s.val.setAttribute('y', s.neg ? s.basis + h + 48 : s.basis - h - 18);
         });
-        if (o.sub) erin(o.sub, tt, o.ts[o.ts.length - 1] + .6, MX, H - 120);
+        if (o.sub) erin(o.sub, tt, o.ts[o.ts.length - 1] + .6, MX, H - 120 - OP);
       },
     },
 

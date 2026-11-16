@@ -218,7 +218,20 @@ export interface MotionInvoer {
   taal?: MotionTaal;
   /** De stem (id uit de stemmenbibliotheek). Afwezig = Hugo. */
   stem?: string;
+  /** Ondertitels in beeld; afwezig of "uit" = geen. */
+  ondertitels?: MotionOndertitels;
 }
+
+// ── Ondertitels ──────────────────────────────────────────────────────────────
+// Getekend op de woordtijden van de stem (Whisper), dus gratis: geen extra AI-werk.
+export const MOTION_ONDERTITELS = [
+  { id: "uit", naam: "Geen", uitleg: "Zonder ondertitels" },
+  { id: "woord", naam: "Woord voor woord", uitleg: "Groot, het gesproken woord licht op (TikTok)" },
+  { id: "balk", naam: "Balk", uitleg: "Witte tekst op een donkere balk onderin" },
+  { id: "klein", naam: "Klein", uitleg: "Rustig onderin, zoals bij een film" },
+] as const;
+export type MotionOndertitels = (typeof MOTION_ONDERTITELS)[number]["id"];
+export const isOndertitels = (v: unknown): v is MotionOndertitels => MOTION_ONDERTITELS.some((o) => o.id === v);
 
 // ── Soort video, taal ────────────────────────────────────────────────────────
 // De studio begon als bedrijfsvideo-maker (Sam, 12-11-2026: "te afgebakend op één doel").

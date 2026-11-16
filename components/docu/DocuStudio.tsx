@@ -7,7 +7,7 @@ import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 import { BrowserMelding, useBrowserVideo } from "@/components/motion/BrowserVideo";
-import { MOTION_STEM_HUGO, MOTION_TALEN, duurTekst, isMotionTaal, maxWoorden, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
+import { MOTION_ONDERTITELS, MOTION_STEM_HUGO, MOTION_TALEN, duurTekst, isMotionTaal, isOndertitels, maxWoorden, type MotionOndertitels, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
 import type { BibliotheekStem } from "@/lib/stem/types";
 import { taalStemmen } from "@/lib/stem/taalstemmen";
 import {
@@ -47,6 +47,7 @@ export default function DocuStudio() {
   const [wens, setWens] = useState("");
   const [lengte, setLengte] = useState<DocuLengte>(600);
   const [taal, setTaal] = useState<MotionTaal>("nl");
+  const [ondertitels, setOndertitels] = useState<MotionOndertitels>("uit");
   const [stem, setStem] = useState<string>(MOTION_STEM_HUGO);
   const [stemmen, setStemmen] = useState<BibliotheekStem[]>([]);
   const [muziek, setMuziek] = useState<string>(DOCU_MUZIEK[0].slug);
@@ -82,6 +83,7 @@ export default function DocuStudio() {
         if (typeof b.wens === "string") setWens(b.wens);
         if (isDocuLengte(b.lengte)) setLengte(b.lengte);
         if (isMotionTaal(b.taal)) setTaal(b.taal);
+        if (isOndertitels(b.ondertitels) && b.ondertitels !== "woord") setOndertitels(b.ondertitels);
         if (typeof b.stem === "string") setStem(b.stem);
         if (typeof b.muziek === "string") setMuziek(b.muziek);
         if (typeof b.short === "boolean") setShort(b.short);
@@ -97,9 +99,9 @@ export default function DocuStudio() {
   useEffect(() => {
     if (!geladen) return;
     try {
-      localStorage.setItem(BEWAAR, JSON.stringify({ kanaal, kleur, onderwerp, wens, lengte, taal, stem, muziek, short, plan, feiten, controle, fotoZoek, fotos }));
+      localStorage.setItem(BEWAAR, JSON.stringify({ kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, muziek, short, plan, feiten, controle, fotoZoek, fotos }));
     } catch {}
-  }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, muziek, short, plan, feiten, controle, fotoZoek, fotos]);
+  }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, muziek, short, plan, feiten, controle, fotoZoek, fotos]);
 
   // Nederlands: Hugo vooraan, dan de bibliotheek. Andere talen: alleen moedertaalstemmen, met
   // een vaste documentaireverteller vooraan (lib/stem/taalstemmen.ts).
@@ -156,7 +158,7 @@ export default function DocuStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, muziek, short, plan, feiten, controle, fotos: fotos ?? [] });
+      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, ondertitels, muziek, short, plan, feiten, controle, fotos: fotos ?? [] });
       lijst.zetVoor(c);
     });
   }
@@ -265,6 +267,15 @@ export default function DocuStudio() {
                 <input type="checkbox" checked={short} onChange={(e) => setShort(e.target.checked)} />
                 Maak er ook een Short bij
               </label>
+            </div>
+            <div>
+              <label className="n-label">Ondertitels <span className="font-normal text-tekst-3">(gratis)</span></label>
+              <select value={ondertitels} onChange={(e) => setOndertitels(e.target.value as MotionOndertitels)} className="n-invoer mt-1.5">
+                {MOTION_ONDERTITELS.filter((o) => o.id !== "woord").map((o) => (
+                  <option key={o.id} value={o.id}>{o.naam} · {o.uitleg}</option>
+                ))}
+              </select>
+              {ondertitels !== "uit" && short && <p className="text-[11px] text-tekst-3 mt-1">De Short krijgt grote woord-voor-woord-ondertitels.</p>}
             </div>
 
             {!plan && (

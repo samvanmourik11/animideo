@@ -26,6 +26,8 @@ export interface PaginaInvoer {
   deel?: { voor: boolean; na: boolean; einde?: number };
   /** De tekenstijl (id uit lib/motion/stijlen.ts); leeg = de standaardstijl. */
   stijl?: string | null;
+  /** Ondertitels in beeld (stijl), of leeg voor geen. */
+  ondertitels?: "woord" | "balk" | "klein" | null;
   /** De code van de video: zet window.VIDEO. */
   code: string;
 }
@@ -88,6 +90,7 @@ ${o.browser
 <g id="scenes"></g>
 <g id="hud"></g>
 <rect id="vig" fill="url(#vignet)" pointer-events="none"/>
+<g id="ot"></g>
 <g id="wipe"></g>
 </svg>
 <script>
@@ -100,6 +103,7 @@ window.MERK = ${json(merk)};
 window.FOTOS = ${json(p.fotos ?? {})};
 window.DEEL = ${json(p.deel ?? {})};
 window.STIJL = ${json(stijl?.thema ?? null)};
+window.ONDERTITELS = ${json(p.ondertitels ?? null)};
 </script>
 <script>${veilig(kern)}</script>
 <script>
