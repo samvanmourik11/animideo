@@ -12,7 +12,9 @@
 // Alleen liggend (1920 x 1080), in de stijl "archief".
 
 function docuVideo(spec) {
-  const KOP = "'Archivo Black', sans-serif";
+  // Een docu-stijl (lib/motion/stijlen.ts, DOCU_EXTRA_STIJLEN) kan een eigen kopletter hebben.
+  const KOP = STIJL.docuKop || "'Archivo Black', sans-serif";
+  const KOP_GEWICHT = STIJL.docuKopGewicht || 400;
   const MONO = "'IBM Plex Mono', monospace";
   const LOC = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pt: 'pt-BR' }[spec.taal] || 'nl-NL';
   // Met ondertitels (liggend) schuift de tekst onderin omhoog, zodat ze er niet doorheen lopen.
@@ -50,7 +52,7 @@ function docuVideo(spec) {
     const stijl = [ff ? `font-family:${ff}` : '', fw != null ? `font-weight:${fw}` : ''].filter(Boolean).join(';');
     return el('text', { x, y, 'font-size': size, fill: C.inkt, 'text-anchor': 'start', ...(stijl ? { style: stijl } : {}), ...rest }, p, s);
   }
-  const kop = (p, x, y, s, size, at = {}) => tekst(p, x, y, String(s).toUpperCase(), size, { 'font-family': KOP, 'font-weight': 400, ...at });
+  const kop = (p, x, y, s, size, at = {}) => tekst(p, x, y, String(s).toUpperCase(), size, { 'font-family': KOP, 'font-weight': KOP_GEWICHT, ...at });
   const mono = (p, x, y, s, size, at = {}) => tekst(p, x, y, String(s).toUpperCase(), size, { 'font-family': MONO, 'font-weight': 600, 'letter-spacing': Math.round(size / 6), fill: C.muted, ...at });
   const getal = v => { const n = parseFloat(String(v).replace(/[^0-9,.\-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')); return isFinite(n) ? n : 0; };
   const schrijf = (v, dec) => v.toLocaleString(LOC, { minimumFractionDigits: dec, maximumFractionDigits: dec });

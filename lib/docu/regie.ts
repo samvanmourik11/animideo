@@ -6,6 +6,7 @@
 //     thumbnail) en de Short starten als eigen rij in de bibliotheek.
 // Alleen op de server.
 
+import { isDocuStijl } from "./kanalen";
 import type { Creatie } from "@/lib/creaties/types";
 import { uploadNaarOpslag, WachtrijFout } from "@/lib/creaties/wachtrij";
 import { startMotion } from "@/lib/motion/regie";
@@ -106,7 +107,7 @@ export async function startDocu(userId: string, ruw: Record<string, unknown>, ou
     // public/motion/docu.js voor gemaakt), en heeft geen voorbeelden van de klant.
     // De grote woord-voor-woord-letters botsen in een liggende docu met de jaartallen en de
     // fotovermelding onderin; die zijn voor de Short.
-    { ...ruw, ondertitels: ruw.ondertitels === "woord" ? "balk" : ruw.ondertitels, soort: "verhaal", formaat: "16:9", bedrijf: kort(ruw.kanaal, 40), stijl: "archief", beelden: [] },
+    { ...ruw, ondertitels: ruw.ondertitels === "woord" ? "balk" : ruw.ondertitels, soort: "verhaal", formaat: "16:9", bedrijf: kort(ruw.kanaal, 40), stijl: isDocuStijl(ruw.stijl) ? ruw.stijl : "archief", beelden: [] },
     ouderId,
     {
       maker: "docu",

@@ -6,6 +6,7 @@ import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
 import VideoAanpassen from "@/components/motion/VideoAanpassen";
 import { MuziekKiezer } from "@/components/motion/MuziekKiezer";
+import { DOCU_STIJLEN, type DocuStijl, type KanaalProfiel } from "@/lib/docu/kanalen";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 import { BrowserMelding, useBrowserVideo } from "@/components/motion/BrowserVideo";
@@ -58,6 +59,10 @@ export default function DocuStudio() {
   const [muziekVolume, setMuziekVolume] = useState<MuziekVolume>("normaal");
   const [muziekUrl, setMuziekUrl] = useState("");
   const [short, setShort] = useState(true);
+  const [stijl, setStijl] = useState<DocuStijl>("archief");
+  const [kanalen, setKanalen] = useState<KanaalProfiel[]>([]);
+  const [kanaalId, setKanaalId] = useState("");
+  const [nieuweAflevering, setNieuweAflevering] = useState("");
   const [plan, setPlan] = useState<MotionPlan | null>(null);
   const [feiten, setFeiten] = useState<DocuFeit[]>([]);
   const [controle, setControle] = useState<DocuControle | null>(null);
@@ -68,6 +73,48 @@ export default function DocuStudio() {
   const [open, setOpen] = useState<Creatie | null>(null);
   const [pakket, setPakket] = useState<Creatie | null>(null);
   const [geladen, setGeladen] = useState(false);
+  useEffect(() => {
+    fetch("/api/docu/kanalen").then((r) => (r.ok ? r.json() : { kanalen: [] })).then((d) => setKanalen(d.kanalen ?? [])).catch(() => {});
+  }, []);
+  const gekozenKanaal = kanalen.find((k) => k.id === kanaalId) ?? null;
+
+  async function bewaarKanalen(lijst: KanaalProfiel[]) {
+    const res = await fetch("/api/docu/kanalen", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kanalen: lijst }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error ?? "Bewaren mislukt");
+    setKanalen(d.kanalen);
+    return d.kanalen as KanaalProfiel[];
+  }
+  /** Een kanaal kiezen: alle vaste keuzes van dat kanaal in één keer. */
+  function kiesKanaal(id: string) {
+    setKanaalId(id);
+    const k = kanalen.find((x) => x.id === id);
+    if (!k) return;
+    setKanaal(k.naam);
+    setKleur(k.kleur);
+    // Staat er al een script, dan blijft de taal daarvan: anders klopt het script niet meer.
+    if (!plan) setTaal(k.taal);
+    if (k.stem) setStem(k.stem);
+    if (k.muziek !== undefined) setMuziek(k.muziek);
+    setMuziekVolume(k.muziekVolume);
+    setStijl(k.stijl);
+    setOndertitels(k.ondertitels);
+    setShort(k.short);
+  }
+  /** De huidige keuzes als kanaal bewaren (nieuw, of het gekozen kanaal bijwerken). */
+  async function bewaarAlsKanaal() {
+    if (!kanaal.trim()) return setFout("Vul eerst de naam van je kanaal in.");
+    const basis = { naam: kanaal.trim(), kleur, taal, stem, muziek, muziekVolume, stijl, ondertitels, short };
+    const lijst = gekozenKanaal
+      ? kanalen.map((k) => (k.id === gekozenKanaal.id ? { ...k, ...basis } : k))
+      : [...kanalen, { id: Math.random().toString(36).slice(2, 10), ...basis, reeks: [] }];
+    const nieuw = await bewaarKanalen(lijst).catch((e) => { setFout(e instanceof Error ? e.message : String(e)); return null; });
+    if (nieuw && !gekozenKanaal) setKanaalId(nieuw[nieuw.length - 1].id);
+  }
+  async function wijzigReeks(reeks: KanaalProfiel["reeks"]) {
+    if (!gekozenKanaal) return;
+    await bewaarKanalen(kanalen.map((k) => (k.id === gekozenKanaal.id ? { ...k, reeks } : k))).catch((e) => setFout(e instanceof Error ? e.message : String(e)));
+  }
 
   const lijst = useCreaties({ maker: "docu" });
   // De Shorts bij de docu's zijn motion-rijen; ook die worden in deze browser gemaakt.
@@ -91,6 +138,7 @@ export default function DocuStudio() {
         if (isMotionTaal(b.taal)) setTaal(b.taal);
         if (isOndertitels(b.ondertitels) && b.ondertitels !== "woord") setOndertitels(b.ondertitels);
         if (typeof b.mail === "boolean") setMail(b.mail);
+        if (b.stijl === "archief" || b.stijl === "krant" || b.stijl === "truecrime") setStijl(b.stijl);
         if (typeof b.stem === "string") setStem(b.stem);
         if (typeof b.muziek === "string") setMuziek(b.muziek);
         if (typeof b.short === "boolean") setShort(b.short);
@@ -106,9 +154,9 @@ export default function DocuStudio() {
   useEffect(() => {
     if (!geladen) return;
     try {
-      localStorage.setItem(BEWAAR, JSON.stringify({ kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, mail, muziek, short, plan, feiten, controle, fotoZoek, fotos }));
+      localStorage.setItem(BEWAAR, JSON.stringify({ kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, mail, muziek, stijl, short, plan, feiten, controle, fotoZoek, fotos }));
     } catch {}
-  }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, mail, muziek, short, plan, feiten, controle, fotoZoek, fotos]);
+  }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, mail, muziek, stijl, short, plan, feiten, controle, fotoZoek, fotos]);
 
   // Nederlands: Hugo vooraan, dan de bibliotheek. Andere talen: alleen moedertaalstemmen, met
   // een vaste documentaireverteller vooraan (lib/stem/taalstemmen.ts).
@@ -172,7 +220,9 @@ export default function DocuStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, ondertitels, mail, muziek, muziekVolume, muziekUrl, short, plan, feiten, controle, fotos: fotos ?? [] });
+      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, ondertitels, mail, muziek, muziekVolume, muziekUrl, stijl, short, plan, feiten, controle, fotos: fotos ?? [] });
+      // Een geplande aflevering van dit kanaal is hiermee gemaakt.
+      if (gekozenKanaal?.reeks.some((a) => !a.gemaakt && a.onderwerp === onderwerp.trim())) void wijzigReeks(gekozenKanaal.reeks.map((a) => (a.onderwerp === onderwerp.trim() ? { ...a, gemaakt: true } : a)));
       lijst.zetVoor(c);
     });
   }
@@ -200,6 +250,47 @@ export default function DocuStudio() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-6 items-start">
         <div className="space-y-4">
+          {/* Kanaal: vaste keuzes en de geplande afleveringen */}
+          <div className="n-kaart space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-tekst shrink-0">📺 Kanaal</span>
+              <select value={kanaalId} onChange={(e) => kiesKanaal(e.target.value)} className="n-invoer !py-1.5 min-w-0">
+                <option value="">{kanalen.length ? "Kies een kanaal…" : "Nog geen kanaal bewaard"}</option>
+                {kanalen.map((k) => (
+                  <option key={k.id} value={k.id}>{k.naam}</option>
+                ))}
+              </select>
+              <button onClick={() => void bewaarAlsKanaal()} className="n-knop2 !py-1.5 !px-3 text-xs whitespace-nowrap">{gekozenKanaal ? "💾 Bijwerken" : "💾 Bewaar als kanaal"}</button>
+            </div>
+            <p className="text-[11px] text-tekst-3">Een kanaal onthoudt naam, kleur, taal, verteller, muziek, stijl en ondertitels. Plan er je volgende afleveringen bij.</p>
+            {gekozenKanaal && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-tekst-3">Geplande afleveringen</div>
+                {gekozenKanaal.reeks.map((a, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <button onClick={() => setOnderwerp(a.onderwerp)} title="Als onderwerp gebruiken" className={`flex-1 text-left truncate hover:text-blue-500 ${a.gemaakt ? "line-through text-tekst-3" : "text-tekst"}`}>
+                      {a.gemaakt ? "✓" : "○"} {a.onderwerp}
+                    </button>
+                    <button onClick={() => void wijzigReeks(gekozenKanaal.reeks.map((x, j) => (j === i ? { ...x, gemaakt: !x.gemaakt } : x)))} className="text-[11px] text-tekst-3 hover:text-tekst">{a.gemaakt ? "Open" : "Klaar"}</button>
+                    <button onClick={() => void wijzigReeks(gekozenKanaal.reeks.filter((_, j) => j !== i))} className="text-[11px] text-tekst-3 hover:text-red-500">✕</button>
+                  </div>
+                ))}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!nieuweAflevering.trim()) return;
+                    void wijzigReeks([...gekozenKanaal.reeks, { onderwerp: nieuweAflevering.trim() }]);
+                    setNieuweAflevering("");
+                  }}
+                  className="flex gap-2"
+                >
+                  <input value={nieuweAflevering} onChange={(e) => setNieuweAflevering(e.target.value)} maxLength={300} placeholder="Volgende aflevering, bijv. De val van Blokker" className="n-invoer !py-1.5 text-sm" />
+                  <button className="n-knop2 !py-1.5 !px-3 text-xs">＋</button>
+                </form>
+              </div>
+            )}
+          </div>
+
           {/* Stap 1 — onderwerp en vorm */}
           <div className="n-kaart space-y-4">
             <div>
@@ -233,6 +324,22 @@ export default function DocuStudio() {
                     <div className="text-sm font-semibold text-tekst">{l.naam}</div>
                     <div className="text-[11px] text-tekst-3 leading-snug">{l.uitleg}</div>
                     <div className="text-[11px] text-tekst-2 mt-1">{docuCredits(l.sec, short)} credits</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="n-label">Stijl</label>
+              <div className="mt-1.5 grid grid-cols-3 gap-2">
+                {DOCU_STIJLEN.map((st) => (
+                  <button key={st.id} onClick={() => setStijl(st.id)} className={`rounded-xl border p-2 text-left ${stijl === st.id ? "border-blue-500 bg-blue-500/10" : "border-rand hover:border-blue-500/40"}`}>
+                    <div className="h-10 rounded-md flex items-center justify-center gap-1.5" style={{ background: st.kleuren[0] }}>
+                      <span className="text-sm font-black" style={{ color: st.kleuren[1], fontFamily: st.id === "krant" ? "Georgia, serif" : undefined }}>1987</span>
+                      <span className="h-1.5 w-5 rounded-full" style={{ background: st.kleuren[2] }} />
+                    </div>
+                    <div className="text-sm font-semibold text-tekst mt-1.5">{st.naam}</div>
+                    <div className="text-[11px] text-tekst-3 leading-snug">{st.uitleg}</div>
                   </button>
                 ))}
               </div>
