@@ -6,6 +6,7 @@ import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import VideoAanpassen from "@/components/motion/VideoAanpassen";
+import { useSchetsen } from "@/components/motion/Schetsen";
 import { taalStemmen } from "@/lib/stem/taalstemmen";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 import { BrowserMelding, useBrowserVideo } from "./BrowserVideo";
@@ -204,6 +205,13 @@ export default function MotionStudio() {
     if (isBedrijf) return { bedrijf, website, kleur, kleur2, huisstijlId: kitId, logo, font, toon, nietDoen, beelden };
     return { bedrijf: afzender.trim(), website: "", kleur: "#1c72ed", kleur2: "#ffc21a", huisstijlId: "", logo: "", font: STANDAARD_FONT, toon: "", nietDoen: "", beelden: beelden.filter((b) => !b.vast) };
   }
+  // Gratis schetsbeelden per scene in de gekozen stijl, vóór betalen.
+  const schetsMerk = merk();
+  const schetsen = useSchetsen(
+    plan
+      ? { plan, formaat, stijl, kleur: schetsMerk.kleur, kleur2: schetsMerk.kleur2, font: schetsMerk.font, bedrijf: schetsMerk.bedrijf, website: schetsMerk.website }
+      : null,
+  );
   // Wat de klant in het gesprek vertelde, als achtergrond voor wie de animatie tekent.
   const onderwerp = berichten.filter((b) => b.van === "klant").map((b) => b.tekst).join("\n").slice(0, 6000);
 
@@ -757,12 +765,28 @@ export default function MotionStudio() {
                   Let op: bij {afwijkend.map((n) => (n === 0 ? "de eindkaart" : `scene ${n}`)).join(", ")} wijkt de tekst af van je script. Loop die even na en pas aan waar nodig.
                 </p>
               )}
+              <p className="text-[11px] text-tekst-3 -mt-2">De schetsen laten de stijl, kleuren en opbouw zien (gratis). De echte animatie wordt na het maken speciaal voor je script getekend.</p>
               <div className="space-y-2">
                 {plan.scenes.map((s, i) => (
                   <div key={i} className="rounded-2xl border border-rand p-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-tekst-3">Scene {i + 1}</div>
-                    <label className="block text-[11px] text-tekst-3 mt-2">Wat de stem zegt</label>
-                    <textarea value={s.tekst} onChange={(e) => wijzigScene(i, { tekst: e.target.value })} rows={3} className="n-invoer mt-1 resize-none" />
+                    <div className="flex gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-tekst-3">Scene {i + 1}</div>
+                        <label className="block text-[11px] text-tekst-3 mt-2">Wat de stem zegt</label>
+                        <textarea value={s.tekst} onChange={(e) => wijzigScene(i, { tekst: e.target.value })} rows={3} className="n-invoer mt-1 resize-none" />
+                      </div>
+                      <div className={`shrink-0 ${formaat === "9:16" ? "w-20" : "w-36"}`}>
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-tekst-3 mb-1">Schets</div>
+                        <div className="rounded-lg border border-rand overflow-hidden bg-paneel-2" style={{ aspectRatio: formaat === "9:16" ? "9 / 16" : "16 / 9" }}>
+                          {schetsen.beelden[i] ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={schetsen.beelden[i]!} alt={`Schets van scene ${i + 1}`} className={`w-full h-full object-cover transition-opacity ${schetsen.bezig ? "opacity-60" : ""}`} />
+                          ) : (
+                            <div className="w-full h-full animate-pulse bg-blue-500/10" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
                     <label className="block text-[11px] text-tekst-3 mt-2">Wat je ziet</label>
                     <textarea value={s.beeld} onChange={(e) => wijzigScene(i, { beeld: e.target.value })} rows={3} className="n-invoer mt-1 resize-none text-sm" />
                   </div>
@@ -788,7 +812,7 @@ export default function MotionStudio() {
                 </div>
               </div>
               <p className={`text-[11px] ${teLang ? "text-red-500" : "text-tekst-3"}`}>
-                {woorden} woorden {teLang ? `— te lang voor ${duurTekst(lengte)}: maak het korter of kies een langere video` : `(ongeveer ${woorden / 2.5 < 90 ? `${Math.round(woorden / 2.5)} seconden` : `${(woorden / 2.5 / 60).toFixed(1).replace(".", ",")} minuten`})`}
+                {woorden} woorden {teLang ? `— te lang voor ${duurTekst(lengte)}: maak het korter of kies een langere video` : `(ongeveer ${woorden / 2.1 + 3 < 90 ? `${Math.round(woorden / 2.1 + 3)} seconden` : `${((woorden / 2.1 + 3) / 60).toFixed(1).replace(".", ",")} minuten`})`}
               </p>
 
               <button onClick={maak} disabled={!!bezig || teLang || (soort === "bedrijf" && !bedrijf.trim())} className="btn-primary w-full disabled:opacity-50">

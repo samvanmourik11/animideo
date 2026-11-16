@@ -57,7 +57,7 @@ async function kiesEncoder(o: Opdracht): Promise<VideoEncoderConfig> {
 }
 
 /** Eén hoofdstuk-pagina in een afgeschermd venstertje, met een functie om een beeld op te vragen. */
-function openPagina(html: string, o: Opdracht): Promise<{ einde: number; beeld: (t: number) => Promise<ImageBitmap>; sluit: () => void }> {
+export function openPagina(html: string, o: { w: number; h: number }): Promise<{ einde: number; beeld: (t: number) => Promise<ImageBitmap>; sluit: () => void }> {
   return new Promise((ok, mis) => {
     const frame = document.createElement("iframe");
     // Alleen scripts; geen toegang tot de studio, cookies of opslag.
