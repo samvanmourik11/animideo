@@ -27,14 +27,15 @@ import { MAX_TEGELIJK, WachtrijFout, falReden, markeerMislukt, uploadNaarOpslag 
 import type { Creatie } from "@/lib/creaties/types";
 import { canUseMotion } from "@/lib/studio/access";
 import { controleerPlan } from "./plan";
-import { deelWerk, scriptVan, stemBlokken, verdeel, type Deel, type PaginaBasis } from "./lang";
+import { deelWerk, herverdeel, sceneStarts, scriptVan, stemBlokken, verdeel, type Deel, type PaginaBasis } from "./lang";
 import { vindStem } from "@/lib/stem/bibliotheek";
 import { isTaalStem, taalStemmen } from "@/lib/stem/taalstemmen";
 import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal, isOndertitels, leesTaal } from "./types";
 import { stijlVan } from "./stijlen";
 import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
-import { aanpasCredits, leesPunten, pasHoofdstukAan, puntenPerDeel, type Aanpassing } from "./aanpassen";
+import { FOTO_CREDITS, MAX_FOTOS, MAX_PUNTEN, ZIN_CREDITS, aanpasCredits, leesPunten, leesZinnen, pasHoofdstukAan, planMetZinnen, puntenPerDeel, type AanpasPunt, type Aanpassing, type FotoWissel, type ZinWijziging } from "./aanpassen";
+import type { Shot } from "@/lib/docu/sjablonen";
 import { canUseDocu } from "@/lib/studio/access";
 import { tekenDocuHoofdstuk } from "@/lib/docu/sjablonen";
 import { fotoCredit, type DocuFoto } from "@/lib/docu/types";
@@ -412,6 +413,8 @@ async function voerAnimatieUit(c0: Creatie, v0: Voortgang): Promise<void> {
       const stemUrl = await uploadNaarOpslag(c.user_id, stem, "mp3", "audio/mpeg");
       const { words } = await transcribeWords(stem, { language: r.taal ?? "nl" });
       if (words.length < 5) throw new Error("De woordtijden van de voice-over konden niet worden gemeten.");
+      // Een aanpassing met gewijzigde zinnen: de oude tekening houden, op de nieuwe stem leggen.
+      if (r.aanpassing?.werkVan) return await zinnenOpNieuweStem(c, v, basis, words, stemUrl);
       const delen = await verdeel(basis, r.plan, words);
       werk = { woorden: words, delen, codes: delen.map(() => null), mis: delen.map(() => 0) };
       const stand = await verder(c, v, { ...v, stemUrl, werk: await bewaarWerk(c.user_id, werk), sinds: new Date().toISOString() });
@@ -654,13 +657,28 @@ export async function browserKlaar(c0: Creatie, pad: string, beelden: number, re
  * daarna net als een nieuwe video in de browser (of op de server) wordt gemaakt. De oude
  * video blijft staan. Gooit WachtrijFout met een melding voor het scherm.
  */
-export async function startAanpassing(userId: string, id: string, ruwePunten: unknown, alleenPrijs: boolean): Promise<{ credits: number; creatie?: Creatie }> {
-  let punten;
+/** Wat de klant wil aanpassen: punten in het beeld, gesproken tekst, foto's. */
+export interface AanpasVraag {
+  punten?: unknown;
+  zinnen?: unknown;
+  fotos?: unknown;
+}
+
+/** In de code van een docu: bij de shots met deze foto de Commons-vermelding weghalen. */
+function zonderVermelding(code: string, ids: Set<string>): string {
+  const sleutel = "window.VIDEO = docuVideo(";
+  const i = code.lastIndexOf(sleutel);
+  if (i < 0 || !ids.size) return code;
   try {
-    punten = leesPunten(ruwePunten);
-  } catch (e) {
-    throw new WachtrijFout(e instanceof Error ? e.message : String(e), 400);
+    const spec = JSON.parse(code.slice(i + sleutel.length).replace(/\);\s*$/, "")) as { scenes: Shot[] };
+    spec.scenes = spec.scenes.map((sh) => (sh.foto && ids.has(sh.foto) ? { ...sh, vermelding: "" } : sh));
+    return `${code.slice(0, i)}${sleutel}${JSON.stringify(spec)});\n`;
+  } catch {
+    return code;
   }
+}
+
+export async function startAanpassing(userId: string, id: string, vraag: AanpasVraag, alleenPrijs: boolean): Promise<{ credits: number; creatie?: Creatie }> {
   const db = createServiceClient();
   const { data: orig } = await db.from("creaties").select("*").eq("id", id).eq("user_id", userId).in("maker", ["motion", "docu"]).maybeSingle();
   if (!orig || orig.status !== "klaar") throw new WachtrijFout("Deze video kan (nog) niet worden aangepast.", 404);
@@ -668,9 +686,34 @@ export async function startAanpassing(userId: string, id: string, ruwePunten: un
   const r = rij(o);
   const v = r.voortgang;
   if (!v?.werk || !v.stemUrl) throw new WachtrijFout("Deze video is gemaakt voordat aanpassen kon. Maak hem opnieuw om hem aan te kunnen passen.", 409);
+
+  let punten: AanpasPunt[], zinnen: ZinWijziging[], fotos: FotoWissel[];
+  try {
+    const ruwPunten = Array.isArray(vraag.punten) ? vraag.punten : [];
+    zinnen = leesZinnen(vraag.zinnen, r.plan);
+    const bestaand = new Set((r.beelden ?? []).filter((b) => b.doel === "tonen").map((b) => b.id));
+    fotos = (Array.isArray(vraag.fotos) ? vraag.fotos : []).slice(0, MAX_FOTOS).map((f) => {
+      const x = (f ?? {}) as Record<string, unknown>;
+      if (typeof x.id !== "string" || !bestaand.has(x.id) || !eigenOpslag(x.url)) throw new Error("Een foto kwam niet goed door. Upload hem opnieuw.");
+      return { id: x.id, url: x.url };
+    });
+    punten = ruwPunten.length ? leesPunten(ruwPunten) : [];
+    if (!punten.length && !zinnen.length && !fotos.length) throw new Error("Klik eerst in de video op wat er anders moet, of wijzig een zin of foto.");
+    if (punten.length + zinnen.length > MAX_PUNTEN) throw new Error(`Hooguit ${MAX_PUNTEN} wijzigingen per keer.`);
+  } catch (e) {
+    throw new WachtrijFout(e instanceof Error ? e.message : String(e), 400);
+  }
+
   const werk = await leesWerk(v.werk);
-  const groepen = puntenPerDeel(werk.delen, punten);
-  const credits = aanpasCredits(o.maker, groepen.size);
+  // Welke hoofdstukken Claude moet aanpassen: die met een punt, en die met een gewijzigde zin.
+  const geraakt = new Set(puntenPerDeel(werk.delen, punten).keys());
+  // De slotzin staat niet in een tekening (de eindkaart toont regel 1 en 2): alleen de stem.
+  for (const z of zinnen.filter((x) => x.scene > 0)) {
+    const i = z.scene - 1;
+    const k = werk.delen.findIndex((d) => i >= d.van && i < d.tot);
+    geraakt.add(k < 0 ? werk.delen.length - 1 : k);
+  }
+  const credits = (geraakt.size ? aanpasCredits(o.maker, geraakt.size) : 0) + zinnen.length * ZIN_CREDITS + fotos.length * FOTO_CREDITS;
   if (alleenPrijs) return { credits };
 
   const { data: wie } = await db.auth.admin.getUserById(userId);
@@ -681,8 +724,28 @@ export async function startAanpassing(userId: string, id: string, ruwePunten: un
   const { ok, betaald, betalerId } = await betaal(userId, credits, o.maker === "docu" ? "Nieuwe app: docu aanpassen" : "Nieuwe app: motion graphics aanpassen");
   if (!ok) throw new WachtrijFout("Niet genoeg credits.", 402);
 
-  const voortgang: Voortgang = { stap: "aanpassen", sinds: new Date().toISOString(), werk: v.werk, stemUrl: v.stemUrl, gebruik: { usd: 0, rondes: 0 } };
-  const aanpassing: Aanpassing = { van: o.id, punten };
+  // Foto's: het adres in de invoer, en (docu) de Commons-vermelding uit de code.
+  let nieuwR: MotionInvoer & Record<string, unknown> = { ...r };
+  let werkUrl = v.werk;
+  if (fotos.length) {
+    const url = new Map(fotos.map((f) => [f.id, f.url]));
+    nieuwR.beelden = (r.beelden ?? []).map((b) => (url.has(b.id) ? { ...b, url: url.get(b.id)!, uitleg: `${b.uitleg.split(" (")[0]} (eigen foto)` } : b));
+    const docu = (r as unknown as { docu?: { fotos?: DocuFoto[] } }).docu;
+    if (docu?.fotos) nieuwR = { ...nieuwR, docu: { ...docu, fotos: docu.fotos.map((f) => (url.has(f.id) ? { ...f, url: url.get(f.id)!, maker: "", licentie: "eigen foto", bron: "" } : f)) } };
+    if (o.maker === "docu") {
+      const ids = new Set(url.keys());
+      werkUrl = await bewaarWerk(userId, { ...werk, codes: werk.codes.map((c) => (c ? zonderVermelding(c, ids) : c)) });
+    }
+  }
+
+  const aanpassing: Aanpassing = { van: o.id, punten, ...(zinnen.length ? { zinnen, werkVan: werkUrl, planVan: r.plan } : {}), ...(fotos.length ? { fotos } : {}) };
+  // Met gewijzigde zinnen begint het bij een nieuwe stem; anders meteen bij het aanpassen
+  // (of, met alleen foto's, meteen bij de browser).
+  const stap: MotionStap = zinnen.length ? "stem" : punten.length ? "aanpassen" : IN_BROWSER ? "browser" : "wacht-video";
+  const voortgang: Voortgang = zinnen.length
+    ? { stap, sinds: new Date().toISOString(), gebruik: { usd: 0, rondes: 0 } }
+    : { stap, sinds: new Date().toISOString(), werk: werkUrl, stemUrl: v.stemUrl, gebruik: { usd: 0, rondes: 0 } };
+  if (zinnen.length) nieuwR.plan = planMetZinnen(r.plan, zinnen);
   const { data: nieuw, error } = await db
     .from("creaties")
     .insert({
@@ -692,7 +755,7 @@ export async function startAanpassing(userId: string, id: string, ruwePunten: un
       maker: o.maker,
       model: "motion",
       prompt: `Aangepast: ${(o.prompt ?? "").replace(/^Aangepast: /, "")}`.slice(0, 500),
-      invoer: { ...r, aanpassing, voortgang },
+      invoer: { ...nieuwR, aanpassing, voortgang },
       credits: betaald,
       fal_endpoint: "motion",
       fal_request_id: "motion",
@@ -705,7 +768,23 @@ export async function startAanpassing(userId: string, id: string, ruwePunten: un
     if (betaald > 0) await betaalTerug({ user_id: userId, betaald_door: betalerId, credits: betaald }, "Terug: aanpassing niet gestart");
     throw new WachtrijFout("Kon de aanpassing niet opslaan. Probeer het opnieuw.", 500);
   }
-  opAchtergrond(() => voerAanpassingUit(nieuw as Creatie, voortgang));
+  if (zinnen.length) {
+    // De hele tekst opnieuw inspreken (per scene inspreken geeft hoorbare naden).
+    try {
+      const plan = nieuwR.plan;
+      const stemmen = await Promise.all(
+        stemBlokken(plan).map(async (text) => {
+          const { request_id } = await fal.queue.submit(STEM_MODEL, { input: { text, voice: r.stem || HUGO, language_code: r.taal ?? "nl", stability: 0.5, similarity_boost: 0.75, speed: 1 } as never });
+          return request_id;
+        }),
+      );
+      return { credits, creatie: await werkVoortgangBij(nieuw as Creatie, { ...voortgang, stemmen }) };
+    } catch (e) {
+      const reden = falReden(e);
+      return { credits, creatie: (await markeerMislukt(nieuw as Creatie, `Insturen mislukt: ${reden}`)) ?? (nieuw as Creatie) };
+    }
+  }
+  if (punten.length) opAchtergrond(() => voerAanpassingUit(nieuw as Creatie, voortgang));
   return { credits, creatie: nieuw as Creatie };
 }
 
@@ -748,6 +827,52 @@ async function voerAanpassingUit(c: Creatie, v: Voortgang): Promise<void> {
     console.error("[motion] aanpassen mislukt:", reden);
     await markeerMislukt(c, `Aanpassen mislukt: ${reden}`);
   }
+}
+
+/**
+ * Na de nieuwe stem van een aanpassing met gewijzigde zinnen: de hoofdstukken van de oude
+ * video op de nieuwe tijden, de oude code, en per gewijzigde scene een opdracht aan Claude om
+ * tekst in beeld en timing op de nieuwe zin aan te passen. Punten van de klant schuiven mee.
+ */
+async function zinnenOpNieuweStem(c: Creatie, v: Voortgang, basis: PaginaBasis, woorden: WhisperWord[], stemUrl: string): Promise<void> {
+  const r = rij(c);
+  const a = r.aanpassing!;
+  const oud = await leesWerk(a.werkVan!);
+  const [nieuw, vroeger] = await Promise.all([sceneStarts(basis, r.plan, woorden), sceneStarts(basis, a.planVan ?? r.plan, oud.woorden)]);
+  const delen = herverdeel(oud.delen, nieuw);
+  const laatste = woorden[woorden.length - 1]?.end ?? nieuw[nieuw.length - 1] + 3;
+  // Een punt van de klant ligt in een scene; in de nieuwe video op dezelfde plek in die scene.
+  const schuif = (t: number) => {
+    let j = 0;
+    vroeger.forEach((s, i) => { if (s <= t) j = i; });
+    return Math.max(0, +(nieuw[j] + (t - vroeger[j])).toFixed(2));
+  };
+  const punten: AanpasPunt[] = a.punten.map((p) => ({ ...p, t: schuif(p.t) }));
+  for (const z of (a.zinnen ?? []).filter((x) => x.scene > 0)) {
+    const j = z.scene - 1;
+    const eind = j + 1 < nieuw.length ? nieuw[j + 1] : laatste;
+    const was = a.planVan?.scenes[j]?.tekst ?? "";
+    punten.push({
+      t: +((nieuw[j] + eind) / 2).toFixed(2),
+      x: 0.5,
+      y: 0.5,
+      vorm: "scene",
+      tekst: `De verteller zegt in deze scene nu iets anders. Was: "${was}". Nu: "${z.tekst}". Pas tekst, getallen en namen in beeld aan op de nieuwe zin, en laat dingen verschijnen op de woorden uit de nieuwe zin (gebruik wt met woorden die nu in de woordtijden staan). Laat de rest van de tekening zoals hij is.`,
+    });
+  }
+  const werk: Werkbestand = { woorden, delen, codes: oud.codes, mis: oud.codes.map(() => 0) };
+  const werkUrl = await bewaarWerk(c.user_id, werk);
+  const naar: Voortgang = { ...v, stap: punten.length ? "aanpassen" : IN_BROWSER ? "browser" : "wacht-video", sinds: new Date().toISOString(), stemUrl, werk: werkUrl, pogingen: 0 };
+  const { data } = await createServiceClient()
+    .from("creaties")
+    .update({ invoer: { ...r, aanpassing: { ...a, punten }, voortgang: naar } })
+    .eq("id", c.id)
+    .eq("status", "bezig")
+    .eq("invoer->voortgang->>stap", v.stap)
+    .eq("invoer->voortgang->>sinds", v.sinds)
+    .select("*")
+    .maybeSingle();
+  if (data && punten.length) await voerAanpassingUit(data as Creatie, naar);
 }
 
 /** Alleen voor het proefscript van het aanpassen (scripts/aanpassen-proef.test.ts). */

@@ -203,7 +203,7 @@ export interface Moment {
  * Voor het aanpassen van een video: per gevraagd moment het beeld (met een genummerde rode
  * stip op de plek waar de klant klikte) en wat daar staat. x en y zijn 0 tot 1.
  */
-export async function momenten(p: PaginaInvoer, punten: { t: number; x: number; y: number; nr: number }[]): Promise<Moment[]> {
+export async function momenten(p: PaginaInvoer, punten: { t: number; x: number; y: number; nr: number; vorm?: string; x2?: number; y2?: number }[]): Promise<Moment[]> {
   const browser = await launchBrowser();
   try {
     const { pagina, stand } = await open(browser, p);
@@ -211,7 +211,11 @@ export async function momenten(p: PaginaInvoer, punten: { t: number; x: number; 
     for (const m of punten) {
       // 0,3 s is de voorsprong van het beeld op de stem; de video loopt daar al op gelijk.
       const t = Math.max(0, Math.min(m.t, stand.einde - 0.05));
-      const px = Math.round(m.x * p.w), py = Math.round(m.y * p.h);
+      // Waar gekeken wordt wat er staat: bij een kader het midden, bij een pijl de punt.
+      const heeft2 = m.x2 !== undefined && m.y2 !== undefined;
+      const mx = m.vorm === "kader" && heeft2 ? (m.x + m.x2!) / 2 : m.vorm === "pijl" && heeft2 ? m.x2! : m.x;
+      const my = m.vorm === "kader" && heeft2 ? (m.y + m.y2!) / 2 : m.vorm === "pijl" && heeft2 ? m.y2! : m.y;
+      const px = Math.round(mx * p.w), py = Math.round(my * p.h);
       const info = (await pagina.evaluate(`(() => {
         window.render(${t});
         var cur = window.CUR || '';
@@ -236,9 +240,23 @@ export async function momenten(p: PaginaInvoer, punten: { t: number; x: number; 
       const breed = p.w >= p.h ? 1280 : 720;
       const schaal = breed / p.w;
       const r = Math.round(26 / schaal);
-      const stip = Buffer.from(
-        `<svg xmlns="http://www.w3.org/2000/svg" width="${p.w}" height="${p.h}"><circle cx="${px}" cy="${py}" r="${r}" fill="none" stroke="#ff1f4b" stroke-width="${Math.round(7 / schaal)}"/><circle cx="${px}" cy="${py}" r="${Math.round(5 / schaal)}" fill="#ff1f4b"/><text x="${px + r + 6}" y="${py - r + 10}" font-family="Arial" font-weight="bold" font-size="${Math.round(30 / schaal)}" fill="#ff1f4b" stroke="#fff" stroke-width="${Math.round(4 / schaal)}" paint-order="stroke">${m.nr}</text></svg>`,
-      );
+      const dik = Math.round(7 / schaal), fs = Math.round(30 / schaal), rs = Math.round(4 / schaal);
+      const nummer = (x: number, y: number) => `<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="${fs}" fill="#ff1f4b" stroke="#fff" stroke-width="${rs}" paint-order="stroke">${m.nr}</text>`;
+      let teken = "";
+      if (m.vorm === "scene") teken = "";
+      else if (m.vorm === "kader" && heeft2) {
+        const x1 = Math.round(Math.min(m.x, m.x2!) * p.w), y1 = Math.round(Math.min(m.y, m.y2!) * p.h);
+        const w = Math.round(Math.abs(m.x2! - m.x) * p.w), h = Math.round(Math.abs(m.y2! - m.y) * p.h);
+        teken = `<rect x="${x1}" y="${y1}" width="${w}" height="${h}" rx="${Math.round(10 / schaal)}" fill="none" stroke="#ff1f4b" stroke-width="${dik}"/>${nummer(x1 + 8, Math.max(fs, y1 - 10))}`;
+      } else if (m.vorm === "pijl" && heeft2) {
+        const ax = Math.round(m.x * p.w), ay = Math.round(m.y * p.h);
+        const hoek = Math.atan2(py - ay, px - ax), l = Math.round(34 / schaal);
+        const punt = (d: number) => `${Math.round(px - l * Math.cos(hoek + d))},${Math.round(py - l * Math.sin(hoek + d))}`;
+        teken = `<line x1="${ax}" y1="${ay}" x2="${px}" y2="${py}" stroke="#ff1f4b" stroke-width="${dik}" stroke-linecap="round"/><polygon points="${px},${py} ${punt(0.45)} ${punt(-0.45)}" fill="#ff1f4b"/>${nummer(ax + 10, ay - 10)}`;
+      } else {
+        teken = `<circle cx="${px}" cy="${py}" r="${r}" fill="none" stroke="#ff1f4b" stroke-width="${dik}"/><circle cx="${px}" cy="${py}" r="${Math.round(5 / schaal)}" fill="#ff1f4b"/>${nummer(px + r + 6, py - r + 10)}`;
+      }
+      const stip = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${p.w}" height="${p.h}">${teken}</svg>`);
       // Eerst de stip op ware grootte, dan pas verkleinen: sharp verkleint anders vóór het samenvoegen.
       const met = await sharp(png).composite([{ input: stip }]).png().toBuffer();
       const jpg = await sharp(met).resize({ width: breed }).jpeg({ quality: 80 }).toBuffer();

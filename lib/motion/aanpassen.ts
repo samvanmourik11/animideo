@@ -14,8 +14,9 @@
 //      docu: Claude past de keuzes van de vaste docu-beelden aan (sjabloon, tekst, getallen)
 //   3. de video opnieuw maken (in de browser van de klant, of op de server), met dezelfde stem
 //
-// Wat de verteller zegt verandert niet: dat zou een nieuwe stem en nieuwe tijden vragen.
-// Alleen op de server.
+// Aanpassen 2.0 (verbeterplan idee 07, 17-11-2026): naast een stip ook een kader of pijl;
+// een gesproken zin wijzigen (de stem wordt opnieuw ingesproken, de tekening schuift mee en
+// past zich aan de nieuwe tekst aan); een foto vervangen door een eigen foto.
 
 import Anthropic from "@anthropic-ai/sdk";
 import { claude } from "./plan";
@@ -31,19 +32,57 @@ import { creditsVoorInkoop } from "@/lib/credit-costs";
 const MODEL = "claude-sonnet-5-5";
 export const MAX_PUNTEN = 8;
 
+export type PuntVorm = "stip" | "kader" | "pijl" | "scene";
+
 export interface AanpasPunt {
   /** Tijdstip in de hele video (s). */
   t: number;
-  /** Waar geklikt is: 0 = links/boven, 1 = rechts/onder. */
+  /** Waar geklikt is: 0 = links/boven, 1 = rechts/onder. Bij een kader de ene hoek, bij een pijl het begin. */
   x: number;
   y: number;
   tekst: string;
+  /** Stip (standaard), kader of pijl; "scene" = de hele scene (een gewijzigde zin), zonder teken. */
+  vorm?: PuntVorm;
+  /** Bij een kader de andere hoek, bij een pijl de punt. */
+  x2?: number;
+  y2?: number;
+}
+
+/** Een gesproken tekst die anders moet: scene 1, 2, ... of 0 voor de eindkaart. */
+export interface ZinWijziging {
+  scene: number;
+  tekst: string;
+}
+
+/** Een foto (f1, f2, ...) die door een eigen foto wordt vervangen. */
+export interface FotoWissel {
+  id: string;
+  url: string;
 }
 
 export interface Aanpassing {
   /** De video waar deze aanpassing van is gemaakt. */
   van: string;
   punten: AanpasPunt[];
+  zinnen?: ZinWijziging[];
+  fotos?: FotoWissel[];
+  /** Bij gewijzigde zinnen: het werkbestand van de oude video (code per hoofdstuk). */
+  werkVan?: string;
+  /** Het plan van de oude video, om de oude scenetijden te kunnen meten. */
+  planVan?: MotionPlan;
+}
+
+export const MAX_ZINNEN = 4;
+export const MAX_FOTOS = 6;
+/** Een zin opnieuw inspreken en de tekening erop aanpassen; een foto wisselen kost bijna niets. */
+export const ZIN_CREDITS = 2;
+export const FOTO_CREDITS = 1;
+
+/** Het middelpunt van een punt: daar wordt gekeken wat er staat. */
+export function puntPlek(p: AanpasPunt): { x: number; y: number } {
+  if (p.vorm === "kader" && p.x2 !== undefined && p.y2 !== undefined) return { x: (p.x + p.x2) / 2, y: (p.y + p.y2) / 2 };
+  if (p.vorm === "pijl" && p.x2 !== undefined && p.y2 !== undefined) return { x: p.x2, y: p.y2 };
+  return { x: p.x, y: p.y };
 }
 
 /** Leest de punten van het scherm. Gooit met een melding voor de klant. */
@@ -53,11 +92,42 @@ export function leesPunten(ruw: unknown): AanpasPunt[] {
   const getal = (v: unknown, min: number, max: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : NaN);
   return ruw.map((p, i) => {
     const o = (p ?? {}) as Record<string, unknown>;
-    const punt = { t: getal(o.t, 0, 3600), x: getal(o.x, 0, 1), y: getal(o.y, 0, 1), tekst: typeof o.tekst === "string" ? o.tekst.replace(/\s+/g, " ").trim().slice(0, 600) : "" };
+    const punt: AanpasPunt = { t: getal(o.t, 0, 3600), x: getal(o.x, 0, 1), y: getal(o.y, 0, 1), tekst: typeof o.tekst === "string" ? o.tekst.replace(/\s+/g, " ").trim().slice(0, 600) : "" };
     if ([punt.t, punt.x, punt.y].some(Number.isNaN)) throw new Error(`Punt ${i + 1} is niet goed doorgekomen. Klik hem opnieuw aan.`);
     if (!punt.tekst) throw new Error(`Schrijf bij punt ${i + 1} wat er anders moet.`);
+    if (o.vorm === "kader" || o.vorm === "pijl") {
+      const x2 = getal(o.x2, 0, 1), y2 = getal(o.y2, 0, 1);
+      if (!Number.isNaN(x2) && !Number.isNaN(y2)) Object.assign(punt, { vorm: o.vorm, x2, y2 });
+    }
     return punt;
   });
+}
+
+/** Leest de gewijzigde zinnen. Gooit met een melding voor de klant. */
+export function leesZinnen(ruw: unknown, plan: MotionPlan): ZinWijziging[] {
+  if (ruw === undefined || ruw === null) return [];
+  if (!Array.isArray(ruw)) throw new Error("De gewijzigde zinnen kwamen niet goed door.");
+  const uit = new Map<number, string>();
+  for (const z of ruw) {
+    const o = (z ?? {}) as Record<string, unknown>;
+    const scene = typeof o.scene === "number" && Number.isInteger(o.scene) ? o.scene : -1;
+    const tekst = typeof o.tekst === "string" ? o.tekst.replace(/\s+/g, " ").trim().slice(0, 500) : "";
+    if (scene < 0 || scene > plan.scenes.length) throw new Error("Een gewijzigde zin hoort bij een scene die niet bestaat.");
+    const oud = scene === 0 ? plan.eind.tekst : plan.scenes[scene - 1].tekst;
+    if (!tekst) throw new Error(`Wat moet de verteller zeggen in ${scene === 0 ? "het slot" : `scene ${scene}`}?`);
+    if (tekst !== oud) uit.set(scene, tekst);
+  }
+  if (uit.size > MAX_ZINNEN) throw new Error(`Hooguit ${MAX_ZINNEN} stukken tekst per keer.`);
+  return [...uit].map(([scene, tekst]) => ({ scene, tekst }));
+}
+
+/** Het plan met de gewijzigde zinnen erin. */
+export function planMetZinnen(plan: MotionPlan, zinnen: ZinWijziging[]): MotionPlan {
+  return {
+    ...plan,
+    scenes: plan.scenes.map((s, i) => ({ ...s, tekst: zinnen.find((z) => z.scene === i + 1)?.tekst ?? s.tekst })),
+    eind: { ...plan.eind, tekst: zinnen.find((z) => z.scene === 0)?.tekst ?? plan.eind.tekst },
+  };
 }
 
 /** Per hoofdstuk de punten die erin vallen, met de tijd binnen dat hoofdstuk en hun nummer. */
@@ -111,7 +181,7 @@ function puntBlokken(punten: HoofdstukAanpassing["punten"], ms: Moment[], plan: 
     blokken.push({ type: "image", source: { type: "base64", media_type: "image/jpeg", data: m.jpg.toString("base64") } });
     blokken.push({
       type: "text",
-      text: `PUNT ${p.nr} (de rode cirkel met ${p.nr} hierboven): t = ${p.t.toFixed(1)} s, in ${scene}. Geklikt op ${pct(p.x)} van links en ${pct(p.y)} van boven.
+      text: `${p.vorm === "scene" ? `PUNT ${p.nr} (de hele scene, geen teken in het beeld)` : `PUNT ${p.nr} (${p.vorm === "kader" ? `het rode kader met ${p.nr} hierboven` : p.vorm === "pijl" ? `de rode pijl met ${p.nr} hierboven` : `de rode cirkel met ${p.nr} hierboven`})`}: t = ${p.t.toFixed(1)} s, in ${scene}. ${p.vorm === "scene" ? "" : p.vorm === "kader" && p.x2 !== undefined && p.y2 !== undefined ? `De klant zette een kader van ${pct(Math.min(p.x, p.x2))} tot ${pct(Math.max(p.x, p.x2))} van links en van ${pct(Math.min(p.y, p.y2))} tot ${pct(Math.max(p.y, p.y2))} van boven: het gaat om wat daarbinnen staat.` : p.vorm === "pijl" && p.x2 !== undefined && p.y2 !== undefined ? `De klant tekende een pijl van ${pct(p.x)},${pct(p.y)} naar ${pct(p.x2)},${pct(p.y2)} (van links, van boven): vaak "dit moet daarheen", of de pijl wijst aan waar het om gaat.` : `Geklikt op ${pct(p.x)} van links en ${pct(p.y)} van boven.`}
 ${m.wat.length ? `Op die plek staat: ${m.wat.join("; ")}.` : "Op die plek staat alleen de achtergrond."}
 De verteller zegt in deze scene: "${zegt}"
 FEEDBACK VAN DE KLANT: ${p.tekst}`,

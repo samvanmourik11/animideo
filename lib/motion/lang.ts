@@ -72,6 +72,24 @@ export async function verdeel(basis: PaginaBasis, plan: MotionPlan, woorden: Whi
   return hs.map((h, i) => ({ ...h, start: grens[i] / FPS, beelden: i + 1 < hs.length ? grens[i + 1] - grens[i] : undefined }));
 }
 
+/** De begintijden van alle scenes (plus de eindkaart) op deze stem, zoals de kern ze rekent. */
+export async function sceneStarts(basis: PaginaBasis, plan: MotionPlan, woorden: WhisperWord[]): Promise<number[]> {
+  const leeg = await proef({ ...basis, woorden, script: scriptVan(plan), code: "window.VIDEO = { bouw() {}, teken() {} };" });
+  if (leeg.scenes.length !== plan.scenes.length + 1) throw new Error("De scenes konden niet op de stem worden gelegd.");
+  return leeg.scenes.map((s) => s[1]);
+}
+
+/**
+ * Na een nieuwe stem (gewijzigde zinnen): dezelfde hoofdstukken als de oude video, zodat de
+ * getekende code per hoofdstuk blijft passen, maar op de tijden van de nieuwe stem.
+ */
+export function herverdeel(oud: Deel[], starts: number[]): Deel[] {
+  if (oud.length === 1) return [{ ...oud[0], start: 0, beelden: undefined }];
+  const grens = oud.map((d, i) => (i === 0 ? 0 : Math.round(starts[d.van] * FPS)));
+  for (let i = 1; i < grens.length; i++) if (grens[i] <= grens[i - 1] + 2 * FPS) throw new Error(`Hoofdstuk ${i + 1} kon niet op de nieuwe stem worden gelegd.`);
+  return oud.map((d, i) => ({ ...d, start: grens[i] / FPS, beelden: i + 1 < oud.length ? grens[i + 1] - grens[i] : undefined }));
+}
+
 export interface DeelWerk {
   pagina: Omit<PaginaInvoer, "code">;
   /** Het plan van alleen dit hoofdstuk; de eindkaart telt alleen in het laatste mee. */
