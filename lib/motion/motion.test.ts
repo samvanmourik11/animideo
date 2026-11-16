@@ -18,9 +18,9 @@ describe("het script controleren", () => {
   });
 
   it("weigert een script dat veel te lang is voor de gekozen lengte", () => {
-    expect(() => controleerPlan(plan(60), 30)).toThrow(/te lang/);
+    expect(() => controleerPlan(plan(40), 30)).toThrow(/te lang/);
     // Dezelfde tekst past wel in een video van een minuut.
-    expect(() => controleerPlan(plan(60), 60)).not.toThrow();
+    expect(() => controleerPlan(plan(40), 60)).not.toThrow();
   });
 
   it("weigert een script zonder slotzin of met te weinig scenes", () => {
@@ -97,7 +97,9 @@ describe("de prijs", () => {
   });
 
   it("geeft een langere video meer woorden", () => {
-    expect(maxWoorden(60)).toBe(2 * maxWoorden(30));
+    expect(maxWoorden(60)).toBeGreaterThan(2 * maxWoorden(30));
+    // Gemeten spreektempo (2,1 woord per seconde) min ±3 s voor begin en eindkaart.
+    expect(maxWoorden(30)).toBe(57);
   });
 });
 
@@ -127,11 +129,11 @@ describe("eigen script en huisstijl", () => {
   it("kiest de kortste lengte waar de tekst in past", async () => {
     const { lengteVoorWoorden } = await import("./plan");
     expect(lengteVoorWoorden(60)).toBe(30);
-    expect(lengteVoorWoorden(120)).toBe(45);
-    expect(lengteVoorWoorden(180)).toBe(60);
+    expect(lengteVoorWoorden(100)).toBe(45);
+    expect(lengteVoorWoorden(140)).toBe(60);
     // Boven de minuut gaat het verder in minuten, tot tien.
     expect(lengteVoorWoorden(400)).toBe(180);
-    expect(lengteVoorWoorden(1700)).toBe(600);
+    expect(lengteVoorWoorden(1500)).toBe(600);
     expect(lengteVoorWoorden(2500)).toBeNull();
   });
 

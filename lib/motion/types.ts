@@ -46,10 +46,14 @@ export function isMotionLengte(v: unknown): v is MotionLengte {
   return MOTION_LENGTES.some((l) => l.sec === v);
 }
 
-/** Hugo spreekt in een rustige uitlegvideo zo'n 2,5 woorden per seconde. */
-export const WOORDEN_PER_SEC = 2.5;
+/**
+ * Gemeten op 21 klare video's (17-11-2026): de stemmen spreken met pauzes zo'n 2,1 woorden per
+ * seconde, en het begin plus de eindkaart kosten samen ±3 seconden. Met 2,5 en zonder die 3
+ * seconden werd een video van "±30 seconden" 36 tot 50 seconden.
+ */
+export const WOORDEN_PER_SEC = 2.1;
 export function maxWoorden(sec: number): number {
-  return Math.round(sec * WOORDEN_PER_SEC);
+  return Math.round(Math.max(sec - 3, sec * 0.5) * WOORDEN_PER_SEC);
 }
 
 export interface MotionScene {
