@@ -187,6 +187,8 @@ export async function voegPakketToe(c: Creatie, invoer: Record<string, unknown>,
           beelden: [],
           // Een Short wordt vaak zonder geluid bekeken: dan de grote woord-voor-woord-letters.
           ondertitels: r.ondertitels && r.ondertitels !== "uit" ? "woord" : "uit",
+          // Eén mail voor de docu is genoeg.
+          mail: false,
         },
         c.id,
         {

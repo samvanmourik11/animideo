@@ -105,6 +105,10 @@
     {
       "path": "/api/cron/regieboek",
       "schedule": "0 5 * * 1"
+    },
+    {
+      "path": "/api/cron/motion",
+      "schedule": "*/2 * * * *"
     }
   ]
 }

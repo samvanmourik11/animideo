@@ -34,6 +34,10 @@ export interface BrowserStand {
   /** 0 tot 1 */
   deel: number;
   fout?: string;
+  /** Het beeld dat net getekend is, klein (jpeg-data), om mee te kijken. */
+  voorbeeld?: string;
+  /** Geschatte seconden tot de beelden klaar zijn. */
+  rest?: number;
 }
 
 const wachtOpBrowser = (c: Creatie) =>
@@ -113,6 +117,21 @@ function openPagina(html: string, o: Opdracht): Promise<{ einde: number; beeld: 
   });
 }
 
+let kleinDoek: HTMLCanvasElement | null = null;
+/** Een beeld verkleind tot een jpeg van 320 pixels breed, voor in de melding. */
+function klein(bmp: ImageBitmap, o: Opdracht): string | undefined {
+  try {
+    kleinDoek ??= document.createElement("canvas");
+    const b = o.w >= o.h ? 320 : 180;
+    kleinDoek.width = b;
+    kleinDoek.height = Math.round((b * o.h) / o.w);
+    kleinDoek.getContext("2d")?.drawImage(bmp, 0, 0, kleinDoek.width, kleinDoek.height);
+    return kleinDoek.toDataURL("image/jpeg", 0.7);
+  } catch {
+    return undefined;
+  }
+}
+
 async function maakVideo(c: Creatie, zet: (s: BrowserStand) => void): Promise<void> {
   const start = performance.now();
   zet({ id: c.id, fase: "voorbereiden", deel: 0 });
@@ -130,6 +149,8 @@ async function maakVideo(c: Creatie, zet: (s: BrowserStand) => void): Promise<vo
   enc.configure(cfg);
 
   // Eerst alle pagina's laden om het totale aantal beelden te weten (voor de voortgang).
+  const tekenStart = performance.now();
+  let voorbeeld: string | undefined;
   let gedaan = 0;
   let totaal = 0;
   const aantallen: number[] = [];
@@ -143,13 +164,19 @@ async function maakVideo(c: Creatie, zet: (s: BrowserStand) => void): Promise<vo
         for (let f = 0; f < aantal; f++) {
           if (encFout) throw encFout;
           const bmp = await p.beeld(f / o.fps);
+          // Elke twee seconden video een klein beeld voor de melding: zo zie je hem ontstaan.
+          if (gedaan % (o.fps * 2) === 0) voorbeeld = klein(bmp, o) ?? voorbeeld;
           const frame = new VideoFrame(bmp, { timestamp: Math.round((gedaan * 1e6) / o.fps), duration: Math.round(1e6 / o.fps) });
           enc.encode(frame, { keyFrame: gedaan % (o.fps * 2) === 0 });
           frame.close();
           bmp.close();
           gedaan++;
           while (enc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 4));
-          if (gedaan % 10 === 0) zet({ id: c.id, fase: "tekenen", deel: Math.min(0.99, gedaan / Math.max(totaal, gedaan)) });
+          if (gedaan % 10 === 0) {
+            const deel = Math.min(0.99, gedaan / Math.max(totaal, gedaan));
+            const sec = (performance.now() - tekenStart) / 1000;
+            zet({ id: c.id, fase: "tekenen", deel, voorbeeld, rest: gedaan > o.fps * 2 ? Math.round((sec / gedaan) * Math.max(0, totaal - gedaan)) : undefined });
+          }
         }
       } finally {
         p.sluit();
@@ -206,6 +233,14 @@ export function useBrowserVideo(creaties: Creatie[], ververs: () => void): Brows
 
   // Wegklikken of sluiten tijdens het maken: eerst waarschuwen.
   const actief = !!stand && stand.fase !== "fout";
+  // In de titel van het tabblad: zo zie je de voortgang ook vanuit een ander tabblad.
+  const titelPct = stand?.fase === "tekenen" ? Math.round(stand.deel * 100) : null;
+  useEffect(() => {
+    if (!actief) return;
+    const oud = document.title.replace(/^\(\d+%\) |^⏳ /, "");
+    document.title = titelPct !== null ? `(${titelPct}%) ${oud}` : `⏳ ${oud}`;
+    return () => { document.title = oud; };
+  }, [actief, titelPct]);
   useEffect(() => {
     if (!actief) return;
     const waarschuw = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
@@ -233,14 +268,20 @@ export function BrowserMelding({ stand }: { stand: BrowserStand | null }) {
     );
   }
   const pct = Math.round(stand.deel * 100);
+  const rest = stand.rest == null ? "" : stand.rest < 60 ? " · nog minder dan een minuut" : ` · nog ±${Math.round(stand.rest / 60)} min`;
   const tekst =
-    stand.fase === "voorbereiden" ? "Voorbereiden…" : stand.fase === "tekenen" ? `Beelden tekenen… ${pct}%` : stand.fase === "uploaden" ? "Video versturen…" : "Stem en muziek eronder zetten…";
+    stand.fase === "voorbereiden" ? "Voorbereiden…" : stand.fase === "tekenen" ? `Beelden tekenen… ${pct}%${rest}` : stand.fase === "uploaden" ? "Video versturen…" : "Stem en muziek eronder zetten…";
   return (
     <div className="sticky top-2 z-30 rounded-2xl border border-blue-500/50 bg-blue-500/10 backdrop-blur px-4 py-3 text-sm text-tekst shadow">
-      <div className="flex items-center justify-between gap-3">
-        <div>
+      <div className="flex items-center gap-3">
+        {stand.voorbeeld && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={stand.voorbeeld} alt="Zo ziet je video er nu uit" className="h-16 w-auto rounded-lg border border-rand shrink-0" />
+        )}
+        <div className="min-w-0">
           <div className="font-semibold">⏳ Houd dit tabblad open: je video wordt nu gemaakt</div>
-          <div className="text-tekst-2 mt-0.5">{tekst} Sluit je het tabblad, dan gaat het verder zodra je de studio weer opent.</div>
+          <div className="text-tekst-2 mt-0.5">{tekst}</div>
+          <div className="text-[11px] text-tekst-3 mt-0.5">Je mag intussen een ander tabblad gebruiken. Sluit je dit tabblad, dan gaat het verder zodra je de studio weer opent.</div>
         </div>
       </div>
       <div className="mt-2 h-1.5 rounded-full bg-blue-500/15 overflow-hidden">

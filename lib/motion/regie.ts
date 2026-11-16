@@ -40,6 +40,7 @@ import { tekenDocuHoofdstuk } from "@/lib/docu/sjablonen";
 import { fotoCredit, type DocuFoto } from "@/lib/docu/types";
 import { FPS, maakStil, monteer, voegStemSamen } from "./render";
 import { paginaHtml } from "./pagina";
+import { mailVideo } from "./mail";
 import { randomUUID } from "node:crypto";
 import {
   MOTION_MUZIEK,
@@ -95,6 +96,10 @@ interface Voortgang {
   werk?: string;
   /** Hoe vaak de lopende stap opnieuw is gestart na vastlopen. */
   pogingen?: number;
+  /** Wanneer een browser de video is gaan maken (stap "browser"). */
+  browserGestart?: string;
+  /** Welke mails al zijn verstuurd (lib/motion/mail.ts). */
+  gemaild?: ("afmaken" | "klaar")[];
   /** Wat het ons kostte (Claude), en hoe lang de video duurde om te maken. Alleen voor beheer. */
   gebruik?: Gebruik & { videoSec?: number; renderSec?: number };
 }
@@ -157,6 +162,7 @@ export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
     taal,
     stem,
     ondertitels: isOndertitels(ruw.ondertitels) ? ruw.ondertitels : "uit",
+    mail: ruw.mail === true,
   };
 }
 
@@ -521,11 +527,14 @@ async function voerVideoUit(c0: Creatie, v0: Voortgang): Promise<void> {
     // Een docu krijgt er het YouTube-pakket bij (lib/docu/regie.ts). Mislukt dat, dan is de
     // video zelf er wel: het pakket meldt zijn eigen fout.
     if (c.maker === "docu" && !r.aanpassing) invoer = await (await import("@/lib/docu/regie")).voegPakketToe(c, invoer, { woorden: werk.woorden, basis });
-    await createServiceClient()
+    const { data: klaar } = await createServiceClient()
       .from("creaties")
       .update({ status: "klaar", url, invoer, klaar_op: new Date().toISOString() })
       .eq("id", c.id)
-      .eq("status", "bezig");
+      .eq("status", "bezig")
+      .select("*")
+      .maybeSingle();
+    if (klaar && r.mail) await mailVideo(klaar as Creatie, "klaar");
   } catch (e) {
     const reden = e instanceof Error ? e.message : String(e);
     console.error("[motion] video maken mislukt:", reden);
@@ -567,6 +576,8 @@ export async function browserOpdracht(c: Creatie): Promise<BrowserOpdracht> {
       return { html: await paginaHtml({ ...pagina, code }, { browser: true }), beelden: werk.delen[k].beelden ?? null };
     }),
   );
+  // Onthouden dat een browser bezig is: dan hoeft er geen "open de studio"-mail meer.
+  if (!v.browserGestart) await werkVoortgangBij(c, { ...v, browserGestart: new Date().toISOString() }).catch(() => {});
   const pad = `${c.user_id}/creaties/${randomUUID()}.mp4`;
   const { data, error } = await createServiceClient().storage.from("scene-assets").createSignedUploadUrl(pad);
   if (error || !data) throw new Error(error?.message ?? "Geen uploadplek gekregen.");
@@ -612,6 +623,7 @@ export async function browserKlaar(c0: Creatie, pad: string, beelden: number, re
       .eq("status", "bezig")
       .select("*")
       .maybeSingle();
+    if (data && r.mail) await mailVideo(data as Creatie, "klaar");
     return (data as Creatie | null) ?? c;
   } catch (e) {
     const reden = e instanceof Error ? e.message : String(e);
@@ -729,3 +741,24 @@ async function voerAanpassingUit(c: Creatie, v: Voortgang): Promise<void> {
 
 /** Alleen voor het proefscript van het aanpassen (scripts/aanpassen-proef.test.ts). */
 export const voorProef = { basisVan, leesWerk, alleenFotos, genoemd };
+
+/**
+ * Voor de cron (app/api/cron/motion): video's die bezig zijn een stap verder zetten, ook als
+ * niemand de studio open heeft, en een mail sturen als een video op de browser wacht terwijl
+ * er na twee minuten nog geen browser aan begonnen is.
+ */
+export async function motionOnderhoud(): Promise<{ bekeken: number; gemaild: number }> {
+  const db = createServiceClient();
+  const { data } = await db.from("creaties").select("*").in("maker", ["motion", "docu"]).eq("status", "bezig").order("created_at").limit(40);
+  let gemaild = 0;
+  for (const c0 of (data ?? []) as Creatie[]) {
+    const c = await verversMotion(c0).catch(() => c0);
+    const r = rij(c), v = r.voortgang;
+    if (!r.mail || !v || v.stap !== "browser" || v.browserGestart || v.gemaild?.includes("afmaken")) continue;
+    if (Date.now() - new Date(v.sinds).getTime() < 2 * 60 * 1000) continue;
+    // Eerst vastleggen (met de claim op stap en tijd), dan mailen: nooit twee keer.
+    const gewonnen = await claim(c, v, { ...v, gemaild: [...(v.gemaild ?? []), "afmaken"] });
+    if (gewonnen && (await mailVideo(gewonnen, "afmaken"))) gemaild++;
+  }
+  return { bekeken: data?.length ?? 0, gemaild };
+}

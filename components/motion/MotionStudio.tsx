@@ -100,6 +100,7 @@ export default function MotionStudio() {
   const [taal, setTaal] = useState<MotionTaal>("nl");
   const [stem, setStem] = useState<string>(MOTION_STEM_HUGO);
   const [ondertitels, setOndertitels] = useState<MotionOndertitels>("uit");
+  const [mail, setMail] = useState(true);
   const [stemmen, setStemmen] = useState<BibliotheekStem[]>([]);
   const [berichten, setBerichten] = useState<RegieBericht[]>([]);
   const [invoer, setInvoer] = useState("");
@@ -236,6 +237,7 @@ export default function MotionStudio() {
       if (isMotionTaal(b.taal)) setTaal(b.taal);
       if (typeof b.stem === "string") setStem(b.stem);
       if (isOndertitels(b.ondertitels)) setOndertitels(b.ondertitels);
+      if (typeof b.mail === "boolean") setMail(b.mail);
       if (typeof b.stijl === "string") setStijl(b.stijl);
       if (isMotionLengte(b.lengte)) setLengte(b.lengte);
       if (b.formaat === "9:16" || b.formaat === "16:9") setFormaat(b.formaat);
@@ -243,8 +245,8 @@ export default function MotionStudio() {
   }, []);
   useEffect(() => {
     if (!berichten.length && !plan) return;
-    try { localStorage.setItem(GESPREK, JSON.stringify({ berichten: berichten.slice(-40), plan, soort, taal, stem, ondertitels, stijl, lengte, formaat })); } catch {}
-  }, [berichten, plan, soort, taal, stem, ondertitels, stijl, lengte, formaat]);
+    try { localStorage.setItem(GESPREK, JSON.stringify({ berichten: berichten.slice(-40), plan, soort, taal, stem, ondertitels, mail, stijl, lengte, formaat })); } catch {}
+  }, [berichten, plan, soort, taal, stem, ondertitels, mail, stijl, lengte, formaat]);
   useEffect(() => { if (berichten.length) onderaan.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [berichten.length, bezig]);
 
   function nieuwGesprek() {
@@ -278,7 +280,7 @@ export default function MotionStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("motion", { onderwerp, ...merk(), formaat, lengte, muziek, stijl, soort, taal, stem, ondertitels, plan });
+      const c = await startMaker("motion", { onderwerp, ...merk(), formaat, lengte, muziek, stijl, soort, taal, stem, ondertitels, mail, plan });
       lijst.zetVoor(c);
     });
   }
@@ -516,6 +518,10 @@ export default function MotionStudio() {
               </div>
             </div>
             {ondertitels !== "uit" && <p className="text-[11px] text-tekst-3 -mt-2">{MOTION_ONDERTITELS.find((o) => o.id === ondertitels)?.uitleg}. Je kunt ze na afloop ook als bestand downloaden.</p>}
+            <label className="flex items-center gap-2 text-sm text-tekst">
+              <input type="checkbox" checked={mail} onChange={(e) => setMail(e.target.checked)} />
+              Mail me als de video klaar is
+            </label>
 
           </div>
 

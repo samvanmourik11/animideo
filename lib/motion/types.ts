@@ -220,6 +220,8 @@ export interface MotionInvoer {
   stem?: string;
   /** Ondertitels in beeld; afwezig of "uit" = geen. */
   ondertitels?: MotionOndertitels;
+  /** Een mail sturen als de video klaar is (of op de browser wacht terwijl de studio dicht is). */
+  mail?: boolean;
 }
 
 // ── Ondertitels ──────────────────────────────────────────────────────────────
@@ -316,7 +318,7 @@ export const MOTION_STAP_LABEL: Record<MotionStap, string> = {
   animatie: "Stap 2 van 3: animatie tekenen en controleren…",
   "wacht-video": "Stap 3 van 3: video maken…",
   video: "Stap 3 van 3: video maken…",
-  browser: "Stap 3 van 3: video maken in je browser. Open de Motion graphics-studio en houd dat tabblad open.",
+  browser: "Stap 3 van 3: video maken in je browser. Open de studio en houd dat tabblad open tot hij klaar is.",
   monteren: "Stap 3 van 3: stem en muziek eronder…",
   aanpassen: "Je aanpassingen worden verwerkt…",
 };

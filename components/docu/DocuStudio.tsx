@@ -48,6 +48,7 @@ export default function DocuStudio() {
   const [lengte, setLengte] = useState<DocuLengte>(600);
   const [taal, setTaal] = useState<MotionTaal>("nl");
   const [ondertitels, setOndertitels] = useState<MotionOndertitels>("uit");
+  const [mail, setMail] = useState(true);
   const [stem, setStem] = useState<string>(MOTION_STEM_HUGO);
   const [stemmen, setStemmen] = useState<BibliotheekStem[]>([]);
   const [muziek, setMuziek] = useState<string>(DOCU_MUZIEK[0].slug);
@@ -84,6 +85,7 @@ export default function DocuStudio() {
         if (isDocuLengte(b.lengte)) setLengte(b.lengte);
         if (isMotionTaal(b.taal)) setTaal(b.taal);
         if (isOndertitels(b.ondertitels) && b.ondertitels !== "woord") setOndertitels(b.ondertitels);
+        if (typeof b.mail === "boolean") setMail(b.mail);
         if (typeof b.stem === "string") setStem(b.stem);
         if (typeof b.muziek === "string") setMuziek(b.muziek);
         if (typeof b.short === "boolean") setShort(b.short);
@@ -99,9 +101,9 @@ export default function DocuStudio() {
   useEffect(() => {
     if (!geladen) return;
     try {
-      localStorage.setItem(BEWAAR, JSON.stringify({ kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, muziek, short, plan, feiten, controle, fotoZoek, fotos }));
+      localStorage.setItem(BEWAAR, JSON.stringify({ kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, mail, muziek, short, plan, feiten, controle, fotoZoek, fotos }));
     } catch {}
-  }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, muziek, short, plan, feiten, controle, fotoZoek, fotos]);
+  }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, mail, muziek, short, plan, feiten, controle, fotoZoek, fotos]);
 
   // Nederlands: Hugo vooraan, dan de bibliotheek. Andere talen: alleen moedertaalstemmen, met
   // een vaste documentaireverteller vooraan (lib/stem/taalstemmen.ts).
@@ -158,7 +160,7 @@ export default function DocuStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, ondertitels, muziek, short, plan, feiten, controle, fotos: fotos ?? [] });
+      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, ondertitels, mail, muziek, short, plan, feiten, controle, fotos: fotos ?? [] });
       lijst.zetVoor(c);
     });
   }
@@ -277,6 +279,10 @@ export default function DocuStudio() {
               </select>
               {ondertitels !== "uit" && short && <p className="text-[11px] text-tekst-3 mt-1">De Short krijgt grote woord-voor-woord-ondertitels.</p>}
             </div>
+            <label className="flex items-center gap-2 text-sm text-tekst">
+              <input type="checkbox" checked={mail} onChange={(e) => setMail(e.target.checked)} />
+              Mail me als de docu klaar is
+            </label>
 
             {!plan && (
               <>
