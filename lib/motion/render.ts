@@ -328,7 +328,7 @@ export async function maakStil(p: PaginaInvoer, o: { beelden?: number; deadline?
 }
 
 /** Zet de hoofdstukken (video zonder geluid) achter elkaar en legt de stem en de muziek eronder. */
-export async function monteer(delen: Buffer[], beelden: number, stem: Buffer, muziekUrl?: string): Promise<Buffer> {
+export async function monteer(delen: Buffer[], beelden: number, stem: Buffer, muziekUrl?: string, muziekVolume = 0.13): Promise<Buffer> {
   const dir = await mkdtemp(path.join(tmpdir(), "motion-"));
   try {
     let stil = path.join(dir, "d0.mp4");
@@ -349,7 +349,7 @@ export async function monteer(delen: Buffer[], beelden: number, stem: Buffer, mu
       await ffmpeg([
         "-y", "-i", stil, "-i", stemPad, "-stream_loop", "-1", "-i", muziekUrl,
         "-filter_complex",
-        `[1:a]adelay=300:all=1,volume=1.0[s];[2:a]volume=0.13,afade=t=in:d=0.6,afade=t=out:st=${(beelden / FPS - 1.6).toFixed(2)}:d=1.6[m];[s][m]amix=inputs=2:normalize=0:duration=longest[a]`,
+        `[1:a]adelay=300:all=1,volume=1.0[s];[2:a]volume=${muziekVolume.toFixed(3)},afade=t=in:d=0.6,afade=t=out:st=${(beelden / FPS - 1.6).toFixed(2)}:d=1.6[m];[s][m]amix=inputs=2:normalize=0:duration=longest[a]`,
         "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-t", duur, "-movflags", "+faststart", uit,
       ]);
     } else {
@@ -400,3 +400,4 @@ export async function maakVideo(v: VideoInvoer): Promise<{ mp4: Buffer; seconden
   const mp4 = await monteer([stil.mp4], stil.beelden, v.stem, v.muziekUrl);
   return { mp4, seconden: stil.beelden / FPS, renderMs: Date.now() - start };
 }
+

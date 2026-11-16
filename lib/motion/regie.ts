@@ -22,7 +22,7 @@ import { transcribeWords, type WhisperWord } from "@/lib/openai";
 import { zetKostenContext } from "@/lib/provider-kosten";
 import { createServiceClient } from "@/lib/supabase/service";
 import { betaal, betaalTerug } from "@/lib/team/team";
-import { musicTrackUrl } from "@/lib/music/library";
+import { MUSIC_TRACKS, musicTrackUrl } from "@/lib/music/library";
 import { MAX_TEGELIJK, WachtrijFout, falReden, markeerMislukt, uploadNaarOpslag } from "@/lib/creaties/wachtrij";
 import type { Creatie } from "@/lib/creaties/types";
 import { canUseMotion } from "@/lib/studio/access";
@@ -30,7 +30,7 @@ import { controleerPlan } from "./plan";
 import { deelWerk, herverdeel, sceneStarts, scriptVan, stemBlokken, verdeel, type Deel, type PaginaBasis } from "./lang";
 import { vindStem } from "@/lib/stem/bibliotheek";
 import { isTaalStem, taalStemmen } from "@/lib/stem/taalstemmen";
-import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal, isOndertitels, leesTaal } from "./types";
+import { MOTION_STEM_HUGO, isMotionSoort, isMotionTaal, isMuziekVolume, isOndertitels, leesTaal, muziekWaarde } from "./types";
 import { stijlVan } from "./stijlen";
 import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
@@ -142,7 +142,8 @@ export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
       ? gekozen && gekozen.id === ruw.stem ? gekozen.id : MOTION_STEM_HUGO
       : isTaalStem(taal, ruw.stem) ? (ruw.stem as string) : taalStemmen(taal)[0]?.id ?? MOTION_STEM_HUGO;
   const lengte = isMotionLengte(ruw.lengte) ? ruw.lengte : 30;
-  const muziek = MOTION_MUZIEK.some((m) => m.slug === ruw.muziek) ? (ruw.muziek as string) : MOTION_MUZIEK[0].slug;
+  // Elk nummer uit de muziekbibliotheek mag (Muziek 2.0), of geen muziek.
+  const muziek = ruw.muziek === "" || MUSIC_TRACKS.some((t) => t.slug === ruw.muziek) ? (ruw.muziek as string) : MOTION_MUZIEK[0].slug;
   return {
     onderwerp: typeof ruw.onderwerp === "string" ? ruw.onderwerp.trim().slice(0, 16000) : "",
     bedrijf,
@@ -165,6 +166,8 @@ export function leesMotionInvoer(ruw: Record<string, unknown>): MotionInvoer {
     stem,
     ondertitels: isOndertitels(ruw.ondertitels) ? ruw.ondertitels : "uit",
     mail: ruw.mail === true,
+    ...(eigenOpslag(ruw.muziekUrl) ? { muziekUrl: ruw.muziekUrl } : {}),
+    muziekVolume: isMuziekVolume(ruw.muziekVolume) ? ruw.muziekVolume : "normaal",
   };
 }
 
@@ -357,6 +360,12 @@ async function basisVan(i: MotionInvoer): Promise<PaginaBasis> {
   return { w, h, merk: { naam: docu ? "" : i.bedrijf, website: docu ? "" : i.website, kleur: i.kleur, kleur2: i.kleur2, font: motionFont(i.font), logo }, fotos, stijl: i.stijl || null, ondertitels: i.ondertitels && i.ondertitels !== "uit" ? i.ondertitels : null };
 }
 
+/** Het nummer onder de video: een eigen upload, anders het gekozen nummer, anders niets. */
+function muziekVan(r: MotionInvoer): string | undefined {
+  if (r.muziekUrl) return r.muziekUrl;
+  return r.muziek ? musicTrackUrl(r.muziek) : undefined;
+}
+
 async function haal(url: string): Promise<Buffer> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Ophalen mislukt (HTTP ${res.status})`);
@@ -534,7 +543,7 @@ async function voerVideoUit(c0: Creatie, v0: Voortgang): Promise<void> {
     // Achter elk adres staat het aantal beelden van dat hoofdstuk.
     const beelden = stillen.reduce((n, s) => n + Number(s.split("#")[1]), 0);
     const [stem, ...delen] = await Promise.all([haal(stemUrl), ...stillen.map((s) => haal(s.split("#")[0]))]);
-    const mp4 = await monteer(delen, beelden, stem, r.muziek ? musicTrackUrl(r.muziek) : undefined);
+    const mp4 = await monteer(delen, beelden, stem, muziekVan(r), muziekWaarde(r.muziekVolume));
     const url = await uploadNaarOpslag(c.user_id, mp4, "mp4", "video/mp4");
     const eerder = v.gebruik ?? { usd: 0, rondes: 0 };
     let invoer: Record<string, unknown> = { ...r, voortgang: { ...v, stillen, gebruik: { ...eerder, videoSec: Math.round(beelden / FPS), renderSec: (eerder.renderSec ?? 0) + Math.round(renderMs / 1000) } } };
@@ -620,7 +629,7 @@ export async function browserKlaar(c0: Creatie, pad: string, beelden: number, re
     const { data: blob, error } = await db.storage.from("scene-assets").download(pad);
     if (error || !blob) throw new Error(error?.message ?? "De video uit je browser is niet aangekomen.");
     const [stil, stem] = await Promise.all([blob.arrayBuffer().then((b) => Buffer.from(b)), haal(v.stemUrl)]);
-    const mp4 = await monteer([stil], beelden, stem, r.muziek ? musicTrackUrl(r.muziek) : undefined);
+    const mp4 = await monteer([stil], beelden, stem, muziekVan(r), muziekWaarde(r.muziekVolume));
     const url = await uploadNaarOpslag(c.user_id, mp4, "mp4", "video/mp4");
     await db.storage.from("scene-assets").remove([pad]).catch(() => {});
     const eerder = v.gebruik ?? { usd: 0, rondes: 0 };

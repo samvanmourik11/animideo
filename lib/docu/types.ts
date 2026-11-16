@@ -11,6 +11,7 @@
 //      claim komt dan bij ons terecht), met de maker en de licentie erbij;
 //   3. het YouTube-pakket: thumbnail, beschrijving met hoofdstuktijden en bronnen, en een Short.
 
+import { MUSIC_TRACKS } from "@/lib/music/library";
 import { creditsVoorInkoop, INKOOP_USD } from "@/lib/credit-costs";
 import { type MotionLengte, type MotionPlan, type MotionStap, type MotionTaal } from "@/lib/motion/types";
 
@@ -44,7 +45,8 @@ export const DOCU_MUZIEK = [
   { slug: "dramatische-trailer", naam: "Spannend" },
   { slug: "", naam: "Geen muziek" },
 ] as const;
-export const docuMuziek = (v: unknown): string => (DOCU_MUZIEK.some((m) => m.slug === v) ? (v as string) : DOCU_MUZIEK[0].slug);
+// Muziek 2.0: ook de rest van de muziekbibliotheek mag; onbekend wordt het eerste docu-nummer.
+export const docuMuziek = (v: unknown): string => (DOCU_MUZIEK.some((m) => m.slug === v) || MUSIC_TRACKS.some((t) => t.slug === v) ? (v as string) : DOCU_MUZIEK[0].slug);
 
 /** Een feit uit het onderzoek, met de bron waar het staat. */
 export interface DocuFeit {

@@ -7,6 +7,7 @@ import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import VideoAanpassen from "@/components/motion/VideoAanpassen";
 import { useSchetsen } from "@/components/motion/Schetsen";
+import { MuziekKiezer } from "@/components/motion/MuziekKiezer";
 import { taalStemmen } from "@/lib/stem/taalstemmen";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 import { BrowserMelding, useBrowserVideo } from "./BrowserVideo";
@@ -30,6 +31,7 @@ import {
   MOTION_ONDERTITELS,
   isOndertitels,
   type MotionOndertitels,
+  type MuziekVolume,
   taalNaam,
   MOTION_STEM_HUGO,
   isMotionSoort,
@@ -123,6 +125,8 @@ export default function MotionStudio() {
   const [formaat, setFormaat] = useState<MotionFormaat>("16:9");
   const [lengte, setLengte] = useState<MotionLengte>(30);
   const [muziek, setMuziek] = useState<string>(MOTION_MUZIEK[0].slug);
+  const [muziekVolume, setMuziekVolume] = useState<MuziekVolume>("normaal");
+  const [muziekUrl, setMuziekUrl] = useState("");
   const [stijl, setStijl] = useState<string>("");
   const [plan, setPlan] = useState<MotionPlan | null>(null);
   const [afwijkend, setAfwijkend] = useState<number[]>([]);
@@ -289,7 +293,7 @@ export default function MotionStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const basis = { onderwerp, ...merk(), lengte, muziek, stijl, soort, taal, stem, ondertitels, mail, plan };
+      const basis = { onderwerp, ...merk(), lengte, muziek, muziekVolume, muziekUrl, stijl, soort, taal, stem, ondertitels, mail, plan };
       const c = await startMaker("motion", { ...basis, formaat });
       lijst.zetVoor(c);
       // Het andere formaat erbij: zelfde script en stem, eigen opbouw van het beeld.
@@ -517,16 +521,9 @@ export default function MotionStudio() {
             </div>
             {gekozenStem && <p className="text-[11px] text-tekst-3 -mt-2">{gekozenStem.typering}{taal !== "nl" ? ` · moedertaalspreker ${taalNaam(taal)}` : ""}</p>}
 
+            <MuziekKiezer muziek={muziek} setMuziek={setMuziek} volume={muziekVolume} setVolume={setMuziekVolume} eigen={muziekUrl} setEigen={setMuziekUrl} aanbevolen={MOTION_MUZIEK} />
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="n-label">Muziek</label>
-                <select value={muziek} onChange={(e) => setMuziek(e.target.value)} className="n-invoer mt-1.5">
-                  {MOTION_MUZIEK.map((m) => (
-                    <option key={m.slug} value={m.slug}>{m.naam}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
+              <div className="col-span-2">
                 <label className="n-label">Ondertitels <span className="font-normal text-tekst-3">(gratis)</span></label>
                 <select value={ondertitels} onChange={(e) => setOndertitels(e.target.value as MotionOndertitels)} className="n-invoer mt-1.5">
                   {MOTION_ONDERTITELS.map((o) => (

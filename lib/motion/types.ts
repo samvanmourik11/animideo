@@ -226,7 +226,22 @@ export interface MotionInvoer {
   ondertitels?: MotionOndertitels;
   /** Een mail sturen als de video klaar is (of op de browser wacht terwijl de studio dicht is). */
   mail?: boolean;
+  /** Een eigen nummer van de klant (adres op onze opslag); gaat vóór `muziek`. */
+  muziekUrl?: string;
+  /** Hoe hard de muziek onder de stem ligt. Afwezig = normaal. */
+  muziekVolume?: MuziekVolume;
 }
+
+// ── Muziek ───────────────────────────────────────────────────────────────────
+// Volume onder de stem. "normaal" is wat het altijd was (0,13): de stem blijft goed verstaanbaar.
+export const MUZIEK_VOLUMES = [
+  { id: "zacht", naam: "Zacht", waarde: 0.07 },
+  { id: "normaal", naam: "Normaal", waarde: 0.13 },
+  { id: "hard", naam: "Hard", waarde: 0.22 },
+] as const;
+export type MuziekVolume = (typeof MUZIEK_VOLUMES)[number]["id"];
+export const isMuziekVolume = (v: unknown): v is MuziekVolume => MUZIEK_VOLUMES.some((m) => m.id === v);
+export const muziekWaarde = (v: unknown): number => MUZIEK_VOLUMES.find((m) => m.id === v)?.waarde ?? 0.13;
 
 // ── Ondertitels ──────────────────────────────────────────────────────────────
 // Getekend op de woordtijden van de stem (Whisper), dus gratis: geen extra AI-werk.

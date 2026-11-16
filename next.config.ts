@@ -39,6 +39,8 @@ const nextConfig: NextConfig = {
     "/api/cron/motion": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf", "./lib/export/Arvo-Bold.ttf", "./public/motion/**", "./node_modules/playwright-core/**", "./node_modules/@sparticuz/chromium/**"],
     // Gratis schetsbeelden vóór betalen (lib/motion/schets.ts).
     "/api/motion/schets": ["./public/motion/**"],
+    // Een eigen muzieknummer wordt met ffmpeg omgezet naar mp3.
+    "/api/motion/upload": ["./node_modules/ffmpeg-static/ffmpeg"],
     // Een mislukte UGC-video opnieuw monteren (lib/ugc/montage.ts, ondertitels in Poppins).
     "/api/creaties/[id]/monteer-opnieuw": ["./node_modules/ffmpeg-static/ffmpeg", "./lib/export/Poppins-Bold.ttf"],
     // Stem & Lipsync: opnames omzetten naar mp3.

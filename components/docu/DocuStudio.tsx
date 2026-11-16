@@ -5,10 +5,11 @@ import Link from "next/link";
 import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
 import VideoAanpassen from "@/components/motion/VideoAanpassen";
+import { MuziekKiezer } from "@/components/motion/MuziekKiezer";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 import { BrowserMelding, useBrowserVideo } from "@/components/motion/BrowserVideo";
-import { MOTION_ONDERTITELS, MOTION_STEM_HUGO, MOTION_TALEN, duurTekst, isMotionTaal, isOndertitels, maxWoorden, type MotionOndertitels, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
+import { MOTION_ONDERTITELS, MOTION_STEM_HUGO, MOTION_TALEN, duurTekst, isMotionTaal, isOndertitels, maxWoorden, type MotionOndertitels, type MuziekVolume, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
 import type { BibliotheekStem } from "@/lib/stem/types";
 import { taalStemmen } from "@/lib/stem/taalstemmen";
 import {
@@ -54,6 +55,8 @@ export default function DocuStudio() {
   const [stem, setStem] = useState<string>(MOTION_STEM_HUGO);
   const [stemmen, setStemmen] = useState<BibliotheekStem[]>([]);
   const [muziek, setMuziek] = useState<string>(DOCU_MUZIEK[0].slug);
+  const [muziekVolume, setMuziekVolume] = useState<MuziekVolume>("normaal");
+  const [muziekUrl, setMuziekUrl] = useState("");
   const [short, setShort] = useState(true);
   const [plan, setPlan] = useState<MotionPlan | null>(null);
   const [feiten, setFeiten] = useState<DocuFeit[]>([]);
@@ -169,7 +172,7 @@ export default function DocuStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, ondertitels, mail, muziek, short, plan, feiten, controle, fotos: fotos ?? [] });
+      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, ondertitels, mail, muziek, muziekVolume, muziekUrl, short, plan, feiten, controle, fotos: fotos ?? [] });
       lijst.zetVoor(c);
     });
   }
@@ -268,20 +271,11 @@ export default function DocuStudio() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="n-label">Muziek</label>
-                <select value={muziek} onChange={(e) => setMuziek(e.target.value)} className="n-invoer mt-1.5">
-                  {DOCU_MUZIEK.map((m) => (
-                    <option key={m.slug} value={m.slug}>{m.naam}</option>
-                  ))}
-                </select>
-              </div>
-              <label className="flex items-end gap-2 pb-2 text-sm text-tekst">
-                <input type="checkbox" checked={short} onChange={(e) => setShort(e.target.checked)} />
-                Maak er ook een Short bij
-              </label>
-            </div>
+            <MuziekKiezer muziek={muziek} setMuziek={setMuziek} volume={muziekVolume} setVolume={setMuziekVolume} eigen={muziekUrl} setEigen={setMuziekUrl} aanbevolen={DOCU_MUZIEK} />
+            <label className="flex items-center gap-2 text-sm text-tekst">
+              <input type="checkbox" checked={short} onChange={(e) => setShort(e.target.checked)} />
+              Maak er ook een Short bij
+            </label>
             <div>
               <label className="n-label">Ondertitels <span className="font-normal text-tekst-3">(gratis)</span></label>
               <select value={ondertitels} onChange={(e) => setOndertitels(e.target.value as MotionOndertitels)} className="n-invoer mt-1.5">

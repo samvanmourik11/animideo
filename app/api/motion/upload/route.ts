@@ -3,11 +3,13 @@ import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
 import { canUseMotion } from "@/lib/studio/access";
 import { uploadNaarOpslag } from "@/lib/creaties/wachtrij";
+import { naarMp3 } from "@/lib/motion/geluid";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 const MAX_BYTES = 12 * 1024 * 1024;
+const MAX_MUZIEK = 25 * 1024 * 1024;
 const TOEGESTAAN = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
 
 // Een logo of een voorbeeldbeeld voor de Motion graphics-studio. Gratis: er draait geen AI.
@@ -27,6 +29,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Ongeldige upload" }, { status: 400 });
   }
   const bestand = form.get("bestand");
+  // Een eigen muzieknummer (Muziek 2.0): omzetten naar een schone mp3, dan weten we dat het
+  // echt geluid is. De klant bevestigt in de studio dat hij de rechten heeft.
+  if (form.get("soort") === "muziek") {
+    if (!(bestand instanceof File)) return NextResponse.json({ error: "Geen bestand ontvangen" }, { status: 400 });
+    if (bestand.size > MAX_MUZIEK) return NextResponse.json({ error: "Maximaal 25 MB" }, { status: 400 });
+    try {
+      const mp3 = await naarMp3(Buffer.from(await bestand.arrayBuffer()));
+      const url = await uploadNaarOpslag(user.id, mp3, "mp3", "audio/mpeg");
+      return NextResponse.json({ url });
+    } catch (e) {
+      console.error("[motion/upload] muziek", e);
+      return NextResponse.json({ error: "Dit bestand konden we niet als muziek lezen. Probeer een mp3 of wav." }, { status: 400 });
+    }
+  }
   const logo = form.get("soort") === "logo";
   if (!(bestand instanceof File)) return NextResponse.json({ error: "Geen bestand ontvangen" }, { status: 400 });
   const mime = (bestand.type || "").split(";")[0];
