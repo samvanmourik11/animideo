@@ -7,7 +7,7 @@ import Link from "next/link";
 const FB_PIXEL_ID = "7827964890555370";
 const NAAM: Record<string, string> = { starter: "Starter", pro: "Pro", agency: "Agency" };
 
-// Terug van iDEAL. De webhook van Mollie is soms een paar seconden later dan de klant, dus
+// Terug van iDEAL of creditcard. De webhook van Mollie is soms een paar seconden later dan de klant, dus
 // we vragen de status een halve minuut lang na voordat we iets anders dan "bezig" zeggen.
 function Klaar() {
   const zoek = useSearchParams();

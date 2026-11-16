@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
         amount: { currency: "EUR", value: bedrag },
         // Zo staat het ook op het bankafschrift: verificatie, en wat er daarna gebeurt.
         description: `Animideo verificatie (terug). Na 7 dagen gratis €${PAKKET_PRIJS[plan].replace(".", ",")}/m ${PAKKET_NAAM[plan]}`,
-        method: "ideal",
+        method: ["ideal", "creditcard"],
         sequenceType: "first",
         customerId: klant.id,
         redirectUrl: `${appUrl}/start/klaar?checkout_id=${pending.id}&email=${encodeURIComponent(email)}&plan=${plan}`,
