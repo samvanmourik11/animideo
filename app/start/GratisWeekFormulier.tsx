@@ -70,7 +70,7 @@ export default function GratisWeekFormulier() {
       <div className="bg-paneel border border-rand rounded-2xl p-6 shadow-[0_8px_30px_rgba(15,23,42,0.08)] space-y-4">
         <div className="rounded-xl bg-vlak border border-rand p-4 text-sm text-tekst-2 space-y-1">
           <div className="flex justify-between"><span>Vandaag</span><strong className="text-tekst">€0 · 200 credits</strong></div>
-          <div className="flex justify-between"><span>Verificatie met iDEAL (direct terug)</span><span>€0,01 – €0,09</span></div>
+          <div className="flex justify-between"><span>Verificatie met iDEAL of creditcard (direct terug)</span><span>€0,01 – €0,09</span></div>
           <div className="flex justify-between"><span>Vanaf {startDatum}</span><strong className="text-tekst">€{gekozen.prijs} per maand ({gekozen.naam})</strong></div>
         </div>
 
@@ -83,7 +83,7 @@ export default function GratisWeekFormulier() {
           <label className="flex items-start gap-2.5 text-xs text-tekst-2 cursor-pointer">
             <input type="checkbox" checked={abonnement} onChange={(e) => setAbonnement(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-blue-500" />
             <span>
-              Ik begrijp dat dit een <strong className="text-tekst">doorlopend maandelijks abonnement</strong> is. Ik verifieer nu met iDEAL
+              Ik begrijp dat dit een <strong className="text-tekst">doorlopend maandelijks abonnement</strong> is. Ik verifieer nu met iDEAL of creditcard
               (een paar cent, dat ik direct terugkrijg). Zeg ik niet op binnen 7 dagen, dan betaal ik vanaf <strong className="text-tekst">{startDatum}</strong> automatisch
               <strong className="text-tekst"> €{gekozen.prijs} per maand</strong> voor {gekozen.naam}, totdat ik opzeg. Opzeggen kan altijd, per maand.
             </span>
@@ -104,10 +104,10 @@ export default function GratisWeekFormulier() {
         {fout && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl px-3 py-2">{fout}</p>}
 
         <button type="submit" disabled={bezig || !email.includes("@") || !abonnement || !voorwaarden} className="btn-primary w-full py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed">
-          {bezig ? "Doorsturen naar iDEAL…" : "Start mijn gratis week →"}
+          {bezig ? "Doorsturen naar betalen…" : "Start mijn gratis week →"}
         </button>
         <p className="text-xs text-tekst-3 text-center">
-          Beveiligd via Mollie en iDEAL. 7 dagen gratis, daarna €{gekozen.prijs}/maand. Maandelijks opzegbaar.
+          Beveiligd via Mollie (iDEAL of creditcard). 7 dagen gratis, daarna €{gekozen.prijs}/maand. Maandelijks opzegbaar.
         </p>
       </div>
     </form>

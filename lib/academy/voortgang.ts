@@ -44,6 +44,7 @@ async function gemaakt(userId: string): Promise<Set<CheckId>> {
     if (m === "ugc") s.add("ugc");
     if (m === "film" || m === "film-scene") s.add("film");
     if (m === "trend") s.add("trend");
+    if (m === "motion") s.add("motion");
     if (c.deel_code) s.add("gedeeld");
     if (c.op_profiel) s.add("profiel");
   }

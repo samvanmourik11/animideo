@@ -55,6 +55,23 @@ export default async function LesPagina({ params }: { params: Promise<{ les: str
         </ul>
       </div>
 
+      {les.verdieping && (
+        <article className="n-kaart space-y-6">
+          <div>
+            <h2 className="text-lg font-bold text-tekst">De les om na te lezen</h2>
+            <p className="text-sm text-tekst-3 mt-0.5">Alles uit de video, met het waarom erbij. Handig om terug te pakken als je zelf aan de slag gaat.</p>
+          </div>
+          {les.verdieping.map((d, i) => (
+            <section key={d.kop} className="space-y-2">
+              <h3 className="font-bold text-tekst"><span className="text-blue-500 mr-1.5">{i + 1}.</span>{d.kop}</h3>
+              {d.alineas.map((a) => (
+                <p key={a.slice(0, 40)} className="text-sm leading-relaxed text-tekst-2 max-w-3xl">{a}</p>
+              ))}
+            </section>
+          ))}
+        </article>
+      )}
+
       <div className="flex justify-between gap-3">
         {vorige ? <Link href={`/academy/${vorige.slug}`} className="n-knop2 text-sm">← {vorige.titel}</Link> : <span />}
         {volgende ? <Link href={`/academy/${volgende.slug}`} className="btn-primary text-sm">Volgende: {volgende.titel} →</Link> : <Link href="/academy" className="btn-primary text-sm">Terug naar de Academy</Link>}

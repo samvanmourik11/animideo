@@ -22,6 +22,7 @@ export type CheckId =
   | "film"
   | "social"
   | "trend"
+  | "motion"
   | "gedeeld"
   | "personage"
   | "huisstijl"
@@ -47,6 +48,9 @@ export interface Les {
   /** Wat je onthoudt: 3-5 punten onder de video. */
   punten: string[];
   opdracht: Opdracht;
+  /** De les om na te lezen onder de video: per onderwerp een kop en een paar alinea's. Voor
+   *  de grote lessen, waar het om het waarom gaat en niet alleen om welke knop je indrukt. */
+  verdieping?: { kop: string; alineas: string[] }[];
 }
 
 export interface Hoofdstuk {
@@ -289,6 +293,118 @@ export const HOOFDSTUKKEN: Hoofdstuk[] = [
           "Pas tekst of beeld per scène aan voordat je de video maakt.",
         ],
         opdracht: { tekst: "Maak een kort verhaal over je bedrijf of voor een kind.", link: "/studios/storytelling", knop: "Naar Storytelling", check: "storytelling" },
+      },
+      {
+        slug: "motion-graphics",
+        titel: "Motion graphics: een getekende uitlegvideo",
+        kort: "We maken samen een uitlegvideo voor een fietsenmaker, en bij elke stap hoor je niet alleen wat je doet, maar ook waarom.",
+        punten: [
+          "Motion graphics wordt getekend, niet gefilmd of gegenereerd: tekst klopt altijd, je kleuren en logo zijn exact, en elke beweging valt op de stem.",
+          "Kies eerst het tabblad: Voor een bedrijf (met logo en huisstijl) of Geen bedrijf (verhaal, les of iets anders).",
+          "Een goede opdracht aan de regisseur zegt: voor wie, wat ze moeten snappen, wat ze daarna moeten doen, en wat juist niet.",
+          "Lees het script hardop voordat je op Maak klikt: wat daar staat, wordt precies zo ingesproken en getekend.",
+          "Het laatste stuk wordt op je eigen computer gemaakt: houd het tabblad van de studio open tot de video klaar is.",
+          "Klopt er achteraf iets niet? Klik op Aanpassen, pauzeer, klik aan wat anders moet en zeg per punt precies wat je wilt. Alleen het beeld verandert, je oude video blijft bewaard.",
+        ],
+        opdracht: { tekst: "Maak een uitlegvideo van 30 of 45 seconden over één ding dat jij of je bedrijf doet.", link: "/studios/motion", knop: "Naar Motion graphics", check: "motion" },
+        verdieping: [
+          {
+            kop: "Wat is motion graphics eigenlijk?",
+            alineas: [
+              "Je kent het van de uitlegvideo's van banken, gemeenten en apps: platte, strakke beelden waarin vormen binnenschuiven, cijfers optellen, iconen opduiken en tekst precies verschijnt op het moment dat de stem het zegt. Dat heet motion graphics: bewegende vormgeving.",
+              "Een bureau maakt zo'n video met een ontwerper en een animator, en dat kost al snel een paar duizend euro en een paar weken. In de studio doet de computer dat werk. Claude, de AI achter de studio, ontwerpt elke scène en schrijft hem uit als tekenwerk: welke vorm waar staat, welke kleur hij heeft, en op welke seconde hij beweegt.",
+            ],
+          },
+          {
+            kop: "Waarom dit anders is dan een AI-video",
+            alineas: [
+              "Bij de gewone video-tools in Animideo verzint een AI-model de beelden pixel voor pixel. Dat geeft echte mensen, licht en sfeer, maar het model kan zich vergissen: tekst in beeld klopt niet altijd, een hand ziet er vreemd uit, en twee clips lijken nooit precies op elkaar.",
+              "Motion graphics werkt andersom. Er wordt niets gedroomd; alles wordt getekend, zoals een ontwerper dat doet. Daardoor is tekst altijd goed gespeld, zijn je kleuren precies je merkkleuren, staat je logo er scherp in, en ziet scène tien er net zo verzorgd uit als scène één. Het nadeel: je krijgt geen echte mensen of echte opnames, maar een getekende wereld.",
+              "Vuistregel: wil je iets uitleggen (een dienst, een stappenplan, cijfers, een proces), kies dan motion graphics. Wil je sfeer, echte mensen of je product in actie laten zien, kies dan een AI-video.",
+            ],
+          },
+          {
+            kop: "De eerste keuze: voor een bedrijf of niet",
+            alineas: [
+              "Bovenaan de studio staan twee tabbladen. Die keuze bepaalt welke vragen je daarna krijgt.",
+              "Voor een bedrijf maakt de video van jouw merk: je logo staat linksboven, alles is in je kleuren en je lettertype, en de video eindigt met een eindkaart met je logo, een knop en je website. Hier stel je je huisstijl in, en hier kun je beelden 'bij je huisstijl' laten horen, zodat ze bij elke video meegaan.",
+              "Geen bedrijf is voor alles waar geen merk bij hoort: een verhaal over geschiedenis, een les voor je klas, een weetje voor je kanaal, een bedankje. Je kiest dan eerst wat voor video het is (een verhaal, een uitleg of les, of iets anders), omdat de regisseur een verhaal anders opbouwt dan een les. Er komt geen logo of huisstijl in beeld; je mag wel de naam van je kanaal invullen.",
+            ],
+          },
+          {
+            kop: "Je huisstijl: één keer goed, daarna altijd herkenbaar",
+            alineas: [
+              "Herkenbaarheid ontstaat door herhaling. Als al je video's hetzelfde logo, dezelfde kleuren en hetzelfde lettertype hebben, weet je kijker na een paar keer al van wie een video is voordat hij de naam ziet. Daarom stel je je huisstijl één keer in en bewaar je hem. Elke volgende video gebruikt hem vanzelf.",
+              "Heb je een website, plak hem dan bij 'Snel beginnen'. We lezen dan je kleuren, je lettertype en je manier van schrijven uit. Je logo upload je zelf, zodat het altijd het juiste bestand is. Het mooist is een PNG of SVG met een doorzichtige achtergrond; een logo op een witte achtergrond zetten we op een wit kaartje.",
+              "Een merkkleur en een tweede kleur zijn genoeg. De eerste kleur gebruikt de video voor de belangrijke dingen (knoppen, cijfers, het accent), de tweede voor de details.",
+            ],
+          },
+          {
+            kop: "De vorm: stijl, lengte, formaat, stem en muziek",
+            alineas: [
+              "Tekenstijl: Standaard is licht en strak, en volgt bij een bedrijf je huisstijl. Daarnaast zijn er stijlen als schoolbord, blauwdruk, strip, neon en tekenfilm. Die hebben hun eigen kleuren en letter; je logo en naam blijven wel in beeld.",
+              "Lengte: korter is bijna altijd beter. Voor social media is 30 tot 45 seconden genoeg voor één boodschap. Een minuut is een complete uitlegvideo. Langer kan tot tien minuten, voor een les, training of onboarding. Een video langer dan een minuut wordt in hoofdstukken van ongeveer een halve minuut getekend en daarna naadloos aan elkaar gezet onder één doorlopende stem. Onder elke lengte zie je vooraf wat hij kost.",
+              "Formaat: liggend voor je website, YouTube en presentaties; staand voor Reels, TikTok en Stories. Dit kies je vooraf, omdat elke scène voor dat formaat wordt ontworpen. Een liggende video achteraf staand maken werkt niet goed: dan valt de helft eraf.",
+              "Stem en muziek: met het afspeelknopje hoor je de stem voordat je kiest. De stem spreekt het hele script in één keer in, zodat hij van begin tot eind hetzelfde klinkt. De muziek komt zacht onder de stem.",
+            ],
+          },
+          {
+            kop: "Praten met de regisseur: zo geef je een goede opdracht",
+            alineas: [
+              "De regisseur schrijft je script. Dat gesprek is gratis, dus neem er de tijd voor. Hoe beter je opdracht, hoe minder je achteraf hoeft te verbeteren.",
+              "Een goede opdracht beantwoordt vier vragen. Voor wie is de video? (Studenten en forenzen in Utrecht.) Wat moeten ze snappen? (Voor 19 euro per maand heb je altijd een werkende fiets.) Wat moeten ze daarna doen? (Een gratis proefmaand aanvragen.) En wat wil je juist niet? (Geen grappen over fietsendieven, geen andere merken.) Die laatste vraag vergeten de meeste mensen, terwijl hij veel overnieuw voorkomt.",
+              "Bedragen, namen en feiten neemt de regisseur letterlijk over. Noem ze dus precies zoals ze in de video moeten.",
+              "Is het script er, en klopt iets niet? Zeg het gewoon in hetzelfde gesprek: 'begin met een vraag', 'maak scène drie korter', 'minder formeel'. De regisseur past alleen aan wat je vraagt.",
+              "Heb je al een script, bijvoorbeeld van een collega of een klant? Plak het in het tekstvak, of klik op 'Ik heb al een script' en upload een Word-bestand, PDF of tekstbestand. Je tekst blijft dan woord voor woord staan; de regisseur bedenkt er alleen de beelden bij.",
+            ],
+          },
+          {
+            kop: "Je script nalopen: hier maak je het verschil",
+            alineas: [
+              "Per scène zie je twee dingen: wat de stem zegt en wat je ziet. Wat hier staat, wordt precies zo ingesproken en getekend. Dit is dus het moment om te verbeteren, niet nadat de video gemaakt is.",
+              "Lees de stemtekst hardop. Wat op papier goed leest, klinkt hardop soms stijf. Let op namen, bedragen en moeilijke woorden. En kijk of 'wat je ziet' past bij wat er gezegd wordt.",
+              "Onderaan staat de eindkaart: de slotzin, twee regels tekst en de tekst op de knop. Dat is het laatste wat je kijker ziet, dus maak het concreet: niet 'Meer weten?', maar 'Vraag je proefmaand aan'.",
+              "Onder het script zie je hoeveel woorden het is en hoe lang dat ongeveer duurt. Is het te lang voor de lengte die je koos, dan zie je dat in het rood. Maak het dan korter of kies een langere video.",
+            ],
+          },
+          {
+            kop: "Foto's en voorbeelden: zeg wat we ermee moeten",
+            alineas: [
+              "Je kunt tot zes beelden toevoegen. Bij elk beeld kies je wat we ermee doen, want een foto van je bestelbus vraagt om iets anders dan een schema van je werkwijze.",
+              "Teken dit na: je product, je bus, je pand of een scherm van je app wordt nagetekend in de stijl van de video. Leg dit uit: een schema, grafiek of stappenplan wordt de basis van de uitleg. Neem deze stijl over: een voorbeeld van vormen en kleuren die je mooi vindt. Zet deze foto in beeld: de foto zelf komt in de video, bijvoorbeeld je team.",
+              "Schrijf er in een paar woorden bij wat het is en wanneer het in beeld moet komen. Bij een bedrijf kun je een beeld aanvinken als 'Hoort bij huisstijl'; dan gaat het bij elke volgende video vanzelf mee.",
+            ],
+          },
+          {
+            kop: "Wat er gebeurt als je op Maak klikt",
+            alineas: [
+              "Pas nu gaan er credits af. Daarna gebeuren er vier dingen. Eerst spreekt de stem het hele script in. Dan ontwerpt Claude elke scène op de seconde van de stem, maakt proefbeelden en kijkt die zelf na: staat er niets over de rand, is alles leesbaar, valt alles op tijd? Wat niet goed is, wordt verbeterd. Daarna wordt de video beeld voor beeld getekend. Tot slot komen de stem en de muziek eronder.",
+              "Dat beeld-voor-beeld tekenen gebeurt op je eigen computer, in je browser. Een computer vlak voor je neus doet dat vele malen sneller dan een server op afstand: een video van 45 seconden is meestal binnen een minuut getekend. Daarom zie je bovenaan een blauwe melding: 'Houd dit tabblad open'. Klik je toch weg, dan gaat het verder zodra je de studio weer opent.",
+              "Alles bij elkaar duurt een korte video meestal zo'n vijf minuten, een video van een paar minuten tien tot twintig minuten. Lukt het technisch niet, dan staat er 'Mislukt' en krijg je je credits terug.",
+            ],
+          },
+          {
+            kop: "Achteraf iets anders: de video aanpassen",
+            alineas: [
+              "Is je video klaar en wil je toch iets anders? Je hoeft niet opnieuw te beginnen. Op elke klare video in je lijst staat een blauwe knop: Aanpassen. Daarmee verander je alleen wat jij aanwijst, en de rest blijft precies zoals het was. Dat is sneller en goedkoper dan een nieuwe video, en je loopt geen risico dat een scène die al goed was ineens anders wordt.",
+              "Zo werkt het. Je video opent groot in een venster. Speel hem af en pauzeer op het moment waar iets niet klopt. Klik dan in het beeld op precies dat ding: een tekst, een vorm, een kleur. Er verschijnt een genummerde rode stip en rechts een vak waarin je schrijft wat er anders moet. Je kunt tot acht punten zetten, ook op verschillende momenten in de video.",
+              "Waarom klikken in plaats van alleen typen? Omdat 'die prijs moet oranje' in een video van een minuut op tien plekken kan slaan. Met het moment én de plek erbij weet de AI precies welk beeld en welk onderdeel je bedoelt. Hij past alleen het stuk van de video aan waar jouw punten in vallen, en kijkt daarna zelf of het gelukt is.",
+              "Schrijf per punt één concrete wens. 'Maak het bedrag oranje', 'deze tekst groter', 'spelfout: Utrecht' werkt goed. 'Maak het mooier' werkt niet: dan moet de AI raden wat jij mooi vindt. Heb je drie wensen, zet dan drie punten.",
+              "Voordat je start, zie je op de knop wat het kost, bijvoorbeeld 5 credits voor één punt. Hoe meer stukken van de video je punten raken, hoe meer het kost. Daarna wordt de video opnieuw getekend in je browser, dus ook hier: houd de studio open. Je oude video blijft bewaard en de aangepaste versie komt erbij in je lijst, zodat je ze naast elkaar kunt vergelijken.",
+              "Eén ding kan niet: wat de verteller zegt, blijft hetzelfde. De stem en de tijden liggen vast, en het beeld wordt daaromheen aangepast. Wil je een andere tekst horen, maak dan een nieuwe video en pas het script aan voordat je op Maak klikt. Daarom loont het zo om je script vooraf hardop te lezen.",
+            ],
+          },
+          {
+            kop: "Tips uit de praktijk",
+            alineas: [
+              "Eén video, één boodschap. Wil je drie dingen vertellen, maak dan drie korte video's. Die doen het op social media beter dan één lange.",
+              "Begin met iets herkenbaars: een situatie die je kijker kent (een lekke band, een volle inbox, een te hoge energierekening). Dan kijkt hij verder.",
+              "Noem in de opdracht ook wie je níet wilt aanspreken of wat niet mag. Dat voorkomt de meeste correcties.",
+              "Maak je eerste video kort (30 of 45 seconden). Zo zie je snel hoe de studio werkt en hoe jouw huisstijl eruitziet, voordat je aan een lange video begint.",
+              "Bewaar je huisstijl. Dan hoef je de volgende keer alleen nog te vertellen waar de video over gaat.",
+            ],
+          },
+        ],
       },
       {
         slug: "dialoog",
