@@ -129,6 +129,12 @@ Bouwstenen (elk geeft een groep terug die je met tf en op animeert):
 - \`foto(parent, 'f1', breedte, { hoogte, rond = 28, rand = 10 })\`: zet een foto van de klant in beeld, gecentreerd op 0,0, met ronde hoeken, een witte rand en een schaduw; \`.breedte\` en \`.hoogte\` geven de maat. Alleen voor voorbeelden met het doel "Zet deze foto in beeld"; welke dat zijn, staat in de opdracht. Geef \`hoogte\` mee om de foto passend uit te snijden.
 - Iconen, elk ±120 pixels en gecentreerd op 0,0: \`IC.vink\`, \`kruis\`, \`euro\`, \`vraag\`, \`uitroep\`, \`plus\`, \`bliksem\`, \`vlam\`, \`blad\`, \`hart\`, \`ster\`, \`klok\` (met \`.wijzer\` en \`.uur\` om te draaien), \`doc\`, \`telefoon\` en \`laptop\` (met \`.scherm\`, een groep om iets op het scherm te tekenen), \`vergroot\`, \`team\`, \`gebruiker\`, \`tandwiel\` (met \`.wiel\`), \`mail\`, \`kalender\`, \`grafiek\`, \`schild\`, \`lamp\`, \`huis\`, \`gebouw\`, \`winkelwagen\`, \`pijl\`, \`duim\`, \`spraak\`, \`wereld\`, \`slot\`, \`raket\`. Aanroep: \`IC.klok(parent)\`; de meeste nemen een kleur als tweede argument.
 
+Kaarten (echte landsgrenzen; teken een land, kaart of wereld NOOIT zelf met \`el\`, dat worden willekeurige vlakken):
+- \`landkaart(parent, ['NL', 'BE'], breedte, hoogte, { markeer: { NL: C.accent, BE: C.accent2 }, kleur, zee, buren = true, rond, lijn })\`: kaart gecentreerd op 0,0 die inzoomt op die landen (ISO-codes van twee hoofdletters, altijd als letterlijke tekst tussen aanhalingstekens) met de buren licht eromheen en blauwe zee. Geeft \`{ r, land: { NL: pad, ... }, punt(lon, lat) }\` terug: \`land.NL\` is het pad van dat land (kleur/zichtbaarheid per land animeren), \`punt(4.9, 52.37)\` geeft x,y van een plaats binnen de kaart (Amsterdam) voor een speld, stip of route.
+- \`land(parent, 'DE', breedte, { hoogte, kleur })\`: één land los, zonder zee of buren, gecentreerd op 0,0. Voor een land als icoon of vorm.
+- \`wereldkaart(parent, breedte, { markeer: { CN: C.rood }, landKleur })\`: de hele wereld (verhouding ±2:1), met dezelfde \`land\` en \`punt\`.
+Laat een kaart verschijnen met pop/op op de groep en markeer landen pas op het woord; routes en spelden teken je met \`punt\`.
+
 Wat er niet bij staat, teken je zelf met \`el\`: dat is juist wat een video eigen maakt. Een bestelbus, een kassa, een dakgoot, een grafiek met de cijfers van de klant, een plattegrond. Houd één tekenstijl aan: platte vormen, witte of gekleurde vlakken, lijnen van 6 tot 8 pixels in \`C.inkt\` met ronde hoeken (\`'stroke-linejoin': 'round'\`), geen fotorealisme.
 
 ## Wat een video goed maakt
@@ -322,6 +328,12 @@ export interface AnimatieVraag {
   soort?: MotionSoort;
   /** Een documentaire uit de docu-studio: archieffoto's beeldvullend, docu-graphics. */
   docu?: boolean;
+  /**
+   * Premium-kwaliteit: het ontwerp met meer denkwerk en het nakijken door het grote model,
+   * met een ronde extra. De standaard levert in op kwaliteit voor de prijs; Sam (17-11-2026):
+   * "kwaliteit voorop, in ieder geval dat die mogelijkheid er is".
+   */
+  premium?: boolean;
 }
 
 export interface AnimatieUitkomst {
@@ -353,7 +365,10 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
   // 5,5 minuut, op "low" $0,30 en 2 minuten, met een video die er net zo verzorgd uitziet;
   // het meeste denkwerk op "medium" ging niet in het beeld zitten. Sonnet 5.5 was nog iets
   // goedkoper ($0,20) maar tekende slordiger.
-  const ontwerpEffort = (process.env.MOTION_ONTWERP_EFFORT || "low") as "low" | "medium" | "high";
+  const ontwerpEffort = (process.env.MOTION_ONTWERP_EFFORT || (v.premium ? "high" : "low")) as "low" | "medium" | "high";
+  // Het kleinste model ziet in proefbeelden niet dat een vorm onaf of scheef is; het grote wel.
+  const controleModel = v.premium ? MODEL : CONTROLE_MODEL;
+  const maxRondes = v.premium ? MAX_RONDES + 1 : MAX_RONDES;
 
   async function vraag(model: string, berichten: Bericht[], soort: "usdOntwerp" | "usdControle") {
     const begin = Date.now();
@@ -424,15 +439,15 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
   // Niet doorpraten in het gesprek van het ontwerp: dan betaal je elke ronde opnieuw voor
   // alle eerdere versies en proefbeelden, en een ander model kan de denkblokken van het
   // eerste niet lezen. De opdracht staat vooraan en wordt gecachet voor de ronde erna.
-  for (let ronde = 1; ronde <= MAX_RONDES; ronde++) {
+  for (let ronde = 1; ronde <= maxRondes; ronde++) {
     opVoortgang?.(`controleronde ${ronde}`);
     const berichten: Bericht[] = [
       {
         role: "user",
-        content: [...voorbeelden, { type: "text", text: taak, cache_control: { type: "ephemeral" } }, ...terugkoppeling(p, code, ronde === MAX_RONDES)],
+        content: [...voorbeelden, { type: "text", text: taak, cache_control: { type: "ephemeral" } }, ...terugkoppeling(p, code, ronde === maxRondes)],
       },
     ];
-    let antwoord = await vraag(CONTROLE_MODEL, berichten, "usdControle");
+    let antwoord = await vraag(controleModel, berichten, "usdControle");
     gebruik.rondes = ronde + 1;
     let tekst = alleTekst(antwoord);
     let nieuw = codeUit(tekst);
@@ -453,7 +468,7 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
             ? `Deze blokken konden niet worden toegepast (de andere wel):\n${uit.mis.map((m) => `- ${m}`).join("\n")}\n\nGeef alleen deze blokken opnieuw, met onder ZOEK tekst die letterlijk en precies één keer in de code staat.`
             : `Er kwamen geen bruikbare blokken terug. ${WIJZIG_UITLEG}`,
         });
-        antwoord = await vraag(CONTROLE_MODEL, berichten, "usdControle");
+        antwoord = await vraag(controleModel, berichten, "usdControle");
         tekst = alleTekst(antwoord);
         ws = wijzigingenUit(tekst);
         // Wat nu nog niet past laten we zitten: de rest van de verbeteringen telt wel.
