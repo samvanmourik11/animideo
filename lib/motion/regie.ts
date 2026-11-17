@@ -36,6 +36,10 @@ import { bereidFotos, bereidLogo, eigenOpslag, leesBeelden } from "./beelden";
 import { tekenAnimatie, type Gebruik } from "./animatie";
 import { FOTO_CREDITS, MAX_FOTOS, MAX_PUNTEN, ZIN_CREDITS, aanpasCredits, leesPunten, leesZinnen, pasHoofdstukAan, planMetZinnen, puntenPerDeel, type AanpasPunt, type Aanpassing, type FotoWissel, type ZinWijziging } from "./aanpassen";
 import type { Shot } from "@/lib/docu/sjablonen";
+import { leesSpec, leesWijzigingen, pasShotsAan, schrijfSpec, type ShotWijziging } from "@/lib/docu/tijdlijn";
+
+/** Een docu-tijdlijn aanpassen: alleen de video opnieuw maken, geen AI. */
+const TIJDLIJN_CREDITS = 1;
 import { canUseDocu } from "@/lib/studio/access";
 import { tekenDocuHoofdstuk } from "@/lib/docu/sjablonen";
 import { fotoCredit, type DocuFoto } from "@/lib/docu/types";
@@ -797,6 +801,86 @@ export async function startAanpassing(userId: string, id: string, vraag: AanpasV
   }
   if (punten.length) opAchtergrond(() => voerAanpassingUit(nieuw as Creatie, voortgang));
   return { credits, creatie: nieuw as Creatie };
+}
+
+/** De tijdlijn van een klare docu: per hoofdstuk de scenes met hun vaste beeld en tekst. */
+export async function docuTijdlijn(userId: string, id: string) {
+  const { data: c } = await createServiceClient().from("creaties").select("*").eq("id", id).eq("user_id", userId).eq("maker", "docu").maybeSingle();
+  if (!c || c.status !== "klaar") throw new WachtrijFout("Deze docu is (nog) niet klaar.", 404);
+  const r = rij(c as Creatie);
+  if (!r.voortgang?.werk) throw new WachtrijFout("Deze docu is gemaakt voordat de tijdlijn bestond.", 409);
+  const werk = await leesWerk(r.voortgang.werk);
+  const fotos = ((r as unknown as { docu?: { fotos?: DocuFoto[] } }).docu?.fotos ?? []).map((f) => ({ id: f.id, url: f.url, wat: f.wat }));
+  const delen = werk.delen.map((d, k) => {
+    const spec = werk.codes[k] ? leesSpec(werk.codes[k]!) : null;
+    return {
+      deel: k,
+      scenes: (spec?.scenes ?? []).map((sh, i) => ({ ...sh, tekst: r.plan.scenes[d.van + i]?.tekst ?? "" })),
+    };
+  });
+  return { delen, fotos };
+}
+
+/** De tijdlijn aanpassen: nieuwe rij, zelfde stem, andere keuzes; zonder AI, meteen naar de browser. */
+export async function startTijdlijn(userId: string, id: string, ruw: unknown): Promise<Creatie> {
+  const db = createServiceClient();
+  const { data: orig } = await db.from("creaties").select("*").eq("id", id).eq("user_id", userId).eq("maker", "docu").maybeSingle();
+  if (!orig || orig.status !== "klaar") throw new WachtrijFout("Deze docu is (nog) niet klaar.", 404);
+  const o = orig as Creatie;
+  const r = rij(o);
+  const v = r.voortgang;
+  if (!v?.werk || !v.stemUrl) throw new WachtrijFout("Deze docu is gemaakt voordat de tijdlijn bestond.", 409);
+  const { data: wie } = await db.auth.admin.getUserById(userId);
+  if (!canUseDocu(wie?.user?.email)) throw new WachtrijFout("Deze studio is nog niet beschikbaar voor jouw account.", 403);
+  const docuFotos = (r as unknown as { docu?: { fotos?: DocuFoto[] } }).docu?.fotos ?? [];
+  let ws: ShotWijziging[];
+  try {
+    ws = leesWijzigingen(ruw, new Set(docuFotos.map((f) => f.id)));
+  } catch (e) {
+    throw new WachtrijFout(e instanceof Error ? e.message : String(e), 400);
+  }
+  const werk = await leesWerk(v.werk);
+  const taal = leesTaal(r.taal);
+  const vermelding = (fid: string) => {
+    const f = docuFotos.find((x) => x.id === fid);
+    return f ? (f.licentie === "eigen foto" ? "" : fotoCredit(f, taal)) : "";
+  };
+  const codes = werk.codes.map((code, k) => {
+    const hier = ws.filter((w) => w.deel === k);
+    if (!code || !hier.length) return code;
+    const spec = leesSpec(code);
+    return spec ? schrijfSpec(code, pasShotsAan(spec, hier, vermelding)) : code;
+  });
+  const { count } = await db.from("creaties").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "bezig");
+  if ((count ?? 0) >= MAX_TEGELIJK) throw new WachtrijFout(`Je hebt al ${MAX_TEGELIJK} dingen in de maak. Wacht tot er één klaar is.`, 429);
+  const { ok, betaald, betalerId } = await betaal(userId, TIJDLIJN_CREDITS, "Nieuwe app: docu tijdlijn");
+  if (!ok) throw new WachtrijFout("Niet genoeg credits.", 402);
+  const werkUrl = await bewaarWerk(userId, { ...werk, codes });
+  const voortgang: Voortgang = { stap: IN_BROWSER ? "browser" : "wacht-video", sinds: new Date().toISOString(), werk: werkUrl, stemUrl: v.stemUrl, gebruik: { usd: 0, rondes: 0 } };
+  const aanpassing: Aanpassing = { van: o.id, punten: [] };
+  const { data: nieuw, error } = await db
+    .from("creaties")
+    .insert({
+      user_id: userId,
+      soort: "video",
+      status: "bezig",
+      maker: "docu",
+      model: "motion",
+      prompt: `Aangepast: ${(o.prompt ?? "").replace(/^Aangepast: /, "")}`.slice(0, 500),
+      invoer: { ...r, aanpassing, voortgang },
+      credits: betaald,
+      fal_endpoint: "motion",
+      fal_request_id: "motion",
+      ouder_id: o.id,
+      ...(betalerId !== userId ? { betaald_door: betalerId } : {}),
+    })
+    .select("*")
+    .single();
+  if (error || !nieuw) {
+    if (betaald > 0) await betaalTerug({ user_id: userId, betaald_door: betalerId, credits: betaald }, "Terug: tijdlijn niet gestart");
+    throw new WachtrijFout("Kon de wijziging niet opslaan. Probeer het opnieuw.", 500);
+  }
+  return nieuw as Creatie;
 }
 
 async function voerAanpassingUit(c: Creatie, v: Voortgang): Promise<void> {

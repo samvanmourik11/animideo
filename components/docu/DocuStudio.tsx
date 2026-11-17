@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
 import VideoAanpassen from "@/components/motion/VideoAanpassen";
+import DocuTijdlijn from "@/components/docu/DocuTijdlijn";
 import { MuziekKiezer } from "@/components/motion/MuziekKiezer";
 import { DOCU_STIJLEN, type DocuStijl, type KanaalProfiel } from "@/lib/docu/kanalen";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
@@ -53,6 +54,7 @@ export default function DocuStudio() {
   const [ondertitels, setOndertitels] = useState<MotionOndertitels>("uit");
   const [mail, setMail] = useState(true);
   const [aanpassen, setAanpassen] = useState<Creatie | null>(null);
+  const [tijdlijn, setTijdlijn] = useState<Creatie | null>(null);
   const [stem, setStem] = useState<string>(MOTION_STEM_HUGO);
   const [stemmen, setStemmen] = useState<BibliotheekStem[]>([]);
   const [muziek, setMuziek] = useState<string>(DOCU_MUZIEK[0].slug);
@@ -555,7 +557,10 @@ export default function DocuStudio() {
                 <div key={c.id} className="space-y-1.5">
                   <CreatieKaart creatie={c} onOpen={() => setOpen(c)} onFavoriet={async () => lijst.werkBij(await zetFavoriet(c))} onAanpassen={() => setAanpassen(c)} />
                   {c.status === "klaar" && (
-                    <button onClick={() => setPakket(c)} className="n-knop2 w-full !py-1.5 text-xs">📦 YouTube-pakket</button>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button onClick={() => setPakket(c)} className="n-knop2 w-full !py-1.5 text-xs">📦 YouTube-pakket</button>
+                      <button onClick={() => setTijdlijn(c)} className="n-knop2 w-full !py-1.5 text-xs">🎞 Tijdlijn</button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -585,6 +590,16 @@ export default function DocuStudio() {
         />
       )}
       {pakket && <Pakket creatie={pakket} onSluit={() => setPakket(null)} />}
+      {tijdlijn && (
+        <DocuTijdlijn
+          creatie={tijdlijn}
+          onSluit={() => setTijdlijn(null)}
+          onGestart={(c) => {
+            setTijdlijn(null);
+            lijst.zetVoor(c);
+          }}
+        />
+      )}
     </div>
   );
 }
