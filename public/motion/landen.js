@@ -89,3 +89,48 @@ function wereldkaart(parent, breedte, o = {}) {
   r.punt = (lon, lat) => { const [x, y] = millerXY(lon, lat); return [(x - cx) * s, (y - cy) * s]; };
   return r;
 }
+
+/**
+ * Een route over de kaart van plaats A naar B (lengte/breedtegraad), als boog met een donkere
+ * rand. Overgenomen uit de premiumproef (17-11-2026): dat zag er veel verzorgder uit dan een
+ * kale lijn. In teken: `rt.zet(0..1)` tekent de route, `rt.op(e, 0..1)` zet iets erop (een
+ * busje, een pakje). `bocht` is hoe krom (−.4 … .4).
+ */
+function route(kaartObj, van, naar, o = {}) {
+  const [x1, y1] = kaartObj.punt(van[0], van[1]), [x2, y2] = kaartObj.punt(naar[0], naar[1]);
+  const b = o.bocht ?? .18, dx = x2 - x1, dy = y2 - y1;
+  const cx = (x1 + x2) / 2 - dy * b, cy = (y1 + y2) / 2 + dx * b;
+  const d = `M${x1},${y1} Q${cx},${cy} ${x2},${y2}`, kl = o.kleur || C.accent;
+  const g = G(kaartObj);
+  const onder = el('path', { d, fill: 'none', stroke: C.inkt, 'stroke-width': (o.dikte ?? 9) + 8, 'stroke-linecap': 'round' }, g);
+  const lijn = el('path', { d, fill: 'none', stroke: kl, 'stroke-width': o.dikte ?? 9, 'stroke-linecap': 'round' }, g);
+  const eind = G(g); el('circle', { r: 16, fill: '#fff', stroke: C.inkt, 'stroke-width': 6 }, eind); el('circle', { r: 7, fill: kl }, eind);
+  tf(eind, x2, y2);
+  return {
+    r: g, lijn, eind, van: [x1, y1], naar: [x2, y2],
+    zet(q) { draw(onder, q); draw(lijn, q); op(onder, q > 0 ? 1 : 0); op(lijn, q > 0 ? 1 : 0); op(eind, P(q, .85, 1)); tf(eind, x2, y2, back(P(q, .85, 1))); },
+    op(e, q, s = 1) { const u = cl(q), a = 1 - u; tf(e, a * a * x1 + 2 * a * u * cx + u * u * x2, a * a * y1 + 2 * a * u * cy + u * u * y2, s); },
+  };
+}
+
+/**
+ * Een plaats op de kaart: stip met kloppende ring en een naamlabel erboven. In teken:
+ * `pl.zet(tt, 0..1)`; de ring klopt vanzelf zodra de plaats er staat.
+ */
+function plaats(kaartObj, lon, lat, naam, o = {}) {
+  const [x, y] = kaartObj.punt(lon, lat), kl = o.kleur || C.accent;
+  const g = G(kaartObj), stip = G(g);
+  const ring = el('circle', { r: 20, fill: 'none', stroke: kl, 'stroke-width': 6 }, stip);
+  el('circle', { r: 20, fill: '#fff', stroke: C.inkt, 'stroke-width': 6 }, stip); el('circle', { r: 11, fill: F(kl) }, stip);
+  const label = naam ? pil(g, naam, { fill: kl, kleur: '#fff', size: o.size ?? 32, h: (o.size ?? 32) * 1.95 }) : null;
+  const lx = o.labelX ?? 0, ly = o.labelY ?? -64;
+  return {
+    r: g, x, y,
+    zet(tt, p) {
+      op(stip, p); tf(stip, x, y, Math.max(p, 0));
+      const u = p >= 1 ? (tt * .7) % 1 : 0;
+      ring.setAttribute('r', 20 + u * 46); op(ring, p >= 1 ? (1 - u) * .8 : 0);
+      if (label) { const lp = P(p, .4, 1); op(label, lp); tf(label, x + lx, y + ly, back(lp)); }
+    },
+  };
+}

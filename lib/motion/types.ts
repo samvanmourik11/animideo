@@ -316,7 +316,8 @@ export const MOTION_MUZIEK = [
 // $4,53 (10 minuten 40, 18 hoofdstukken). De formule zit daar een kwart tot de helft boven:
 // speling voor voorbeelden van de klant en een hoofdstuk dat over moet.
 const INKOOP_VAST_USD = 0.15;
-const INKOOP_PER_SEC_USD = 0.01;
+// 18-11-2026: nakijken door Sonnet in 3 rondes kost ±$0,17 per hoofdstuk (±35 s) extra.
+const INKOOP_PER_SEC_USD = 0.014;
 
 /** Wat een video van deze lengte ons aan Claude kost (dollars), met speling. */
 export function motionInkoopUsd(lengte: number): number {

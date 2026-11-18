@@ -626,3 +626,45 @@ window.start = function () {
   const plaatjes = [LOGO && LOGO.src, ...Object.values(FOTOS).map(f => f.src)].filter(Boolean).map(src => { const i = new Image(); i.src = src; return i.decode ? i.decode().catch(() => {}) : Promise.resolve(); });
   Promise.race([Promise.all([letters, ...plaatjes]), new Promise(r => setTimeout(r, 8000))]).then(begin);
 };
+
+/**
+ * Een zijkaartje met een kop en regels (icoon of land + tekst + vink of pil). Uit de
+ * premiumproef (17-11-2026): een kaart of hoofdbeeld links met zo'n kaartje rechts vult het
+ * beeld en vertelt meer dan losse labels. regels: [{ tekst, icoon: g => ..., land: 'PL',
+ * eind: 'vink' | 'tekst voor een pil' }]. In teken: `lk.zet(tt, [tijd per regel])`.
+ */
+function lijstKaart(parent, kop, regels, breedte = 420, o = {}) {
+  const rh = o.regelHoogte ?? 74, h = (kop ? 110 : 40) + regels.length * rh + 24;
+  const r = G(parent), k = kaart(r, breedte, h);
+  let y = -h / 2 + (kop ? 62 : 20);
+  if (kop) T(k, 0, y, kop, o.kopGrootte ?? 38);
+  y += kop ? 50 : 0;
+  const rijen = regels.map((rg, i) => {
+    const g = G(k), yy = y + i * rh + rh / 2;
+    const links = -breedte / 2 + 44;
+    if (rg.land && typeof land === 'function') land(G(g, { transform: `translate(${links + 14},${yy})` }), rg.land, 56, { hoogte: 46, kleur: rg.kleur || C.accent });
+    else if (rg.icoon) rg.icoon(G(g, { transform: `translate(${links + 14},${yy}) scale(.36)` }));
+    el('text', { x: links + 58, y: yy + 12, 'font-size': o.tekstGrootte ?? 34, 'font-weight': 700, fill: C.inkt }, g, rg.tekst);
+    if (rg.eind === 'vink') IC.vink(G(g, { transform: `translate(${breedte / 2 - 46},${yy}) scale(.3)` }));
+    else if (rg.eind) { const p = pil(g, rg.eind, { fill: rg.eindKleur || C.accent2, size: 24, h: 44, schaduw: false }); tf(p, breedte / 2 - 30 - p.breedte / 2, yy); }
+    return g;
+  });
+  r.hoogte = h;
+  r.zet = (tt, tijden) => rijen.forEach((g, i) => { const p = pop(tt, tijden[i] ?? 0); op(g, p); g.setAttribute('transform', `translate(${(1 - p) * 30},0)`); });
+  return r;
+}
+
+/**
+ * Een kaartje met één groot getal (met teller) en een label, optioneel een icoon erboven.
+ * In teken: `sk.zet(tt, start, eind)` laat het getal oplopen van 0 naar de waarde.
+ */
+function statKaart(parent, waarde, label, o = {}) {
+  const b = o.breedte ?? 340, h = o.hoogte ?? (o.icoon ? 300 : 220);
+  const r = G(parent), k = kaart(r, b, h);
+  let y = -h / 2 + 40;
+  if (o.icoon) { o.icoon(G(k, { transform: `translate(0,${y + 40}) scale(.6)` })); y += 96; }
+  const getal = el('text', { x: 0, y: y + 72, 'text-anchor': 'middle', 'font-size': o.grootte ?? 96, 'font-weight': 800, fill: o.kleur || C.accent }, k, '');
+  T(k, 0, h / 2 - 40, label, o.labelGrootte ?? 30, { fill: C.muted });
+  r.zet = (tt, a, z = a + 1.2) => { const v = waarde * eo(P(tt, a, z)); getal.textContent = (o.voor || '') + nl(Math.round(v)) + (o.na || ''); };
+  return r;
+}
