@@ -1,4 +1,4 @@
-// DOCU-STUDIO — faceless documentaires voor YouTube, zoals onze eigen KRONIK-video's
+// DOCU-STUDIO — faceless documentaires voor YouTube, zoals op de grote documentairekanalen
 // (Vitesse, BHS, Schlecker). Client-veilig: het scherm rekent er de prijs mee uit.
 //
 // Het idee (Sam, 13-11-2026): "kan dat onderdeel worden van de app, dat je zulke faceless
@@ -11,19 +11,20 @@
 //      claim komt dan bij ons terecht), met de maker en de licentie erbij;
 //   3. het YouTube-pakket: thumbnail, beschrijving met hoofdstuktijden en bronnen, en een Short.
 
+import { MUSIC_TRACKS } from "@/lib/music/library";
 import { creditsVoorInkoop, INKOOP_USD } from "@/lib/credit-costs";
 import { type MotionLengte, type MotionPlan, type MotionStap, type MotionTaal } from "@/lib/motion/types";
 
 export const DOCU_LENGTES = [
   { sec: 180, naam: "±3 minuten", uitleg: "Kort verhaal, één wending" },
   { sec: 300, naam: "±5 minuten", uitleg: "Opkomst en ondergang in vogelvlucht" },
-  { sec: 600, naam: "±10 minuten", uitleg: "Volledige documentaire, zoals KRONIK" },
+  { sec: 600, naam: "±10 minuten", uitleg: "Een volledige YouTube-documentaire" },
 ] as const satisfies readonly { sec: MotionLengte; naam: string; uitleg: string }[];
 export type DocuLengte = (typeof DOCU_LENGTES)[number]["sec"];
 export const isDocuLengte = (v: unknown): v is DocuLengte => DOCU_LENGTES.some((l) => l.sec === v);
 
 /**
- * De vertellers van onze eigen KRONIK-video's per taal (ElevenLabs, moedertaalsprekers). Ze
+ * Vaste documentairevertellers per taal (ElevenLabs, moedertaalsprekers). Ze
  * staan niet in de stemmenbibliotheek (die is Nederlands); in deze studio zijn ze de standaard
  * voor hun taal, net als Hugo voor Nederlands. Italiaans en Portugees: een stem uit de bibliotheek.
  */
@@ -44,7 +45,8 @@ export const DOCU_MUZIEK = [
   { slug: "dramatische-trailer", naam: "Spannend" },
   { slug: "", naam: "Geen muziek" },
 ] as const;
-export const docuMuziek = (v: unknown): string => (DOCU_MUZIEK.some((m) => m.slug === v) ? (v as string) : DOCU_MUZIEK[0].slug);
+// Muziek 2.0: ook de rest van de muziekbibliotheek mag; onbekend wordt het eerste docu-nummer.
+export const docuMuziek = (v: unknown): string => (DOCU_MUZIEK.some((m) => m.slug === v) || MUSIC_TRACKS.some((t) => t.slug === v) ? (v as string) : DOCU_MUZIEK[0].slug);
 
 /** Een feit uit het onderzoek, met de bron waar het staat. */
 export interface DocuFeit {
@@ -109,6 +111,10 @@ export interface DocuExtras {
   titels?: string[];
   /** De Short (een eigen rij in de bibliotheek, staand). */
   shortId?: string;
+  /** Alle Shorts, bij de Short-fabriek (de eerste is ook shortId). */
+  shortIds?: string[];
+  /** Drie thumbnails om uit te kiezen; `thumbnail` is de gekozen. */
+  thumbnails?: string[];
   /** Wat er misging bij een extra; de video zelf is dan wel klaar. */
   fout?: string;
 }
@@ -122,6 +128,8 @@ export interface DocuInvoer {
   extras?: DocuExtras;
   /** Maak er ook een Short bij. */
   short: boolean;
+  /** Hoeveel Shorts (1 of 3); afwezig = 1 als `short` aan staat. */
+  shorts?: number;
 }
 
 // ── Prijs ────────────────────────────────────────────────────────────────────
@@ -137,10 +145,12 @@ const VAST_USD = 0.1; // foto's, pakket
 const SHORT_SEC = 45;
 const SHORT_USD = 0.15 + 0.01 * SHORT_SEC + ((SHORT_SEC * 15) / 1000) * INKOOP_USD.stemPer1000;
 
-export function docuCredits(lengte: DocuLengte, short = true): number {
+/** `shorts`: hoeveel Shorts erbij (0, 1 of 3; Short-fabriek, verbeterplan idee 13). */
+export function docuCredits(lengte: DocuLengte, shorts: number | boolean = 1): number {
+  const n = typeof shorts === "boolean" ? (shorts ? 1 : 0) : Math.max(0, Math.min(3, Math.round(shorts)));
   // Stem: ±15 tekens per seconde.
   const stem = ((lengte * 15) / 1000) * INKOOP_USD.stemPer1000;
-  return creditsVoorInkoop(ONDERZOEK_USD + VAST_USD + PER_SEC_USD * lengte + stem + (short ? SHORT_USD : 0));
+  return creditsVoorInkoop(ONDERZOEK_USD + VAST_USD + PER_SEC_USD * lengte + stem + n * SHORT_USD);
 }
 
 export type DocuStap = MotionStap | "extras";

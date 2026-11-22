@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { SCENE_STAP_LABEL, type SceneStap } from "@/lib/film/types";
 import type { Creatie } from "@/lib/creaties/types";
 import { klantReden } from "@/lib/creaties/melding";
@@ -89,16 +91,7 @@ export default function CreatieKaart({
           </div>
         )}
         {c.status === "klaar" && c.url && c.soort === "video" && (
-          <video
-            src={c.url}
-            className="w-full h-full object-cover"
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
-            onMouseLeave={(e) => e.currentTarget.pause()}
-          />
+          <KaartVideo url={c.url} />
         )}
         {c.status === "bezig" && (
           <div className="w-full h-full flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-blue-500/10 to-transparent">
@@ -147,5 +140,43 @@ export default function CreatieKaart({
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * Een video in een tegel. Het eerste beeld van een getekende video is vaak nog leeg (de
+ * animatie begint vanuit niets), dus de tegel toont een beeld van iets voor de helft. Met de
+ * muis erop speelt hij zonder geluid af; eraf gaat hij terug naar dat beeld. Rechtsonder de duur.
+ */
+function KaartVideo({ url }: { url: string }) {
+  const [duur, setDuur] = useState<number | null>(null);
+  const stil = (v: HTMLVideoElement) => {
+    if (Number.isFinite(v.duration) && v.duration > 0) v.currentTime = Math.min(v.duration * 0.4, Math.max(0, v.duration - 0.5));
+  };
+  return (
+    <>
+      <video
+        src={url}
+        className="w-full h-full object-cover"
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        onLoadedMetadata={(e) => {
+          setDuur(e.currentTarget.duration);
+          stil(e.currentTarget);
+        }}
+        onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+        onMouseLeave={(e) => {
+          e.currentTarget.pause();
+          stil(e.currentTarget);
+        }}
+      />
+      {duur !== null && Number.isFinite(duur) && (
+        <span className="absolute bottom-2 left-2 text-[10px] font-semibold text-white bg-black/55 backdrop-blur px-1.5 py-0.5 rounded-md pointer-events-none">
+          {Math.floor(duur / 60)}:{String(Math.round(duur % 60)).padStart(2, "0")}
+        </span>
+      )}
+    </>
   );
 }

@@ -3,7 +3,7 @@
 //
 // De thumbnail is in code gemaakt, niet met een beeldmodel: de beste archieffoto, een donker
 // verloop en een korte kop in grote letters met één woord in de accentkleur. Dat is de vorm
-// van onze eigen KRONIK-thumbnails, en hij kost niets.
+// van echte documentaire-thumbnails, en hij kost niets.
 
 import sharp from "sharp";
 import Anthropic from "@anthropic-ai/sdk";
@@ -53,14 +53,20 @@ export interface Pakket {
   thumbAccent: string;
   /** De foto voor de thumbnail (id), of leeg. */
   thumbFoto: string;
+  /** Twee andere thumbnails om uit te kiezen (andere kop en liefst een andere foto). */
+  varianten: { kop: string; accent: string; foto: string }[];
   usd: number;
 }
 
 const PAKKET_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["titels", "intro", "tags", "thumbKop", "thumbAccent", "thumbFoto"],
+  required: ["titels", "intro", "tags", "thumbKop", "thumbAccent", "thumbFoto", "varianten"],
   properties: {
+    varianten: {
+      type: "array",
+      items: { type: "object", additionalProperties: false, required: ["kop", "accent", "foto"], properties: { kop: { type: "string" }, accent: { type: "string" }, foto: { type: "string" } } },
+    },
     titels: { type: "array", items: { type: "string" } },
     intro: { type: "string" },
     tags: { type: "array", items: { type: "string" } },
@@ -96,6 +102,7 @@ export async function maakPakket(v: { plan: MotionPlan; feiten: DocuFeit[]; foto
 - tags: vijf tot tien zoektermen.
 - thumbKop: twee tot vier woorden voor op de thumbnail, in hoofdletters, die de titel aanvullen in plaats van herhalen ("THE €1 BILLION HOLE", "HOE HET MISGING"). thumbAccent: het ene woord daaruit dat in de rode accentkleur komt.
 - thumbFoto: het id van de foto die het sterkst werkt als thumbnail (herkenbaar onderwerp, ook klein nog leesbaar), of leeg als er geen foto's zijn.
+- varianten: nog twee andere thumbnails om uit te kiezen, elk met een eigen invalshoek (bijvoorbeeld een getal, een vraag, een tegenstelling) en bij voorkeur een andere foto. Zelfde regels als thumbKop/thumbAccent/thumbFoto.
 Gebruik alleen wat in het script staat.`,
       messages: [
         {
@@ -105,7 +112,8 @@ Gebruik alleen wat in het script staat.`,
       ],
     })
     .finalMessage();
-  const j = JSON.parse(tekstUit(m)) as { titels: string[]; intro: string; tags: string[]; thumbKop: string; thumbAccent: string; thumbFoto: string };
+  const j = JSON.parse(tekstUit(m)) as { titels: string[]; intro: string; tags: string[]; thumbKop: string; thumbAccent: string; thumbFoto: string; varianten?: { kop: string; accent: string; foto: string }[] };
+  const fotoOf = (id: string) => (v.fotos.some((f) => f.id === id) ? id : (v.fotos[0]?.id ?? ""));
 
   const hs = hoofdstukRegels(v.plan, v.starts, v.taal);
   const bronnen = [...new Map(v.feiten.map((f) => [f.url, f])).values()];
@@ -121,7 +129,8 @@ Gebruik alleen wat in het script staat.`,
     beschrijving: delen.filter(Boolean).join("\n\n"),
     thumbKop: j.thumbKop.trim().slice(0, 40),
     thumbAccent: j.thumbAccent.trim(),
-    thumbFoto: v.fotos.some((f) => f.id === j.thumbFoto) ? j.thumbFoto : (v.fotos[0]?.id ?? ""),
+    thumbFoto: fotoOf(j.thumbFoto),
+    varianten: (j.varianten ?? []).filter((x) => x.kop?.trim()).slice(0, 2).map((x) => ({ kop: x.kop.trim().slice(0, 40), accent: x.accent.trim(), foto: fotoOf(x.foto) })),
     usd: kosten(MODEL, m.usage),
   };
 }
@@ -183,7 +192,14 @@ const SHORT_SCHEMA = {
  * Het script voor de Short (staand, ±45 s): de sterkste haak uit de docu, één wending, en een
  * verwijzing naar de hele video. Alleen feiten die al in het (gecontroleerde) docu-script staan.
  */
-export async function schrijfShort(v: { plan: MotionPlan; fotos: DocuFoto[]; taal: MotionTaal; kanaal: string }): Promise<{ plan: MotionPlan; fotos: string[]; usd: number }> {
+/** De Short-fabriek: elke Short vertelt een ander stukje van het verhaal. */
+export const SHORT_INVALSHOEKEN = [
+  "het meest verrassende feit of moment uit het hele verhaal",
+  "het keerpunt: het moment waarop alles veranderde, en wat er daarna gebeurde",
+  "een opvallend detail of getal dat de meeste kijkers niet weten ('wist je dat')",
+];
+
+export async function schrijfShort(v: { plan: MotionPlan; fotos: DocuFoto[]; taal: MotionTaal; kanaal: string; invalshoek?: string }): Promise<{ plan: MotionPlan; fotos: string[]; usd: number }> {
   const lengte = 45;
   const m = await claude()
     .beta.messages.stream({
@@ -193,7 +209,7 @@ export async function schrijfShort(v: { plan: MotionPlan; fotos: DocuFoto[]; taa
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       system: `Je maakt van een documentaire-script een YouTube Short van ±45 seconden (staand), in het ${taalNaam(v.taal)}.
-- Vier of vijf scenes, samen ${Math.round(maxWoorden(lengte) * 0.85)} tot ${maxWoorden(lengte)} woorden. De eerste zin is de haak: het meest verrassende feit of moment, zonder aanloop.
+- Vier of vijf scenes, samen ${Math.round(maxWoorden(lengte) * 0.85)} tot ${maxWoorden(lengte)} woorden. De eerste zin is de haak, zonder aanloop. Deze Short gaat over: ${v.invalshoek ?? SHORT_INVALSHOEKEN[0]}.
 - Gebruik ALLEEN feiten die letterlijk in het script staan: het script is al op feiten gecontroleerd, alles daarbuiten niet.
 - "beeld" in het Nederlands: eenvoudig, één ding tegelijk in beeld (het is staand). Een foto uit de lijst mag ("foto f3 vult het beeld"); zet de gebruikte id's in "fotos" (hooguit vier).
 - "kop": leeg.

@@ -6,6 +6,10 @@ import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import VideoAanpassen from "@/components/motion/VideoAanpassen";
+import { useSchetsen } from "@/components/motion/Schetsen";
+import { MuziekKiezer } from "@/components/motion/MuziekKiezer";
+import { RECEPTEN, type Recept } from "@/lib/motion/recepten";
+import { taalStemmen } from "@/lib/stem/taalstemmen";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 import { BrowserMelding, useBrowserVideo } from "./BrowserVideo";
 import type { BrandKit } from "@/lib/types";
@@ -21,9 +25,14 @@ import {
   maxWoorden,
   duurTekst,
   motionCredits,
+  extraFormaatCredits,
   motionFont,
   MOTION_SOORTEN,
   MOTION_TALEN,
+  MOTION_ONDERTITELS,
+  isOndertitels,
+  type MotionOndertitels,
+  type MuziekVolume,
   taalNaam,
   MOTION_STEM_HUGO,
   isMotionSoort,
@@ -65,7 +74,7 @@ async function postBestand<T>(pad: string, bestand: File, extra: Record<string, 
 }
 
 type Beeld = Omit<MotionBeeld, "id">;
-type Bezig = null | "script" | "maken" | "logo" | "beeld" | "bestand" | "huisstijl" | "website";
+type Bezig = null | "script" | "maken" | "logo" | "beeld" | "bestand" | "huisstijl" | "website" | "cijfers";
 
 /** De beelden die bij een huisstijl horen en bij elke video vanzelf meegaan. */
 function vasteBeelden(kit: BrandKit): Beeld[] {
@@ -95,6 +104,8 @@ export default function MotionStudio() {
   const [soort, setSoort] = useState<MotionSoort>("bedrijf");
   const [taal, setTaal] = useState<MotionTaal>("nl");
   const [stem, setStem] = useState<string>(MOTION_STEM_HUGO);
+  const [ondertitels, setOndertitels] = useState<MotionOndertitels>("uit");
+  const [mail, setMail] = useState(true);
   const [stemmen, setStemmen] = useState<BibliotheekStem[]>([]);
   const [berichten, setBerichten] = useState<RegieBericht[]>([]);
   const [invoer, setInvoer] = useState("");
@@ -115,6 +126,8 @@ export default function MotionStudio() {
   const [formaat, setFormaat] = useState<MotionFormaat>("16:9");
   const [lengte, setLengte] = useState<MotionLengte>(30);
   const [muziek, setMuziek] = useState<string>(MOTION_MUZIEK[0].slug);
+  const [muziekVolume, setMuziekVolume] = useState<MuziekVolume>("normaal");
+  const [muziekUrl, setMuziekUrl] = useState("");
   const [stijl, setStijl] = useState<string>("");
   const [plan, setPlan] = useState<MotionPlan | null>(null);
   const [afwijkend, setAfwijkend] = useState<number[]>([]);
@@ -125,6 +138,7 @@ export default function MotionStudio() {
   const logoKies = useRef<HTMLInputElement>(null);
   const beeldKies = useRef<HTMLInputElement>(null);
   const scriptKies = useRef<HTMLInputElement>(null);
+  const cijfersKies = useRef<HTMLInputElement>(null);
 
   const lijst = useCreaties({ maker: "motion" });
   // De laatste stap (beeld voor beeld tot video) gebeurt in deze browser.
@@ -193,17 +207,42 @@ export default function MotionStudio() {
     if (bedrijfTab === isBedrijf) return;
     setSoort(bedrijfTab ? "bedrijf" : "verhaal");
   }
+  /** Een startrecept: de vorm goedzetten en een eerste bericht klaarzetten om aan te vullen. */
+  function kiesRecept(r: Recept) {
+    setSoort(r.soort);
+    setStijl(r.stijl);
+    setLengte(r.lengte);
+    setFormaat(r.formaat);
+    setMuziek(r.muziek);
+    setInvoer(r.bericht);
+    setTimeout(() => {
+      const veld = document.querySelector<HTMLTextAreaElement>("textarea[data-regie]");
+      veld?.scrollIntoView({ behavior: "smooth", block: "center" });
+      veld?.focus();
+      // Het eerste invulstuk [tussen haken] alvast selecteren.
+      const i = r.bericht.indexOf("[");
+      if (veld && i >= 0) veld.setSelectionRange(i, r.bericht.indexOf("]", i) + 1);
+    }, 50);
+  }
   /** Wat er van afzender en merk meegaat: zonder bedrijf geen logo, huisstijl of vaste huisstijlbeelden. */
   function merk() {
     if (isBedrijf) return { bedrijf, website, kleur, kleur2, huisstijlId: kitId, logo, font, toon, nietDoen, beelden };
     return { bedrijf: afzender.trim(), website: "", kleur: "#1c72ed", kleur2: "#ffc21a", huisstijlId: "", logo: "", font: STANDAARD_FONT, toon: "", nietDoen: "", beelden: beelden.filter((b) => !b.vast) };
   }
+  // Gratis schetsbeelden per scene in de gekozen stijl, vóór betalen.
+  const schetsMerk = merk();
+  const schetsen = useSchetsen(
+    plan
+      ? { plan, formaat, stijl, kleur: schetsMerk.kleur, kleur2: schetsMerk.kleur2, font: schetsMerk.font, bedrijf: schetsMerk.bedrijf, website: schetsMerk.website }
+      : null,
+  );
   // Wat de klant in het gesprek vertelde, als achtergrond voor wie de animatie tekent.
   const onderwerp = berichten.filter((b) => b.van === "klant").map((b) => b.tekst).join("\n").slice(0, 6000);
 
-  // De stemmen die de gekozen taal spreken; Hugo staat vooraan.
-  const stemKeuzes = stemmen.filter((st) => taal === "nl" || st.talen.includes(taal)).sort((a, b) => Number(b.id === MOTION_STEM_HUGO) - Number(a.id === MOTION_STEM_HUGO));
-  const gekozenStem = stemmen.find((st) => st.id === stem) ?? null;
+  // Nederlands: de bibliotheek met Hugo vooraan. Andere talen: alleen moedertaalstemmen.
+  const stemKeuzes: { id: string; naam: string; geslacht: string; leeftijd: string; typering: string; voorbeeld: string }[] =
+    taal === "nl" ? [...stemmen].sort((a, b) => Number(b.id === MOTION_STEM_HUGO) - Number(a.id === MOTION_STEM_HUGO)) : taalStemmen(taal);
+  const gekozenStem = stemKeuzes.find((st) => st.id === stem) ?? null;
 
   useEffect(() => {
     fetch("/api/stem/bibliotheek").then((r) => (r.ok ? r.json() : [])).then((d: BibliotheekStem[]) => setStemmen(Array.isArray(d) ? d : [])).catch(() => {});
@@ -211,9 +250,8 @@ export default function MotionStudio() {
 
   function kiesTaal(t: MotionTaal) {
     setTaal(t);
-    // Spreekt de gekozen stem die taal niet, dan de eerste die het wel kan.
-    const kan = stemmen.filter((st) => t === "nl" || st.talen.includes(t));
-    if (kan.length && !kan.some((st) => st.id === stem)) setStem((kan.find((st) => st.id === MOTION_STEM_HUGO) ?? kan[0]).id);
+    // Elke taal heeft zijn eigen stemmen: Hugo voor Nederlands, anders de eerste moedertaalstem.
+    setStem(t === "nl" ? MOTION_STEM_HUGO : taalStemmen(t)[0]?.id ?? MOTION_STEM_HUGO);
   }
 
   function luister() {
@@ -230,6 +268,8 @@ export default function MotionStudio() {
       if (isMotionSoort(b.soort)) setSoort(b.soort);
       if (isMotionTaal(b.taal)) setTaal(b.taal);
       if (typeof b.stem === "string") setStem(b.stem);
+      if (isOndertitels(b.ondertitels)) setOndertitels(b.ondertitels);
+      if (typeof b.mail === "boolean") setMail(b.mail);
       if (typeof b.stijl === "string") setStijl(b.stijl);
       if (isMotionLengte(b.lengte)) setLengte(b.lengte);
       if (b.formaat === "9:16" || b.formaat === "16:9") setFormaat(b.formaat);
@@ -237,8 +277,8 @@ export default function MotionStudio() {
   }, []);
   useEffect(() => {
     if (!berichten.length && !plan) return;
-    try { localStorage.setItem(GESPREK, JSON.stringify({ berichten: berichten.slice(-40), plan, soort, taal, stem, stijl, lengte, formaat })); } catch {}
-  }, [berichten, plan, soort, taal, stem, stijl, lengte, formaat]);
+    try { localStorage.setItem(GESPREK, JSON.stringify({ berichten: berichten.slice(-40), plan, soort, taal, stem, ondertitels, mail, stijl, lengte, formaat })); } catch {}
+  }, [berichten, plan, soort, taal, stem, ondertitels, mail, stijl, lengte, formaat]);
   useEffect(() => { if (berichten.length) onderaan.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [berichten.length, bezig]);
 
   function nieuwGesprek() {
@@ -272,8 +312,14 @@ export default function MotionStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("motion", { onderwerp, ...merk(), formaat, lengte, muziek, stijl, soort, taal, stem, plan });
+      const basis = { onderwerp, ...merk(), lengte, muziek, muziekVolume, muziekUrl, stijl, soort, taal, stem, ondertitels, mail, plan };
+      const c = await startMaker("motion", { ...basis, formaat });
       lijst.zetVoor(c);
+      // Het andere formaat erbij: zelfde script en stem, eigen opbouw van het beeld.
+      if (ookAnder) {
+        const zus = await startMaker("motion", { ...basis, formaat: anderFormaat, zusVan: c.id, mail: false });
+        lijst.zetVoor(zus);
+      }
     });
   }
 
@@ -300,6 +346,21 @@ export default function MotionStudio() {
       // In het invoerveld, zodat de klant er nog iets bij kan zeggen voor hij het stuurt.
       setInvoer(tekst);
       if (ingekort) setFout("Je bestand is lang; we hebben alleen het eerste deel ingelezen. Een video is hooguit ±10 minuten.");
+    });
+  }
+
+  /** Cijfers uit Excel of CSV als tabel in het bericht aan de regisseur (data-video). */
+  function uploadCijfers(bestand: File) {
+    return doe("cijfers", async () => {
+      const { tabel, rijen, ingekort } = await postBestand<{ tabel: string; rijen: number; ingekort: boolean }>("/api/motion/lees-cijfers", bestand);
+      setInvoer(`Maak een data-video van deze cijfers (${bestand.name}, ${rijen} rijen). Wat de kijker moet onthouden: [vul in]\n\n${tabel}`);
+      if (ingekort) setFout("Je bestand heeft veel rijen; we nemen de eerste 40 mee.");
+      setTimeout(() => {
+        const veld = document.querySelector<HTMLTextAreaElement>("textarea[data-regie]");
+        const i = veld?.value.indexOf("[vul in]") ?? -1;
+        veld?.focus();
+        if (veld && i >= 0) veld.setSelectionRange(i, i + 8);
+      }, 50);
     });
   }
 
@@ -357,7 +418,10 @@ export default function MotionStudio() {
   const woorden = plan ? [...plan.scenes.map((s) => s.tekst), plan.eind.tekst].join(" ").split(/\s+/).filter(Boolean).length : 0;
   const max = Math.round(maxWoorden(lengte) * 1.25);
   const teLang = woorden > max;
-  const credits = motionCredits(lengte);
+  const [ookAnder, setOokAnder] = useState(false);
+  const anderFormaat: MotionFormaat = formaat === "9:16" ? "16:9" : "9:16";
+  const extraCredits = extraFormaatCredits(lengte);
+  const credits = motionCredits(lengte) + (ookAnder ? extraCredits : 0);
 
   return (
     <div className="space-y-8">
@@ -386,6 +450,32 @@ export default function MotionStudio() {
           </button>
         ))}
       </div>
+
+      {/* Startrecepten: alleen zolang er nog niets is begonnen. */}
+      {!plan && berichten.length === 0 && (
+        <div className="n-kaart space-y-3">
+          <div>
+            <h2 className="font-bold text-tekst">Waar wil je mee beginnen?</h2>
+            <p className="text-xs text-tekst-3 mt-0.5">Kies een voorbeeld: stijl, lengte, formaat en muziek staan dan goed, en de regisseur krijgt een eerste opzet. Alles is daarna nog aan te passen.</p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+            {RECEPTEN.map((r) => (
+              <button key={r.id} onClick={() => kiesRecept(r)} className="group text-left rounded-xl border border-rand overflow-hidden hover:border-blue-500/60 transition-colors">
+                <div className="relative aspect-video bg-paneel-2 overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={`/motion/stijlen/${r.stijl || "standaard"}.jpg`} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  <span className="absolute top-1.5 left-1.5 text-base">{r.icoon}</span>
+                </div>
+                <div className="p-2">
+                  <div className="text-sm font-semibold text-tekst leading-tight">{r.naam}</div>
+                  <div className="text-[11px] text-tekst-3 leading-snug mt-0.5">{r.uitleg}</div>
+                  <div className="text-[10px] text-tekst-3 mt-1">{duurTekst(r.lengte)} · {r.formaat === "9:16" ? "staand" : "liggend"}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-6 items-start">
         <div className="space-y-4">
@@ -489,16 +579,24 @@ export default function MotionStudio() {
                 </div>
               </div>
             </div>
-            {gekozenStem && <p className="text-[11px] text-tekst-3 -mt-2">{gekozenStem.typering}{taal !== "nl" ? `. Het voorbeeld is in het Nederlands; de video wordt in het ${taalNaam(taal)} ingesproken.` : ""}</p>}
+            {gekozenStem && <p className="text-[11px] text-tekst-3 -mt-2">{gekozenStem.typering}{taal !== "nl" ? ` · moedertaalspreker ${taalNaam(taal)}` : ""}</p>}
 
-            <div>
-              <label className="n-label">Muziek</label>
-              <select value={muziek} onChange={(e) => setMuziek(e.target.value)} className="n-invoer mt-1.5">
-                {MOTION_MUZIEK.map((m) => (
-                  <option key={m.slug} value={m.slug}>{m.naam}</option>
-                ))}
-              </select>
+            <MuziekKiezer muziek={muziek} setMuziek={setMuziek} volume={muziekVolume} setVolume={setMuziekVolume} eigen={muziekUrl} setEigen={setMuziekUrl} aanbevolen={MOTION_MUZIEK} />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="n-label">Ondertitels <span className="font-normal text-tekst-3">(gratis)</span></label>
+                <select value={ondertitels} onChange={(e) => setOndertitels(e.target.value as MotionOndertitels)} className="n-invoer mt-1.5">
+                  {MOTION_ONDERTITELS.map((o) => (
+                    <option key={o.id} value={o.id}>{o.naam}</option>
+                  ))}
+                </select>
+              </div>
             </div>
+            {ondertitels !== "uit" && <p className="text-[11px] text-tekst-3 -mt-2">{MOTION_ONDERTITELS.find((o) => o.id === ondertitels)?.uitleg}. Je kunt ze na afloop ook als bestand downloaden.</p>}
+            <label className="flex items-center gap-2 text-sm text-tekst">
+              <input type="checkbox" checked={mail} onChange={(e) => setMail(e.target.checked)} />
+              Mail me als de video klaar is
+            </label>
 
           </div>
 
@@ -652,6 +750,7 @@ export default function MotionStudio() {
 
             <div>
               <textarea
+                data-regie
                 value={invoer}
                 onChange={(e) => setInvoer(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !bezig && invoer.trim().length >= 2) { e.preventDefault(); void stuur(); } }}
@@ -664,6 +763,10 @@ export default function MotionStudio() {
                   {bezig === "bestand" ? "Inlezen…" : "📄 Ik heb al een script (Word, PDF of tekst)"}
                 </button>
                 <input ref={scriptKies} type="file" accept=".docx,.pdf,.txt,.md,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadScript(f); }} />
+                <button onClick={() => cijfersKies.current?.click()} disabled={!!bezig} className="text-xs text-blue-500 hover:underline disabled:opacity-50">
+                  {bezig === "cijfers" ? "Inlezen…" : "📊 Ik heb cijfers (Excel of CSV)"}
+                </button>
+                <input ref={cijfersKies} type="file" accept=".xlsx,.csv,.tsv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void uploadCijfers(f); }} />
                 <button onClick={() => void stuur()} disabled={!!bezig || invoer.trim().length < 2} className="btn-primary !py-2 !px-5 disabled:opacity-50">Stuur</button>
               </div>
             </div>
@@ -734,12 +837,28 @@ export default function MotionStudio() {
                   Let op: bij {afwijkend.map((n) => (n === 0 ? "de eindkaart" : `scene ${n}`)).join(", ")} wijkt de tekst af van je script. Loop die even na en pas aan waar nodig.
                 </p>
               )}
+              <p className="text-[11px] text-tekst-3 -mt-2">De schetsen laten de stijl, kleuren en opbouw zien (gratis). De echte animatie wordt na het maken speciaal voor je script getekend.</p>
               <div className="space-y-2">
                 {plan.scenes.map((s, i) => (
                   <div key={i} className="rounded-2xl border border-rand p-3">
-                    <div className="text-[11px] font-semibold uppercase tracking-wide text-tekst-3">Scene {i + 1}</div>
-                    <label className="block text-[11px] text-tekst-3 mt-2">Wat de stem zegt</label>
-                    <textarea value={s.tekst} onChange={(e) => wijzigScene(i, { tekst: e.target.value })} rows={3} className="n-invoer mt-1 resize-none" />
+                    <div className="flex gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-tekst-3">Scene {i + 1}</div>
+                        <label className="block text-[11px] text-tekst-3 mt-2">Wat de stem zegt</label>
+                        <textarea value={s.tekst} onChange={(e) => wijzigScene(i, { tekst: e.target.value })} rows={3} className="n-invoer mt-1 resize-none" />
+                      </div>
+                      <div className={`shrink-0 ${formaat === "9:16" ? "w-20" : "w-36"}`}>
+                        <div className="text-[10px] font-semibold uppercase tracking-wide text-tekst-3 mb-1">Schets</div>
+                        <div className="rounded-lg border border-rand overflow-hidden bg-paneel-2" style={{ aspectRatio: formaat === "9:16" ? "9 / 16" : "16 / 9" }}>
+                          {schetsen.beelden[i] ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={schetsen.beelden[i]!} alt={`Schets van scene ${i + 1}`} className={`w-full h-full object-cover transition-opacity ${schetsen.bezig ? "opacity-60" : ""}`} />
+                          ) : (
+                            <div className="w-full h-full animate-pulse bg-blue-500/10" />
+                          )}
+                        </div>
+                      </div>
+                    </div>
                     <label className="block text-[11px] text-tekst-3 mt-2">Wat je ziet</label>
                     <textarea value={s.beeld} onChange={(e) => wijzigScene(i, { beeld: e.target.value })} rows={3} className="n-invoer mt-1 resize-none text-sm" />
                   </div>
@@ -765,11 +884,26 @@ export default function MotionStudio() {
                 </div>
               </div>
               <p className={`text-[11px] ${teLang ? "text-red-500" : "text-tekst-3"}`}>
-                {woorden} woorden {teLang ? `— te lang voor ${duurTekst(lengte)}: maak het korter of kies een langere video` : `(ongeveer ${woorden / 2.5 < 90 ? `${Math.round(woorden / 2.5)} seconden` : `${(woorden / 2.5 / 60).toFixed(1).replace(".", ",")} minuten`})`}
+                {woorden} woorden {teLang ? `— te lang voor ${duurTekst(lengte)}: maak het korter of kies een langere video` : `(ongeveer ${woorden / 2.1 + 3 < 90 ? `${Math.round(woorden / 2.1 + 3)} seconden` : `${((woorden / 2.1 + 3) / 60).toFixed(1).replace(".", ",")} minuten`})`}
               </p>
 
+              <div className="rounded-2xl border border-rand p-3 space-y-2">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-tekst-3">Formaten</div>
+                <div className="flex items-center justify-between text-sm text-tekst">
+                  <span>✓ {formaat === "9:16" ? "Staand 9:16" : "Liggend 16:9"} <span className="text-tekst-3">(hoofdvideo)</span></span>
+                  <span className="text-tekst-3">{motionCredits(lengte)} credits</span>
+                </div>
+                <label className="flex items-center justify-between gap-2 text-sm text-tekst cursor-pointer">
+                  <span className="flex items-center gap-2">
+                    <input type="checkbox" checked={ookAnder} onChange={(e) => setOokAnder(e.target.checked)} />
+                    Ook {anderFormaat === "9:16" ? "staand 9:16 (Reels, TikTok)" : "liggend 16:9 (YouTube, website)"}
+                  </span>
+                  <span className="text-tekst-3">+ {extraCredits} credits</span>
+                </label>
+                {ookAnder && <p className="text-[11px] text-tekst-3">Zelfde script en stem; het beeld wordt opnieuw opgebouwd voor dat formaat. Je krijgt twee video&apos;s.</p>}
+              </div>
               <button onClick={maak} disabled={!!bezig || teLang || (soort === "bedrijf" && !bedrijf.trim())} className="btn-primary w-full disabled:opacity-50">
-                {bezig === "maken" ? "Bezig met insturen…" : `✨ Maak de video · ${credits} credits`}
+                {bezig === "maken" ? "Bezig met insturen…" : `✨ Maak ${ookAnder ? "2 video's" : "de video"} · ${credits} credits`}
               </button>
               <p className="text-[11px] text-tekst-3">
                 Dit duurt meestal {lengte <= 60 ? "een minuut of 5" : lengte <= 180 ? "5 tot 10 minuten" : lengte <= 300 ? "een minuut of 20" : "drie kwartier"}: de animatie wordt speciaal voor jouw script getekend en daarna nagekeken. Het laatste stuk,

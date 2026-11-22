@@ -6,6 +6,7 @@
 //     thumbnail) en de Short starten als eigen rij in de bibliotheek.
 // Alleen op de server.
 
+import { isDocuStijl } from "./kanalen";
 import type { Creatie } from "@/lib/creaties/types";
 import { uploadNaarOpslag, WachtrijFout } from "@/lib/creaties/wachtrij";
 import { startMotion } from "@/lib/motion/regie";
@@ -16,7 +17,7 @@ import { sceneTijden } from "@/lib/motion/animatie";
 import { eigenOpslag } from "@/lib/motion/beelden";
 import type { WhisperWord } from "@/lib/openai";
 import { leesTaal, type MotionBeeld, type MotionInvoer, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
-import { maakPakket, maakThumbnail, schrijfShort } from "./extras";
+import { SHORT_INVALSHOEKEN, maakPakket, maakThumbnail, schrijfShort } from "./extras";
 import { DOCU_VERTELLERS, docuCredits, docuMuziek, fotoCredit, isDocuLengte, type DocuControle, type DocuExtras, type DocuFeit, type DocuFoto, type DocuInvoer } from "./types";
 
 const kort = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, max) : "");
@@ -86,6 +87,8 @@ export async function startDocu(userId: string, ruw: Record<string, unknown>, ou
   const lengte = ruw.lengte;
   const taal = leesTaal(ruw.taal);
   const short = ruw.short !== false;
+  // De Short-fabriek: één of drie Shorts.
+  const shorts = short ? (ruw.shorts === 3 ? 3 : 1) : 0;
   const fotos = leesFotos(ruw.fotos);
   const docu: DocuInvoer = {
     onderwerp: kort(ruw.onderwerp, 300),
@@ -93,9 +96,10 @@ export async function startDocu(userId: string, ruw: Record<string, unknown>, ou
     controle: leesControle(ruw.controle),
     fotos,
     short,
+    shorts,
   };
   if (!docu.feiten.length) throw new WachtrijFout("Er is nog geen onderzoek gedaan. Laat eerst het script schrijven.", 400);
-  // Russell (de Engelse verteller van KRONIK) staat niet in de stemmenbibliotheek; die zou
+  // Russell (de vaste Engelse verteller) staat niet in de stemmenbibliotheek; die zou
   // het lezen van de invoer anders terugzetten naar Hugo.
   const verteller = DOCU_VERTELLERS[taal];
   const eigenVerteller = !!verteller && ruw.stem === verteller.id;
@@ -104,11 +108,13 @@ export async function startDocu(userId: string, ruw: Record<string, unknown>, ou
     userId,
     // Een docu is altijd liggend, een verhaal, in de stijl "archief" (daar zijn de sjablonen in
     // public/motion/docu.js voor gemaakt), en heeft geen voorbeelden van de klant.
-    { ...ruw, soort: "verhaal", formaat: "16:9", bedrijf: kort(ruw.kanaal, 40), stijl: "archief", beelden: [] },
+    // De grote woord-voor-woord-letters botsen in een liggende docu met de jaartallen en de
+    // fotovermelding onderin; die zijn voor de Short.
+    { ...ruw, ondertitels: ruw.ondertitels === "woord" ? "balk" : ruw.ondertitels, soort: "verhaal", formaat: "16:9", bedrijf: kort(ruw.kanaal, 40), stijl: isDocuStijl(ruw.stijl) ? ruw.stijl : "archief", beelden: [] },
     ouderId,
     {
       maker: "docu",
-      credits: docuCredits(lengte, short),
+      credits: docuCredits(lengte, shorts),
       omschrijving: "Nieuwe app: docu",
       pas: (i: MotionInvoer) => ({
         ...i,
@@ -146,21 +152,32 @@ export async function voegPakketToe(c: Creatie, invoer: Record<string, unknown>,
     usd += pakket.usd;
     extras.titels = pakket.titels;
     extras.beschrijving = pakket.beschrijving;
-    try {
-      const foto = docu.fotos.find((f) => f.id === pakket.thumbFoto);
-      const buf = foto ? Buffer.from(await (await fetch(foto.url)).arrayBuffer()) : null;
-      const jpg = await maakThumbnail({ foto: buf, kop: pakket.thumbKop || plan.titel, accent: pakket.thumbAccent, kanaal: r.bedrijf, kleur: r.kleur });
-      extras.thumbnail = await uploadNaarOpslag(c.user_id, jpg, "jpg", "image/jpeg");
-    } catch (e) {
-      fouten.push(`Thumbnail: ${e instanceof Error ? e.message : String(e)}`);
+    // Drie thumbnails om uit te kiezen (Short-fabriek + thumbnailkeuze, idee 13); de eerste
+    // is het voorstel en staat meteen klaar.
+    const ontwerpen = [{ kop: pakket.thumbKop || plan.titel, accent: pakket.thumbAccent, foto: pakket.thumbFoto }, ...pakket.varianten];
+    const urls: string[] = [];
+    for (const o of ontwerpen) {
+      try {
+        const foto = docu.fotos.find((f) => f.id === o.foto);
+        const buf = foto ? Buffer.from(await (await fetch(foto.url)).arrayBuffer()) : null;
+        const jpg = await maakThumbnail({ foto: buf, kop: o.kop, accent: o.accent, kanaal: r.bedrijf, kleur: r.kleur });
+        urls.push(await uploadNaarOpslag(c.user_id, jpg, "jpg", "image/jpeg"));
+      } catch (e) {
+        if (!urls.length) fouten.push(`Thumbnail: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    if (urls.length) {
+      extras.thumbnail = urls[0];
+      extras.thumbnails = urls;
     }
   } catch (e) {
     fouten.push(`Beschrijving: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  if (docu.short) {
+  const aantalShorts = docu.short ? Math.max(1, Math.min(3, docu.shorts ?? 1)) : 0;
+  for (let k = 0; k < aantalShorts; k++) {
     try {
-      const s = await schrijfShort({ plan, fotos: docu.fotos, taal, kanaal: r.bedrijf });
+      const s = await schrijfShort({ plan, fotos: docu.fotos, taal, kanaal: r.bedrijf, invalshoek: SHORT_INVALSHOEKEN[k] });
       usd += s.usd;
       const fotos = docu.fotos.filter((f) => s.fotos.includes(f.id));
       const kind = await startMotion(
@@ -175,6 +192,8 @@ export async function voegPakketToe(c: Creatie, invoer: Record<string, unknown>,
           formaat: "9:16",
           lengte: 45,
           muziek: r.muziek,
+          muziekUrl: r.muziekUrl,
+          muziekVolume: r.muziekVolume,
           stijl: r.stijl,
           soort: "verhaal",
           taal,
@@ -183,18 +202,24 @@ export async function voegPakketToe(c: Creatie, invoer: Record<string, unknown>,
           logo: "",
           font: r.font,
           beelden: [],
+          // Een Short wordt vaak zonder geluid bekeken: dan de grote woord-voor-woord-letters.
+          ondertitels: r.ondertitels && r.ondertitels !== "uit" ? "woord" : "uit",
+          // Eén mail voor de docu is genoeg.
+          mail: false,
         },
         c.id,
         {
           // De Short zit in de prijs van de docu.
           credits: 0,
+          buitenLimiet: true,
           prompt: `Short: ${s.plan.titel || plan.titel}`,
           pas: (i) => ({ ...i, stem: r.stem, muziek: r.muziek, beelden: alsBeelden(fotos, taal).map((b) => ({ ...b, uitleg: `${b.uitleg}. Zet de vermelding klein in beeld zolang de foto te zien is.` })) }),
         },
       );
-      extras.shortId = kind.id;
+      if (!extras.shortId) extras.shortId = kind.id;
+      extras.shortIds = [...(extras.shortIds ?? []), kind.id];
     } catch (e) {
-      fouten.push(`Short: ${e instanceof Error ? e.message : String(e)}`);
+      fouten.push(`Short ${k + 1}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 

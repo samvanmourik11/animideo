@@ -25,7 +25,7 @@ const GETAL_VOORBEELD: Record<MotionTaal, string> = {
   fr: "1 250 en 3,5",
   es: "1.250 en 3,5",
   it: "1.250 en 3,5",
-  pt: "1250 en 3,5",
+  pt: "1.250 en 3,5",
 };
 import { stijlVan } from "./stijlen";
 
@@ -36,7 +36,12 @@ const MODEL = "claude-opus-5-5";
 // kostte het nakijken $0,04 in plaats van ±$0,30 en bleef er geen fout over. Het ontwerp door
 // datzelfde model laten maken is ook geprobeerd: bijna gratis, maar kaler getekend en ruim
 // twee keer zo traag. MOTION_CONTROLE_MODEL is er alleen om modellen naast elkaar te testen.
-const CONTROLE_MODEL = process.env.MOTION_CONTROLE_MODEL || "claude-haiku-5-5";
+// Sinds 18-11-2026 Sonnet (Sam: "premium als standaard, maar goedkoop"): het kleinste model zag
+// in de proefbeelden niet dat iets kaal of krap stond. Gemeten op het transportscript (45 s):
+// ontwerp op "low" met de nieuwe bouwstenen (kaarten, zijkaartjes) + Sonnet-nakijken in 3 rondes
+// = $0,37, bijna gelijk aan Opus "high" + Opus-nakijken ($1,92). "medium" liep twee keer vast
+// (>5 min stil → verbinding weg), dus niet gebruiken.
+const CONTROLE_MODEL = process.env.MOTION_CONTROLE_MODEL || "claude-sonnet-5-5";
 /** Dollars per miljoen tokens (november 2026). */
 const PRIJZEN: Record<string, { in: number; uit: number; cacheLezen: number; cacheSchrijven: number }> = {
   "claude-opus-5-5": { in: 4, uit: 20, cacheLezen: 0.2, cacheSchrijven: 5 },
@@ -49,7 +54,7 @@ export function kosten(model: string, u: Anthropic.Beta.BetaUsage): number {
   return (u.input_tokens * p.in + u.output_tokens * p.uit + (u.cache_read_input_tokens ?? 0) * p.cacheLezen + (u.cache_creation_input_tokens ?? 0) * p.cacheSchrijven) / 1e6;
 }
 /** Hooguit zoveel keer verbeteren na de eerste versie. */
-const MAX_RONDES = 2;
+const MAX_RONDES = 3;
 
 export interface Gebruik {
   usd: number;
@@ -129,6 +134,18 @@ Bouwstenen (elk geeft een groep terug die je met tf en op animeert):
 - \`foto(parent, 'f1', breedte, { hoogte, rond = 28, rand = 10 })\`: zet een foto van de klant in beeld, gecentreerd op 0,0, met ronde hoeken, een witte rand en een schaduw; \`.breedte\` en \`.hoogte\` geven de maat. Alleen voor voorbeelden met het doel "Zet deze foto in beeld"; welke dat zijn, staat in de opdracht. Geef \`hoogte\` mee om de foto passend uit te snijden.
 - Iconen, elk ±120 pixels en gecentreerd op 0,0: \`IC.vink\`, \`kruis\`, \`euro\`, \`vraag\`, \`uitroep\`, \`plus\`, \`bliksem\`, \`vlam\`, \`blad\`, \`hart\`, \`ster\`, \`klok\` (met \`.wijzer\` en \`.uur\` om te draaien), \`doc\`, \`telefoon\` en \`laptop\` (met \`.scherm\`, een groep om iets op het scherm te tekenen), \`vergroot\`, \`team\`, \`gebruiker\`, \`tandwiel\` (met \`.wiel\`), \`mail\`, \`kalender\`, \`grafiek\`, \`schild\`, \`lamp\`, \`huis\`, \`gebouw\`, \`winkelwagen\`, \`pijl\`, \`duim\`, \`spraak\`, \`wereld\`, \`slot\`, \`raket\`. Aanroep: \`IC.klok(parent)\`; de meeste nemen een kleur als tweede argument.
 
+Kaarten (echte landsgrenzen; teken een land, kaart of wereld NOOIT zelf met \`el\`, dat worden willekeurige vlakken):
+- \`landkaart(parent, ['NL', 'BE'], breedte, hoogte, { markeer: { NL: C.accent, BE: C.accent2 }, kleur, zee, buren = true, rond, lijn })\`: kaart gecentreerd op 0,0 die inzoomt op die landen (ISO-codes van twee hoofdletters, altijd als letterlijke tekst tussen aanhalingstekens) met de buren licht eromheen en blauwe zee. Geeft \`{ r, land: { NL: pad, ... }, punt(lon, lat) }\` terug: \`land.NL\` is het pad van dat land (kleur/zichtbaarheid per land animeren), \`punt(4.9, 52.37)\` geeft x,y van een plaats binnen de kaart (Amsterdam) voor een speld, stip of route.
+- \`land(parent, 'DE', breedte, { hoogte, kleur })\`: één land los, zonder zee of buren, gecentreerd op 0,0. Voor een land als icoon of vorm.
+- \`wereldkaart(parent, breedte, { markeer: { CN: C.rood }, landKleur })\`: de hele wereld (verhouding ±2:1), met dezelfde \`land\` en \`punt\`.
+- \`route(kaart, [lon, lat], [lon, lat], { kleur, bocht = .18, dikte })\` → \`{ zet(0..1), op(e, 0..1, schaal) }\`: een boog met donkere rand en eindstip van A naar B; \`zet\` tekent hem, \`op\` zet een busje of pakje erop.
+- \`plaats(kaart, lon, lat, 'Venlo', { kleur, labelX, labelY })\` → \`{ zet(tt, 0..1) }\`: stip met kloppende ring en naamlabel.
+Laat een kaart verschijnen met pop/op op de groep en markeer landen pas op het woord.
+
+Zijkaartjes (vullen het beeld en vertellen meer dan losse labels):
+- \`lijstKaart(parent, 'Elke dag', [{ tekst: 'Duitsland', land: 'DE', eind: 'vink' }, { tekst: 'Polen', land: 'PL', eind: 'Nieuw' }, { tekst: 'Snel', icoon: g => IC.bliksem(g) }], breedte = 420)\`: kaart met kop en regels (land of icoon, tekst, vink of pil). In teken \`lk.zet(tt, [tijd per regel])\`; \`.hoogte\` is de hoogte.
+- \`statKaart(parent, 48, 'uur levertijd', { icoon: g => IC.klok(g), voor: '€ ', na: '%', kleur })\`: één groot getal dat oploopt; in teken \`sk.zet(tt, wt('48'))\`.
+
 Wat er niet bij staat, teken je zelf met \`el\`: dat is juist wat een video eigen maakt. Een bestelbus, een kassa, een dakgoot, een grafiek met de cijfers van de klant, een plattegrond. Houd één tekenstijl aan: platte vormen, witte of gekleurde vlakken, lijnen van 6 tot 8 pixels in \`C.inkt\` met ronde hoeken (\`'stroke-linejoin': 'round'\`), geen fotorealisme.
 
 ## Wat een video goed maakt
@@ -136,6 +153,7 @@ Wat er niet bij staat, teken je zelf met \`el\`: dat is juist wat een video eige
 - Het beeld legt uit wat de stem zegt: het laat het mechanisme zien (iets stroomt, groeit, wordt vergeleken, valt weg), niet alleen een icoon bij elk zelfstandig naamwoord. Per scene één duidelijk hoofdbeeld dat zich opbouwt in drie tot vijf stappen.
 - Elk element verschijnt op het woord waar het bij hoort (\`wt\`), een fractie eerder mag (0,1 tot 0,3 s). Er staat nooit iets in beeld waar de stem nog niet is.
 - Het beeld staat nooit stil: wat er al staat, ademt of beweegt licht door (\`golf\`), tellers lopen, lijnen tekenen zich.
+- Een sterke opbouw die goed werkt: het hoofdbeeld (kaart, schema, product) groot op ±60% van de breedte, en rechts een of twee zijkaartjes (lijstKaart, statKaart) die op de woorden binnenkomen. Staand: hoofdbeeld boven, kaartjes eronder.
 - Vul het beeld. Het hoofdbeeld is groot (ruwweg de helft van de beeldbreedte of meer) en de compositie is in balans; geen klein figuurtje in een lege vlakte, geen alles-in-een-hoek.
 - Tekst in beeld is kort: labels van een paar woorden, getallen groot. Nooit hele zinnen van de stem uitschrijven, behalve één kernzin als dat het punt is. Letters minstens 30 pixels (liggend) of 40 pixels (staand), koppen en getallen veel groter.
 - Niets overlapt per ongeluk. Wat op dezelfde plek komt als iets eerders, laat je het eerdere eerst weghalen of opzij schuiven. Reken de plekken uit: een pil van 6 woorden op grootte 42 is ruim 600 pixels breed.
@@ -196,7 +214,7 @@ De bouwstenen zijn al op deze stijl ingesteld: de achtergrond, het lettertype, h
 `
     : "";
   // De docu-studio (lib/docu/): foto's van Commons die het beeld vullen, zoals in onze eigen
-  // KRONIK-video's, in plaats van een foto op een kaartje zoals bij een bedrijfsvideo.
+  // documentaires op YouTube, in plaats van een foto op een kaartje zoals bij een bedrijfsvideo.
   const docuBlok = v.docu
     ? `
 ## Documentaire
@@ -214,7 +232,7 @@ Dit is een YouTube-documentaire. Het beeld wisselt tussen archieffoto's en docu-
 
 ${v.soort && v.soort !== "bedrijf" ? `Let op: dit is geen bedrijfsvideo maar ${v.soort === "verhaal" ? "een verhaal (geschiedenis, documentaire)" : v.soort === "uitleg" ? "een uitleg of les" : "een vrije video"}. Teken wat het verhaal vraagt: kaarten, tijdlijnen, portretten als eenvoudige figuur, voorwerpen, plekken. Geen kantoor-iconen, knoppen of verkooptaal waar het verhaal daar niet om vraagt.\n` : ""}${v.pagina.merk.naam ? `${v.soort && v.soort !== "bedrijf" ? "Afzender" : "Bedrijf"}: ${v.pagina.merk.naam}${v.pagina.merk.website ? ` (${v.pagina.merk.website})` : ""}` : "Afzender: geen. Er staat geen merk linksboven; de eindkaart toont alleen de slotregels."}
 Formaat: ${v.pagina.w} x ${v.pagina.h} (${v.pagina.h > v.pagina.w ? "staand" : "liggend"})
-Merkkleur C.accent = ${v.pagina.merk.kleur}, tweede kleur C.accent2 = ${v.pagina.merk.kleur2}
+${v.pagina.ondertitels ? `Ondertitels: het systeem zet ondertitels over het beeld, ${v.pagina.h > v.pagina.w ? `rond y = ${v.pagina.ondertitels === "woord" ? Math.round(v.pagina.h * 0.7) : v.pagina.h - 340}` : `in de onderste ${v.pagina.ondertitels === "woord" ? 200 : 160} pixels`}. Zet daar geen tekst, getallen of labels die gelezen moeten worden; houd die strook rustig.\n` : ""}Merkkleur C.accent = ${v.pagina.merk.kleur}, tweede kleur C.accent2 = ${v.pagina.merk.kleur2}
 ${v.taal && v.taal !== "nl" ? `Taal: dit is een video in het ${taalNaam(v.taal)}. Alle tekst in beeld is ${taalNaam(v.taal)}, ook als de beschrijving bij Beeld Nederlands is. Schrijf getallen zoals dat in het ${taalNaam(v.taal)} gaat (${GETAL_VOORBEELD[v.taal]}); nl() geeft Nederlandse notatie, gebruik die dan alleen als dat hetzelfde is.\n` : ""}Onderwerp volgens de klant: ${v.onderwerp}${v.nietDoen ? `\nWat er van dit bedrijf niet in beeld mag: ${v.nietDoen}` : ""}${fotos.length ? `\nFoto's die je met foto() kunt plaatsen: ${fotos.map((f) => `'${f.id}' (${f.w} x ${f.h})`).join(", ")}` : ""}
 ${stijlBlok}${docuBlok}
 De scenes, met wat de stem zegt, wat de klant als beeld heeft goedgekeurd, en de gemeten woordtijden (seconden, zoals wt ze teruggeeft):
@@ -231,6 +249,7 @@ ${heeftEind ? `### eind (vanaf ${perScene.find((s) => s.id === "eind")?.start.to
 Stem: ${plan.eind.tekst}
 Gebruik precies: eind: { regel1: ${JSON.stringify(plan.eind.regel1)}, regel2: ${JSON.stringify(plan.eind.regel2)}, knop: ${JSON.stringify(plan.eind.knop)} }
 ` : ""}
+Staat er in het onderwerp een tabel met cijfers van de klant, gebruik dan precies die waarden in grafieken en tellers: de verhoudingen van staven en lijnen kloppen met de getallen, en de as of het label noemt de eenheid.
 De beschrijving bij "Beeld" is wat de klant verwacht te zien; werk die uit tot een sterke compositie en vul aan waar het de uitleg helpt. Let op: de transcriptie schrijft sommige woorden anders dan het script (cijfers, samenstellingen); kies voor wt woorden die in de lijst met woordtijden staan.`;
 }
 
@@ -321,6 +340,12 @@ export interface AnimatieVraag {
   soort?: MotionSoort;
   /** Een documentaire uit de docu-studio: archieffoto's beeldvullend, docu-graphics. */
   docu?: boolean;
+  /**
+   * Premium-kwaliteit: het ontwerp met meer denkwerk en het nakijken door het grote model,
+   * met een ronde extra. De standaard levert in op kwaliteit voor de prijs; Sam (17-11-2026):
+   * "kwaliteit voorop, in ieder geval dat die mogelijkheid er is".
+   */
+  premium?: boolean;
 }
 
 export interface AnimatieUitkomst {
@@ -352,7 +377,10 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
   // 5,5 minuut, op "low" $0,30 en 2 minuten, met een video die er net zo verzorgd uitziet;
   // het meeste denkwerk op "medium" ging niet in het beeld zitten. Sonnet 5.5 was nog iets
   // goedkoper ($0,20) maar tekende slordiger.
-  const ontwerpEffort = (process.env.MOTION_ONTWERP_EFFORT || "low") as "low" | "medium" | "high";
+  const ontwerpEffort = (process.env.MOTION_ONTWERP_EFFORT || (v.premium ? "high" : "low")) as "low" | "medium" | "high";
+  // Het kleinste model ziet in proefbeelden niet dat een vorm onaf of scheef is; het grote wel.
+  const controleModel = v.premium ? MODEL : CONTROLE_MODEL;
+  const maxRondes = Number(process.env.MOTION_RONDES) || (v.premium ? MAX_RONDES + 1 : MAX_RONDES);
 
   async function vraag(model: string, berichten: Bericht[], soort: "usdOntwerp" | "usdControle") {
     const begin = Date.now();
@@ -423,15 +451,15 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
   // Niet doorpraten in het gesprek van het ontwerp: dan betaal je elke ronde opnieuw voor
   // alle eerdere versies en proefbeelden, en een ander model kan de denkblokken van het
   // eerste niet lezen. De opdracht staat vooraan en wordt gecachet voor de ronde erna.
-  for (let ronde = 1; ronde <= MAX_RONDES; ronde++) {
+  for (let ronde = 1; ronde <= maxRondes; ronde++) {
     opVoortgang?.(`controleronde ${ronde}`);
     const berichten: Bericht[] = [
       {
         role: "user",
-        content: [...voorbeelden, { type: "text", text: taak, cache_control: { type: "ephemeral" } }, ...terugkoppeling(p, code, ronde === MAX_RONDES)],
+        content: [...voorbeelden, { type: "text", text: taak, cache_control: { type: "ephemeral" } }, ...terugkoppeling(p, code, ronde === maxRondes)],
       },
     ];
-    let antwoord = await vraag(CONTROLE_MODEL, berichten, "usdControle");
+    let antwoord = await vraag(controleModel, berichten, "usdControle");
     gebruik.rondes = ronde + 1;
     let tekst = alleTekst(antwoord);
     let nieuw = codeUit(tekst);
@@ -452,7 +480,7 @@ export async function tekenAnimatie(v: AnimatieVraag, opVoortgang?: (tekst: stri
             ? `Deze blokken konden niet worden toegepast (de andere wel):\n${uit.mis.map((m) => `- ${m}`).join("\n")}\n\nGeef alleen deze blokken opnieuw, met onder ZOEK tekst die letterlijk en precies één keer in de code staat.`
             : `Er kwamen geen bruikbare blokken terug. ${WIJZIG_UITLEG}`,
         });
-        antwoord = await vraag(CONTROLE_MODEL, berichten, "usdControle");
+        antwoord = await vraag(controleModel, berichten, "usdControle");
         tekst = alleTekst(antwoord);
         ws = wijzigingenUit(tekst);
         // Wat nu nog niet past laten we zitten: de rest van de verbeteringen telt wel.

@@ -356,6 +356,11 @@ export default function CreatieDetail({
                   ⬇️ Downloaden
                 </a>
               )}
+              {(c.maker === "motion" || c.maker === "docu") && !!c.url && (
+                <a href={`/api/motion/srt?id=${c.id}`} download className="n-knop2 w-full">
+                  💬 Ondertitels downloaden (.srt)
+                </a>
+              )}
             </div>
           )}
 

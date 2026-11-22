@@ -46,10 +46,14 @@ export function isMotionLengte(v: unknown): v is MotionLengte {
   return MOTION_LENGTES.some((l) => l.sec === v);
 }
 
-/** Hugo spreekt in een rustige uitlegvideo zo'n 2,5 woorden per seconde. */
-export const WOORDEN_PER_SEC = 2.5;
+/**
+ * Gemeten op 21 klare video's (17-11-2026): de stemmen spreken met pauzes zo'n 2,1 woorden per
+ * seconde, en het begin plus de eindkaart kosten samen ±3 seconden. Met 2,5 en zonder die 3
+ * seconden werd een video van "±30 seconden" 36 tot 50 seconden.
+ */
+export const WOORDEN_PER_SEC = 2.1;
 export function maxWoorden(sec: number): number {
-  return Math.round(sec * WOORDEN_PER_SEC);
+  return Math.round(Math.max(sec - 3, sec * 0.5) * WOORDEN_PER_SEC);
 }
 
 export interface MotionScene {
@@ -218,7 +222,37 @@ export interface MotionInvoer {
   taal?: MotionTaal;
   /** De stem (id uit de stemmenbibliotheek). Afwezig = Hugo. */
   stem?: string;
+  /** Ondertitels in beeld; afwezig of "uit" = geen. */
+  ondertitels?: MotionOndertitels;
+  /** Een mail sturen als de video klaar is (of op de browser wacht terwijl de studio dicht is). */
+  mail?: boolean;
+  /** Een eigen nummer van de klant (adres op onze opslag); gaat vóór `muziek`. */
+  muziekUrl?: string;
+  /** Hoe hard de muziek onder de stem ligt. Afwezig = normaal. */
+  muziekVolume?: MuziekVolume;
 }
+
+// ── Muziek ───────────────────────────────────────────────────────────────────
+// Volume onder de stem. "normaal" is wat het altijd was (0,13): de stem blijft goed verstaanbaar.
+export const MUZIEK_VOLUMES = [
+  { id: "zacht", naam: "Zacht", waarde: 0.07 },
+  { id: "normaal", naam: "Normaal", waarde: 0.13 },
+  { id: "hard", naam: "Hard", waarde: 0.22 },
+] as const;
+export type MuziekVolume = (typeof MUZIEK_VOLUMES)[number]["id"];
+export const isMuziekVolume = (v: unknown): v is MuziekVolume => MUZIEK_VOLUMES.some((m) => m.id === v);
+export const muziekWaarde = (v: unknown): number => MUZIEK_VOLUMES.find((m) => m.id === v)?.waarde ?? 0.13;
+
+// ── Ondertitels ──────────────────────────────────────────────────────────────
+// Getekend op de woordtijden van de stem (Whisper), dus gratis: geen extra AI-werk.
+export const MOTION_ONDERTITELS = [
+  { id: "uit", naam: "Geen", uitleg: "Zonder ondertitels" },
+  { id: "woord", naam: "Woord voor woord", uitleg: "Groot, het gesproken woord licht op (TikTok)" },
+  { id: "balk", naam: "Balk", uitleg: "Witte tekst op een donkere balk onderin" },
+  { id: "klein", naam: "Klein", uitleg: "Rustig onderin, zoals bij een film" },
+] as const;
+export type MotionOndertitels = (typeof MOTION_ONDERTITELS)[number]["id"];
+export const isOndertitels = (v: unknown): v is MotionOndertitels => MOTION_ONDERTITELS.some((o) => o.id === v);
 
 // ── Soort video, taal ────────────────────────────────────────────────────────
 // De studio begon als bedrijfsvideo-maker (Sam, 12-11-2026: "te afgebakend op één doel").
@@ -241,7 +275,7 @@ export const MOTION_TALEN = [
   { id: "fr", naam: "Frans", locale: "fr-FR" },
   { id: "es", naam: "Spaans", locale: "es-ES" },
   { id: "it", naam: "Italiaans", locale: "it-IT" },
-  { id: "pt", naam: "Portugees", locale: "pt-PT" },
+  { id: "pt", naam: "Portugees (Braziliaans)", locale: "pt-BR" },
 ] as const;
 export type MotionTaal = (typeof MOTION_TALEN)[number]["id"];
 export const isMotionTaal = (v: unknown): v is MotionTaal => MOTION_TALEN.some((t) => t.id === v);
@@ -282,7 +316,8 @@ export const MOTION_MUZIEK = [
 // $4,53 (10 minuten 40, 18 hoofdstukken). De formule zit daar een kwart tot de helft boven:
 // speling voor voorbeelden van de klant en een hoofdstuk dat over moet.
 const INKOOP_VAST_USD = 0.15;
-const INKOOP_PER_SEC_USD = 0.01;
+// 18-11-2026: nakijken door Sonnet in 3 rondes kost ±$0,17 per hoofdstuk (±35 s) extra.
+const INKOOP_PER_SEC_USD = 0.014;
 
 /** Wat een video van deze lengte ons aan Claude kost (dollars), met speling. */
 export function motionInkoopUsd(lengte: number): number {
@@ -295,6 +330,14 @@ export function motionCredits(lengte: MotionLengte): number {
   return creditsVoorInkoop(motionInkoopUsd(lengte) + stem);
 }
 
+/**
+ * Dezelfde video in het andere formaat erbij (verbeterplan idee 06): dezelfde stem, alleen
+ * de animatie wordt opnieuw opgebouwd voor dat formaat. Ruim 60% van de gewone prijs.
+ */
+export function extraFormaatCredits(lengte: MotionLengte): number {
+  return Math.ceil(motionCredits(lengte) * 0.6);
+}
+
 export type MotionStap = "stem" | "wacht-animatie" | "animatie" | "wacht-video" | "video" | "browser" | "monteren" | "aanpassen";
 
 export const MOTION_STAP_LABEL: Record<MotionStap, string> = {
@@ -303,7 +346,7 @@ export const MOTION_STAP_LABEL: Record<MotionStap, string> = {
   animatie: "Stap 2 van 3: animatie tekenen en controleren…",
   "wacht-video": "Stap 3 van 3: video maken…",
   video: "Stap 3 van 3: video maken…",
-  browser: "Stap 3 van 3: video maken in je browser. Open de Motion graphics-studio en houd dat tabblad open.",
+  browser: "Stap 3 van 3: video maken in je browser. Open de studio en houd dat tabblad open tot hij klaar is.",
   monteren: "Stap 3 van 3: stem en muziek eronder…",
   aanpassen: "Je aanpassingen worden verwerkt…",
 };

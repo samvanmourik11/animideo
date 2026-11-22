@@ -393,6 +393,7 @@ function bouwHarnas() {
   const [vA, vB] = STIJL.veeg || [C.accent, C.accent2];
   K.wA = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(vA) }, wg);
   K.wB = el('rect', { x: -400, y: -300, width: W + H + 1300, height: H + 600, fill: F(vB) }, wg);
+  try { bouwOndertitels(); } catch (err) { meld(`Ondertitels: ${err && err.message}`); }
 }
 
 /** De achtergrond van een stijl: kleur, en wat erop ligt (raster, sterren, stralen, korrel). */
@@ -501,6 +502,53 @@ function tekenEind(tt) {
   const up = eo(P(tt, e.tKnop + .3, e.tKnop + .7)); op(e.url, up); e.url.setAttribute('transform', `translate(0,${(1 - up) * 20})`);
 }
 
+// ---------- ondertitels ----------
+// Op de woordtijden van de stem; drie stijlen (lib/motion/types.ts MOTION_ONDERTITELS).
+// Getekend boven de scenes en onder de veeg, en nooit gecontroleerd door controle(): ze
+// zitten in een eigen laag (#ot).
+const OT = window.ONDERTITELS || null;
+function bouwOndertitels() {
+  if (!OT) return;
+  const ws = (window.WORDS || []).filter(w => String(w.word || '').trim());
+  const max = OT === 'woord' ? (STAAND ? 16 : 20) : OT === 'balk' ? (STAAND ? 26 : 44) : (STAAND ? 30 : 52);
+  const maxW = OT === 'woord' ? 4 : 99;
+  const regels = []; let r = null;
+  ws.forEach((w, i) => {
+    const woord = String(w.word).trim(), vorige = ws[i - 1];
+    const lengte = r ? r.ws.reduce((n, x) => n + x.word.length + 1, 0) : 0;
+    const nieuw = !r || lengte + woord.length > max || r.ws.length >= maxW || (vorige && w.start - vorige.end > .45) || (vorige && /[.!?…]$/.test(String(vorige.word).trim()));
+    if (nieuw) { r = { ws: [] }; regels.push(r); }
+    r.ws.push({ word: woord, start: +w.start, end: +w.end });
+  });
+  const size = OT === 'woord' ? (STAAND ? 74 : 66) : OT === 'balk' ? (STAAND ? 44 : 40) : (STAAND ? 40 : 34);
+  const y = OT === 'woord' ? (STAAND ? H * .7 : H - 118) : OT === 'balk' ? H - (STAAND ? 360 : 96) : H - (STAAND ? 320 : 86);
+  const hl = isLichtK(MERK.kleur2 || '#000000') ? MERK.kleur2 : '#ffd23f';
+  const laag = $('ot'), ruimte = W - 2 * (STAAND ? 70 : 120);
+  K.ot = regels.map((rg, i) => {
+    const g = G(laag); g.style.display = 'none';
+    const at = { x: MX, y, 'text-anchor': 'middle', style: 'white-space:pre' + (OT === 'woord' && STIJL.ot ? `;font-family:${STIJL.ot};font-weight:400` : ''), 'font-size': size, 'font-weight': OT === 'klein' ? 600 : 800, fill: '#fff' };
+    if (OT === 'woord') Object.assign(at, { 'letter-spacing': 2, stroke: '#0b0f1a', 'stroke-width': size * .16, 'stroke-linejoin': 'round', 'paint-order': 'stroke' });
+    if (OT === 'klein') Object.assign(at, { stroke: 'rgba(0,0,0,.6)', 'stroke-width': 4, 'letter-spacing': .5, 'stroke-linejoin': 'round', 'paint-order': 'stroke' });
+    const bak = OT === 'balk' ? el('rect', { fill: '#0b0f1a', 'fill-opacity': .8, rx: 14 }, g) : null;
+    const t = el('text', at, g);
+    const spans = rg.ws.map((w, k) => el('tspan', {}, t, (k ? ' ' : '') + (OT === 'woord' ? w.word.toUpperCase() : w.word)));
+    let b = t.getComputedTextLength();
+    if (b > ruimte) { t.setAttribute('font-size', Math.floor(size * ruimte / b)); b = ruimte; }
+    if (bak) { const fs = +t.getAttribute('font-size'); bak.setAttribute('x', MX - b / 2 - 26); bak.setAttribute('width', b + 52); bak.setAttribute('y', y - fs * .95); bak.setAttribute('height', fs * 1.45); }
+    const volgende = regels[i + 1];
+    const van = rg.ws[0].start - .05, tot = Math.min(rg.ws[rg.ws.length - 1].end + .6, volgende ? volgende.ws[0].start - .05 : 1e9);
+    return { g, spans, ws: rg.ws, van, tot, hl };
+  });
+}
+function tekenOndertitels(tt) {
+  if (!K.ot) return;
+  K.ot.forEach(r => {
+    const aan = tt >= r.van && tt < r.tot;
+    r.g.style.display = aan ? '' : 'none';
+    if (aan && OT === 'woord') r.spans.forEach((s, k) => { const w = r.ws[k]; s.setAttribute('fill', tt >= w.start - .03 && (tt < w.end + .05 || k === r.ws.length - 1 || tt < r.ws[k + 1].start) ? r.hl : '#fff'); });
+  });
+}
+
 function render(t) {
   // Stop-motion: de tijd verspringt in stapjes, zodat het hele beeld in dat ritme beweegt.
   if (STIJL.fps) t = Math.floor(t * STIJL.fps + 1e-6) / STIJL.fps;
@@ -537,6 +585,7 @@ function render(t) {
   try {
     if (cur === 'eind') tekenEind(tt); else V.teken(tt, cur, E, SC);
   } catch (err) { meld(`Fout in teken() bij scene ${cur}, t=${tt.toFixed(1)} s: ${err && err.message}${waar(err)}`); }
+  tekenOndertitels(tt);
 }
 window.render = render;
 
@@ -577,3 +626,45 @@ window.start = function () {
   const plaatjes = [LOGO && LOGO.src, ...Object.values(FOTOS).map(f => f.src)].filter(Boolean).map(src => { const i = new Image(); i.src = src; return i.decode ? i.decode().catch(() => {}) : Promise.resolve(); });
   Promise.race([Promise.all([letters, ...plaatjes]), new Promise(r => setTimeout(r, 8000))]).then(begin);
 };
+
+/**
+ * Een zijkaartje met een kop en regels (icoon of land + tekst + vink of pil). Uit de
+ * premiumproef (17-11-2026): een kaart of hoofdbeeld links met zo'n kaartje rechts vult het
+ * beeld en vertelt meer dan losse labels. regels: [{ tekst, icoon: g => ..., land: 'PL',
+ * eind: 'vink' | 'tekst voor een pil' }]. In teken: `lk.zet(tt, [tijd per regel])`.
+ */
+function lijstKaart(parent, kop, regels, breedte = 420, o = {}) {
+  const rh = o.regelHoogte ?? 74, h = (kop ? 110 : 40) + regels.length * rh + 24;
+  const r = G(parent), k = kaart(r, breedte, h);
+  let y = -h / 2 + (kop ? 62 : 20);
+  if (kop) T(k, 0, y, kop, o.kopGrootte ?? 38);
+  y += kop ? 50 : 0;
+  const rijen = regels.map((rg, i) => {
+    const g = G(k), yy = y + i * rh + rh / 2;
+    const links = -breedte / 2 + 44;
+    if (rg.land && typeof land === 'function') land(G(g, { transform: `translate(${links + 14},${yy})` }), rg.land, 56, { hoogte: 46, kleur: rg.kleur || C.accent });
+    else if (rg.icoon) rg.icoon(G(g, { transform: `translate(${links + 14},${yy}) scale(.36)` }));
+    el('text', { x: links + 58, y: yy + 12, 'font-size': o.tekstGrootte ?? 34, 'font-weight': 700, fill: C.inkt }, g, rg.tekst);
+    if (rg.eind === 'vink') IC.vink(G(g, { transform: `translate(${breedte / 2 - 46},${yy}) scale(.3)` }));
+    else if (rg.eind) { const p = pil(g, rg.eind, { fill: rg.eindKleur || C.accent2, size: 24, h: 44, schaduw: false }); tf(p, breedte / 2 - 30 - p.breedte / 2, yy); }
+    return g;
+  });
+  r.hoogte = h;
+  r.zet = (tt, tijden) => rijen.forEach((g, i) => { const p = pop(tt, tijden[i] ?? 0); op(g, p); g.setAttribute('transform', `translate(${(1 - p) * 30},0)`); });
+  return r;
+}
+
+/**
+ * Een kaartje met één groot getal (met teller) en een label, optioneel een icoon erboven.
+ * In teken: `sk.zet(tt, start, eind)` laat het getal oplopen van 0 naar de waarde.
+ */
+function statKaart(parent, waarde, label, o = {}) {
+  const b = o.breedte ?? 340, h = o.hoogte ?? (o.icoon ? 300 : 220);
+  const r = G(parent), k = kaart(r, b, h);
+  let y = -h / 2 + 40;
+  if (o.icoon) { o.icoon(G(k, { transform: `translate(0,${y + 40}) scale(.6)` })); y += 96; }
+  const getal = el('text', { x: 0, y: y + 72, 'text-anchor': 'middle', 'font-size': o.grootte ?? 96, 'font-weight': 800, fill: o.kleur || C.accent }, k, '');
+  T(k, 0, h / 2 - 40, label, o.labelGrootte ?? 30, { fill: C.muted });
+  r.zet = (tt, a, z = a + 1.2) => { const v = waarde * eo(P(tt, a, z)); getal.textContent = (o.voor || '') + nl(Math.round(v)) + (o.na || ''); };
+  return r;
+}

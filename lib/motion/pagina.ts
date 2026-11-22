@@ -26,6 +26,8 @@ export interface PaginaInvoer {
   deel?: { voor: boolean; na: boolean; einde?: number };
   /** De tekenstijl (id uit lib/motion/stijlen.ts); leeg = de standaardstijl. */
   stijl?: string | null;
+  /** Ondertitels in beeld (stijl), of leeg voor geen. */
+  ondertitels?: "woord" | "balk" | "klein" | null;
   /** De code van de video: zet window.VIDEO. */
   code: string;
 }
@@ -35,6 +37,38 @@ let kernCache: string | null = null;
 export async function leesKern(): Promise<string> {
   if (kernCache && process.env.NODE_ENV === "production") return kernCache;
   return (kernCache = await readFile(path.join(process.cwd(), "public", "motion", "kern.js"), "utf8"));
+}
+
+let landenCache: { js: string; data: Record<string, { b: number[] }>; ruw: string } | null = null;
+async function leesLanden() {
+  if (landenCache && process.env.NODE_ENV === "production") return landenCache;
+  const dir = path.join(process.cwd(), "public", "motion");
+  const [js, ruw] = await Promise.all([readFile(path.join(dir, "landen.js"), "utf8"), readFile(path.join(dir, "landen-data.js"), "utf8")]);
+  const data = JSON.parse(ruw.slice(ruw.indexOf("{"), ruw.lastIndexOf("}") + 1));
+  return (landenCache = { js, data, ruw });
+}
+
+/**
+ * De kaartbouwstenen plus alleen de landen die deze code nodig heeft: alle landen samen zijn
+ * ±800 KB, te veel voor elke pagina. Een wereldkaart krijgt alles; anders de genoemde codes
+ * ('NL', "DE") plus de buren die binnen hun kader (ruim genomen) vallen.
+ */
+export async function landenVoor(code: string): Promise<string> {
+  if (!/\b(landkaart|land|wereldkaart)\s*\(/.test(code)) return "";
+  const l = await leesLanden();
+  if (/\bwereldkaart\s*\(/.test(code)) return `${l.ruw}\n${l.js}`;
+  const genoemd = [...new Set([...code.matchAll(/['"`]([A-Z]{2})['"`]/g)].map((m) => m[1]))].filter((c) => l.data[c]);
+  if (!genoemd.length) return l.js;
+  let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+  for (const c of genoemd) { const b = l.data[c].b; x0 = Math.min(x0, b[0]); y0 = Math.min(y0, b[1]); x1 = Math.max(x1, b[2]); y1 = Math.max(y1, b[3]); }
+  const m = Math.max(x1 - x0, y1 - y0) * 1.2 + 40;
+  const alle = JSON.parse(l.ruw.slice(l.ruw.indexOf("{"), l.ruw.lastIndexOf("}") + 1)) as Record<string, { b: number[] }>;
+  const keus: Record<string, unknown> = {};
+  for (const [c, v] of Object.entries(alle)) {
+    const b = v.b;
+    if (genoemd.includes(c) || !(b[2] < x0 - m || b[0] > x1 + m || b[3] < y0 - m || b[1] > y1 + m)) keus[c] = v;
+  }
+  return `var LANDEN_DATA = ${JSON.stringify(keus)};\n${l.js}`;
 }
 
 // Een "</script>" in de code of in een tekst van de klant zou het scriptblok voortijdig
@@ -88,6 +122,7 @@ ${o.browser
 <g id="scenes"></g>
 <g id="hud"></g>
 <rect id="vig" fill="url(#vignet)" pointer-events="none"/>
+<g id="ot"></g>
 <g id="wipe"></g>
 </svg>
 <script>
@@ -100,8 +135,9 @@ window.MERK = ${json(merk)};
 window.FOTOS = ${json(p.fotos ?? {})};
 window.DEEL = ${json(p.deel ?? {})};
 window.STIJL = ${json(stijl?.thema ?? null)};
+window.ONDERTITELS = ${json(p.ondertitels ?? null)};
 </script>
-<script>${veilig(kern)}</script>
+<script>${veilig(kern)}\n${veilig(await landenVoor(p.code))}</script>
 <script>
 // De code van de video draait onder de naam video.js, zodat een foutmelding het regelnummer
 // in díe code noemt en de kern de regel erbij kan zetten.

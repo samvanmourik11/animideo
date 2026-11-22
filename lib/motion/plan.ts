@@ -145,7 +145,7 @@ function systeem(v: PlanVraag, aantal: string, woorden: number): string {
 Regels:
 - "tekst": wat de stem zegt, LETTERLIJK overgenomen uit het script van de klant. Geen woord erbij, eraf of anders; ook geen zinnen omdraaien of samenvoegen. Alle gesproken tekst van de klant komt in de video, in dezelfde volgorde.
 - Staan er in het script ook aanwijzingen die niet worden uitgesproken (scenenummers, kopjes als "Voice-over" of "Beeld", regieaanwijzingen, tijdcodes), dan horen die niet in "tekst". Beeldaanwijzingen van de klant gebruik je wel: die vormen de basis van "beeld" voor die scene.
-- Verdeel in scenes op de plekken waar een nieuwe gedachte begint: ongeveer één scene per 8 tot 12 seconden spreektijd (20 tot 30 woorden), één gedachte per scene. Een lang script krijgt dus veel scenes; sla niets over.
+- Verdeel in scenes op de plekken waar een nieuwe gedachte begint: ongeveer één scene per 8 tot 12 seconden spreektijd (15 tot 25 woorden), één gedachte per scene. Een lang script krijgt dus veel scenes; sla niets over.
 - De laatste één of twee zinnen van het script (de afsluiting of oproep) worden de eindkaart: zet die in eind.tekst, niet in een scene.
 - ${beeld}
 ${slot}`;
@@ -186,7 +186,7 @@ Vertel het als een verteller, niet als een opsomming: concrete beelden, jaartall
 ${opbouw[soort]}
 ${slotkaart}
 ${v.lengte > 60 ? `
-Dit is een lange video (${duurTekst(v.lengte)}). Houd de kijker vast: deel stap 2 en 3 op in herkenbare onderdelen die elk een eigen vraag beantwoorden, kondig in de tweede scene kort aan wat er komt, wissel uitleg af met een voorbeeld of een rekensom, en vat vlak voor de eindkaart in één scene samen. Scenes van één onderdeel krijgen dezelfde "kop". Elke scene blijft kort: 20 tot 30 woorden.
+Dit is een lange video (${duurTekst(v.lengte)}). Houd de kijker vast: deel stap 2 en 3 op in herkenbare onderdelen die elk een eigen vraag beantwoorden, kondig in de tweede scene kort aan wat er komt, wissel uitleg af met een voorbeeld of een rekensom, en vat vlak voor de eindkaart in één scene samen. Scenes van één onderdeel krijgen dezelfde "kop". Elke scene blijft kort: 15 tot 25 woorden.
 ` : ""}
 Regels:
 - ${aantal} scenes, plus de eindkaart. Samen ${Math.round(woorden * 0.85)} tot ${woorden} woorden gesproken tekst (dat is ${duurTekst(v.lengte)}); de klant betaalt voor die lengte, dus blijf er niet ruim onder.
@@ -237,6 +237,30 @@ export async function schrijfPlan(v: PlanVraag): Promise<PlanUitkomst> {
   } catch {
     throw new Error("Het script kwam niet goed terug. Probeer het opnieuw.");
   }
-  const plan = controleerPlan(ruw, v.lengte);
+  let plan = controleerPlan(ruw, v.lengte);
+  // Te lang geschreven (meer dan 10% boven de lengte): één keer laten inkorten. Een eigen
+  // script van de klant blijft zoals het is.
+  if (!v.eigenScript && telWoorden(plan) > woorden * 1.1) {
+    try {
+      const kort = await claude()
+        .beta.messages.stream({
+          model: MODEL,
+          max_tokens: v.lengte > 60 ? 48000 : 16000,
+          output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
+          betas: ["server-side-fallback-2026-07-01"],
+          fallbacks: "default",
+          system: systeem(v, aantal, woorden),
+          messages: [
+            { role: "user", content: `Kort dit script in tot hooguit ${woorden} woorden gesproken tekst (scenes plus slotzin samen); nu zijn het er ${telWoorden(plan)}, en dan wordt de video langer dan ${duurTekst(v.lengte)}. Houd de opbouw, de haak, de feiten en de beelden; schrap herhaling en bijzinnen. Geef het hele script terug.\n\n${JSON.stringify(plan)}` },
+          ],
+        })
+        .finalMessage();
+      const t = kort.content.find((b): b is Anthropic.Beta.BetaTextBlock => b.type === "text")?.text ?? "";
+      const korter = controleerPlan(JSON.parse(t), v.lengte);
+      if (telWoorden(korter) < telWoorden(plan)) plan = korter;
+    } catch {
+      // Inkorten mislukt: dan het eerste script, dat binnen de grens van controleerPlan valt.
+    }
+  }
   return { plan, afwijkend: v.eigenScript ? afwijkingen(plan, v.onderwerp) : [] };
 }

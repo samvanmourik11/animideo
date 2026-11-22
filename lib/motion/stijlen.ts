@@ -10,6 +10,8 @@
 // tekenmachine nodig en zitten er niet in.
 
 export interface StijlThema {
+  /** Lettertype voor de grote woord-voor-woord-ondertitels, als het gewone te dun of te smal is. */
+  ot?: string;
   /** Kleuren die de vaste namen (C.inkt, C.wit, C.rood, ...) in deze stijl krijgen. */
   C: Record<string, string>;
   /** Vaste accentkleuren in plaats van de merkkleuren (de merkkleur past niet in elke stijl). */
@@ -33,6 +35,9 @@ export interface StijlThema {
   eind?: [string, string];
   /** Alle tekst in dit gewicht, wat de code ook vraagt. */
   gewicht?: number;
+  /** Docu-sjablonen (public/motion/docu.js): lettertype en gewicht van de koppen. */
+  docuKop?: string;
+  docuKopGewicht?: number;
 }
 
 export interface MotionStijl {
@@ -55,7 +60,7 @@ const wiebel = (id: string, freq: number, schaal: number) =>
 
 export const MOTION_STIJLEN: MotionStijl[] = [
   {
-    // De stijl van onze eigen KRONIK-documentaires (13-11-2026), de standaard van de
+    // De stijl van de documentaires (13-11-2026), de standaard van de
     // docu-studio: inktzwart, papierwit, één rood, filmkorrel.
     id: "archief",
     naam: "Archief",
@@ -66,6 +71,7 @@ export const MOTION_STIJLEN: MotionStijl[] = [
       C: { inkt: "#f3efe6", wit: "#18181a", rood: "#e3342f", geel: "#e8c35a", groen: "#7fa88a", blauw: "#8ea4bf", oranje: "#d9823b", paars: "#9b8fb8", grijs: "#2b2b2e", licht: "#1f1f22", muted: "#8f8a80" },
       accent: ["#e3342f", "#f3efe6"],
       donker: "#0f0f10",
+      ot: "'Archivo Black', sans-serif",
       vlak: true,
       bg: { kleuren: ["#151517", "#0f0f10", "#08080a"], extra: "film", stip: "none", vignet: "#000000" },
       defs: GEEN_SCHADUW,
@@ -501,4 +507,57 @@ export const MOTION_STIJLEN: MotionStijl[] = [
   },
 ];
 
-export const stijlVan = (id?: string | null): MotionStijl | null => MOTION_STIJLEN.find((s) => s.id === id) ?? null;
+/**
+ * Docu-stijlen (verbeterplan idee 12, 17-11-2026): alleen voor de docu-studio, naast
+ * "archief". Ze gebruiken dezelfde sjablonen (public/motion/docu.js); alleen kleur en letter
+ * verschillen. Archieffoto's houden altijd hun donkere verloop met lichte tekst.
+ */
+export const DOCU_EXTRA_STIJLEN: MotionStijl[] = [
+  {
+    id: "krant",
+    naam: "Krant",
+    uitleg: "Krantenpapier, zwarte inkt en een deftige letter. Voor geschiedenis en politiek.",
+    fonts: ["Playfair+Display:wght@700;900", "IBM+Plex+Mono:wght@400;500;600;700"],
+    font: "IBM Plex Mono",
+    thema: {
+      C: { inkt: "#1a1714", wit: "#fbf7ef", rood: "#b3261e", geel: "#b8862b", groen: "#4f7a5a", blauw: "#3e5c7a", oranje: "#b8621f", paars: "#6b5a86", grijs: "#d9d0c0", licht: "#ece4d4", muted: "#6f675c" },
+      accent: ["#b3261e", "#1a1714"],
+      donker: "#1a1714",
+      ot: "'Playfair Display', serif",
+      vlak: true,
+      bg: { kleuren: ["#f6f1e7", "#efe8da", "#e6dccb"], extra: "korrel", stip: "none", vignet: "#8a7a5c" },
+      defs: GEEN_SCHADUW,
+      pil: { fill: "#b3261e", kleur: "#fbf7ef", rx: 0.06, glans: false },
+      kaart: { fill: "#fbf7ef", rand: "#1a1714", randDik: 2, rx: 2 },
+      veeg: ["#1a1714", "#b3261e"],
+      eind: ["#f6f1e7", "#e6dccb"],
+      docuKop: "'Playfair Display', serif",
+      docuKopGewicht: 900,
+    },
+    regels: "Een documentaire als een oude krant: zwarte inkt op crème papier, één rode kleur.",
+  },
+  {
+    // Niet "nacht": die naam heeft al een motion-stijl.
+    id: "truecrime",
+    naam: "True crime",
+    uitleg: "Diep nachtblauw met koud licht. Voor true crime en mysteries.",
+    fonts: ["Archivo+Black", "IBM+Plex+Mono:wght@400;500;600;700"],
+    font: "IBM Plex Mono",
+    thema: {
+      C: { inkt: "#e6edf5", wit: "#0d141d", rood: "#ff4a4a", geel: "#e8c35a", groen: "#6fbf9a", blauw: "#5ab8ff", oranje: "#e08a3c", paars: "#9a8cff", grijs: "#1f2b3a", licht: "#121b26", muted: "#7f90a5" },
+      accent: ["#5ab8ff", "#e6edf5"],
+      donker: "#05080d",
+      ot: "'Archivo Black', sans-serif",
+      vlak: true,
+      bg: { kleuren: ["#0c131c", "#080d14", "#03060a"], extra: "film", stip: "none", vignet: "#000000" },
+      defs: GEEN_SCHADUW,
+      pil: { fill: "#5ab8ff", kleur: "#05080d", rx: 0.08, glans: false },
+      kaart: { fill: "#0d141d", rand: "#24364c", randDik: 2, rx: 4 },
+      veeg: ["#03060a", "#5ab8ff"],
+      eind: ["#0c131c", "#03060a"],
+    },
+    regels: "Een documentaire bij nacht: nachtblauw, koud blauw licht, rood alleen voor gevaar.",
+  },
+];
+
+export const stijlVan = (id?: string | null): MotionStijl | null => [...MOTION_STIJLEN, ...DOCU_EXTRA_STIJLEN].find((s) => s.id === id) ?? null;

@@ -4,15 +4,19 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { Creatie } from "@/lib/creaties/types";
 import CreatieKaart from "@/components/creaties/CreatieKaart";
+import VideoAanpassen from "@/components/motion/VideoAanpassen";
+import DocuTijdlijn from "@/components/docu/DocuTijdlijn";
+import { MuziekKiezer } from "@/components/motion/MuziekKiezer";
+import { DOCU_STIJLEN, type DocuStijl, type KanaalProfiel } from "@/lib/docu/kanalen";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { startMaker, useCreaties, zetFavoriet } from "@/components/creaties/gebruik-creaties";
 import { BrowserMelding, useBrowserVideo } from "@/components/motion/BrowserVideo";
-import { MOTION_STEM_HUGO, MOTION_TALEN, duurTekst, isMotionTaal, maxWoorden, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
+import { MOTION_ONDERTITELS, MOTION_STEM_HUGO, MOTION_TALEN, duurTekst, isMotionTaal, isOndertitels, maxWoorden, type MotionOndertitels, type MuziekVolume, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
 import type { BibliotheekStem } from "@/lib/stem/types";
+import { taalStemmen } from "@/lib/stem/taalstemmen";
 import {
   DOCU_LENGTES,
   DOCU_MUZIEK,
-  DOCU_VERTELLERS,
   docuCredits,
   fotoCredit,
   isDocuLengte,
@@ -47,10 +51,23 @@ export default function DocuStudio() {
   const [wens, setWens] = useState("");
   const [lengte, setLengte] = useState<DocuLengte>(600);
   const [taal, setTaal] = useState<MotionTaal>("nl");
+  const [ondertitels, setOndertitels] = useState<MotionOndertitels>("uit");
+  const [mail, setMail] = useState(true);
+  const [aanpassen, setAanpassen] = useState<Creatie | null>(null);
+  const [tijdlijn, setTijdlijn] = useState<Creatie | null>(null);
   const [stem, setStem] = useState<string>(MOTION_STEM_HUGO);
   const [stemmen, setStemmen] = useState<BibliotheekStem[]>([]);
   const [muziek, setMuziek] = useState<string>(DOCU_MUZIEK[0].slug);
+  const [muziekVolume, setMuziekVolume] = useState<MuziekVolume>("normaal");
+  const [muziekUrl, setMuziekUrl] = useState("");
   const [short, setShort] = useState(true);
+  // Short-fabriek: één of drie Shorts (alleen als `short` aan staat).
+  const [shorts, setShorts] = useState<1 | 3>(1);
+  const aantalShorts = short ? shorts : 0;
+  const [stijl, setStijl] = useState<DocuStijl>("archief");
+  const [kanalen, setKanalen] = useState<KanaalProfiel[]>([]);
+  const [kanaalId, setKanaalId] = useState("");
+  const [nieuweAflevering, setNieuweAflevering] = useState("");
   const [plan, setPlan] = useState<MotionPlan | null>(null);
   const [feiten, setFeiten] = useState<DocuFeit[]>([]);
   const [controle, setControle] = useState<DocuControle | null>(null);
@@ -61,14 +78,56 @@ export default function DocuStudio() {
   const [open, setOpen] = useState<Creatie | null>(null);
   const [pakket, setPakket] = useState<Creatie | null>(null);
   const [geladen, setGeladen] = useState(false);
+  useEffect(() => {
+    fetch("/api/docu/kanalen").then((r) => (r.ok ? r.json() : { kanalen: [] })).then((d) => setKanalen(d.kanalen ?? [])).catch(() => {});
+  }, []);
+  const gekozenKanaal = kanalen.find((k) => k.id === kanaalId) ?? null;
+
+  async function bewaarKanalen(lijst: KanaalProfiel[]) {
+    const res = await fetch("/api/docu/kanalen", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kanalen: lijst }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error ?? "Bewaren mislukt");
+    setKanalen(d.kanalen);
+    return d.kanalen as KanaalProfiel[];
+  }
+  /** Een kanaal kiezen: alle vaste keuzes van dat kanaal in één keer. */
+  function kiesKanaal(id: string) {
+    setKanaalId(id);
+    const k = kanalen.find((x) => x.id === id);
+    if (!k) return;
+    setKanaal(k.naam);
+    setKleur(k.kleur);
+    // Staat er al een script, dan blijft de taal daarvan: anders klopt het script niet meer.
+    if (!plan) setTaal(k.taal);
+    if (k.stem) setStem(k.stem);
+    if (k.muziek !== undefined) setMuziek(k.muziek);
+    setMuziekVolume(k.muziekVolume);
+    setStijl(k.stijl);
+    setOndertitels(k.ondertitels);
+    setShort(k.short);
+  }
+  /** De huidige keuzes als kanaal bewaren (nieuw, of het gekozen kanaal bijwerken). */
+  async function bewaarAlsKanaal() {
+    if (!kanaal.trim()) return setFout("Vul eerst de naam van je kanaal in.");
+    const basis = { naam: kanaal.trim(), kleur, taal, stem, muziek, muziekVolume, stijl, ondertitels, short };
+    const lijst = gekozenKanaal
+      ? kanalen.map((k) => (k.id === gekozenKanaal.id ? { ...k, ...basis } : k))
+      : [...kanalen, { id: Math.random().toString(36).slice(2, 10), ...basis, reeks: [] }];
+    const nieuw = await bewaarKanalen(lijst).catch((e) => { setFout(e instanceof Error ? e.message : String(e)); return null; });
+    if (nieuw && !gekozenKanaal) setKanaalId(nieuw[nieuw.length - 1].id);
+  }
+  async function wijzigReeks(reeks: KanaalProfiel["reeks"]) {
+    if (!gekozenKanaal) return;
+    await bewaarKanalen(kanalen.map((k) => (k.id === gekozenKanaal.id ? { ...k, reeks } : k))).catch((e) => setFout(e instanceof Error ? e.message : String(e)));
+  }
 
   const lijst = useCreaties({ maker: "docu" });
   // De Shorts bij de docu's zijn motion-rijen; ook die worden in deze browser gemaakt.
-  const shorts = useCreaties({ maker: "motion" });
+  const shortLijst = useCreaties({ maker: "motion" });
   const docuIds = new Set(lijst.creaties.map((c) => c.id));
   const browserStand = useBrowserVideo(
-    [...lijst.creaties, ...shorts.creaties.filter((c) => c.ouder_id && docuIds.has(c.ouder_id))],
-    () => { lijst.ververs(); shorts.ververs(); },
+    [...lijst.creaties, ...shortLijst.creaties.filter((c) => c.ouder_id && docuIds.has(c.ouder_id))],
+    () => { lijst.ververs(); shortLijst.ververs(); },
   );
 
   useEffect(() => {
@@ -82,9 +141,13 @@ export default function DocuStudio() {
         if (typeof b.wens === "string") setWens(b.wens);
         if (isDocuLengte(b.lengte)) setLengte(b.lengte);
         if (isMotionTaal(b.taal)) setTaal(b.taal);
+        if (isOndertitels(b.ondertitels) && b.ondertitels !== "woord") setOndertitels(b.ondertitels);
+        if (typeof b.mail === "boolean") setMail(b.mail);
+        if (b.stijl === "archief" || b.stijl === "krant" || b.stijl === "truecrime") setStijl(b.stijl);
         if (typeof b.stem === "string") setStem(b.stem);
         if (typeof b.muziek === "string") setMuziek(b.muziek);
         if (typeof b.short === "boolean") setShort(b.short);
+        if (b.shorts === 1 || b.shorts === 3) setShorts(b.shorts);
         if (b.plan) setPlan(b.plan);
         if (Array.isArray(b.feiten)) setFeiten(b.feiten);
         if (b.controle) setControle(b.controle);
@@ -97,23 +160,27 @@ export default function DocuStudio() {
   useEffect(() => {
     if (!geladen) return;
     try {
-      localStorage.setItem(BEWAAR, JSON.stringify({ kanaal, kleur, onderwerp, wens, lengte, taal, stem, muziek, short, plan, feiten, controle, fotoZoek, fotos }));
+      localStorage.setItem(BEWAAR, JSON.stringify({ kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, mail, muziek, stijl, short, shorts, plan, feiten, controle, fotoZoek, fotos }));
     } catch {}
-  }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, muziek, short, plan, feiten, controle, fotoZoek, fotos]);
+  }, [geladen, kanaal, kleur, onderwerp, wens, lengte, taal, stem, ondertitels, mail, muziek, stijl, short, shorts, plan, feiten, controle, fotoZoek, fotos]);
 
-  // Per taal onze eigen KRONIK-verteller vooraan (Nederlands: Hugo), daarna de stemmen uit de
-  // bibliotheek die die taal kunnen.
-  const verteller = DOCU_VERTELLERS[taal];
-  const kunnen = stemmen.filter((s) => taal === "nl" || s.talen.includes(taal));
-  const stemKeuzes: { id: string; naam: string }[] = [
-    ...(verteller ? [{ id: verteller.id, naam: `${verteller.naam} · verteller (KRONIK)` }] : []),
-    ...[...kunnen.filter((s) => s.id === MOTION_STEM_HUGO), ...kunnen.filter((s) => s.id !== MOTION_STEM_HUGO)].map((s) => ({ id: s.id, naam: s.id === MOTION_STEM_HUGO ? "Hugo · verteller" : `${s.naam} · ${s.geslacht}` })),
-  ];
+  // Nederlands: Hugo vooraan, dan de bibliotheek. Andere talen: alleen moedertaalstemmen, met
+  // een vaste documentaireverteller vooraan (lib/stem/taalstemmen.ts).
+  const stemKeuzes: { id: string; naam: string; voorbeeld?: string }[] =
+    taal === "nl"
+      ? [
+          { id: MOTION_STEM_HUGO, naam: "Hugo · verteller", voorbeeld: stemmen.find((s) => s.id === MOTION_STEM_HUGO)?.voorbeeld },
+          ...stemmen.filter((s) => s.id !== MOTION_STEM_HUGO).map((s) => ({ id: s.id, naam: `${s.naam} · ${s.geslacht}`, voorbeeld: s.voorbeeld })),
+        ]
+      : taalStemmen(taal).map((s) => ({ id: s.id, naam: `${s.naam} · ${s.typering}`, voorbeeld: s.voorbeeld }));
+  const voorbeeldStem = stemKeuzes.find((s) => s.id === stem)?.voorbeeld;
+  function luister() {
+    if (voorbeeldStem) void new Audio(voorbeeldStem).play().catch(() => {});
+  }
 
   function kiesTaal(t: MotionTaal) {
     setTaal(t);
-    const kan = stemmen.filter((s) => t === "nl" || s.talen.includes(t));
-    setStem(DOCU_VERTELLERS[t]?.id ?? (kan.find((s) => s.id === MOTION_STEM_HUGO) ?? kan[0])?.id ?? MOTION_STEM_HUGO);
+    setStem(t === "nl" ? MOTION_STEM_HUGO : taalStemmen(t)[0]?.id ?? MOTION_STEM_HUGO);
   }
 
   async function doe(wat: Exclude<Bezig, null>, actie: () => Promise<void>) {
@@ -159,7 +226,9 @@ export default function DocuStudio() {
 
   function maak() {
     return doe("maken", async () => {
-      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, muziek, short, plan, feiten, controle, fotos: fotos ?? [] });
+      const c = await startMaker("docu", { onderwerp, kanaal, kleur, kleur2: "#f3efe6", lengte, taal, stem, ondertitels, mail, muziek, muziekVolume, muziekUrl, stijl, short, shorts, plan, feiten, controle, fotos: fotos ?? [] });
+      // Een geplande aflevering van dit kanaal is hiermee gemaakt.
+      if (gekozenKanaal?.reeks.some((a) => !a.gemaakt && a.onderwerp === onderwerp.trim())) void wijzigReeks(gekozenKanaal.reeks.map((a) => (a.onderwerp === onderwerp.trim() ? { ...a, gemaakt: true } : a)));
       lijst.zetVoor(c);
     });
   }
@@ -171,7 +240,7 @@ export default function DocuStudio() {
   const woorden = plan ? [...plan.scenes.map((s) => s.tekst), plan.eind.tekst].join(" ").split(/\s+/).filter(Boolean).length : 0;
   const max = Math.round(maxWoorden(lengte) * 1.25);
   const teLang = woorden > max;
-  const credits = docuCredits(lengte, short);
+  const credits = docuCredits(lengte, aantalShorts);
 
   return (
     <div className="space-y-8">
@@ -187,6 +256,47 @@ export default function DocuStudio() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] gap-6 items-start">
         <div className="space-y-4">
+          {/* Kanaal: vaste keuzes en de geplande afleveringen */}
+          <div className="n-kaart space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-tekst shrink-0">📺 Kanaal</span>
+              <select value={kanaalId} onChange={(e) => kiesKanaal(e.target.value)} className="n-invoer !py-1.5 min-w-0">
+                <option value="">{kanalen.length ? "Kies een kanaal…" : "Nog geen kanaal bewaard"}</option>
+                {kanalen.map((k) => (
+                  <option key={k.id} value={k.id}>{k.naam}</option>
+                ))}
+              </select>
+              <button onClick={() => void bewaarAlsKanaal()} className="n-knop2 !py-1.5 !px-3 text-xs whitespace-nowrap">{gekozenKanaal ? "💾 Bijwerken" : "💾 Bewaar als kanaal"}</button>
+            </div>
+            <p className="text-[11px] text-tekst-3">Een kanaal onthoudt naam, kleur, taal, verteller, muziek, stijl en ondertitels. Plan er je volgende afleveringen bij.</p>
+            {gekozenKanaal && (
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-tekst-3">Geplande afleveringen</div>
+                {gekozenKanaal.reeks.map((a, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    <button onClick={() => setOnderwerp(a.onderwerp)} title="Als onderwerp gebruiken" className={`flex-1 text-left truncate hover:text-blue-500 ${a.gemaakt ? "line-through text-tekst-3" : "text-tekst"}`}>
+                      {a.gemaakt ? "✓" : "○"} {a.onderwerp}
+                    </button>
+                    <button onClick={() => void wijzigReeks(gekozenKanaal.reeks.map((x, j) => (j === i ? { ...x, gemaakt: !x.gemaakt } : x)))} className="text-[11px] text-tekst-3 hover:text-tekst">{a.gemaakt ? "Open" : "Klaar"}</button>
+                    <button onClick={() => void wijzigReeks(gekozenKanaal.reeks.filter((_, j) => j !== i))} className="text-[11px] text-tekst-3 hover:text-red-500">✕</button>
+                  </div>
+                ))}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!nieuweAflevering.trim()) return;
+                    void wijzigReeks([...gekozenKanaal.reeks, { onderwerp: nieuweAflevering.trim() }]);
+                    setNieuweAflevering("");
+                  }}
+                  className="flex gap-2"
+                >
+                  <input value={nieuweAflevering} onChange={(e) => setNieuweAflevering(e.target.value)} maxLength={300} placeholder="Volgende aflevering, bijv. De val van Blokker" className="n-invoer !py-1.5 text-sm" />
+                  <button className="n-knop2 !py-1.5 !px-3 text-xs">＋</button>
+                </form>
+              </div>
+            )}
+          </div>
+
           {/* Stap 1 — onderwerp en vorm */}
           <div className="n-kaart space-y-4">
             <div>
@@ -219,7 +329,23 @@ export default function DocuStudio() {
                   >
                     <div className="text-sm font-semibold text-tekst">{l.naam}</div>
                     <div className="text-[11px] text-tekst-3 leading-snug">{l.uitleg}</div>
-                    <div className="text-[11px] text-tekst-2 mt-1">{docuCredits(l.sec, short)} credits</div>
+                    <div className="text-[11px] text-tekst-2 mt-1">{docuCredits(l.sec, aantalShorts)} credits</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="n-label">Stijl</label>
+              <div className="mt-1.5 grid grid-cols-3 gap-2">
+                {DOCU_STIJLEN.map((st) => (
+                  <button key={st.id} onClick={() => setStijl(st.id)} className={`rounded-xl border p-2 text-left ${stijl === st.id ? "border-blue-500 bg-blue-500/10" : "border-rand hover:border-blue-500/40"}`}>
+                    <div className="h-10 rounded-md flex items-center justify-center gap-1.5" style={{ background: st.kleuren[0] }}>
+                      <span className="text-sm font-black" style={{ color: st.kleuren[1], fontFamily: st.id === "krant" ? "Georgia, serif" : undefined }}>1987</span>
+                      <span className="h-1.5 w-5 rounded-full" style={{ background: st.kleuren[2] }} />
+                    </div>
+                    <div className="text-sm font-semibold text-tekst mt-1.5">{st.naam}</div>
+                    <div className="text-[11px] text-tekst-3 leading-snug">{st.uitleg}</div>
                   </button>
                 ))}
               </div>
@@ -236,18 +362,21 @@ export default function DocuStudio() {
               </div>
               <div>
                 <label className="n-label">Verteller</label>
-                <select value={stem} onChange={(e) => setStem(e.target.value)} className="n-invoer mt-1.5">
-                  {stemKeuzes.map((s) => (
-                    <option key={s.id} value={s.id}>{s.naam}</option>
-                  ))}
-                </select>
+                <div className="mt-1.5 flex gap-2">
+                  <select value={stem} onChange={(e) => setStem(e.target.value)} className="n-invoer min-w-0">
+                    {stemKeuzes.map((s) => (
+                      <option key={s.id} value={s.id}>{s.naam}</option>
+                    ))}
+                  </select>
+                  <button onClick={luister} disabled={!voorbeeldStem} title="Luister naar deze verteller" className="n-knop2 !px-3 disabled:opacity-50">▶</button>
+                </div>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="n-label">Kanaalnaam <span className="font-normal text-tekst-3">(mag leeg)</span></label>
-                <input value={kanaal} onChange={(e) => setKanaal(e.target.value)} maxLength={40} placeholder="KRONIK" className="n-invoer mt-1.5" />
+                <input value={kanaal} onChange={(e) => setKanaal(e.target.value)} maxLength={40} placeholder="Naam van je kanaal" className="n-invoer mt-1.5" />
               </div>
               <div>
                 <label className="n-label">Accentkleur</label>
@@ -255,20 +384,36 @@ export default function DocuStudio() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="n-label">Muziek</label>
-                <select value={muziek} onChange={(e) => setMuziek(e.target.value)} className="n-invoer mt-1.5">
-                  {DOCU_MUZIEK.map((m) => (
-                    <option key={m.slug} value={m.slug}>{m.naam}</option>
-                  ))}
-                </select>
+            <MuziekKiezer muziek={muziek} setMuziek={setMuziek} volume={muziekVolume} setVolume={setMuziekVolume} eigen={muziekUrl} setEigen={setMuziekUrl} aanbevolen={DOCU_MUZIEK} />
+            <div>
+              <label className="n-label">Shorts erbij</label>
+              <div className="mt-1.5 grid grid-cols-3 gap-2">
+                {([0, 1, 3] as const).map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => { setShort(n > 0); if (n) setShorts(n); }}
+                    className={`rounded-xl border px-3 py-2 text-left ${aantalShorts === n ? "border-blue-500 bg-blue-500/10" : "border-rand hover:border-blue-500/40"}`}
+                  >
+                    <div className="text-sm font-semibold text-tekst">{n === 0 ? "Geen" : n === 1 ? "1 Short" : "3 Shorts"}</div>
+                    <div className="text-[11px] text-tekst-3">{n === 0 ? "Alleen de docu" : n === 1 ? "Het sterkste moment" : "Haak, keerpunt en 'wist je dat'"}</div>
+                    <div className="text-[11px] text-tekst-2 mt-0.5">{n === 0 ? "" : `+ ${docuCredits(lengte, n) - docuCredits(lengte, 0)} credits`}</div>
+                  </button>
+                ))}
               </div>
-              <label className="flex items-end gap-2 pb-2 text-sm text-tekst">
-                <input type="checkbox" checked={short} onChange={(e) => setShort(e.target.checked)} />
-                Maak er ook een Short bij
-              </label>
             </div>
+            <div>
+              <label className="n-label">Ondertitels <span className="font-normal text-tekst-3">(gratis)</span></label>
+              <select value={ondertitels} onChange={(e) => setOndertitels(e.target.value as MotionOndertitels)} className="n-invoer mt-1.5">
+                {MOTION_ONDERTITELS.filter((o) => o.id !== "woord").map((o) => (
+                  <option key={o.id} value={o.id}>{o.naam} · {o.uitleg}</option>
+                ))}
+              </select>
+              {ondertitels !== "uit" && short && <p className="text-[11px] text-tekst-3 mt-1">De Short krijgt grote woord-voor-woord-ondertitels.</p>}
+            </div>
+            <label className="flex items-center gap-2 text-sm text-tekst">
+              <input type="checkbox" checked={mail} onChange={(e) => setMail(e.target.checked)} />
+              Mail me als de docu klaar is
+            </label>
 
             {!plan && (
               <>
@@ -382,7 +527,7 @@ export default function DocuStudio() {
               </button>
               <p className="text-[11px] text-tekst-3">
                 Dit duurt {lengte >= 600 ? "ongeveer een uur" : lengte >= 300 ? "een half uur tot drie kwartier" : "een minuut of 20"}: elk hoofdstuk wordt speciaal getekend en nagekeken. Daarna
-                komen de thumbnail, de beschrijving{short ? " en de Short" : ""} erbij. Je kunt deze pagina sluiten; mislukt het, dan krijg je je credits terug.
+                komen de thumbnail, de beschrijving{aantalShorts === 1 ? " en de Short" : aantalShorts === 3 ? " en de drie Shorts" : ""} erbij. Je kunt deze pagina sluiten; mislukt het, dan krijg je je credits terug.
               </p>
             </div>
           )}
@@ -410,9 +555,12 @@ export default function DocuStudio() {
             <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 items-start">
               {lijst.creaties.map((c) => (
                 <div key={c.id} className="space-y-1.5">
-                  <CreatieKaart creatie={c} onOpen={() => setOpen(c)} onFavoriet={async () => lijst.werkBij(await zetFavoriet(c))} />
+                  <CreatieKaart creatie={c} onOpen={() => setOpen(c)} onFavoriet={async () => lijst.werkBij(await zetFavoriet(c))} onAanpassen={() => setAanpassen(c)} />
                   {c.status === "klaar" && (
-                    <button onClick={() => setPakket(c)} className="n-knop2 w-full !py-1.5 text-xs">📦 YouTube-pakket</button>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button onClick={() => setPakket(c)} className="n-knop2 w-full !py-1.5 text-xs">📦 YouTube-pakket</button>
+                      <button onClick={() => setTijdlijn(c)} className="n-knop2 w-full !py-1.5 text-xs">🎞 Tijdlijn</button>
+                    </div>
                   )}
                 </div>
               ))}
@@ -420,6 +568,17 @@ export default function DocuStudio() {
           )}
         </div>
       </div>
+
+      {aanpassen && (
+        <VideoAanpassen
+          creatie={aanpassen}
+          onSluit={() => setAanpassen(null)}
+          onGestart={(c) => {
+            setAanpassen(null);
+            lijst.zetVoor(c);
+          }}
+        />
+      )}
 
       {open && (
         <CreatieDetail
@@ -431,6 +590,16 @@ export default function DocuStudio() {
         />
       )}
       {pakket && <Pakket creatie={pakket} onSluit={() => setPakket(null)} />}
+      {tijdlijn && (
+        <DocuTijdlijn
+          creatie={tijdlijn}
+          onSluit={() => setTijdlijn(null)}
+          onGestart={(c) => {
+            setTijdlijn(null);
+            lijst.zetVoor(c);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -439,6 +608,11 @@ export default function DocuStudio() {
 function Pakket({ creatie, onSluit }: { creatie: Creatie; onSluit: () => void }) {
   const x = ((creatie.invoer as { docu?: { extras?: DocuExtras } }).docu?.extras ?? {}) as DocuExtras;
   const [gekopieerd, setGekopieerd] = useState("");
+  const [gekozen, setGekozen] = useState(x.thumbnail ?? "");
+  async function kiesThumb(url: string) {
+    setGekozen(url);
+    await fetch("/api/docu/pakket", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: creatie.id, thumbnail: url }) }).catch(() => {});
+  }
   function kopieer(tekst: string, wat: string) {
     void navigator.clipboard?.writeText(tekst).then(() => setGekopieerd(wat)).catch(() => {});
   }
@@ -452,11 +626,25 @@ function Pakket({ creatie, onSluit }: { creatie: Creatie; onSluit: () => void })
         {x.fout && <p className="text-xs text-amber-600 bg-amber-500/10 rounded-xl px-3 py-2">Niet alles lukte: {x.fout}</p>}
         <div className="flex gap-2">
           {creatie.url && <a href={creatie.url} target="_blank" rel="noreferrer" className="n-knop2 text-sm">⬇ Video</a>}
-          {x.thumbnail && <a href={x.thumbnail} target="_blank" rel="noreferrer" className="n-knop2 text-sm">⬇ Thumbnail</a>}
+          {gekozen && <a href={gekozen} target="_blank" rel="noreferrer" className="n-knop2 text-sm">⬇ Thumbnail</a>}
         </div>
-        {x.thumbnail && (
+        {gekozen && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={x.thumbnail} alt="Thumbnail" className="w-full rounded-xl border border-rand" />
+          <img src={gekozen} alt="Thumbnail" className="w-full rounded-xl border border-rand" />
+        )}
+        {(x.thumbnails?.length ?? 0) > 1 && (
+          <div>
+            <label className="n-label">Kies je thumbnail</label>
+            <div className="mt-1.5 grid grid-cols-3 gap-2">
+              {x.thumbnails!.map((t, i) => (
+                <button key={t} onClick={() => void kiesThumb(t)} className={`relative rounded-lg overflow-hidden border-2 ${t === gekozen ? "border-blue-500" : "border-transparent hover:border-blue-500/40"}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={t} alt={`Thumbnail ${i + 1}`} className="w-full aspect-video object-cover" />
+                  {t === gekozen && <span className="absolute top-1 right-1 rounded-full bg-blue-600 text-white text-[10px] px-1.5">✓ Gekozen</span>}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
         {x.titels?.length ? (
           <div>
@@ -482,7 +670,7 @@ function Pakket({ creatie, onSluit }: { creatie: Creatie; onSluit: () => void })
         )}
         {x.shortId && (
           <p className="text-xs text-tekst-3">
-            De Short wordt apart gemaakt en staat straks in <Link href="/mijn-werk" className="underline">je bibliotheek</Link> (bij Motion graphics).
+            {(x.shortIds?.length ?? 1) > 1 ? `De ${x.shortIds!.length} Shorts worden apart gemaakt en staan` : "De Short wordt apart gemaakt en staat"} straks in <Link href="/mijn-werk" className="underline">je bibliotheek</Link> (bij Motion graphics).
           </p>
         )}
       </div>

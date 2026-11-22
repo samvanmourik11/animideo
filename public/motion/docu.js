@@ -2,7 +2,7 @@
 //
 // Waarom (Sam, 14-11-2026: "hoe krijgen we dit goedkoper?"): in de eerste proeven tekende
 // Claude elke scene zelf, ±$4,50 voor tien minuten. Een docu bestaat echter steeds uit
-// dezelfde soorten beelden, net als onze eigen KRONIK-video's (anim.html per kanaal):
+// dezelfde soorten beelden, net als grote documentairekanalen (anim.html per kanaal):
 // een archieffoto met een jaartal erover, een datum met een stempel, een teller, een
 // tijdlijn, een dossierkaart. Claude kiest nu alleen nog per scene welk sjabloon en met
 // welke tekst en getallen; deze code tekent het. Dat kost centen in plaats van dollars,
@@ -12,9 +12,13 @@
 // Alleen liggend (1920 x 1080), in de stijl "archief".
 
 function docuVideo(spec) {
-  const KOP = "'Archivo Black', sans-serif";
+  // Een docu-stijl (lib/motion/stijlen.ts, DOCU_EXTRA_STIJLEN) kan een eigen kopletter hebben.
+  const KOP = STIJL.docuKop || "'Archivo Black', sans-serif";
+  const KOP_GEWICHT = STIJL.docuKopGewicht || 400;
   const MONO = "'IBM Plex Mono', monospace";
-  const LOC = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pt: 'pt-PT' }[spec.taal] || 'nl-NL';
+  const LOC = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pt: 'pt-BR' }[spec.taal] || 'nl-NL';
+  // Met ondertitels (liggend) schuift de tekst onderin omhoog, zodat ze er niet doorheen lopen.
+  const OP = window.ONDERTITELS && !STAAND ? 90 : 0;
   const DOSSIER = { en: 'File', de: 'Akte', fr: 'Dossier', es: 'Expediente', it: 'Fascicolo', pt: 'Processo' }[spec.taal] || 'Dossier';
 
   // Een woord in de voice-over opzoeken zonder foutmelding: een sjabloon heeft altijd een
@@ -48,7 +52,7 @@ function docuVideo(spec) {
     const stijl = [ff ? `font-family:${ff}` : '', fw != null ? `font-weight:${fw}` : ''].filter(Boolean).join(';');
     return el('text', { x, y, 'font-size': size, fill: C.inkt, 'text-anchor': 'start', ...(stijl ? { style: stijl } : {}), ...rest }, p, s);
   }
-  const kop = (p, x, y, s, size, at = {}) => tekst(p, x, y, String(s).toUpperCase(), size, { 'font-family': KOP, 'font-weight': 400, ...at });
+  const kop = (p, x, y, s, size, at = {}) => tekst(p, x, y, String(s).toUpperCase(), size, { 'font-family': KOP, 'font-weight': KOP_GEWICHT, ...at });
   const mono = (p, x, y, s, size, at = {}) => tekst(p, x, y, String(s).toUpperCase(), size, { 'font-family': MONO, 'font-weight': 600, 'letter-spacing': Math.round(size / 6), fill: C.muted, ...at });
   const getal = v => { const n = parseFloat(String(v).replace(/[^0-9,.\-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')); return isFinite(n) ? n : 0; };
   const schrijf = (v, dec) => v.toLocaleString(LOC, { minimumFractionDigits: dec, maximumFractionDigits: dec });
@@ -100,8 +104,8 @@ function docuVideo(spec) {
         const q = P(tt, a - .45, e + .45);
         if (o.f) tf(o.f, MX + o.richting * lerp(-28, 28, q), MY + lerp(8, -8, q), lerp(1.02, 1.1, q));
         op(o.g, eo(P(tt, a - .3, a + .4)));
-        if (o.kop) erin(o.kop, tt, o.t1, RAND, H - 190);
-        if (o.sub) erin(o.sub, tt, o.t2, RAND, H - 128);
+        if (o.kop) erin(o.kop, tt, o.t1, RAND, H - 190 - OP);
+        if (o.sub) erin(o.sub, tt, o.t2, RAND, H - 128 - OP);
       },
     },
 
@@ -271,7 +275,7 @@ function docuVideo(spec) {
           op(s.lab, q > 0 ? 1 : 0); op(s.val, P(tt, o.ts[i] + .5, o.ts[i] + .9));
           s.val.setAttribute('y', s.neg ? s.basis + h + 48 : s.basis - h - 18);
         });
-        if (o.sub) erin(o.sub, tt, o.ts[o.ts.length - 1] + .6, MX, H - 120);
+        if (o.sub) erin(o.sub, tt, o.ts[o.ts.length - 1] + .6, MX, H - 120 - OP);
       },
     },
 

@@ -1,0 +1,374 @@
+{
+ "en": [
+  {
+   "id": "NYC9WEgkq1u4jiqBseQ9",
+   "naam": "Russell",
+   "typering": "Brits, dramatische tv-verteller",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "british",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/custom/voices/NYC9WEgkq1u4jiqBseQ9/cK07157YMomRml8se448.mp3"
+  },
+  {
+   "id": "MFZUKuGQUsGJPQjTS4wC",
+   "naam": "Jon",
+   "typering": "Amerikaans, warme verteller",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "american",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/7bdd69d9e581481a8ea5216493271f81/voices/MFZUKuGQUsGJPQjTS4wC/xEoCh0QqT3VPBukUnnNT.mp3"
+  },
+  {
+   "id": "G17SuINrv2H9FC6nvetn",
+   "naam": "Christopher",
+   "typering": "Brits, rustig en betrouwbaar",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "british",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/custom/voices/G17SuINrv2H9FC6nvetn/ofEmJDtVvrmeL3OEs0ig.mp3"
+  },
+  {
+   "id": "NNl6r8mD7vthiJatiJt1",
+   "naam": "Bradford",
+   "typering": "Brits, expressief en helder",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "british",
+   "voorbeeld": "https://api.us.elevenlabs.io/v1/voices/NNl6r8mD7vthiJatiJt1/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJjdXN0b20iLCJ1c2VyX2lkIjoiQ0VaWHhmZENmRWZ5WEQ3eVVOS0lQY3VDS2FCMyIsImZpbGVuYW1lIjoiNmFkY2E0ZTItMGJjMS00ZWNlLWFjMDItZmYwYmNlYWM5YzM2Lm1wMyIsInRpbWVzdGFtcCI6MTc5NDY5MzYwMDAwMDAwMH0%3D"
+  },
+  {
+   "id": "Se2Vw1WbHmGbBbyWTuu4",
+   "naam": "Allison",
+   "typering": "Brits, warm en zacht",
+   "geslacht": "vrouw",
+   "leeftijd": "jong",
+   "accent": "british",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/custom/voices/Se2Vw1WbHmGbBbyWTuu4/3criMPMqBy1hVGIVhW2Q.mp3"
+  },
+  {
+   "id": "ZF6FPAbjXT4488VcRRnw",
+   "naam": "Amelia",
+   "typering": "Brits, enthousiast",
+   "geslacht": "vrouw",
+   "leeftijd": "jong",
+   "accent": "british",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/custom/voices/ZF6FPAbjXT4488VcRRnw/PXswrdJcgsGr8VdoVA43.mp3"
+  },
+  {
+   "id": "lxYfHSkYm1EzQzGhdbfc",
+   "naam": "Jessica",
+   "typering": "Amerikaans, professionele voice-over",
+   "geslacht": "vrouw",
+   "leeftijd": "volwassen",
+   "accent": "american",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/fb1bd18708014d8d80e770df5ea11bb7/voices/lxYfHSkYm1EzQzGhdbfc/JZDpsUoP3T2VAnEEmj4l.mp3"
+  }
+ ],
+ "de": [
+  {
+   "id": "5hobNnfFWAwxjwZSecAE",
+   "naam": "Daniel",
+   "typering": "Documentaireverteller",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/408f5707fa3a40c1b8a789ad0430380e/voices/5hobNnfFWAwxjwZSecAE/0ArXvu6jAYI4HAtJDFoA.mp3"
+  },
+  {
+   "id": "kkJxCnlRCckmfFvzDW5Q",
+   "naam": "Alexander",
+   "typering": "Diepe tv-verteller",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/9d5daecd4210450281f8157fe899598f/voices/kkJxCnlRCckmfFvzDW5Q/N7nzoxGsufAnISgpK2ml.mp3"
+  },
+  {
+   "id": "re2r5d74PqDzicySNW0I",
+   "naam": "Leon",
+   "typering": "Vol en diep",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/custom/voices/re2r5d74PqDzicySNW0I/iNJX2tky9IQZwwbPK4hC.mp3"
+  },
+  {
+   "id": "FTNCalFNG5bRnkkaP5Ug",
+   "naam": "Otto",
+   "typering": "Gewoon en ontspannen",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/custom/voices/FTNCalFNG5bRnkkaP5Ug/MQ8WiEa4ozV4HevPeMba.mp3"
+  },
+  {
+   "id": "7eVMgwCnXydb3CikjV7a",
+   "naam": "Lea",
+   "typering": "Helder en vrouwelijk",
+   "geslacht": "vrouw",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/custom/voices/7eVMgwCnXydb3CikjV7a/zMitELWPfkgqNXLr2X9t.mp3"
+  },
+  {
+   "id": "uvysWDLbKpA4XvpD3GI6",
+   "naam": "Leonie",
+   "typering": "Helder en boeiend",
+   "geslacht": "vrouw",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/custom/voices/uvysWDLbKpA4XvpD3GI6/ezhAOHUNyJPqr5RGmaxn.mp3"
+  },
+  {
+   "id": "ViKqgJNeCiWZlYgHiAOO",
+   "naam": "Annika",
+   "typering": "Rustig en zelfverzekerd",
+   "geslacht": "vrouw",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/odbqMoxkrXdDMV3GNWPPwDac98L2/voices/ViKqgJNeCiWZlYgHiAOO/5b56dd42-a14f-4449-a6ff-39b9976eb731.mp3"
+  }
+ ],
+ "fr": [
+  {
+   "id": "iKX6IXB415Hh5bn2eNhP",
+   "naam": "David",
+   "typering": "Documentaireverteller",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/user/eFmYIzNi7fVTAUiSkCFaPtNH8aQ2/voices/iKX6IXB415Hh5bn2eNhP/w1paVoAT8XGE71VHcaAi.mp3"
+  },
+  {
+   "id": "aQROLel5sQbj1vuIVi6B",
+   "naam": "Nicolas",
+   "typering": "Parijs, verteller",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "parisian",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/7593eab373974d1db7d45255c5986d46/voices/aQROLel5sQbj1vuIVi6B/shwzqRrR51OISZWUl7EN.mp3"
+  },
+  {
+   "id": "AfbuxQ9DVtS4azaxN1W7",
+   "naam": "Léo",
+   "typering": "Parijs, geruststellend en levendig",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "parisian",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/0c997c49a0d74f83bef0a9d942b92f0f/voices/AfbuxQ9DVtS4azaxN1W7/RdF3GH356ehVu2eylw45.mp3"
+  },
+  {
+   "id": "YV28ox2c5Cuh5rim0LrW",
+   "naam": "Marcel",
+   "typering": "Warm en zacht",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/user/3WaL3ZlJcpYi7PG3xxrLPLY5fuh1/voices/YV28ox2c5Cuh5rim0LrW/3BVLJbVe20CA5FvNHFs4.mp3"
+  },
+  {
+   "id": "6vTyAgAT8PncODBcLjRf",
+   "naam": "Claire",
+   "typering": "Warm en charmant",
+   "geslacht": "vrouw",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://api.us.elevenlabs.io/v1/voices/6vTyAgAT8PncODBcLjRf/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJjdXN0b20iLCJ3b3Jrc3BhY2VfaWQiOiI3MGVjMWRhNGU4NGQ0MjdjODQxNWQzZjJiODk4YzlkOCIsImZpbGVuYW1lIjoiS1Z5dVp5QUFYZlNYcXBsVEVybFgubXAzIiwidGltZXN0YW1wIjoxNzk0NjkzNjAwMDAwMDAwfQ%3D%3D"
+  },
+  {
+   "id": "txtf1EDouKke753vN8SL",
+   "naam": "Jeanne",
+   "typering": "Parijs, verteller",
+   "geslacht": "vrouw",
+   "leeftijd": "jong",
+   "accent": "parisian",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/custom/voices/txtf1EDouKke753vN8SL/KncK9phzELKxzmXlZhBV.mp3"
+  },
+  {
+   "id": "O31r762Gb3WFygrEOGh0",
+   "naam": "Victoria",
+   "typering": "Parijs, jong en levendig",
+   "geslacht": "vrouw",
+   "leeftijd": "jong",
+   "accent": "parisian",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/8883bfc00193440ba374c3ecd71610b5/voices/O31r762Gb3WFygrEOGh0/x79aDNW4Q3qgJKq1svTL.mp3"
+  }
+ ],
+ "es": [
+  {
+   "id": "QtPMrakdgePQIUwOX7Ut",
+   "naam": "Arconte",
+   "typering": "Spaans (Spanje), diepe verteller",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "peninsular",
+   "voorbeeld": "https://api.us.elevenlabs.io/v1/voices/QtPMrakdgePQIUwOX7Ut/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJjdXN0b20iLCJ3b3Jrc3BhY2VfaWQiOiI1M2E0OTFiM2Q3YTI0NDNlYTlkY2NiZmRkNmM0ZmE2OSIsImZpbGVuYW1lIjoiOVZ6dHB6NXNsTFVlQTdSODZ3NGQubXAzIiwidGltZXN0YW1wIjoxNzk0NjkzNjAwMDAwMDAwfQ%3D%3D"
+  },
+  {
+   "id": "Nh2zY9kknu6z4pZy6FhD",
+   "naam": "David",
+   "typering": "Spaans (Spanje), zelfverzekerd",
+   "geslacht": "man",
+   "leeftijd": "jong",
+   "accent": "peninsular",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/user/8RYUsFHsalUXjwVG0LjhNwH1j022/voices/Nh2zY9kknu6z4pZy6FhD/5VD3I67SoLbajJEbw7rH.mp3"
+  },
+  {
+   "id": "5egO01tkUjEzu7xSSE8M",
+   "naam": "Carmelo",
+   "typering": "Spaans (Spanje), mysterieus en helder",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "peninsular",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/user/0DpohMMjjdS9EL1e1JomEmnZraP2/voices/5egO01tkUjEzu7xSSE8M/uSWwZMtApWBuaSW2cKXR.mp3"
+  },
+  {
+   "id": "l1zE9xgNpUTaQCZzpNJa",
+   "naam": "Alberto",
+   "typering": "Latijns-Amerikaans, serieuze verteller",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "latin american",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/custom/voices/l1zE9xgNpUTaQCZzpNJa/sF0SJSVjERJtMSqfZLPN.mp3"
+  },
+  {
+   "id": "2rigMbVWLdqtBSCahJFX",
+   "naam": "Tatiana",
+   "typering": "Latijns-Amerikaans, rustig",
+   "geslacht": "vrouw",
+   "leeftijd": "volwassen",
+   "accent": "latin american",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/user/8RYUsFHsalUXjwVG0LjhNwH1j022/voices/2rigMbVWLdqtBSCahJFX/fZWd6mLqzMJWcNXOh3ea.mp3"
+  },
+  {
+   "id": "1BxAZWANeDIxeyHKSJF2",
+   "naam": "Isabela",
+   "typering": "Latijns-Amerikaans, melodieus",
+   "geslacht": "vrouw",
+   "leeftijd": "volwassen",
+   "accent": "latin american",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/bZ2DPYkdR1ef6nhXhe0xcFbCxdr1/voices/1BxAZWANeDIxeyHKSJF2/efd9d4fd-be25-44b8-aac5-b4bbb69df05b.mp3"
+  },
+  {
+   "id": "JYyJjNPfmNJdaby8LdZs",
+   "naam": "Marlene",
+   "typering": "Mexicaans, helder en vrolijk",
+   "geslacht": "vrouw",
+   "leeftijd": "jong",
+   "accent": "mexican",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/user/2inDbEyJlEMs6jwhBRCFuuPHhp22/voices/JYyJjNPfmNJdaby8LdZs/5ee74841-5c03-4ee8-af34-d74d7915a79e.mp3"
+  }
+ ],
+ "it": [
+  {
+   "id": "W71zT1VwIFFx3mMGH2uZ",
+   "naam": "Marco T.",
+   "typering": "Warm en gepolijst",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/9f5219a8b69545c7a5f2948bc2e9e0ef/voices/W71zT1VwIFFx3mMGH2uZ/gxqkkXfQqy1Og9Sa5fHd.mp3"
+  },
+  {
+   "id": "13Cuh3NuYvWOVQtLbRN8",
+   "naam": "Marco",
+   "typering": "Diep en bedachtzaam",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/9f5219a8b69545c7a5f2948bc2e9e0ef/voices/13Cuh3NuYvWOVQtLbRN8/x2LttjJl6pNQeAlpU3CY.mp3"
+  },
+  {
+   "id": "uScy1bXtKz8vPzfdFsFw",
+   "naam": "Antonio",
+   "typering": "Expressief en warm",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/9f5219a8b69545c7a5f2948bc2e9e0ef/voices/uScy1bXtKz8vPzfdFsFw/47ebOC48i0yjLSUNx1FL.mp3"
+  },
+  {
+   "id": "gfKKsLN1k0oYYN9n2dXX",
+   "naam": "Violetta",
+   "typering": "Helder en vrolijk",
+   "geslacht": "vrouw",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/user/Mxxy1mLEQkeyXX75dokAIWz8bel1/voices/gfKKsLN1k0oYYN9n2dXX/Z2oJ1Jb0O555Pu7XDZv4.mp3"
+  },
+  {
+   "id": "fQmr8dTaOQq116mo2X7F",
+   "naam": "Samanta",
+   "typering": "Warm en geruststellend",
+   "geslacht": "vrouw",
+   "leeftijd": "volwassen",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/f5cf7717b1b243c68376b06b4096e065/voices/fQmr8dTaOQq116mo2X7F/ohr3Oy4QHzzrbwm1BcEi.mp3"
+  },
+  {
+   "id": "3DPhHWXDY263XJ1d2EPN",
+   "naam": "Linda",
+   "typering": "Vrolijk en vol",
+   "geslacht": "vrouw",
+   "leeftijd": "jong",
+   "accent": "standard",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/custom/voices/3DPhHWXDY263XJ1d2EPN/YcN8v5oIOX09iQfWoPXH.mp3"
+  }
+ ],
+ "pt": [
+  {
+   "id": "CstacWqMhJQlnfLPxRG4",
+   "naam": "Will",
+   "typering": "Braziliaans, diep en warm",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "brazilian",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/1d8116e2c9c14d50affe4a07bc647489/voices/CstacWqMhJQlnfLPxRG4/tAJk8VrzwYKmPAybekMz.mp3"
+  },
+  {
+   "id": "YNOujSUmHtgN6anjqXPf",
+   "naam": "Victor",
+   "typering": "Braziliaans, dramatisch",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "brazilian",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/workspace/bfbe899cc4464016ac74a27cc6133fe3/voices/YNOujSUmHtgN6anjqXPf/XO9LV662IZQNDaLzvhVt.mp3"
+  },
+  {
+   "id": "GIuLCSVfgJaUuh7hYOY8",
+   "naam": "Lucas",
+   "typering": "Braziliaans, diepe verteller",
+   "geslacht": "man",
+   "leeftijd": "volwassen",
+   "accent": "brazilian",
+   "voorbeeld": "https://api.us.elevenlabs.io/v1/voices/GIuLCSVfgJaUuh7hYOY8/previews/audio?payload=eyJ2b2ljZV9zb3VyY2UiOiJjdXN0b20iLCJ3b3Jrc3BhY2VfaWQiOiJjN2NhMTcyZGMyNGI0NDFmYTVhMDg1NWUzNTg5MzljMiIsImZpbGVuYW1lIjoiOUFkUGdqbFRLSHVPcXlFRk5RMm8ubXAzIiwidGltZXN0YW1wIjoxNzk0NjkzNjAwMDAwMDAwfQ%3D%3D"
+  },
+  {
+   "id": "33B4UnXyTNbgLmdEDh5P",
+   "naam": "Keren",
+   "typering": "Braziliaans, levendig",
+   "geslacht": "vrouw",
+   "leeftijd": "jong",
+   "accent": "brazilian",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/custom/voices/33B4UnXyTNbgLmdEDh5P/ArnzDsFaz6KDoDcDD8V2.mp3"
+  },
+  {
+   "id": "MZxV5lN3cv7hi1376O0m",
+   "naam": "Ana",
+   "typering": "Braziliaans, krachtig",
+   "geslacht": "vrouw",
+   "leeftijd": "jong",
+   "accent": "brazilian",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/S7DSqIREokaHJMqnyVrwMfuKGhs2/voices/MZxV5lN3cv7hi1376O0m/43574a4d-ec20-4440-9271-8323f4db4fd8.mp3"
+  },
+  {
+   "id": "oi8rgjIfLgJRsQ6rbZh3",
+   "naam": "Amanda",
+   "typering": "Braziliaans, warm en helder",
+   "geslacht": "vrouw",
+   "leeftijd": "jong",
+   "accent": "brazilian",
+   "voorbeeld": "https://storage.googleapis.com/eleven-public-prod/database/user/zXiMrdBpbhZdW6zwEr7dRDdkNb02/voices/oi8rgjIfLgJRsQ6rbZh3/PsYtiGpXlTf1TtQI33jp.mp3"
+  }
+ ]
+}

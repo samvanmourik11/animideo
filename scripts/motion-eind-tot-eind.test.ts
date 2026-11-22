@@ -80,7 +80,7 @@ test("motion graphics van begin tot eind", async () => {
         if (her && existsSync(pad(naam))) { codes[k] = await readFile(pad(naam), "utf8"); return; }
         const d = deelWerk(basis, plan, words, delen, k);
         const debug = process.env.MOTION_DEBUG_DIR;
-        const a = await tekenAnimatie({ pagina: d.pagina, plan: d.plan, plek: d.plek, onderwerp, startCode, taal }, (w) => console.log(`  claude ${k + 1}:`, w));
+        const a = await tekenAnimatie({ pagina: d.pagina, plan: d.plan, plek: d.plek, onderwerp, startCode, taal, premium: process.env.MOTION_PREMIUM === "1" }, (w) => console.log(`  claude ${k + 1}:`, w));
         void debug;
         codes[k] = a.code;
         await writeFile(pad(naam), a.code);
