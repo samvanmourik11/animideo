@@ -86,9 +86,16 @@ export async function POST(req: NextRequest) {
       .eq("maker", maker)
       .eq("status", "bezig")
       .gte("created_at", sinds);
-    const sleutel = (i: Record<string, unknown> | null | undefined) =>
-      JSON.stringify([(i?.plan as { scenes?: unknown } | undefined)?.scenes ?? null, i?.formaat ?? null, i?.zusVan ?? null]);
-    const zelfde = (recent ?? []).find((r) => sleutel(r.invoer as Record<string, unknown>) === sleutel(invoer));
+    // Alleen wat de klant echt kiest vergelijken: de gesproken tekst, het formaat (als dat is
+    // meegestuurd; de docu vult het pas op de server in) en of het een tweede formaat is.
+    const teksten = (i: Record<string, unknown> | null | undefined) =>
+      JSON.stringify(((i?.plan as { scenes?: { tekst?: unknown }[] } | undefined)?.scenes ?? []).map((sc) => sc?.tekst ?? null));
+    const zelfde = (recent ?? []).find((r) => {
+      const ri = r.invoer as Record<string, unknown> | null;
+      return teksten(ri) === teksten(invoer)
+        && (invoer.formaat == null || ri?.formaat === invoer.formaat)
+        && (ri?.zusVan ?? null) === (invoer.zusVan ?? null);
+    });
     if (zelfde) return NextResponse.json({ creatie: zelfde, alGestart: true });
   }
 
