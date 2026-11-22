@@ -278,12 +278,14 @@ export default function Regisseur() {
     setProjecten(d.projecten ?? []);
   }, []);
 
-  const laadProject = useCallback(async (id: string) => {
+  const laadProject = useCallback(async (id: string): Promise<string> => {
     const d = await fetch(`/api/regisseur/${id}`, { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
     if (d.project) {
       setProject(d.project);
       setGalerij(d.galerij ?? []);
     }
+    // Vingerafdruk om te zien of er iets veranderd is sinds de vorige keer.
+    return JSON.stringify([d.project?.status, d.project?.berichten?.length, (d.galerij ?? []).map((c: { id?: string; status?: string }) => `${c.id}:${c.status}`)]);
   }, []);
 
   useEffect(() => {
@@ -305,16 +307,41 @@ export default function Regisseur() {
     window.history.replaceState(null, "", `?project=${actief}`);
   }, [actief, laadProject]);
 
-  // Zolang de Regisseur werkt of op creaties wacht: elke 2,5 s kijken. Dat opvragen laat
-  // ook de wachtrij doorlopen en de Regisseur verdergaan.
+  // Zolang de Regisseur werkt of op creaties wacht: regelmatig kijken. Dat opvragen laat
+  // ook de wachtrij doorlopen en de Regisseur verdergaan. Begint op 2,5 s; verandert er
+  // niets, dan steeds wat langer wachten (max 20 s). Tabblad op de achtergrond: elke 30 s.
   const bezig = project?.status === "denkt" || project?.status === "wacht_op_maken" || galerij.some((c) => c.status === "bezig");
   useEffect(() => {
     if (!actief || !bezig) return;
-    const t = setInterval(() => {
-      laadProject(actief);
-      window.dispatchEvent(new Event(CREATIES_GEWIJZIGD));
-    }, 2500);
-    return () => clearInterval(t);
+    let stop = false;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    let wacht = 2500;
+    let vorige = "";
+    async function tik() {
+      const nu = await laadProject(actief!);
+      if (stop) return;
+      if (nu !== vorige) {
+        if (vorige) window.dispatchEvent(new Event(CREATIES_GEWIJZIGD));
+        vorige = nu;
+        wacht = 2500;
+      } else {
+        wacht = Math.min(wacht * 1.5, 20000);
+      }
+      t = setTimeout(tik, document.hidden ? 30000 : wacht);
+    }
+    function zichtbaar() {
+      if (document.hidden) return;
+      wacht = 2500;
+      clearTimeout(t);
+      tik();
+    }
+    t = setTimeout(tik, wacht);
+    document.addEventListener("visibilitychange", zichtbaar);
+    return () => {
+      stop = true;
+      clearTimeout(t);
+      document.removeEventListener("visibilitychange", zichtbaar);
+    };
   }, [actief, bezig, laadProject]);
 
   const aantalRegels = project ? regels(project.berichten).length : 0;

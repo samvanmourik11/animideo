@@ -95,6 +95,7 @@ export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLe
   useEffect(() => {
     let actief = true;
     async function haal() {
+      if (document.hidden) return;
       try {
         const res = await fetch("/api/account/credits", { cache: "no-store" });
         if (!res.ok) return;
@@ -133,7 +134,8 @@ export default function Zijbalk({ email, credits, plan, creditsResetDate, hideLe
         if (n < vorig) window.dispatchEvent(new Event("creaties:klaar"));
         return n;
       });
-      t = setTimeout(haal, n > 0 ? 5000 : 30000);
+      // Tabblad op de achtergrond: rustiger (de wachtrij loopt dan via andere bezoeken/cron door).
+      t = setTimeout(haal, document.hidden ? 60000 : n > 0 ? 5000 : 30000);
     }
     haal();
     window.addEventListener(CREATIES_GEWIJZIGD, haal);
