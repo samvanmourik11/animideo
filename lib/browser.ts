@@ -30,15 +30,50 @@ async function zonderCrashbestanden(echt: string): Promise<string> {
   }
   try {
     const script = path.join(dir, "chromium-zonder-core.sh");
-    await writeFile(script, `#!/bin/sh\nulimit -c 0\nexec "${echt}" "$@"\n`);
-    await chmod(script, 0o755);
+    const { readFile } = await import("node:fs/promises");
+    const inhoud = `#!/bin/sh\nulimit -c 0\nexec "${echt}" "$@"\n`;
+    // Niet herschrijven als hij al klopt: een draaiende browser start mogelijk net via dit script.
+    if ((await readFile(script, "utf8").catch(() => "")) !== inhoud) {
+      const tijdelijk = `${script}.${process.pid}.${Date.now()}`;
+      await writeFile(tijdelijk, inhoud);
+      await chmod(tijdelijk, 0o755);
+      const { rename } = await import("node:fs/promises");
+      await rename(tijdelijk, script);
+    }
     return script;
   } catch {
     return echt;
   }
 }
 
+/**
+ * Meerdere video's tegelijk op dezelfde server: ze pakten tegelijk Chromium uit naar /tmp en
+ * schreven tegelijk het startscript, waardoor de tweede een half uitgepakt programma startte
+ * ("browserType.launch: Target page, context or browser has been closed"). Gezien 22-11-2026
+ * bij drie docu's tegelijk. Daarom: het opstarten één voor één, en bij mislukken nog twee
+ * keer proberen.
+ */
+let opstartRij: Promise<unknown> = Promise.resolve();
+
 export async function launchBrowser(o: { zonderCrashbestanden?: boolean } = {}): Promise<Browser> {
+  if (!onServerless()) return launchEenmaal(o);
+  const beurt = opstartRij.then(async () => {
+    let laatste: unknown;
+    for (let poging = 0; poging < 3; poging++) {
+      try {
+        return await launchEenmaal(o);
+      } catch (e) {
+        laatste = e;
+        await new Promise((r) => setTimeout(r, 1500 * (poging + 1)));
+      }
+    }
+    throw laatste;
+  });
+  opstartRij = beurt.catch(() => {});
+  return beurt;
+}
+
+async function launchEenmaal(o: { zonderCrashbestanden?: boolean }): Promise<Browser> {
   if (onServerless()) {
     const [{ default: sparticuz }, { chromium }] = await Promise.all([
       import("@sparticuz/chromium"),

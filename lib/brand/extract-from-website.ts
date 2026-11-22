@@ -35,12 +35,15 @@ export function normalizeBrandUrl(raw: string): URL {
   return parsed;
 }
 
+const BROWSER_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+
 export async function fetchHtml(url: string): Promise<string | null> {
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 12000);
     const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; AnimideoBot/1.0)", Accept: "text/html,*/*;q=0.8" },
+      // Een gewone browser-naam: sommige sites (en hun beveiliging) weigeren onbekende bots.
+      headers: { "User-Agent": BROWSER_UA, Accept: "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "nl-NL,nl;q=0.9,en;q=0.8" },
       signal: ctrl.signal,
       redirect: "follow",
     });
@@ -122,7 +125,16 @@ export async function extractPageText(rawUrl: string): Promise<string> {
 // hier bewust weg — dat uploadt de gebruiker zelf.
 export async function extractBrandFromWebsite(rawUrl: string): Promise<ExtractedBrand> {
   const home = normalizeBrandUrl(rawUrl);
-  const homeHtml = await fetchHtml(home.toString());
+  // Lukt het adres niet, probeer dan de variant met/zonder www en via http.
+  let homeHtml = await fetchHtml(home.toString());
+  if (!homeHtml) {
+    const h = home.hostname;
+    const ander = h.startsWith("www.") ? h.slice(4) : `www.${h}`;
+    for (const poging of [`https://${ander}/`, `http://${h}/`]) {
+      homeHtml = await fetchHtml(poging);
+      if (homeHtml) break;
+    }
+  }
   if (!homeHtml) throw new Error("Homepage kon niet gelezen worden");
 
   const text = stripText(homeHtml).slice(0, MAX_TEXT);

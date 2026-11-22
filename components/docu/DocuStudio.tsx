@@ -74,6 +74,8 @@ export default function DocuStudio() {
   const [fotoZoek, setFotoZoek] = useState<string[]>([]);
   const [fotos, setFotos] = useState<DocuFoto[] | null>(null);
   const [bezig, setBezig] = useState<Bezig>(null);
+  // Na het starten op slot tot het script verandert: één klik = één video (en één keer credits).
+  const [gestartPlan, setGestartPlan] = useState<string | null>(null);
   const [fout, setFout] = useState<string | null>(null);
   const [open, setOpen] = useState<Creatie | null>(null);
   const [pakket, setPakket] = useState<Creatie | null>(null);
@@ -230,6 +232,7 @@ export default function DocuStudio() {
       // Een geplande aflevering van dit kanaal is hiermee gemaakt.
       if (gekozenKanaal?.reeks.some((a) => !a.gemaakt && a.onderwerp === onderwerp.trim())) void wijzigReeks(gekozenKanaal.reeks.map((a) => (a.onderwerp === onderwerp.trim() ? { ...a, gemaakt: true } : a)));
       lijst.zetVoor(c);
+      setGestartPlan(JSON.stringify(plan));
     });
   }
 
@@ -241,6 +244,7 @@ export default function DocuStudio() {
   const max = Math.round(maxWoorden(lengte) * 1.25);
   const teLang = woorden > max;
   const credits = docuCredits(lengte, aantalShorts);
+  const gestart = !!plan && gestartPlan === JSON.stringify(plan);
 
   return (
     <div className="space-y-8">
@@ -522,8 +526,8 @@ export default function DocuStudio() {
                 controleren we dat niet opnieuw.
               </p>
 
-              <button onClick={maak} disabled={!!bezig || teLang || fotos === null} className="btn-primary w-full disabled:opacity-50">
-                {bezig === "maken" ? "Bezig met insturen…" : `🎞️ Maak de docu · ${credits} credits`}
+              <button onClick={maak} disabled={!!bezig || teLang || fotos === null || gestart} className="btn-primary w-full disabled:opacity-50">
+                {bezig === "maken" ? "Bezig met insturen…" : gestart ? "✓ Je docu wordt gemaakt — je ziet hem bij Jouw docu's" : `🎞️ Maak de docu · ${credits} credits`}
               </button>
               <p className="text-[11px] text-tekst-3">
                 Dit duurt {lengte >= 600 ? "ongeveer een uur" : lengte >= 300 ? "een half uur tot drie kwartier" : "een minuut of 20"}: elk hoofdstuk wordt speciaal getekend en nagekeken. Daarna

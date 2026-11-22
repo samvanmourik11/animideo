@@ -132,7 +132,11 @@ export default function MotionStudio() {
   const [plan, setPlan] = useState<MotionPlan | null>(null);
   const [afwijkend, setAfwijkend] = useState<number[]>([]);
   const [bezig, setBezig] = useState<Bezig>(null);
+  // Na het starten op slot tot het script verandert: één klik = één video (en één keer credits).
+  const [gestartPlan, setGestartPlan] = useState<string | null>(null);
   const [fout, setFout] = useState<string | null>(null);
+  // Bij welke knop de fout hoort, zodat hij daar in beeld komt (niet onderaan de pagina).
+  const [foutBij, setFoutBij] = useState<Bezig>(null);
   const [open, setOpen] = useState<Creatie | null>(null);
   const [aanpassen, setAanpassen] = useState<Creatie | null>(null);
   const logoKies = useRef<HTMLInputElement>(null);
@@ -188,10 +192,12 @@ export default function MotionStudio() {
   async function doe(wat: Exclude<Bezig, null>, actie: () => Promise<void>) {
     setBezig(wat);
     setFout(null);
+    setFoutBij(null);
     try {
       await actie();
     } catch (e) {
       setFout(e instanceof Error ? e.message : String(e));
+      setFoutBij(wat);
     } finally {
       setBezig(null);
     }
@@ -320,6 +326,7 @@ export default function MotionStudio() {
         const zus = await startMaker("motion", { ...basis, formaat: anderFormaat, zusVan: c.id, mail: false });
         lijst.zetVoor(zus);
       }
+      setGestartPlan(JSON.stringify(plan));
     });
   }
 
@@ -421,6 +428,7 @@ export default function MotionStudio() {
   const [ookAnder, setOokAnder] = useState(false);
   const anderFormaat: MotionFormaat = formaat === "9:16" ? "16:9" : "9:16";
   const extraCredits = extraFormaatCredits(lengte);
+  const gestart = !!plan && gestartPlan === JSON.stringify(plan);
   const credits = motionCredits(lengte) + (ookAnder ? extraCredits : 0);
 
   return (
@@ -640,6 +648,11 @@ export default function MotionStudio() {
                     {bezig === "website" ? "Ophalen…" : "Ophalen"}
                   </button>
                 </div>
+                {fout && foutBij === "website" && (
+                  <p className="text-xs text-red-600 mt-1.5">
+                    Dat lukte niet: we konden {siteUrl || "je website"} niet uitlezen. Vul je bedrijfsnaam en kleuren hieronder zelf in, dan werkt alles verder gewoon.
+                  </p>
+                )}
                 <p className="text-[11px] text-tekst-3 mt-1">We lezen je kleuren, lettertype en schrijfstijl uit. Je logo upload je hieronder zelf, zodat het altijd het juiste is.</p>
               </div>
             )}
@@ -902,8 +915,8 @@ export default function MotionStudio() {
                 </label>
                 {ookAnder && <p className="text-[11px] text-tekst-3">Zelfde script en stem; het beeld wordt opnieuw opgebouwd voor dat formaat. Je krijgt twee video&apos;s.</p>}
               </div>
-              <button onClick={maak} disabled={!!bezig || teLang || (soort === "bedrijf" && !bedrijf.trim())} className="btn-primary w-full disabled:opacity-50">
-                {bezig === "maken" ? "Bezig met insturen…" : `✨ Maak ${ookAnder ? "2 video's" : "de video"} · ${credits} credits`}
+              <button onClick={maak} disabled={!!bezig || teLang || gestart || (soort === "bedrijf" && !bedrijf.trim())} className="btn-primary w-full disabled:opacity-50">
+                {bezig === "maken" ? "Bezig met insturen…" : gestart ? "✓ Je video wordt gemaakt — je ziet hem bij Jouw motion graphics" : `✨ Maak ${ookAnder ? "2 video's" : "de video"} · ${credits} credits`}
               </button>
               <p className="text-[11px] text-tekst-3">
                 Dit duurt meestal {lengte <= 60 ? "een minuut of 5" : lengte <= 180 ? "5 tot 10 minuten" : lengte <= 300 ? "een minuut of 20" : "drie kwartier"}: de animatie wordt speciaal voor jouw script getekend en daarna nagekeken. Het laatste stuk,
@@ -912,7 +925,7 @@ export default function MotionStudio() {
             </div>
           )}
 
-          {fout && (
+          {fout && foutBij !== "website" && (
             <p className="text-sm text-red-600 dark:text-red-300 bg-red-500/10 rounded-xl px-3 py-2">
               {fout}
               {fout === "Niet genoeg credits." && (

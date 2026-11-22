@@ -73,8 +73,27 @@ export async function POST(req: NextRequest) {
   const invoer = body.invoer && typeof body.invoer === "object" ? (body.invoer as Record<string, unknown>) : {};
   const ouderId = typeof body.ouderId === "string" ? body.ouderId : null;
 
+  // Dubbel klikken mag geen tweede video (en dubbele credits) opleveren: dezelfde opdracht die
+  // net is gestart en nog loopt, geven we gewoon terug. Gezien 22-11-2026: drie keer klikken op
+  // "Maak de docu" startte drie docu's.
+  const maker = String(body.maker ?? "");
+  if ((maker === "docu" || maker === "motion") && invoer.plan) {
+    const sinds = new Date(Date.now() - 5 * 60_000).toISOString();
+    const { data: recent } = await supabase
+      .from("creaties")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("maker", maker)
+      .eq("status", "bezig")
+      .gte("created_at", sinds);
+    const sleutel = (i: Record<string, unknown> | null | undefined) =>
+      JSON.stringify([(i?.plan as { scenes?: unknown } | undefined)?.scenes ?? null, i?.formaat ?? null, i?.zusVan ?? null]);
+    const zelfde = (recent ?? []).find((r) => sleutel(r.invoer as Record<string, unknown>) === sleutel(invoer));
+    if (zelfde) return NextResponse.json({ creatie: zelfde, alGestart: true });
+  }
+
   try {
-    const creatie = await startCreatie(user.id, String(body.maker ?? ""), invoer, ouderId);
+    const creatie = await startCreatie(user.id, maker, invoer, ouderId);
     return NextResponse.json({ creatie });
   } catch (e) {
     if (e instanceof WachtrijFout) return NextResponse.json({ error: e.message }, { status: e.status });
