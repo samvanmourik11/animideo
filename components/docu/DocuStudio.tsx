@@ -40,7 +40,7 @@ async function post<T>(pad: string, body: unknown): Promise<T> {
   return data as T;
 }
 
-type Bezig = null | "onderzoek" | "fotos" | "maken";
+type Bezig = null | "onderzoek" | "fotos" | "maken" | "bestand";
 const BEWAAR = "docu-studio";
 const VOORZETTEN = ["De ondergang van V&D", "Hoe Blockbuster Netflix liet lopen", "De Concorde: te mooi om te blijven", "Het faillissement van Vitesse"];
 
@@ -76,6 +76,10 @@ export default function DocuStudio() {
   const [bezig, setBezig] = useState<Bezig>(null);
   // Na het starten op slot tot het script verandert: één klik = één video (en één keer credits).
   const [gestartPlan, setGestartPlan] = useState<string | null>(null);
+  // Eigen script (Sanga, demo 17-11-2026): geen onderzoek, de tekst blijft letterlijk.
+  const [metScript, setMetScript] = useState(false);
+  const [eigenScript, setEigenScript] = useState("");
+  const [afwijking, setAfwijking] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
   const [open, setOpen] = useState<Creatie | null>(null);
   const [pakket, setPakket] = useState<Creatie | null>(null);
@@ -206,7 +210,9 @@ export default function DocuStudio() {
 
   function onderzoek() {
     return doe("onderzoek", async () => {
-      const r = await post<DocuOnderzoek>("/api/docu/onderzoek", { onderwerp, wens, lengte, taal, kanaal });
+      const r = await post<DocuOnderzoek & { lengte?: DocuLengte; afwijking?: boolean }>("/api/docu/onderzoek", { onderwerp, wens, lengte, taal, kanaal, script: metScript ? eigenScript : "" });
+      if (r.lengte) setLengte(r.lengte);
+      setAfwijking(!!r.afwijking);
       setPlan(r.plan);
       setFeiten(r.feiten);
       setControle(r.controle);
@@ -222,8 +228,20 @@ export default function DocuStudio() {
     });
   }
 
+  /** Word, PDF of tekst inlezen via dezelfde route als de motion-studio. */
+  function leesBestand(bestand: File) {
+    return doe("bestand", async () => {
+      const fd = new FormData();
+      fd.append("bestand", bestand);
+      const res = await fetch("/api/motion/lees-script", { method: "POST", body: fd });
+      const j = (await res.json().catch(() => ({}))) as { tekst?: string; error?: string };
+      if (!res.ok || !j.tekst) throw new Error(j.error || "Dit bestand konden we niet lezen. Plak de tekst er anders in.");
+      setEigenScript(j.tekst);
+    });
+  }
+
   function opnieuw() {
-    setPlan(null); setFeiten([]); setControle(null); setFotoZoek([]); setFotos(null); setFout(null);
+    setPlan(null); setAfwijking(false); setFeiten([]); setControle(null); setFotoZoek([]); setFotos(null); setFout(null);
   }
 
   function maak() {
@@ -316,10 +334,37 @@ export default function DocuStudio() {
                 ))}
               </div>
             </div>
-            <div>
-              <label className="n-label">Invalshoek of wat er zeker in moet <span className="font-normal text-tekst-3">(mag leeg)</span></label>
-              <textarea value={wens} onChange={(e) => setWens(e.target.value)} rows={2} placeholder="Bijvoorbeeld: vooral de rol van de eigenaren, en eindig bij de doorstart." className="n-invoer mt-1.5 resize-none" />
+            <div className="flex gap-2">
+              <button onClick={() => setMetScript(false)} disabled={!!plan} className={`flex-1 rounded-xl border px-3 py-2 text-left text-sm ${!metScript ? "border-blue-500 bg-blue-500/10" : "border-rand"}`}>
+                <div className="font-semibold text-tekst">🔎 Zoek het voor me uit</div>
+                <div className="text-[11px] text-tekst-3">Wij doen onderzoek en schrijven het script</div>
+              </button>
+              <button onClick={() => setMetScript(true)} disabled={!!plan} className={`flex-1 rounded-xl border px-3 py-2 text-left text-sm ${metScript ? "border-blue-500 bg-blue-500/10" : "border-rand"}`}>
+                <div className="font-semibold text-tekst">📄 Ik heb al een script</div>
+                <div className="text-[11px] text-tekst-3">Wij nemen je tekst letterlijk over</div>
+              </button>
             </div>
+            {metScript ? (
+              <div>
+                <label className="n-label">Je script</label>
+                <textarea value={eigenScript} onChange={(e) => setEigenScript(e.target.value)} rows={8} disabled={!!plan} placeholder="Plak hier wat de verteller zegt, van begin tot eind." className="n-invoer mt-1.5" />
+                <div className="mt-1.5 flex items-center justify-between gap-2">
+                  <label className="n-knop2 !py-1.5 !px-3 text-xs cursor-pointer">
+                    {bezig === "bestand" ? "Inlezen…" : "Of upload Word, PDF of tekst"}
+                    <input type="file" accept=".docx,.pdf,.txt,.md,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void leesBestand(f); e.target.value = ""; }} />
+                  </label>
+                  <span className="text-[11px] text-tekst-3">{eigenScript.trim() ? `${eigenScript.trim().split(/\s+/).length} woorden` : ""}</span>
+                </div>
+                <p className="text-[11px] text-tekst-3 mt-1">
+                  De lengte volgt uit je tekst (±150 woorden per minuut, hooguit ±10 minuten). Wij verdelen het in scenes en bedenken het beeld en de archieffoto&apos;s. Feiten controleren we niet: die zijn van jou.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <label className="n-label">Invalshoek of wat er zeker in moet <span className="font-normal text-tekst-3">(mag leeg)</span></label>
+                <textarea value={wens} onChange={(e) => setWens(e.target.value)} rows={2} placeholder="Bijvoorbeeld: vooral de rol van de eigenaren, en eindig bij de doorstart." className="n-invoer mt-1.5 resize-none" />
+              </div>
+            )}
 
             <div>
               <label className="n-label">Lengte</label>
@@ -421,12 +466,14 @@ export default function DocuStudio() {
 
             {!plan && (
               <>
-                <button onClick={onderzoek} disabled={!!bezig || onderwerp.trim().length < 3} className="btn-primary w-full disabled:opacity-50">
-                  {bezig === "onderzoek" ? "Bezig met onderzoek…" : "🔎 Onderzoek en schrijf het script (gratis)"}
+                <button onClick={onderzoek} disabled={!!bezig || onderwerp.trim().length < 3 || (metScript && eigenScript.trim().split(/\s+/).length < 60)} className="btn-primary w-full disabled:opacity-50">
+                  {bezig === "onderzoek" ? (metScript ? "Bezig met verdelen in scenes…" : "Bezig met onderzoek…") : metScript ? "🎬 Verdeel mijn script in scenes (gratis)" : "🔎 Onderzoek en schrijf het script (gratis)"}
                 </button>
                 {bezig === "onderzoek" && (
                   <p className="text-[11px] text-tekst-3">
-                    We zoeken het verhaal uit op internet, schrijven het script en laten elk feit door een tweede redacteur nalopen. Dat duurt 3 tot 6 minuten; laat deze pagina open.
+                    {metScript
+                      ? "We verdelen je tekst in scenes en bedenken het beeld erbij. Dat duurt een minuut of twee; laat deze pagina open."
+                      : "We zoeken het verhaal uit op internet, schrijven het script en laten elk feit door een tweede redacteur nalopen. Dat duurt 3 tot 6 minuten; laat deze pagina open."}
                   </p>
                 )}
               </>
@@ -441,10 +488,20 @@ export default function DocuStudio() {
                   <h2 className="font-bold text-tekst">2. Het script</h2>
                   <p className="text-xs text-tekst-3 mt-0.5">{plan.titel}</p>
                 </div>
-                <button onClick={opnieuw} disabled={!!bezig} className="n-knop2 !py-1.5 !px-3 text-xs">Ander onderwerp</button>
+                <button onClick={opnieuw} disabled={!!bezig} className="n-knop2 !py-1.5 !px-3 text-xs">{controle?.eigenScript ? "Ander script" : "Ander onderwerp"}</button>
               </div>
 
-              {controle && (
+              {controle?.eigenScript && (
+                <div className={`rounded-2xl p-3 text-sm text-tekst border ${afwijking ? "bg-amber-500/10 border-amber-500/30" : "bg-blue-500/10 border-blue-500/30"}`}>
+                  <div className="font-semibold">📄 Jouw eigen script</div>
+                  <p className="text-xs text-tekst-2 mt-1">
+                    {afwijking
+                      ? "Let op: bij het verdelen in scenes is je tekst ergens iets veranderd. Loop de scenes hieronder even na en zet je eigen woorden terug waar nodig."
+                      : "Woord voor woord overgenomen en verdeeld in scenes. Wij hebben de feiten niet gecontroleerd; die zijn van jou."}
+                  </p>
+                </div>
+              )}
+              {controle && !controle.eigenScript && (
                 <div className="rounded-2xl bg-emerald-500/10 border border-emerald-500/30 p-3 text-sm text-tekst">
                   <div className="font-semibold">✓ Feiten gecontroleerd</div>
                   <p className="text-xs text-tekst-2 mt-1">

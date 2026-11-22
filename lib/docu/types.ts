@@ -63,6 +63,8 @@ export interface DocuControle {
   gecontroleerd: number;
   /** Zinnen die zijn verbeterd of weggelaten, met de reden. Scene 0 is de eindkaart. */
   verbeterd: { scene: number; was: string; nu: string; reden: string }[];
+  /** Het script komt van de klant zelf: geen onderzoek en geen feitencontrole gedaan. */
+  eigenScript?: boolean;
 }
 
 /** Een vrije foto van Wikimedia Commons, bewaard op onze eigen opslag. */

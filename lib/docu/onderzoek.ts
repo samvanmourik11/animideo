@@ -19,7 +19,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { claude, controleerPlan } from "@/lib/motion/plan";
 import { kosten } from "@/lib/motion/animatie";
-import { duurTekst, maxWoorden, taalNaam, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
+import { duurTekst, maxScenes, maxWoorden, taalNaam, type MotionPlan, type MotionTaal } from "@/lib/motion/types";
 import type { DocuControle, DocuFeit, DocuLengte, DocuOnderzoek } from "./types";
 
 // Zoeken en nakijken door Sonnet: in de eerste proef (14-11-2026, V&D, 3 minuten) kostte het
@@ -337,6 +337,12 @@ export async function doeOnderzoek(v: OnderzoekVraag, opVoortgang?: (stap: "zoek
     .filter((f) => gebruikt.has(f.id) && /^https?:\/\//.test(f.url))
     .map((f) => ({ id: f.id, feit: f.feit.slice(0, 300), bron: f.bron.slice(0, 120), url: f.url.slice(0, 500) }));
 
+  // Zonder bronnen geen docu: anders kreeg de klant een leeg script met "feiten gecontroleerd"
+  // (gezien 22-11-2026 bij een persoonlijk verhaal als onderwerp).
+  if (feiten.length === 0) {
+    throw new Error("We vonden geen betrouwbare bronnen over dit onderwerp. Kies een bekender onderwerp, of gebruik \"Ik heb al een script\" als je het verhaal zelf hebt geschreven.");
+  }
+
   return {
     plan,
     feiten,
@@ -345,4 +351,55 @@ export async function doeOnderzoek(v: OnderzoekVraag, opVoortgang?: (stap: "zoek
     usd: z.usd + s.usd + c.usd,
     usdPerStap: { zoeken: z.usd, script: s.usd, controle: c.usd },
   };
+}
+
+// ── Eigen script ─────────────────────────────────────────────────────────────
+// Sanga (demo 17-11-2026) wil volledige, bestaande scripts van waargebeurde verhalen
+// gebruiken. Dan geen onderzoek en geen feitencontrole: het script blijft letterlijk, wij
+// verdelen het alleen in scenes en bedenken het beeld en de fotozoektermen erbij.
+
+const woordenVan = (t: string) =>
+  t.toLowerCase().normalize("NFKD").replace(/[^\p{L}\p{N}\s]/gu, " ").split(/\s+/).filter(Boolean);
+
+/** De kortste docu-lengte waar dit aantal woorden in past, of null als het te lang is. */
+export function lengteVoorScript(woorden: number, lengtes: readonly DocuLengte[]): DocuLengte | null {
+  for (const l of [...lengtes].sort((a, b) => a - b)) if (woorden <= Math.round(maxWoorden(l) * 1.25)) return l;
+  return null;
+}
+
+export async function verdeelEigenScript(v: OnderzoekVraag & { script: string }): Promise<DocuOnderzoek & { afwijking: boolean }> {
+  const max = maxScenes(v.lengte);
+  const system = `Je krijgt het complete script van een faceless YouTube-documentaire, geschreven door de maker zelf, in het ${taalNaam(v.taal)}. Het script is af: je verandert, schrapt of voegt GEEN woord toe aan wat de verteller zegt. Je verdeelt het alleen in scenes en bedenkt het beeld.
+
+- Verdeel de tekst op volgorde in hooguit ${max} scenes van ongeveer 20 tot 35 woorden, geknipt op zinsgrenzen. Alle scenes achter elkaar plus de eindkaart moeten samen precies het hele script zijn, woord voor woord.
+- "eind.tekst": de laatste zin (of laatste twee korte zinnen) van het script, letterlijk. "eind.regel1" en "eind.regel2": twee korte regels (elk hooguit 28 tekens) die samen letterlijk in eind.tekst staan; lukt dat niet, laat ze dan leeg. "eind.knop": ${v.kanaal ? `het woord voor "abonneren" in het ${taalNaam(v.taal)}` : "twee tot vier woorden"}.
+- "kop": als het script duidelijke hoofdstukken heeft, het nummer en een korte titel ("01  De vlucht", hooguit 24 tekens), gelijk voor alle scenes van dat hoofdstuk; de opening heeft een lege kop. Geen hoofdstukken in het script? Verdeel het zelf in twee tot vijf logische fases.
+- "beeld" (in het Nederlands, de animator leest het): wat er te zien is. Ongeveer de helft archieffoto met een korte typografische tekst erover, de rest motion graphics: kaart met een punt, tijdlijn, teller, grafiek, dossierkaart van een persoon, stempel, citaat als typografie. Gaat het over echte, niet-bekende personen (zoals een persoonlijk verhaal), toon dan geen foto van een herkenbaar gezicht maar plekken, voorwerpen of getekende silhouetten.
+- "foto": een Engelse zoekterm voor Wikimedia Commons als de scene een archieffoto heeft (plek, gebouw, voorwerp, bekende persoon), anders leeg.
+- "feiten" bovenaan: een lege lijst. "feiten" per scene: een lege lijst.
+- "titel": een YouTube-titel van hooguit 60 tekens in de taal van het script.`;
+  const m = await claude()
+    .beta.messages.stream({
+      model: SCRIPT_MODEL,
+      max_tokens: 64000,
+      output_config: { effort: "low", format: { type: "json_schema", schema: SCRIPT_SCHEMA } },
+      betas: ["server-side-fallback-2026-07-01"],
+      fallbacks: "default",
+      system,
+      messages: [{ role: "user", content: `Onderwerp: ${v.onderwerp}\n\nHet script:\n\n${v.script}` }],
+    })
+    .finalMessage();
+  if (m.stop_reason === "refusal") throw new Error("Met dit script kunnen we geen documentaire maken.");
+  let ruw: RuwScript;
+  try {
+    ruw = JSON.parse(tekstUit(m)) as RuwScript;
+  } catch {
+    throw new Error("Het verdelen in scenes lukte niet. Probeer het opnieuw.");
+  }
+  const plan = controleerPlan({ titel: ruw.titel, scenes: ruw.scenes, eind: ruw.eind }, v.lengte);
+  const fotoZoek = ruw.scenes.filter((x) => x.tekst.trim()).slice(0, plan.scenes.length).map((x) => (x.foto ?? "").trim().slice(0, 80));
+  // Letterlijk gebleven? Zo niet, dan ziet de klant een waarschuwing.
+  const terug = woordenVan([...plan.scenes.map((s) => s.tekst), plan.eind.tekst].join(" ")).join(" ");
+  const afwijking = terug !== woordenVan(v.script).join(" ");
+  return { plan, feiten: [], controle: { gecontroleerd: 0, verbeterd: [], eigenScript: true }, fotoZoek, usd: prijs(SCRIPT_MODEL, m), afwijking };
 }
