@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { downloadLink } from "@/lib/creaties/download";
 import { STATUS_LABEL, platform, type Kalender, type Post, type PostStatus } from "@/lib/social/types";
 
 // Eén contentkalender: eerst de ideeën (aanpassen, opnieuw laten bedenken, goedkeuren),
@@ -266,7 +267,7 @@ function PostKaart({
         {!bewerken && (
           <div className="flex flex-wrap gap-2 pt-1">
             {zelfPlaatsen && klaarMedia && (
-              <a href={klaarMedia.url!} download target="_blank" rel="noreferrer" className="btn-primary text-sm">⬇ Downloaden</a>
+              <a href={downloadLink(klaarMedia.url!, `animideo-post-${p.id.slice(0, 8)}`)} download target="_blank" rel="noreferrer" className="btn-primary text-sm">⬇ Downloaden</a>
             )}
             {zelfPlaatsen && klaarMedia && (
               <button onClick={() => navigator.clipboard?.writeText(p.tekst)} className="n-knop2 text-sm">📋 Tekst kopiëren</button>

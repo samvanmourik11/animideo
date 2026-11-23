@@ -4,6 +4,7 @@ import PakketSlot from "@/components/PakketSlot";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Creatie } from "@/lib/creaties/types";
+import { downloadLink } from "@/lib/creaties/download";
 import BeeldKiezer, { type GekozenBeeld } from "@/components/creaties/BeeldKiezer";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { startMaker, useCreaties } from "@/components/creaties/gebruik-creaties";
@@ -189,7 +190,7 @@ function GeluidLijst({ lijst, onOpen, extra }: { lijst: Creatie[]; onOpen: (c: C
           {c.status === "klaar" && c.url && (
             <div className="flex items-center gap-2">
               {c.soort === "audio" ? <audio src={c.url} controls preload="none" className="flex-1 h-9" /> : <video src={c.url} controls className="w-full max-h-64 rounded-lg" />}
-              <a href={c.url} download target="_blank" rel="noreferrer" className="n-knop2 !py-1.5 !px-3 text-xs shrink-0">⬇️ {c.soort === "audio" ? "mp3" : "mp4"}</a>
+              <a href={downloadLink(c.url, `animideo-${c.soort}-${c.id.slice(0, 8)}`)} download target="_blank" rel="noreferrer" className="n-knop2 !py-1.5 !px-3 text-xs shrink-0">⬇️ {c.soort === "audio" ? "mp3" : "mp4"}</a>
               {extra?.(c)}
             </div>
           )}

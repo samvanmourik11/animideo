@@ -8,6 +8,7 @@ import { VIDEO_MODELLEN, STANDAARD_VIDEO_MODEL } from "@/lib/video-modellen";
 import { recept, receptPad } from "@/lib/creaties/recepten";
 import { monteerOpnieuw, startMaker, stopCreatie, verwijder, zetFavoriet, zetMap } from "./gebruik-creaties";
 import { klantReden } from "@/lib/creaties/melding";
+import { downloadLink } from "@/lib/creaties/download";
 import { SCHAAKBORD, isDoorzichtig } from "./CreatieKaart";
 import { heeftGezicht, herkomst } from "@/lib/delen/herkomst";
 import { magFeedback } from "@/lib/creaties/eindmakers";
@@ -352,7 +353,7 @@ export default function CreatieDetail({
                 </Link>
               )}
               {c.url && (
-                <a href={c.url} target="_blank" rel="noreferrer" download className="n-knop2 w-full">
+                <a href={downloadLink(c.url, `animideo-${c.soort}-${c.id.slice(0, 8)}`)} target="_blank" rel="noreferrer" download className="n-knop2 w-full">
                   ⬇️ Downloaden
                 </a>
               )}
