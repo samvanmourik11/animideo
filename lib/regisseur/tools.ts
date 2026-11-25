@@ -31,6 +31,7 @@ import { MOTION_LENGTES, MOTION_SOORTEN, motionCredits, type MotionLengte, type 
 import { RECLAME_CREDITS, RECLAME_FORMATEN, STIJLEN, type Product, type ReclameFormaat, type StijlId } from "@/lib/reclame/types";
 import { schrijfTrailer } from "@/lib/trailer/plan";
 import { TRAILER_LENGTES, trailerCredits, type TrailerLengte } from "@/lib/trailer/types";
+import { keurAf } from "./controle";
 import { datumTekst, maakTaak, ritmeTekst } from "./taken";
 import { accountsVan } from "@/lib/social/zernio";
 import { bedenkIdeeen, maakKalender } from "@/lib/social/kalender";
@@ -39,7 +40,7 @@ type Tool = Anthropic.Beta.BetaTool;
 
 export const BETAALDE_TOOLS = new Set([...FILM_BETAALD, "maak_beeld", "maak_voiceover", "maak_video", "gebruik_app", "monteer", "maak_ugc_video", "maak_reclame", "maak_trailer", "maak_motion_graphics"]);
 /** Gratis, meteen uitgevoerd. */
-export const GRATIS_TOOLS = new Set([...FILM_GRATIS, "lees_webpagina", "mijn_werk", "ugc_creators", "zoek_stemmen", "onthoud", "vaste_taak", "lees_huisstijl", "social_kanalen", "maak_contentkalender"]);
+export const GRATIS_TOOLS = new Set([...FILM_GRATIS, "lees_webpagina", "mijn_werk", "ugc_creators", "zoek_stemmen", "onthoud", "keur_af", "vaste_taak", "lees_huisstijl", "social_kanalen", "maak_contentkalender"]);
 
 // De lijst apps staat in de omschrijving van het gereedschap. Die verandert alleen als we
 // apps toevoegen, dus de cache van het verzoek blijft gewoon geldig.
@@ -246,6 +247,11 @@ export const TOOLS: Tool[] = [
       },
       required: ["verhaal"],
     },
+  },
+  {
+    name: "keur_af",
+    description: "Keur een eigen AI-clip af (gratis) die duidelijk mislukt is: vervormde handen of gezichten, iets dat verschijnt of verdwijnt, een ander personage, een onlogische handeling, onleesbare of verkeerde tekst. De gebruiker krijgt de credits van die clip terug; maak hem daarna één keer opnieuw met een eenvoudigere beweging. Niet voor kleinigheden of smaak, en nooit een tweede poging nog eens.",
+    input_schema: { type: "object", properties: { clip_id: { type: "string" }, reden: { type: "string", description: "Wat er mis is, kort." } }, required: ["clip_id", "reden"] },
   },
   {
     name: "onthoud",
@@ -622,6 +628,7 @@ export async function voerUit(userId: string, s: Stap): Promise<string> {
 export async function gratis(userId: string, blok: Anthropic.Beta.BetaToolUseBlock, projectId?: string): Promise<string> {
   if (FILM_GRATIS.has(blok.name)) return filmGratis(userId, projectId, blok);
   const i = (blok.input ?? {}) as Record<string, unknown>;
+  if (blok.name === "keur_af") return keurAf(userId, String(i.clip_id ?? ""), String(i.reden ?? ""));
   if (blok.name === "lees_webpagina") {
     const p = await leesProductpagina(String(i.url ?? ""));
     return JSON.stringify({ ...p, fotos: p.fotos.slice(0, 6) });

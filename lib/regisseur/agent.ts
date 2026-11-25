@@ -10,6 +10,7 @@
 //   - het gesprek wordt alleen aangevuld, nooit herschreven (het meedenken van het model
 //     is aan de geschiedenis gebonden).
 
+import { CLIP_MAKERS, controleBeelden } from "./controle";
 import { beperkBeelden } from "./beelden";
 import Anthropic from "@anthropic-ai/sdk";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -472,6 +473,15 @@ export async function controleerMaken(p: RegieProject): Promise<boolean> {
     inhoud.push({ type: "text", text: `Beeld ${c.id}:` });
     inhoud.push({ type: "image", source: { type: "url", url: c.url! } });
   }
+  // AI-clips nakijken vóór de montage: per clip begin, midden en eind (zie controle.ts).
+  const clips = lijst.filter((x) => x.status === "klaar" && x.soort === "video" && CLIP_MAKERS.has(x.maker ?? "") && x.url).slice(0, 8);
+  const clipBeelden = await Promise.all(clips.map((c) => controleBeelden(c)));
+  clips.forEach((c, n) => {
+    if (!clipBeelden[n].length) return;
+    inhoud.push({ type: "text", text: `Clip ${c.id} (${c.prompt ?? ""}) — begin, midden, eind:` });
+    for (const url of clipBeelden[n]) inhoud.push({ type: "image", source: { type: "url", url } });
+  });
+  if (clips.length) inhoud.push({ type: "text", text: "Kijk elke clip na voor je monteert: vervormde handen of gezichten, iets dat ineens verschijnt of verdwijnt, een ander personage dan in het beeld ervoor, een handeling die nergens op slaat, kapotte tekst. Is een clip duidelijk mislukt: keur_af en maak hem één keer opnieuw. Kleinigheden laat je staan." });
   const klaar = { ...w.klaar, [w.toolUseId]: { type: "tool_result" as const, tool_use_id: w.toolUseId, content: inhoud } };
   // Een mislukte creatie krijgt zijn credits terug; dan telt hij ook niet meer mee voor de begroting.
   const gebruik = { ...p.gebruik };
