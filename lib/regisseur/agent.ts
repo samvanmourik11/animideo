@@ -210,7 +210,11 @@ export async function draai(id: string): Promise<void> {
       const klaar: Record<string, Resultaat> = {};
       for (const b of aanroepen.filter((x) => GRATIS_TOOLS.has(x.name))) {
         try {
-          klaar[b.id] = resultaatTekst(b.id, await gratis(p.user_id, b, p.id));
+          const uitkomst = await gratis(p.user_id, b, p.id);
+          // Een stille herkansing (keur_af) is een nieuwe clip: die hoort in de galerij.
+          const nieuw = b.name === "keur_af" ? uitkomst.match(/nieuw clip-id ([0-9a-f-]{36})/)?.[1] : undefined;
+          if (nieuw && !galerij.includes(nieuw)) galerij.push(nieuw);
+          klaar[b.id] = resultaatTekst(b.id, uitkomst);
         } catch (e) {
           klaar[b.id] = resultaatTekst(b.id, e instanceof Error ? e.message : String(e), true);
         }

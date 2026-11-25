@@ -28,7 +28,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const { data } = p.galerij.length
     ? await createServiceClient().from("creaties").select("*").in("id", p.galerij)
     : { data: [] };
-  const galerij = (await verversLopende((data ?? []) as Creatie[])).sort((a, b) => p.galerij.indexOf(b.id) - p.galerij.indexOf(a.id));
+  // Afgekeurde clips (stille herkansing, lib/regisseur/controle.ts) ziet de klant nooit.
+  const galerij = (await verversLopende(((data ?? []) as Creatie[]).filter((c) => !(c.invoer as { afgekeurd?: string } | null)?.afgekeurd))).sort((a, b) => p.galerij.indexOf(b.id) - p.galerij.indexOf(a.id));
   const { gebruik, ...rest } = p;
   // De credits van dit project ziet iedereen; de tekstkosten van Claude alleen beheer.
   const kosten = { besteed: gebruik?.besteed ?? 0, ...(gebruik?.budget !== undefined ? { budget: gebruik.budget } : {}) };

@@ -51,6 +51,9 @@ export async function startCreatie(
   maker: string,
   ruweInvoer: Record<string, unknown>,
   ouderId?: string | null,
+  // Een andere prijs dan het tarief: de Regisseur rekent bij clips een kleine opslag voor de
+  // stille herkansing van een mislukte clip, en die herkansing zelf kost 0 (lib/regisseur/controle.ts).
+  o: { credits?: number } = {},
 ): Promise<Creatie> {
   // Een reclame is geen enkele fal-opdracht maar een reeks stappen; die heeft zijn eigen regie.
   if (maker === "reclame") return startReclame(userId, ruweInvoer, ouderId);
@@ -113,7 +116,7 @@ export async function startCreatie(
   // Wat er écht is afgeschreven, niet het tarief: de interne accounts schrijven niets af,
   // en zouden bij een mislukte poging anders credits "terug" krijgen die ze nooit betaalden.
   // In een team gaat het van de pot van de eigenaar (lib/team/team.ts).
-  const { ok, betaald, betalerId } = await betaal(userId, opdracht.credits, `Nieuwe app: ${maker}`);
+  const { ok, betaald, betalerId } = await betaal(userId, o.credits ?? opdracht.credits, `Nieuwe app: ${maker}`);
   if (!ok) {
     throw new WachtrijFout("Niet genoeg credits.", 402);
   }

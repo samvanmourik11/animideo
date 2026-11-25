@@ -32,6 +32,8 @@ export async function GET(req: NextRequest) {
     .from("creaties")
     .select("*")
     .in("user_id", ids)
+    // Afgekeurde clips (stille herkansing van de Regisseur) ziet de klant nooit.
+    .is("invoer->afgekeurd", null)
     .order("created_at", { ascending: false })
     .limit(PAGINA);
 

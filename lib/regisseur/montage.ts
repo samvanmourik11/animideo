@@ -204,8 +204,7 @@ async function download(url: string, doel: string) {
 async function voerUit(c: Creatie, clips: { url: string; soort: string; metGeluid?: boolean }[], m: MontageInvoer, formaat: string) {
   const map = await mkdtemp(path.join(tmpdir(), "montage-"));
   try {
-    // Full HD: in 720p zag de klant het verschil met onze eigen video's meteen (25-11-2026).
-    const [W, H] = formaat === "9:16" ? [1080, 1920] : formaat === "1:1" ? [1080, 1080] : [1920, 1080];
+    const [W, H] = formaat === "9:16" ? [720, 1280] : formaat === "1:1" ? [720, 720] : [1280, 720];
     const bestanden = await Promise.all(clips.map((k, i) => download(k.url, path.join(map, `c${i}${k.soort === "video" ? ".mp4" : ".jpg"}`))));
     const duren = await Promise.all(bestanden.map((b, i) => (clips[i].soort === "video" ? duur(b) : Promise.resolve(3))));
 
@@ -343,7 +342,7 @@ async function voerUit(c: Creatie, clips: { url: string; soort: string; metGelui
 
     const uit = path.join(map, "montage.mp4");
     const args = ["-hide_banner", "-loglevel", "error", ...inputs, "-filter_complex_threads", "2", "-filter_complex", f.join(";"), "-map", "[v]", "-map", "[a]", "-t", totaal.toFixed(2),
-      "-c:v", "libx264", "-threads", "2", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "-y", uit];
+      "-c:v", "libx264", "-threads", "2", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", "-y", uit];
     // Eén keer opnieuw: een server die net even vol zit, laat ffmpeg soms halverwege stoppen.
     await run(FFMPEG, args, { maxBuffer: 1 << 25 }).catch(() => run(FFMPEG, args, { maxBuffer: 1 << 25 })).catch((e: { stderr?: string; signal?: string; message?: string }) => {
       const reden = e.signal ? `gestopt (${e.signal}), waarschijnlijk geheugen vol` : (e.stderr ?? "").trim().split("\n").slice(-3).join(" ") || e.message;
