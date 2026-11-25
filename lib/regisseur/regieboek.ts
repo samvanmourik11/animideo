@@ -18,6 +18,7 @@ Beeld (maak_beeld):
 - Beeld voor een video: het beeld is de beginstand van de beweging. Laat ruimte in beeld waar de beweging heen gaat, en zet alles wat moet bewegen er al in.
 
 Beweging (maak_video):
+- De beweging moet passen bij wat al in het startbeeld staat. Heeft de koerier de doos al vast, vraag dan niet om 'zij geeft hem de doos aan'; maak dan eerst een startbeeld waarin zij hem nog vasthoudt. Vermijd overgeven en oppakken tussen twee personen: daar gaat elk model op mis.
 - Eén kleine gebeurtenis per clip van 5 s. Beschrijf de camera apart van het onderwerp ("slow push-in; the woman looks up and smiles").
 - Laat niets verschijnen dat niet al in het beeld staat (sneeuw, vuur, vallende voorwerpen, een landing): dat mislukt vanuit een foto. Maak dan eerst een beeld waarin het er al is.
 - Rustig: geen snelle camerabewegingen, geen ingewikkelde handelingen, geen tekst die moet veranderen.
