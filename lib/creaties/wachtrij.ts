@@ -1,3 +1,4 @@
+import { zetKostenContext } from "@/lib/provider-kosten";
 import { randomUUID } from "node:crypto";
 import { magGebruiker } from "@/lib/plan-rechten-server";
 import { upgradeTekst } from "@/lib/plan-rechten";
@@ -116,7 +117,13 @@ export async function startCreatie(
   // Wat er écht is afgeschreven, niet het tarief: de interne accounts schrijven niets af,
   // en zouden bij een mislukte poging anders credits "terug" krijgen die ze nooit betaalden.
   // In een team gaat het van de pot van de eigenaar (lib/team/team.ts).
-  const { ok, betaald, betalerId } = await betaal(userId, o.credits ?? opdracht.credits, `Nieuwe app: ${maker}`);
+  // Een stille herkansing (credits 0) raakt het saldo niet en hoeft dus ook geen sessie te lezen;
+  // wel in het kostenlogboek, want fal kost ons gewoon geld.
+  const kosteloos = o.credits === 0;
+  if (kosteloos) zetKostenContext(userId, `Nieuwe app: ${maker} (stille herkansing)`);
+  const { ok, betaald, betalerId } = kosteloos
+    ? { ok: true, betaald: 0, betalerId: userId }
+    : await betaal(userId, o.credits ?? opdracht.credits, `Nieuwe app: ${maker}`);
   if (!ok) {
     throw new WachtrijFout("Niet genoeg credits.", 402);
   }
