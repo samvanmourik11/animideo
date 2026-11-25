@@ -25,6 +25,7 @@ Beweging (maak_video):
 
 Verhaal en montage:
 - Voice-over: reken op ±2,5 woorden per seconde; een clip van 5 s draagt hoogstens 12 woorden.
+- Voice-over altijd per clip (monteer: voiceover_per_clip): elke zin hoort bij het beeld dat dan te zien is. Noemt de tekst 'stap 2', dan staat stap 2 in beeld. Past een zin niet in 5 s, maak dan een extra clip in plaats van één lange zin.
 - Wissel wijd, medium en close-up af; begin met iets dat meteen opvalt.
 - Eindig met merknaam en website op een eindkaart; nooit een vraag als laatste zin zonder antwoord.`;
 

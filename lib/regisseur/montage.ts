@@ -53,6 +53,11 @@ export interface MontageInvoer {
   titel?: string;
   eindtekst?: string;
   voiceover?: string;
+  // Voice-over per clip, in dezelfde volgorde als clipIds ("" = die clip zonder tekst). Dan
+  // duurt elke clip minstens zo lang als zijn eigen zin en loopt stem gelijk met beeld.
+  // Unilabs-demo Simon, 25-11-2026: één doorlopende stem over clips van 5 s liep 15 s uit de
+  // pas ('stap 3' bij het beeld van de koerier) en de video hield op terwijl de stem doorging.
+  voiceoverPerClip?: string[];
   stem?: string;
   // Een stijl ("episch" → eerste nummer van die stijl) of een nummer op slug/titel ("golden-boots").
   muziek?: MusicCategory | string | null;
@@ -101,7 +106,11 @@ export function leesMontage(ruw: Record<string, unknown>): MontageInvoer {
   if (!clipIds.length) throw new Error("Kies eerst de clips die in de montage moeten.");
   if (clipIds.length > MAX_STUKKEN) throw new Error(`Een montage kan hoogstens ${MAX_STUKKEN} beelden en clips bevatten (nu ${clipIds.length}). Maak de video in delen of laat beelden weg.`);
   const t = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
-  const vo = typeof ruw.voiceover === "string" ? ruw.voiceover.trim() : "";
+  const perClipRuw = Array.isArray(ruw.voiceoverPerClip) ? ruw.voiceoverPerClip.map((x) => (typeof x === "string" ? x.trim() : "")) : null;
+  const perClip = perClipRuw && perClipRuw.some(Boolean) ? perClipRuw : null;
+  if (perClip && perClip.length !== clipIds.length) throw new Error(`De voice-over per clip heeft ${perClip.length} stukken, maar er zijn ${clipIds.length} clips. Geef voor elke clip één stuk tekst (leeg voor een clip zonder stem).`);
+  if (perClip?.some((x) => x.length > STEM_DEEL)) throw new Error(`Eén stuk voice-over is te lang voor één clip (hoogstens ${STEM_DEEL} tekens). Verdeel de tekst over meer clips.`);
+  const vo = perClip ? perClip.filter(Boolean).join(" ") : typeof ruw.voiceover === "string" ? ruw.voiceover.trim() : "";
   if (vo.length > MAX_VOICEOVER) throw new Error(`De voice-over is te lang (${vo.length} tekens, hoogstens ${MAX_VOICEOVER}, zo'n 6 minuten). Maak hem korter of maak de video in delen.`);
   const stem = t(ruw.stem, 40);
   const muziek = kiesNummer(typeof ruw.muziek === "string" ? ruw.muziek : null) ? String(ruw.muziek).trim() : null;
@@ -110,6 +119,7 @@ export function leesMontage(ruw: Record<string, unknown>): MontageInvoer {
     titel: t(ruw.titel, 60) || undefined,
     eindtekst: t(ruw.eindtekst, 60) || undefined,
     voiceover: vo || undefined,
+    ...(perClip ? { voiceoverPerClip: perClip } : {}),
     // Een stem op naam ("Hugo") of id, uit de UGC-set of de stemmenbibliotheek; onbekend = de verteller.
     stem: UGC_STEMMEN.find((s) => s.id === stem || s.naam.toLowerCase() === stem.toLowerCase())?.id ?? vindStem(stem)?.id ?? VERTELLER,
     muziek,
@@ -198,17 +208,45 @@ async function voerUit(c: Creatie, clips: { url: string; soort: string; metGelui
     const bestanden = await Promise.all(clips.map((k, i) => download(k.url, path.join(map, `c${i}${k.soort === "video" ? ".mp4" : ".jpg"}`))));
     const duren = await Promise.all(bestanden.map((b, i) => (clips[i].soort === "video" ? duur(b) : Promise.resolve(3))));
 
+    const spreek = async (tekst: string, naam: string) => {
+      const r = await fal.subscribe("fal-ai/elevenlabs/tts/eleven-v3", {
+        input: { text: tekst, voice: m.stem, language_code: "nl", stability: 0.5, similarity_boost: 0.75, speed: 1 } as never,
+      });
+      const url = (r.data as { audio?: { url?: string } }).audio?.url;
+      if (!url) throw new Error("De stem kwam niet terug.");
+      return download(url, path.join(map, naam));
+    };
     let stem: string | null = null;
-    if (m.voiceover) {
+    // Hoe lang elk stuk in beeld staat. Zonder voice-over: de eigen lengte van de clip.
+    let doel = [...duren];
+    const VOORLOOP = 0.25; // stem begint net na de beeldwissel
+    const NALOOP = 0.45; // en het beeld blijft na de zin nog even staan
+    if (m.voiceoverPerClip) {
+      // Elke clip zijn eigen zin: los inspreken, clip zo lang als zijn zin, en de stukken op
+      // precies de beeldwissels achter elkaar zetten. Zo loopt stem en beeld altijd gelijk.
+      const teksten = m.voiceoverPerClip;
+      const mp3s: (string | null)[] = new Array(teksten.length).fill(null);
+      for (let i = 0; i < teksten.length; i += 6) {
+        await Promise.all(teksten.slice(i, i + 6).map(async (t, j) => { if (t) mp3s[i + j] = await spreek(t, `stem${i + j}.mp3`); }));
+      }
+      const stemDuren = await Promise.all(mp3s.map((b) => (b ? duur(b) : Promise.resolve(0))));
+      doel = duren.map((d, i) => (stemDuren[i] ? Math.max(d, VOORLOOP + stemDuren[i] + NALOOP) : d));
+      stem = path.join(map, "stem.wav");
+      const inv: string[] = [];
+      const keten: string[] = [];
+      let n = 0;
+      mp3s.forEach((b, i) => {
+        const d = doel[i].toFixed(3);
+        if (b) {
+          inv.push("-i", b);
+          const ms = Math.round(VOORLOOP * 1000);
+          keten.push(`[${n++}:a]aformat=channel_layouts=stereo,aresample=44100,adelay=${ms}|${ms},apad=whole_dur=${d},atrim=duration=${d},asetpts=PTS-STARTPTS[s${i}]`);
+        } else keten.push(`anullsrc=r=44100:cl=stereo,atrim=duration=${d}[s${i}]`);
+      });
+      await run(FFMPEG, ["-nostdin", "-hide_banner", "-loglevel", "error", ...inv, "-filter_complex", `${keten.join(";")};${mp3s.map((_, i) => `[s${i}]`).join("")}concat=n=${mp3s.length}:v=0:a=1[a]`, "-map", "[a]", "-y", stem], { maxBuffer: 1 << 22 });
+    } else if (m.voiceover) {
       const delen = stemDelen(m.voiceover);
-      const mp3s = await Promise.all(delen.map(async (tekst, i) => {
-        const r = await fal.subscribe("fal-ai/elevenlabs/tts/eleven-v3", {
-          input: { text: tekst, voice: m.stem, language_code: "nl", stability: 0.5, similarity_boost: 0.75, speed: 1 } as never,
-        });
-        const url = (r.data as { audio?: { url?: string } }).audio?.url;
-        if (!url) throw new Error("De stem kwam niet terug.");
-        return download(url, path.join(map, `stem${i}.mp3`));
-      }));
+      const mp3s = await Promise.all(delen.map((tekst, i) => spreek(tekst, `stem${i}.mp3`)));
       if (mp3s.length === 1) stem = mp3s[0];
       else {
         // Delen achter elkaar, met een korte adempauze ertussen.
@@ -220,9 +258,17 @@ async function voerUit(c: Creatie, clips: { url: string; soort: string; metGelui
     }
     const titelDuur = m.titel ? 2.5 : 0;
     const eindDuur = m.eindtekst ? 3 : 0;
-    const clipsDuur = duren.reduce((s, d) => s + d, 0);
     const stemDuur = stem ? await duur(stem) : 0;
-    const totaal = Math.max(titelDuur + clipsDuur + eindDuur, titelDuur + stemDuur + 0.8);
+    if (stem && !m.voiceoverPerClip) {
+      // Eén doorlopende tekst: is de stem langer dan de clips, dan rekken we álle clips even
+      // veel op in plaats van het laatste beeld 15 s stil te zetten. Benadering, niet exact;
+      // daarvoor is voiceoverPerClip.
+      const nodig = stemDuur + 0.8;
+      const nu = duren.reduce((s, d) => s + d, 0);
+      if (nodig > nu) doel = duren.map((d) => (d * nodig) / nu);
+    }
+    const clipsDuur = doel.reduce((s, d) => s + d, 0);
+    const totaal = titelDuur + clipsDuur + eindDuur;
 
     const inputs: string[] = [];
     const f: string[] = [];
@@ -244,12 +290,15 @@ async function voerUit(c: Creatie, clips: { url: string; soort: string; metGelui
     bestanden.forEach((b, i) => {
       const k = i;
       if (clips[i].soort === "video") inputs.push(...DECODER, "-i", b);
-      else inputs.push("-loop", "1", "-t", "3", "-i", b);
-      f.push(`[${k}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},fps=30,setsar=1,format=yuv420p,trim=duration=${duren[i].toFixed(3)},setpts=PTS-STARTPTS[v${i}]`);
+      else inputs.push("-loop", "1", "-t", doel[i].toFixed(3), "-i", b);
+      // Langer nodig dan de clip zelf: eerst rustig vertragen (hoogstens 1,5x), de rest het
+      // laatste beeld vasthouden.
+      const traag = clips[i].soort === "video" ? Math.min(1.5, Math.max(1, doel[i] / duren[i])) : 1;
+      f.push(`[${k}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,format=yuv420p,trim=duration=${duren[i].toFixed(3)},setpts=${traag.toFixed(4)}*(PTS-STARTPTS),fps=30,tpad=stop_mode=clone:stop_duration=${doel[i].toFixed(3)},trim=duration=${doel[i].toFixed(3)},setpts=PTS-STARTPTS[v${i}]`);
       segs.push(`[v${i}]`);
     });
     if (m.eindtekst) await kaart(m.eindtekst, eindDuur, "eind");
-    f.push(`${segs.join("")}concat=n=${segs.length}:v=1:a=0,tpad=stop_mode=clone:stop_duration=10,trim=duration=${totaal.toFixed(2)}[v]`);
+    f.push(`${segs.join("")}concat=n=${segs.length}:v=1:a=0,tpad=stop_mode=clone:stop_duration=${totaal.toFixed(2)},trim=duration=${totaal.toFixed(2)}[v]`);
 
     const audio: string[] = [];
     // Afgemonteerde video's (met eigen stem) houden hun geluid; losse AI-clips niet. Zo kun je
@@ -258,8 +307,8 @@ async function voerUit(c: Creatie, clips: { url: string; soort: string; metGelui
     if (eigenGeluid.some(Boolean)) {
       const delen = bestanden.map((_, i) =>
         eigenGeluid[i]
-          ? `[${i}:a]aformat=channel_layouts=stereo,aresample=44100,atrim=duration=${duren[i].toFixed(3)},apad=whole_dur=${duren[i].toFixed(3)},asetpts=PTS-STARTPTS[g${i}]`
-          : `anullsrc=r=44100:cl=stereo,atrim=duration=${duren[i].toFixed(3)}[g${i}]`,
+          ? `[${i}:a]aformat=channel_layouts=stereo,aresample=44100,atrim=duration=${duren[i].toFixed(3)},apad=whole_dur=${doel[i].toFixed(3)},asetpts=PTS-STARTPTS[g${i}]`
+          : `anullsrc=r=44100:cl=stereo,atrim=duration=${doel[i].toFixed(3)}[g${i}]`,
       );
       f.push(...delen);
       const voor = titelDuur ? `anullsrc=r=44100:cl=stereo,atrim=duration=${titelDuur}[gt];` : "";
@@ -270,7 +319,8 @@ async function voerUit(c: Creatie, clips: { url: string; soort: string; metGelui
     let extra = bestanden.length;
     if (stem) {
       inputs.push("-i", stem);
-      const ms = Math.round(titelDuur * 1000 + 300);
+      // Per-clip-stem zit al op de beeldwissels (met eigen voorloop); één doorlopende stem start 0,3 s in.
+      const ms = Math.round(titelDuur * 1000 + (m.voiceoverPerClip ? 0 : 300));
       f.push(`[${extra}:a]aformat=channel_layouts=stereo,aresample=44100,adelay=${ms}|${ms}[st]`);
       audio.push("[st]");
       extra++;

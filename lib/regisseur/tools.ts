@@ -137,14 +137,15 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "monteer",
-    description: `Zet klare clips en/of beelden achter elkaar tot één video, met optioneel titelkaart, eindkaart, Nederlandse voice-over en muziek. Voice-over kost ${CREDIT_COSTS.VOICE} credits per begonnen 1.000 tekens (de volledige tekst wordt altijd helemaal ingesproken, tot ${MAX_VOICEOVER} tekens). Hoogstens ${MAX_STUKKEN} stukken, waarvan hoogstens ${MAX_VIDEOCLIPS} bewegende clips; stilstaande beelden duren elk 3 s, de video wordt vanzelf zo lang als de stem. Een eerder afgemonteerde video (montage, film, reclame e.d.) houdt zijn eigen geluid en stem als je hem als clip meeneemt; losse AI-clips zijn stil. Foto's worden schermvullend bijgesneden. Stem: het stem-id dat de gebruiker koos (eerst zoek_stemmen, dan vraag_keuze soort 'stem'); zonder stem een diepe verteller. Muziek: een stijl (${MUSIC_CATEGORIES.map((c) => c.id).join(", ")}) of een specifiek nummer uit de bibliotheek op slug: ${MUSIC_TRACKS.map((t) => `${t.slug} ("${t.title}", ${t.category})`).join("; ")}. Noemt de gebruiker een nummer bij naam, gebruik dan die slug.`,
+    description: `Zet klare clips en/of beelden achter elkaar tot één video, met optioneel titelkaart, eindkaart, Nederlandse voice-over en muziek. Voice-over kost ${CREDIT_COSTS.VOICE} credits per begonnen 1.000 tekens (de volledige tekst wordt altijd helemaal ingesproken, tot ${MAX_VOICEOVER} tekens). Hoogstens ${MAX_STUKKEN} stukken, waarvan hoogstens ${MAX_VIDEOCLIPS} bewegende clips; stilstaande beelden duren elk 3 s. Met voice-over ALTIJD voiceover_per_clip gebruiken: elke clip wordt dan zo lang als zijn eigen zin (rustig vertraagd en daarna stilgezet), dus stem en beeld lopen gelijk; één losse doorlopende voiceover-tekst loopt bij een uitleg uit de pas. Een eerder afgemonteerde video (montage, film, reclame e.d.) houdt zijn eigen geluid en stem als je hem als clip meeneemt; losse AI-clips zijn stil. Foto's worden schermvullend bijgesneden. Stem: het stem-id dat de gebruiker koos (eerst zoek_stemmen, dan vraag_keuze soort 'stem'); zonder stem een diepe verteller. Muziek: een stijl (${MUSIC_CATEGORIES.map((c) => c.id).join(", ")}) of een specifiek nummer uit de bibliotheek op slug: ${MUSIC_TRACKS.map((t) => `${t.slug} ("${t.title}", ${t.category})`).join("; ")}. Noemt de gebruiker een nummer bij naam, gebruik dan die slug.`,
     input_schema: {
       type: "object",
       properties: {
         clip_ids: { type: "array", items: { type: "string" }, minItems: 1 },
         titel: { type: "string" },
         eindtekst: { type: "string" },
-        voiceover: { type: "string", description: "Wat de stem zegt, Nederlands." },
+        voiceover: { type: "string", description: "Alleen voor een stem die los van de beelden doorloopt. Bij een uitleg of verhaal met voice-over: gebruik voiceover_per_clip." },
+        voiceover_per_clip: { type: "array", items: { type: "string" }, description: "Voorkeur bij elke voice-over: per clip precies wat de stem zegt terwijl DIE clip in beeld is, in dezelfde volgorde en even veel stukken als clip_ids (\"\" voor een clip zonder tekst). Elke clip duurt dan vanzelf zo lang als zijn zin, zodat stem en beeld gelijk lopen. Zorg dat de zin echt over dat beeld gaat." },
         stem: { type: "string" },
         muziek: { type: "string", enum: [...MUSIC_CATEGORIES.map((c) => c.id), ...MUSIC_TRACKS.map((t) => t.slug)] },
       },
@@ -485,7 +486,7 @@ export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUs
     return { ...basis, maker: "recept", invoer, credits: o.credits, omschrijving: `${r.icoon} ${r.naam}${i.tekst ? `: ${String(i.tekst).slice(0, 60)}` : ""}` };
   }
   if (blok.name === "monteer") {
-    const invoer = { clipIds: i.clip_ids, titel: i.titel, eindtekst: i.eindtekst, voiceover: i.voiceover, stem: i.stem, muziek: i.muziek };
+    const invoer = { clipIds: i.clip_ids, titel: i.titel, eindtekst: i.eindtekst, voiceover: i.voiceover, voiceoverPerClip: i.voiceover_per_clip, stem: i.stem, muziek: i.muziek };
     const m = leesMontage(invoer);
     return { ...basis, maker: "montage", invoer, credits: montageCredits(m), omschrijving: `Montage van ${m.clipIds.length} stukken${m.titel ? ` — "${m.titel}"` : ""}${m.voiceover ? " met voice-over" : ""}` };
   }
