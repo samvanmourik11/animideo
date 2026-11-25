@@ -7,6 +7,7 @@ import CreatieKaart from "@/components/creaties/CreatieKaart";
 import CreatieDetail from "@/components/creaties/CreatieDetail";
 import { CREATIES_GEWIJZIGD } from "@/components/app-shell/Zijbalk";
 import { useCreaties } from "@/components/creaties/gebruik-creaties";
+import { BrowserMelding, useBrowserVideo } from "@/components/motion/BrowserVideo";
 import { regels } from "@/lib/regisseur/weergave";
 import { createClient } from "@/lib/supabase/client";
 
@@ -242,6 +243,14 @@ export default function Regisseur() {
   const [geheugen, setGeheugen] = useState("");
   const [geheugenStatus, setGeheugenStatus] = useState<string | null>(null);
   const werk = useCreaties({ soort: "beeld" });
+  // Motion graphics die de Regisseur startte, worden in deze browser afgemaakt (net als in de
+  // motion-studio). Elke 10 s kijken of er een nieuwe klaarstaat.
+  const motion = useCreaties({ maker: "motion" });
+  const motionStand = useBrowserVideo(motion.creaties, motion.ververs);
+  useEffect(() => {
+    const t = setInterval(motion.ververs, 10000);
+    return () => clearInterval(t);
+  }, [motion.ververs]);
 
   async function openGeheugen() {
     setGeheugenOpen((x) => !x);
@@ -382,6 +391,8 @@ export default function Regisseur() {
   const w = project?.wachtend;
 
   return (
+    <>
+    {motionStand && <div className="mb-3"><BrowserMelding stand={motionStand} /></div>}
     <div className="grid grid-cols-1 lg:grid-cols-[220px_minmax(0,1fr)_300px] gap-5 items-start -mt-2">
       {/* Projecten */}
       <aside className="space-y-2 lg:sticky lg:top-6">
@@ -792,5 +803,6 @@ export default function Regisseur() {
         />
       )}
     </div>
+    </>
   );
 }

@@ -25,6 +25,9 @@ import { leesCreator, leesOnderwerp } from "@/lib/ugc/regie";
 import { CREATORS } from "@/lib/ugc/creators";
 import { UGC_LENGTES, ugcCredits, type UgcLengte } from "@/lib/ugc/types";
 import { schrijfPlan } from "@/lib/reclame/plan";
+import { schrijfPlan as schrijfMotionPlan } from "@/lib/motion/plan";
+import { MOTION_STIJLEN } from "@/lib/motion/stijlen";
+import { MOTION_LENGTES, MOTION_SOORTEN, motionCredits, type MotionLengte, type MotionSoort } from "@/lib/motion/types";
 import { RECLAME_CREDITS, RECLAME_FORMATEN, STIJLEN, type Product, type ReclameFormaat, type StijlId } from "@/lib/reclame/types";
 import { schrijfTrailer } from "@/lib/trailer/plan";
 import { TRAILER_LENGTES, trailerCredits, type TrailerLengte } from "@/lib/trailer/types";
@@ -34,7 +37,7 @@ import { bedenkIdeeen, maakKalender } from "@/lib/social/kalender";
 
 type Tool = Anthropic.Beta.BetaTool;
 
-export const BETAALDE_TOOLS = new Set([...FILM_BETAALD, "maak_beeld", "maak_voiceover", "maak_video", "gebruik_app", "monteer", "maak_ugc_video", "maak_reclame", "maak_trailer"]);
+export const BETAALDE_TOOLS = new Set([...FILM_BETAALD, "maak_beeld", "maak_voiceover", "maak_video", "gebruik_app", "monteer", "maak_ugc_video", "maak_reclame", "maak_trailer", "maak_motion_graphics"]);
 /** Gratis, meteen uitgevoerd. */
 export const GRATIS_TOOLS = new Set([...FILM_GRATIS, "lees_webpagina", "mijn_werk", "ugc_creators", "zoek_stemmen", "onthoud", "vaste_taak", "lees_huisstijl", "social_kanalen", "maak_contentkalender"]);
 
@@ -204,6 +207,29 @@ export const TOOLS: Tool[] = [
         formaat: { type: "string", enum: RECLAME_FORMATEN.map((f) => f.id) },
       },
       required: ["stijl"],
+    },
+  },
+  {
+    name: "maak_motion_graphics",
+    description: `Maak een complete motion graphics-video (kost credits, prijs hangt van de lengte af): strakke platte animatie met vormen, iconen, grafieken, getallen, kaarten, tijdlijnen en tekst in beeld, met voice-over en muziek, alles exact op de stem getimed. Geen AI-beelden of AI-clips: de animatie wordt getekend, dus tekst, getallen, logo's en stappen staan altijd foutloos en scherp in beeld. Het script wordt bij het voorstel geschreven; de gebruiker ziet het vóór betalen. Lengtes: ${MOTION_LENGTES.map((l) => `${l.sec} s`).join(", ")}. Soorten: ${MOTION_SOORTEN.map((x) => `${x.id} (${x.uitleg})`).join("; ")}. Tekenstijlen: ${MOTION_STIJLEN.map((x) => `${x.id} (${x.uitleg})`).join("; ")}. Duurt 5-15 min; de video wordt afgemaakt in de browser van de gebruiker, dus de Regisseur-pagina (of de motion-studio) moet openblijven.`,
+    input_schema: {
+      type: "object",
+      properties: {
+        onderwerp: { type: "string", description: "Alles wat de scriptschrijver moet weten: wat, voor wie, de boodschap, stappen, feiten, getallen en claims letterlijk. Of het volledige script als eigen_script true is." },
+        eigen_script: { type: "boolean", description: "true als onderwerp al de letterlijke gesproken tekst is (bijvoorbeeld het script dat de gebruiker in de chat goedkeurde)." },
+        soort: { type: "string", enum: MOTION_SOORTEN.map((x) => x.id) },
+        lengte: { type: "integer", enum: MOTION_LENGTES.map((l) => l.sec) },
+        formaat: { type: "string", enum: ["16:9", "9:16"] },
+        stijl: { type: "string", enum: MOTION_STIJLEN.map((x) => x.id), description: "Tekenstijl; leeg = de standaard (strak en zakelijk)." },
+        bedrijf: { type: "string", description: "Bedrijfsnaam (verplicht bij soort bedrijf)." },
+        website: { type: "string" },
+        kleur: { type: "string", description: "Hoofdkleur als #rrggbb (uit lees_huisstijl)." },
+        kleur2: { type: "string", description: "Accentkleur als #rrggbb." },
+        logo: { type: "string", description: "Adres van het logo op onze opslag (uit lees_huisstijl), of leeg." },
+        stem: { type: "string", description: "Stem-id uit zoek_stemmen; leeg = Hugo." },
+        muziek: { type: "string", enum: ["", ...MUSIC_TRACKS.map((t) => t.slug)], description: "Nummer op slug; \"\" = geen muziek." },
+      },
+      required: ["onderwerp", "lengte"],
     },
   },
   {
@@ -521,6 +547,26 @@ export async function bereidVoor(userId: string, blok: Anthropic.Beta.BetaToolUs
       ...basis, maker: "reclame", invoer, credits: RECLAME_CREDITS,
       omschrijving: `Reclame voor ${product.naam} (${STIJLEN.find((x) => x.id === stijl)?.naam}, ${formaat})`,
       details: { beelden: [fotoUrl], regels: [`🎙️ ${plan.voiceover}`, ...plan.shots.map((x, n) => `Shot ${n + 1}: ${x.uitleg || x.tekst}`), `Eindkaart: ${plan.eindtekst}`] },
+    };
+  }
+  if (blok.name === "maak_motion_graphics") {
+    const lengte = (MOTION_LENGTES.some((l) => l.sec === i.lengte) ? i.lengte : 60) as MotionLengte;
+    const soort = (MOTION_SOORTEN.some((x) => x.id === i.soort) ? i.soort : "uitleg") as MotionSoort;
+    const formaat = i.formaat === "9:16" ? "9:16" : "16:9";
+    const onderwerp = String(i.onderwerp ?? "").trim();
+    if (!onderwerp) throw new Error("Geef het onderwerp (of het script) mee.");
+    const bedrijf = String(i.bedrijf ?? "").trim().slice(0, 40);
+    if (soort === "bedrijf" && !bedrijf) throw new Error("Bij een bedrijfsvideo hoort de bedrijfsnaam (bedrijf).");
+    // Het script nu al schrijven: de gebruiker ziet bij de bevestiging waar hij voor betaalt.
+    const { plan } = await schrijfMotionPlan({ onderwerp, bedrijf, lengte, staand: formaat === "9:16", eigenScript: i.eigen_script === true, soort });
+    const invoer = {
+      onderwerp, bedrijf, website: i.website ?? "", kleur: i.kleur, kleur2: i.kleur2, logo: i.logo ?? "",
+      formaat, lengte, soort, stijl: i.stijl ?? "", stem: i.stem ?? "", muziek: i.muziek ?? undefined, plan, taal: "nl",
+    };
+    return {
+      ...basis, maker: "motion", invoer, credits: motionCredits(lengte),
+      omschrijving: `Motion graphics (${MOTION_LENGTES.find((l) => l.sec === lengte)?.naam}, ${formaat === "9:16" ? "staand" : "liggend"})${plan.titel ? ` — "${plan.titel}"` : ""}`,
+      details: { regels: [...plan.scenes.map((x) => x.tekst), ...(plan.eind?.tekst ? [plan.eind.tekst] : [])] },
     };
   }
   if (blok.name === "maak_trailer") {
