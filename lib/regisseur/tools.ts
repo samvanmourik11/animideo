@@ -320,7 +320,7 @@ export const TOOLS: Tool[] = [
     name: "begroting",
     description:
       "Leg de gebruiker vóór het maken één keer voor wat het hele project kost, als lijst met posten (pauzeert tot akkoord). Wat daarna binnen de begroting valt, start zonder nieuwe vraag. " +
-      `Prijzen: beeld ${CREDIT_COSTS.IMAGE_GENERATION} cr.; clip van 5 s ${VIDEO_MODELLEN.find((m) => m.id === STANDAARD_VIDEO_MODEL)!.credits} cr.; voice-over ${CREDIT_COSTS.VOICE} cr. per 1.000 tekens; montage zonder voice-over gratis; reclame ${RECLAME_CREDITS} cr. ` +
+      `Prijzen: beeld ${CREDIT_COSTS.IMAGE_GENERATION} cr.; clip van 5 s ${Math.ceil(VIDEO_MODELLEN.find((m) => m.id === STANDAARD_VIDEO_MODEL)!.credits * HERKANS_OPSLAG)} cr.; voice-over ${CREDIT_COSTS.VOICE} cr. per 1.000 tekens; montage zonder voice-over gratis; reclame ${RECLAME_CREDITS} cr. ` +
       "Reken precies, zonder reserve. Komt er later iets bij, maak dan een nieuwe begroting met alleen wat erbij komt.",
     input_schema: {
       type: "object",
